@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Staging environment config — contains staging secrets, must not be committed.
+# Use backend/.env.staging.example as the committed template (T-125).
+backend/.env.staging
+
+# Build output
+frontend/dist/
+backend/dist/
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Playwright
+test-results/
+playwright-report/
+
+# TLS certificates (T-044 — never commit private keys)
+infra/certs/
+
+# Application logs (T-050 — pm2 logs)
+logs/
