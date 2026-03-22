@@ -10,7 +10,7 @@ detect_sprint_state() {
     local active="${WORKFLOW_DIR}/active-sprint.md"
 
     # Check if sprint has been planned
-    if grep -q 'Sprint #N\|Sprint #\[N\]' "$active" 2>/dev/null; then
+    if grep -qE 'Sprint #N|Sprint #\[N\]' "$active" 2>/dev/null; then
         echo "template"
         return
     fi
@@ -57,8 +57,8 @@ phase_design_complete() {
     local handoff="${WORKFLOW_DIR}/handoff-log.md"
 
     # Design is complete if ui-spec has Approved entries
-    grep -q 'Status.*Approved\|status.*Approved' "$ui_spec" 2>/dev/null && \
-    grep -q 'Design Agent.*Frontend Engineer\|From Agent.*Design' "$handoff" 2>/dev/null
+    grep -qE 'Status.*Approved|status.*Approved' "$ui_spec" 2>/dev/null && \
+    grep -qE 'Design Agent.*Frontend Engineer|From Agent.*Design' "$handoff" 2>/dev/null
 }
 
 phase_contracts_complete() {
@@ -67,7 +67,7 @@ phase_contracts_complete() {
 
     # Contracts are complete if api-contracts.md has real endpoint entries
     grep -qE '(GET|POST|PUT|PATCH|DELETE)\s+/api/' "$contracts" 2>/dev/null && \
-    grep -q 'Backend Engineer.*Frontend Engineer\|From Agent.*Backend' "$handoff" 2>/dev/null
+    grep -qE 'Backend Engineer.*Frontend Engineer|From Agent.*Backend' "$handoff" 2>/dev/null
 }
 
 phase_build_complete() {
@@ -97,22 +97,22 @@ phase_qa_complete() {
     sprint_num=$(get_current_sprint)
 
     # QA is complete if there are test entries for this sprint
-    grep -q "Sprint.*${sprint_num}\|Sprint ${sprint_num}" "$qa_log" 2>/dev/null && \
-    grep -q 'Integration Test.*Pass\|Security Scan.*Pass' "$qa_log" 2>/dev/null
+    grep -qE "Sprint.*${sprint_num}|Sprint ${sprint_num}" "$qa_log" 2>/dev/null && \
+    grep -qE 'Integration Test.*Pass|Security Scan.*Pass' "$qa_log" 2>/dev/null
 }
 
 phase_deploy_complete() {
     local qa_log="${WORKFLOW_DIR}/qa-build-log.md"
 
     # Deploy is complete if staging deployment is logged
-    grep -q 'Staging.*Success\|Environment.*Staging' "$qa_log" 2>/dev/null
+    grep -qE 'Staging.*Success|Environment.*Staging' "$qa_log" 2>/dev/null
 }
 
 phase_verify_complete() {
     local qa_log="${WORKFLOW_DIR}/qa-build-log.md"
 
     # Verification is complete if health check passes
-    grep -q 'Deploy Verified.*Yes\|Health Check.*Pass' "$qa_log" 2>/dev/null
+    grep -qE 'Deploy Verified.*Yes|Health Check.*Pass' "$qa_log" 2>/dev/null
 }
 
 phase_testing_complete() {
@@ -122,8 +122,8 @@ phase_testing_complete() {
     sprint_num=$(get_current_sprint)
 
     # User testing is complete if feedback entries exist for this sprint
-    grep -q "Sprint.*${sprint_num}\|Sprint ${sprint_num}" "$feedback" 2>/dev/null && \
-    grep -q 'User Agent.*Manager\|From Agent.*User' "$handoff" 2>/dev/null
+    grep -qE "Sprint.*${sprint_num}|Sprint ${sprint_num}" "$feedback" 2>/dev/null && \
+    grep -qE 'User Agent.*Manager|From Agent.*User' "$handoff" 2>/dev/null
 }
 
 phase_closeout_complete() {
