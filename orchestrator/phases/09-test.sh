@@ -51,9 +51,14 @@ Bad feedback: 'Registration is broken.'"
 
     run_agent_with_retry "user-agent" "$task_prompt" 3 45 "${MODEL_LIGHT:-sonnet}"
 
-    sprint_state_set "phase" "test"
-    sprint_state_set "test_status" "complete"
-    log_success "User testing complete"
+    if phase_testing_complete; then
+        sprint_state_set "phase" "test"
+        sprint_state_set "test_status" "complete"
+        log_success "User testing complete"
+    else
+        log_error "User testing incomplete — expected feedback entries in feedback-log.md and handoff to Manager"
+        return 1
+    fi
 
     # Report feedback summary
     local feedback="${WORKFLOW_DIR}/feedback-log.md"

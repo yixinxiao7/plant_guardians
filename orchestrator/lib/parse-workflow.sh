@@ -58,7 +58,7 @@ phase_design_complete() {
 
     # Design is complete if ui-spec has Approved entries
     grep -qE 'Status.*Approved|status.*Approved' "$ui_spec" 2>/dev/null && \
-    grep -qE 'Design Agent.*Frontend Engineer|From Agent.*Design' "$handoff" 2>/dev/null
+    grep -qE '\*\*From\*\*.*Design Agent|Design Agent.*Frontend Engineer' "$handoff" 2>/dev/null
 }
 
 phase_contracts_complete() {
@@ -67,7 +67,7 @@ phase_contracts_complete() {
 
     # Contracts are complete if api-contracts.md has real endpoint entries
     grep -qE '(GET|POST|PUT|PATCH|DELETE)\s+/api/' "$contracts" 2>/dev/null && \
-    grep -qE 'Backend Engineer.*Frontend Engineer|From Agent.*Backend' "$handoff" 2>/dev/null
+    grep -qE '\*\*From\*\*.*Backend Engineer|Backend Engineer.*Frontend Engineer' "$handoff" 2>/dev/null
 }
 
 phase_build_complete() {
@@ -96,23 +96,26 @@ phase_qa_complete() {
     local sprint_num
     sprint_num=$(get_current_sprint)
 
-    # QA is complete if there are test entries for this sprint
+    # QA is complete if qa-build-log has test entries for this sprint
+    # Agent writes: "Test Type: Integration Test", "Test Type: Security Scan"
     grep -qE "Sprint.*${sprint_num}|Sprint ${sprint_num}" "$qa_log" 2>/dev/null && \
-    grep -qE 'Integration Test.*Pass|Security Scan.*Pass' "$qa_log" 2>/dev/null
+    grep -qE 'Test Type.*Integration Test|Test Type.*Security Scan' "$qa_log" 2>/dev/null
 }
 
 phase_deploy_complete() {
     local qa_log="${WORKFLOW_DIR}/qa-build-log.md"
 
     # Deploy is complete if staging deployment is logged
-    grep -qE 'Staging.*Success|Environment.*Staging' "$qa_log" 2>/dev/null
+    # Agent writes: "Environment: Staging, Build Status: Success/Failed"
+    grep -qE 'Environment.*Staging|Build Status.*Success' "$qa_log" 2>/dev/null
 }
 
 phase_verify_complete() {
     local qa_log="${WORKFLOW_DIR}/qa-build-log.md"
 
     # Verification is complete if health check passes
-    grep -qE 'Deploy Verified.*Yes|Health Check.*Pass' "$qa_log" 2>/dev/null
+    # Agent writes: "Deploy Verified: Yes" or "Deploy Verified: No"
+    grep -qE 'Deploy Verified.*Yes' "$qa_log" 2>/dev/null
 }
 
 phase_testing_complete() {
@@ -123,7 +126,7 @@ phase_testing_complete() {
 
     # User testing is complete if feedback entries exist for this sprint
     grep -qE "Sprint.*${sprint_num}|Sprint ${sprint_num}" "$feedback" 2>/dev/null && \
-    grep -qE 'User Agent.*Manager|From Agent.*User' "$handoff" 2>/dev/null
+    grep -qE '\*\*From\*\*.*User Agent|User Agent.*Manager' "$handoff" 2>/dev/null
 }
 
 phase_closeout_complete() {

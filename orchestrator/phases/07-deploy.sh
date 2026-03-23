@@ -44,7 +44,12 @@ Note: For this local/staging setup, 'staging' means running the built applicatio
 
     run_agent_with_retry "deploy-engineer" "$task_prompt" 3 40 "${MODEL_LIGHT:-sonnet}"
 
-    sprint_state_set "phase" "deploy"
-    sprint_state_set "deploy_status" "complete"
-    log_success "Deploy phase complete"
+    if phase_deploy_complete; then
+        sprint_state_set "phase" "deploy"
+        sprint_state_set "deploy_status" "complete"
+        log_success "Deploy phase complete"
+    else
+        log_error "Deploy phase incomplete — expected deployment entry in qa-build-log.md"
+        return 1
+    fi
 }

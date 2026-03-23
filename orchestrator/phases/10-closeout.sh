@@ -54,7 +54,12 @@ CRITICAL: Do NOT skip step 6. The next sprint plan MUST be written to active-spr
 
     run_agent_with_retry "manager" "$task_prompt" 3 30 "${MODEL_LIGHT:-sonnet}"
 
-    sprint_state_set "phase" "closeout"
-    sprint_state_set "closeout_status" "complete"
-    log_success "Sprint #${sprint_num} closed out"
+    if phase_closeout_complete; then
+        sprint_state_set "phase" "closeout"
+        sprint_state_set "closeout_status" "complete"
+        log_success "Sprint #${sprint_num} closed out"
+    else
+        log_error "Closeout incomplete — expected sprint summary in sprint-log.md"
+        return 1
+    fi
 }

@@ -76,7 +76,12 @@ Be thorough. Run actual commands to test. Check actual code for security issues.
         fi
     fi
 
-    sprint_state_set "phase" "qa"
-    sprint_state_set "qa_status" "complete"
-    log_success "QA phase complete"
+    if phase_qa_complete; then
+        sprint_state_set "phase" "qa"
+        sprint_state_set "qa_status" "complete"
+        log_success "QA phase complete"
+    else
+        log_error "QA phase incomplete — expected test results in qa-build-log.md"
+        return 1
+    fi
 }
