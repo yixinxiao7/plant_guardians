@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PencilSimple, TrashSimple, Leaf, Drop, PottedPlant } from '@phosphor-icons/react';
 import { usePlantDetail } from '../hooks/usePlants.js';
-import { useToast } from '../hooks/useToast.js';
+import { useToast } from '../hooks/useToast.jsx';
 import { plants as plantsApi } from '../utils/api.js';
 import StatusBadge from '../components/StatusBadge.jsx';
 import Button from '../components/Button.jsx';

@@ -469,6 +469,61 @@ All Sprint 1 backend tasks (T-008, T-009, T-010, T-011, T-012, T-013, T-014) are
 
 ---
 
+## H-014 — Staging Deployment Complete — Monitor Agent: Run Health Checks
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-014 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-23 |
+| **Sprint** | 1 |
+| **Subject** | Sprint 1 staging deployment is complete. Backend and frontend are running locally. Monitor Agent should run post-deploy health checks. |
+| **Spec Refs** | T-018, T-019 |
+| **Status** | Pending |
+
+### Services Running
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | `http://localhost:3000` | ✅ Running |
+| Frontend (preview) | `http://localhost:4173` | ✅ Running |
+| Database | PostgreSQL 15 @ `localhost:5432` (db: `plant_guardians_staging`) | ✅ Running |
+
+### Health Checks Already Verified by Deploy Engineer
+
+| Check | Result |
+|-------|--------|
+| `GET http://localhost:3000/api/health` | ✅ `{"status":"ok","timestamp":"..."}` |
+| `GET http://localhost:4173/` | ✅ HTTP 200 |
+| `GET http://localhost:3000/api/v1/plants` (invalid token) | ✅ HTTP 401 UNAUTHORIZED — auth middleware working |
+| 5 database migrations applied | ✅ Batch 1: 5 migrations |
+
+### What Monitor Agent Should Verify
+
+1. **API health endpoint:** `GET http://localhost:3000/api/health` → `{"status":"ok"}`
+2. **Auth endpoints respond:** `POST http://localhost:3000/api/v1/auth/register` with valid payload → 201
+3. **Auth login:** `POST http://localhost:3000/api/v1/auth/login` → 200 + JWT tokens
+4. **Protected endpoints enforce auth:** `GET http://localhost:3000/api/v1/plants` with no token → 401
+5. **Frontend loads:** `GET http://localhost:4173/` → 200 with HTML content
+6. **No error logs:** Check backend console for unexpected errors
+7. **Database connectivity:** Verify migrations table exists in `plant_guardians_staging`
+
+### Known Limitations for Staging
+
+- **GEMINI_API_KEY** is a placeholder — `POST /ai/advice` will return 502. This is expected and acceptable for staging.
+- **Docker** is not available on this machine — staging runs as local processes, not containers.
+- **Frontend tasks T-001–T-007** are still in Backlog — full end-to-end user flow testing (T-020) must wait until frontend is built and QA integration tests (T-015–T-017) pass.
+- **npm audit** — 2 high-severity tar vulnerabilities (transitive, low runtime risk). Must be resolved before production deploy.
+
+### Fix Applied During Deployment (Logged for Frontend Engineer)
+
+`useToast.js` and `useAuth.js` were renamed to `.jsx` and all import paths updated. These files contained JSX components but had `.js` extension, which caused Vite 8 (rolldown) to fail the production build with "Unexpected JSX expression" errors. The Frontend Engineer should be aware of this for future development — new files containing JSX must use the `.jsx` extension.
+
+---
+
+---
+
 ## H-011 — QA: Backend Tasks Pass All Tests — Moved to Done
 
 | Field | Value |

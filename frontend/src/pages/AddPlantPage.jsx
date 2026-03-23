@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkle } from '@phosphor-icons/react';
 import { plants as plantsApi } from '../utils/api.js';
-import { useToast } from '../hooks/useToast.js';
+import { useToast } from '../hooks/useToast.jsx';
 import { validatePlantName, validateFrequencyValue } from '../utils/validation.js';
 import Input from '../components/Input.jsx';
 import Button from '../components/Button.jsx';

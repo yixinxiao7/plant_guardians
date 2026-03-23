@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, MagnifyingGlass, Plant as PlantIcon } from '@phosphor-icons/react';
 import { usePlants } from '../hooks/usePlants.js';
-import { useToast } from '../hooks/useToast.js';
+import { useToast } from '../hooks/useToast.jsx';
 import PlantCard from '../components/PlantCard.jsx';
 import Button from '../components/Button.jsx';
 import Modal from '../components/Modal.jsx';

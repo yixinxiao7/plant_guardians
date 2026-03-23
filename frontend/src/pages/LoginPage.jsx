@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plant } from '@phosphor-icons/react';
-import { useAuth } from '../hooks/useAuth.js';
-import { useToast } from '../hooks/useToast.js';
+import { useAuth } from '../hooks/useAuth.jsx';
+import { useToast } from '../hooks/useToast.jsx';
 import Input from '../components/Input.jsx';
 import Button from '../components/Button.jsx';
 import {

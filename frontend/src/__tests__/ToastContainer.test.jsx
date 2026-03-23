@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import ToastContainer from '../components/ToastContainer.jsx';
 
-vi.mock('../hooks/useToast.js', () => ({
+vi.mock('../hooks/useToast.jsx', () => ({
   useToast: () => ({
     toasts: [],
     removeToast: vi.fn(),

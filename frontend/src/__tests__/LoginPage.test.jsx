@@ -11,14 +11,14 @@ vi.mock('@phosphor-icons/react', () => ({
   EyeSlash: (props) => <span data-testid="icon-eye-slash" {...props} />,
 }));
 
-vi.mock('../hooks/useAuth.js', () => ({
+vi.mock('../hooks/useAuth.jsx', () => ({
   useAuth: () => ({
     login: vi.fn(),
     register: vi.fn(),
   }),
 }));
 
-vi.mock('../hooks/useToast.js', () => ({
+vi.mock('../hooks/useToast.jsx', () => ({
   useToast: () => ({
     addToast: vi.fn(),
   }),

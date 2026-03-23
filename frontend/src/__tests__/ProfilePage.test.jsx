@@ -12,14 +12,14 @@ vi.mock('@phosphor-icons/react', () => ({
   SignOut: (props) => <span data-testid="icon-signout" {...props} />,
 }));
 
-vi.mock('../hooks/useAuth.js', () => ({
+vi.mock('../hooks/useAuth.jsx', () => ({
   useAuth: () => ({
     user: { full_name: 'Jane Doe', email: 'jane@example.com' },
     logout: vi.fn(),
   }),
 }));
 
-vi.mock('../hooks/useToast.js', () => ({
+vi.mock('../hooks/useToast.jsx', () => ({
   useToast: () => ({
     addToast: vi.fn(),
   }),

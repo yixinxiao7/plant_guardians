@@ -10,7 +10,7 @@ vi.mock('@phosphor-icons/react', () => ({
   X: (props) => <span data-testid="icon-x" {...props} />,
 }));
 
-vi.mock('../hooks/useAuth.js', () => ({
+vi.mock('../hooks/useAuth.jsx', () => ({
   useAuth: () => ({
     user: { full_name: 'Jane Doe', email: 'jane@example.com' },
     logout: vi.fn(),

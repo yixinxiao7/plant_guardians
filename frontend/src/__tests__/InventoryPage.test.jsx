@@ -25,7 +25,7 @@ vi.mock('../hooks/usePlants.js', () => ({
   }),
 }));
 
-vi.mock('../hooks/useToast.js', () => ({
+vi.mock('../hooks/useToast.jsx', () => ({
   useToast: () => ({
     addToast: vi.fn(),
   }),

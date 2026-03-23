@@ -23,7 +23,7 @@ vi.mock('@phosphor-icons/react', () => ({
   Lightbulb: (props) => <span data-testid="icon-lightbulb" {...props} />,
 }));
 
-vi.mock('../hooks/useToast.js', () => ({
+vi.mock('../hooks/useToast.jsx', () => ({
   useToast: () => ({
     addToast: vi.fn(),
   }),

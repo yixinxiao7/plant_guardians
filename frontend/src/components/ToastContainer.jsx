@@ -1,4 +1,4 @@
-import { useToast } from '../hooks/useToast.js';
+import { useToast } from '../hooks/useToast.jsx';
 
 export default function ToastContainer() {
   const { toasts, removeToast } = useToast();

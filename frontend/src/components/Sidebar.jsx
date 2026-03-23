@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Plant, User, SignOut, List, X } from '@phosphor-icons/react';
-import { useAuth } from '../hooks/useAuth.js';
+import { useAuth } from '../hooks/useAuth.jsx';
 import './Sidebar.css';
 
 export default function Sidebar({ isOpen, onClose }) {

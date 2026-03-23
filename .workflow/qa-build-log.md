@@ -270,3 +270,86 @@ Reviewed `frontend/src/utils/api.js`:
 Frontend tasks (T-001 through T-007) are still in Backlog status — not yet implemented. QA integration tests for frontend-backend flows (T-015, T-016, T-017) are blocked on frontend implementation. Backend-only verification is complete.
 
 ---
+
+## Sprint 1 — Build & Staging Deployment
+
+**Date:** 2026-03-23
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 1
+
+---
+
+### Build 1 — Frontend Production Build
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-23 |
+| **Command** | `cd frontend && npm run build` |
+| **Result** | ✅ SUCCESS |
+| **Output** | 4604 modules transformed; `dist/index.html` (0.74 kB), `dist/assets/index-*.css` (29.12 kB), `dist/assets/index-*.js` (357.08 kB) |
+| **Duration** | 520ms |
+| **Fix Applied** | Initial build failed: `useToast.js` and `useAuth.js` contained JSX but had `.js` extension — Vite 8/rolldown does not process JSX in `.js` files. Fixed by renaming both to `.jsx` and updating all import paths. No logic changes. |
+
+---
+
+### Build 2 — Backend Dependency Install & Security Fix
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-23 |
+| **Command** | `cd backend && npm install && npm audit fix` |
+| **Result** | ⚠️ PARTIAL — Dependencies installed. `npm audit fix` could not auto-resolve the `tar` transitive vulnerability without `--force`. |
+| **Notes** | 2 high-severity vulnerabilities in `tar` (via bcrypt → @mapbox/node-pre-gyp). Low runtime risk — tar only invoked during `npm install`, not at server runtime. Flagged for follow-up before production deploy. |
+
+---
+
+### Build 3 — Database Migrations (Staging)
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-23 |
+| **Environment** | Staging (local — PostgreSQL 15, database: `plant_guardians_staging`) |
+| **Command** | `cd backend && npm run migrate` |
+| **Result** | ✅ SUCCESS |
+| **Output** | Batch 1 run: 5 migrations |
+| **Migrations Applied** | `20260323_01_create_users`, `20260323_02_create_refresh_tokens`, `20260323_03_create_plants`, `20260323_04_create_care_schedules`, `20260323_05_create_care_actions` |
+
+---
+
+### Deployment 1 — Staging
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-23 |
+| **Environment** | Staging (local processes — Docker not available on this machine) |
+| **Build Status** | ✅ Success |
+| **Backend URL** | `http://localhost:3000` |
+| **Frontend URL** | `http://localhost:4173` (Vite preview of production build) |
+| **Health Check** | ✅ `GET /api/health` → `{"status":"ok","timestamp":"2026-03-23T22:34:16.630Z"}` |
+| **Auth Middleware** | ✅ `GET /api/v1/plants` with invalid token → 401 UNAUTHORIZED |
+| **Uploads Dir** | ✅ `backend/uploads/` exists and writable |
+| **Database** | PostgreSQL 15 (Homebrew), database: `plant_guardians_staging`, user: `plant_guardians` |
+| **Migrations** | ✅ 5/5 applied in Batch 1 |
+
+#### Infrastructure Notes
+
+- **Docker:** Not available on this machine. Staging uses local PostgreSQL 15 (Homebrew) and local Node.js processes.
+- **Backend:** Started with `node src/server.js` on port 3000.
+- **Frontend:** Served via `vite preview` at `http://localhost:4173`. Calls backend directly at `http://localhost:3000/api/v1`.
+- **JWT Secret:** Generated fresh with `openssl rand -hex 64` for this staging deployment.
+- **GEMINI_API_KEY:** Placeholder — AI advice endpoint will return 502 until a real key is configured.
+
+#### Pre-Deploy Checklist
+
+| Requirement | Status |
+|-------------|--------|
+| QA confirmation in handoff log (H-011) | ✅ |
+| All backend tasks Done (T-008 – T-014) | ✅ |
+| Migrations documented in technical-context.md | ✅ |
+| Migrations run successfully | ✅ |
+| Backend starts and health check passes | ✅ |
+| Frontend build succeeds | ✅ |
+| Uploads directory exists | ✅ |
+| JWT secret generated (not default placeholder) | ✅ |
+
+---
