@@ -270,7 +270,9 @@ router.post(
       }
 
       if (!req.file) {
-        throw new ValidationError('No file included in request.');
+        const err = new ValidationError('No file included in request.');
+        err.code = 'MISSING_FILE';
+        throw err;
       }
 
       // Build the photo URL — in dev, serve from /uploads/

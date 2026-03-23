@@ -76,7 +76,7 @@ echo "--- [5/5] Health check ---"
 MAX_RETRIES=10
 RETRY_DELAY=5
 for i in $(seq 1 $MAX_RETRIES); do
-  STATUS=$(ssh_run "curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/health" 2>/dev/null || echo "000")
+  STATUS=$(ssh_run "curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/health" 2>/dev/null || echo "000")
   if [ "$STATUS" = "200" ]; then
     echo "Health check passed (HTTP 200)"
     break

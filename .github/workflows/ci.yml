@@ -178,23 +178,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/staging_key
+          chmod 600 ~/.ssh/staging_key
+          ssh-keyscan -H "${{ secrets.STAGING_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
       - name: Deploy to staging server
         env:
           STAGING_HOST: ${{ secrets.STAGING_HOST }}
-          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
           STAGING_USER: ${{ secrets.STAGING_USER || 'deploy' }}
+          STAGING_SSH_KEY: ~/.ssh/staging_key
+          GITHUB_SHA: ${{ github.sha }}
         run: |
-          echo "=== Plant Guardians — Staging Deploy ==="
-          echo "SHA: ${{ github.sha }}"
-          echo ""
-          echo "--- Steps that will run once STAGING_HOST secret is set: ---"
-          echo "1. SSH into staging server"
-          echo "2. cd /opt/plant-guardians"
-          echo "3. git pull origin main"
-          echo "4. docker compose -f infra/docker-compose.staging.yml pull"
-          echo "5. docker compose -f infra/docker-compose.staging.yml up -d --build"
-          echo "6. Run: docker compose exec migrate (knex migrate:latest)"
-          echo "7. Health check: curl http://localhost:3000/health"
-          echo ""
-          echo "See infra/deploy-staging.sh for the full deployment script."
-          echo "=== Staging deploy step complete (placeholder until host is configured) ==="
+          chmod +x infra/deploy-staging.sh
+          ./infra/deploy-staging.sh
