@@ -468,3 +468,105 @@ Tests require a running PostgreSQL database. They all fail with "role postgres d
 All Sprint 1 backend tasks (T-008, T-009, T-010, T-011, T-012, T-013, T-014) are now in Integration Check. QA may proceed with full integration testing.
 
 ---
+
+## H-011 — QA: Backend Tasks Pass All Tests — Moved to Done
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-011 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 1 |
+| **Subject** | All 7 backend tasks (T-008 through T-014) have passed unit tests, API contract verification, and security scan. Moved to Done. Backend is ready for staging deployment. |
+| **Spec Refs** | T-008, T-009, T-010, T-011, T-012, T-013, T-014 |
+| **Status** | Pending |
+
+### Test Results Summary
+
+| Test Type | Result |
+|-----------|--------|
+| Backend Unit Tests | ✅ 40/40 pass |
+| API Contract Verification | ✅ All 14 endpoints match contracts |
+| Security Checklist | ✅ All applicable items verified |
+| npm audit | ⚠️ 2 high (tar — transitive, low runtime risk). Recommend `npm audit fix` before production. |
+
+### What Deploy Engineer Needs to Do
+
+1. **Run `npm audit fix`** in the backend directory to address the tar vulnerability
+2. **Set real environment variables** on staging — especially `JWT_SECRET` (generate with `openssl rand -hex 64`) and `GEMINI_API_KEY`
+3. **Run migrations** on staging: `cd backend && npm run migrate`
+4. **Ensure PostgreSQL 13+** is available (required for `gen_random_uuid()`)
+5. **Ensure the `uploads/` directory** exists and is writable for photo upload
+6. **Verify CORS** is set to the staging frontend URL (update `FRONTEND_URL` env var)
+
+### Pre-Deploy Checklist Status
+
+| Requirement | Status |
+|-------------|--------|
+| All backend unit tests pass | ✅ |
+| API contracts verified | ✅ |
+| Security checklist verified | ✅ |
+| All backend tasks Done | ✅ (T-008 through T-014) |
+| Frontend implementation complete | ❌ (T-001 through T-007 still in Backlog — blocks full integration tests) |
+
+### Deployment Readiness
+
+**Backend: ✅ Ready for staging deployment.**
+
+**Full app (frontend + backend): ❌ Not ready.** Frontend tasks (T-001–T-007) are still in Backlog. Full end-to-end integration tests (T-015, T-016, T-017) are blocked on frontend implementation. Deploy Engineer may deploy backend to staging independently for early API validation, but the full app deployment (T-018) must wait until frontend tasks are complete and pass QA.
+
+---
+
+## H-012 — QA: Frontend LoginPage Test Failures — Fix Needed
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-012 |
+| **From** | QA Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 1 |
+| **Subject** | 2 test failures in LoginPage.test.jsx. Test selectors need fixing — the component renders correctly. |
+| **Spec Refs** | T-001 |
+| **Status** | Pending |
+
+### Failures
+
+**1. `renders without crashing`**
+- `screen.getByText('Plant Guardians')` matches two elements: `<h1>` in the brand panel and `<span>` in the mobile logo.
+- **Fix:** Use `screen.getAllByText('Plant Guardians')` and assert `.length >= 1`, or use a more specific selector like `screen.getByRole('heading', { name: 'Plant Guardians' })`.
+
+**2. `renders login form with tabs`**
+- `screen.getByLabelText('Email')` fails. The `<label>` contains "Email" text plus a `<span aria-hidden="true"> *</span>` for the required indicator.
+- **Fix:** Use `screen.getByLabelText(/Email/i)` (regex) or `screen.getByRole('textbox', { name: /email/i })`.
+
+### Note
+
+These are P2 test code issues, not P1 implementation bugs. The LoginPage component renders correctly per SPEC-001. 16 out of 17 frontend test suites pass (46/48 tests). The component is fine — only the test selectors need adjustment.
+
+---
+
+## H-013 — QA: npm audit Advisory — tar Vulnerability
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-013 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 1 |
+| **Subject** | npm audit found 2 high-severity vulnerabilities in the `tar` package (transitive dependency via bcrypt). Recommend running `npm audit fix` before production. |
+| **Spec Refs** | — |
+| **Status** | Pending |
+
+### Details
+
+- **Package:** tar <=7.5.10
+- **Severity:** High
+- **Path:** bcrypt → @mapbox/node-pre-gyp → tar
+- **Impact:** Path traversal and symlink poisoning during archive extraction. Low runtime risk (tar is only used during `npm install` for native bcrypt compilation, not at runtime).
+- **Fix:** Run `cd backend && npm audit fix`
+- **Priority:** P3 for Sprint 1. Should be fixed before production deploy.
+
+---
