@@ -353,3 +353,187 @@ Frontend tasks (T-001 through T-007) are still in Backlog status — not yet imp
 | JWT secret generated (not default placeholder) | ✅ |
 
 ---
+
+## Sprint 1 — Staging Re-Deployment (Deploy Engineer — Issue Fixes)
+
+**Date:** 2026-03-23
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 1
+**Triggered by:** H-015 (CORS mismatch), H-016 (missing seed data + race condition)
+
+---
+
+### Fix 1 — CORS Multi-Origin Support
+
+| Field | Value |
+|-------|-------|
+| **Issue** | `FRONTEND_URL=http://localhost:5173` only; staging frontend at `:4173` blocked by browser CORS |
+| **Fix Applied** | Updated `backend/.env`: `FRONTEND_URL=http://localhost:5173,http://localhost:4173` |
+| **Code Change** | `backend/src/app.js` — CORS origin now accepts comma-separated list via split+includes logic (no-origin requests like curl also allowed) |
+| **Verified** | `curl -H "Origin: http://localhost:4173" /api/health` → `Access-Control-Allow-Origin: http://localhost:4173` ✅ |
+| **Also verified** | `:5173` origin still works ✅ |
+
+---
+
+### Fix 2 — Startup Race Condition
+
+| Field | Value |
+|-------|-------|
+| **Issue** | Server accepted HTTP connections before Knex DB pool was ready — first 1-2 requests returned HTTP 500 |
+| **Fix Applied** | `backend/src/server.js` — `app.listen()` is now called inside `db.raw('SELECT 1').then(...)`. If DB unreachable at boot, process exits with error code 1. |
+| **Verified** | Backend started cleanly; no 500s on first requests ✅ |
+
+---
+
+### Fix 3 — Seed Data (Test Account)
+
+| Field | Value |
+|-------|-------|
+| **Issue** | Monitor Agent health check protocol expects `test@plantguardians.local` account — was not seeded |
+| **Fix Applied** | Created `backend/src/seeds/01_test_user.js` — idempotent seed for test account (`test@plantguardians.local` / `TestPass123!`) |
+| **Knexfile** | Added `seeds.directory: './src/seeds'` to `development` and `staging` environments in `knexfile.js` |
+| **Command run** | `npx knex seed:run` → `[seed] Created test user: test@plantguardians.local` ✅ |
+
+---
+
+### Deployment 2 — Staging (Re-deploy after fixes)
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-23 |
+| **Environment** | Staging (local processes — Docker not available) |
+| **Backend PID** | 17701 (restarted after CORS + server.js fixes) |
+| **Backend URL** | `http://localhost:3000` |
+| **Frontend URL** | `http://localhost:4173` (Vite preview — unchanged, PID 16455) |
+| **Build Status** | ✅ Success (no rebuild needed — JS/config fixes only) |
+| **Migrations** | ✅ 5/5 already applied from Deployment 1 — no new migrations |
+| **Seed Data** | ✅ `test@plantguardians.local` created |
+
+#### Post-Fix Verification
+
+| Check | Result |
+|-------|--------|
+| `GET /api/health` → 200 | ✅ `{"status":"ok","timestamp":"2026-03-23T22:44:05.305Z"}` |
+| CORS: `:4173` origin allowed | ✅ `Access-Control-Allow-Origin: http://localhost:4173` |
+| CORS: `:5173` origin allowed | ✅ `Access-Control-Allow-Origin: http://localhost:5173` |
+| Login with test user | ✅ HTTP 200 + JWT tokens returned |
+| Protected endpoint without token → 401 | ✅ |
+| Frontend at `:4173` → 200 | ✅ |
+| DB startup race condition | ✅ Fixed — server waits for DB before accepting connections |
+
+---
+
+## Sprint 1 — Post-Deploy Health Check (Monitor Agent)
+
+**Date:** 2026-03-23T22:37:00Z
+**Monitor Agent**
+**Environment:** Staging (local — `http://localhost:3000` backend, `http://localhost:4173` frontend preview)
+**Triggered by:** H-014 (Deploy Engineer staging deployment complete)
+
+---
+
+### Config Consistency Check
+
+| Field | Value |
+|-------|-------|
+| **Test Type** | Config Consistency |
+| **Date** | 2026-03-23T22:37:00Z |
+| **Files Inspected** | `backend/.env`, `frontend/vite.config.js`, `infra/docker-compose.yml`, `backend/src/app.js` |
+| **Result** | ❌ FAIL — 1 critical mismatch found |
+
+#### Findings
+
+| Check | Expected | Actual | Verdict |
+|-------|----------|--------|---------|
+| **Backend PORT** | PORT defined in .env | `PORT=3000` | ✅ PASS |
+| **SSL/HTTPS** | If SSL_KEY_PATH + SSL_CERT_PATH set → vite proxy must use `https://` | Neither `SSL_KEY_PATH` nor `SSL_CERT_PATH` is set in `.env` → backend runs HTTP. No SSL mismatch possible. | ✅ PASS — N/A |
+| **Vite proxy target port** | Must match backend PORT (3000) | `vite.config.js` has **no `server.proxy` defined at all** — only `plugins` and `test` config. Frontend makes direct API calls via `VITE_API_BASE_URL` env var. | ⚠️ NOTE — No proxy configured. Acceptable because CORS is configured. Not a blocking failure. |
+| **CORS_ORIGIN vs dev frontend** | `FRONTEND_URL` must include the frontend dev server origin | `FRONTEND_URL=http://localhost:5173` in `backend/.env`. Default Vite dev server runs on `:5173`. | ✅ PASS (for dev) |
+| **CORS_ORIGIN vs staging frontend** | `FRONTEND_URL` must include the staging frontend origin (`http://localhost:4173`) | Staging frontend is served via `vite preview` at **`http://localhost:4173`** (confirmed in H-014). Backend CORS is configured to `http://localhost:5173` only. **`http://localhost:4173` is NOT in the allowed CORS origins.** | ❌ **FAIL — CORS MISMATCH** |
+| **Docker port mapping** | If docker-compose has backend, container port must match `PORT=3000` | `infra/docker-compose.yml` only defines `postgres` and `postgres_test` services — no backend or frontend containers. Backend runs as a direct Node.js process. PostgreSQL container maps `${POSTGRES_PORT:-5432}:5432`, which matches `DATABASE_URL=...localhost:5432/...` in `.env`. | ✅ PASS |
+
+#### CORS Mismatch — Detail
+
+- **Backend CORS config** (`backend/src/app.js` line 22): `origin: process.env.FRONTEND_URL || 'http://localhost:5173'`
+- **`backend/.env`**: `FRONTEND_URL=http://localhost:5173`
+- **Staging frontend URL** (per H-014): `http://localhost:4173` (Vite preview)
+- **Impact:** Any API call made from the browser at `http://localhost:4173` will be blocked by the browser CORS preflight check. The `Access-Control-Allow-Origin` response header will be `http://localhost:5173`, not `http://localhost:4173`, causing a CORS error. Direct curl/API testing is unaffected, but all browser-based frontend testing is blocked.
+- **Fix required:** Update `FRONTEND_URL` in `backend/.env` to `http://localhost:4173` for staging. Or configure the backend to accept an array of origins (dev: `:5173`, staging preview: `:4173`).
+
+---
+
+### Post-Deploy Health Check
+
+| Field | Value |
+|-------|-------|
+| **Test Type** | Post-Deploy Health Check |
+| **Date** | 2026-03-23T22:37:00Z |
+| **Environment** | Staging |
+| **Backend URL** | http://localhost:3000 |
+| **Frontend URL** | http://localhost:4173 |
+| **Token Acquisition** | `POST /api/v1/auth/login` with seeded account `test@triplanner.local` — **FAILED** (account not seeded; `knex seed:run` was not run). Fell back to `POST /api/v1/auth/register` with ephemeral test account `healthcheck_test_001@test.local`. Login then used for all protected endpoint checks. |
+
+#### Health Check Results
+
+| # | Check | Method | Status | Response |
+|---|-------|--------|--------|----------|
+| 1 | App responds | `GET http://localhost:3000/api/health` | ✅ HTTP 200 | `{"status":"ok","timestamp":"2026-03-23T22:36:41.241Z"}` — matches expected shape |
+| 2 | Auth: Register | `POST /api/v1/auth/register` with valid payload | ✅ HTTP 201 | `{"data":{"user":{...},"access_token":"...","refresh_token":"..."}}` — matches contract |
+| 3 | Auth: Login | `POST /api/v1/auth/login` with registered account | ✅ HTTP 200 | `{"data":{"user":{...},"access_token":"...","refresh_token":"..."}}` — matches contract |
+| 4 | Auth: Invalid credentials | `POST /api/v1/auth/login` with wrong password | ✅ HTTP 401 | `{"error":{"message":"Invalid email or password.","code":"INVALID_CREDENTIALS"}}` |
+| 5 | Auth enforced | `GET /api/v1/plants` with no token | ✅ HTTP 401 | `{"error":{"message":"Missing or invalid authorization header.","code":"UNAUTHORIZED"}}` |
+| 6 | Auth enforced | `GET /api/v1/plants` with tampered token | ✅ HTTP 401 | `{"error":{"message":"Invalid or expired access token.","code":"UNAUTHORIZED"}}` |
+| 7 | Plants list | `GET /api/v1/plants` with valid token | ✅ HTTP 200 | `{"data":[],"pagination":{"page":1,"limit":50,"total":0}}` — correct shape |
+| 8 | Plant create | `POST /api/v1/plants` with name + care_schedule | ✅ HTTP 201 | Full plant object with computed `next_due_at`, `status:"on_track"`, `days_overdue:0` returned — matches contract |
+| 9 | Plant get | `GET /api/v1/plants/:id` | ✅ HTTP 200 | Full plant with `care_schedules` and empty `recent_care_actions` array — matches contract |
+| 10 | Plant update | `PUT /api/v1/plants/:id` (schedule replacement) | ✅ HTTP 200 | Schedules fully replaced; new ID assigned to replaced schedule — matches contract |
+| 11 | Care action create | `POST /api/v1/plants/:id/care-actions` | ✅ HTTP 201 | `{"data":{"care_action":{...},"updated_schedule":{...}}}` — matches contract; `last_done_at` updated |
+| 12 | Care action delete (undo) | `DELETE /api/v1/plants/:id/care-actions/:action_id` | ✅ HTTP 200 | `{"data":{"deleted_action_id":"...","updated_schedule":{...}}}` — `last_done_at` reverted to `null`; `status` moved to `"due_today"` — correct behavior |
+| 13 | Plant delete | `DELETE /api/v1/plants/:id` | ✅ HTTP 200 | `{"data":{"message":"Plant deleted successfully.","id":"..."}}` — matches contract |
+| 14 | Profile | `GET /api/v1/profile` | ✅ HTTP 200 | `{"data":{"user":{...},"stats":{"plant_count":1,"days_as_member":0,"total_care_actions":1}}}` — stats computed correctly |
+| 15 | AI advice (no API key) | `POST /api/v1/ai/advice` with `{"plant_type":"Pothos"}` | ✅ HTTP 502 (expected) | `{"error":{"message":"AI service is not configured.","code":"AI_SERVICE_UNAVAILABLE"}}` — known limitation per H-014 |
+| 16 | Frontend accessible | `GET http://localhost:4173/` | ✅ HTTP 200 | HTML response; `frontend/dist/` exists with `index.html`, `assets/`, `favicon.svg` |
+| 17 | Database connectivity | All 5 migration tables present | ✅ Connected | Tables verified: `users`, `refresh_tokens`, `plants`, `care_schedules`, `care_actions`, `knex_migrations` |
+| 18 | Seeded test account | `POST /api/v1/auth/login` with `test@triplanner.local` | ⚠️ HTTP 401 | `INVALID_CREDENTIALS` — seed data not present; `knex seed:run` was not executed during deployment |
+| 19 | CORS headers (staging) | `Access-Control-Allow-Origin` must include `http://localhost:4173` | ❌ **FAIL** | Header value is `http://localhost:5173` — staging frontend at `:4173` is excluded; browser API calls from staging UI will be rejected with CORS error |
+
+#### Startup Race Condition — Observed
+
+On the very first auth requests immediately after server start, both `POST /api/v1/auth/register` and `POST /api/v1/auth/login` returned:
+```
+HTTP 500 — {"error":{"message":"An unexpected error occurred.","code":"INTERNAL_ERROR"}}
+```
+Subsequent identical requests succeeded (HTTP 201 and HTTP 200). Likely cause: Knex connection pool not fully initialized when first requests arrive. The server begins accepting connections before the database pool is ready. Impact is limited to the first 1–2 requests post-boot; all subsequent requests succeed.
+
+---
+
+### Final Summary
+
+| Check | Result |
+|-------|--------|
+| Config: Backend PORT=3000 | ✅ PASS |
+| Config: SSL/HTTPS consistency | ✅ PASS (N/A) |
+| Config: Vite proxy configuration | ⚠️ NOTE — No proxy; direct CORS calls (acceptable) |
+| Config: CORS_ORIGIN vs staging frontend (:4173) | ❌ **FAIL — CORS MISMATCH** |
+| Config: Docker port consistency | ✅ PASS |
+| Health: GET /api/health → 200 | ✅ PASS |
+| Health: Auth register + login | ✅ PASS |
+| Health: Auth enforcement on all protected routes | ✅ PASS |
+| Health: Plants CRUD (all 5 endpoints) | ✅ PASS |
+| Health: Care actions (create + undo) | ✅ PASS |
+| Health: Profile | ✅ PASS |
+| Health: AI advice (502 expected — no API key) | ✅ PASS (known) |
+| Health: Frontend accessible at :4173 | ✅ PASS |
+| Health: Database connected, 5 migrations applied | ✅ PASS |
+| Health: Seeded test account present | ⚠️ MISSING |
+| Health: No 5xx errors under load | ⚠️ WARN — Startup race condition; first 1–2 requests return 500 |
+
+| Field | Value |
+|-------|-------|
+| **Deploy Verified** | ❌ **No** |
+| **Blocking Issue** | CORS origin mismatch: backend allows `http://localhost:5173`; staging frontend is `http://localhost:4173`. Browser-based end-to-end testing is fully blocked until fixed. |
+| **API Health (direct curl)** | ✅ All 14 endpoints are functional. Backend is healthy. |
+| **User Agent Ready** | No — CORS must be fixed before User Agent can test via browser. |
+
+---
+

@@ -602,6 +602,123 @@ These are P2 test code issues, not P1 implementation bugs. The LoginPage compone
 
 ---
 
+## H-015 — Monitor Alert: CORS Mismatch + Startup Race — Fix Required Before User Agent Testing
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-015 |
+| **From** | Monitor Agent |
+| **To** | Backend Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 1 |
+| **Subject** | Post-deploy health check found 2 issues that must be resolved before User Agent can test the staging environment. |
+| **Spec Refs** | FB-001, FB-002 |
+| **Status** | Pending |
+
+### Issue 1 — CRITICAL: CORS Origin Mismatch (Blocks Browser Testing)
+
+**Severity:** Major
+
+`backend/.env` has `FRONTEND_URL=http://localhost:5173`, but the staging frontend preview server runs at `http://localhost:4173`. The backend CORS config (`app.js` line 22) uses this value as the sole allowed origin.
+
+**Observed behavior:** `GET http://localhost:3000/api/health` response includes `Access-Control-Allow-Origin: http://localhost:5173`. Any fetch or XHR from `http://localhost:4173` is blocked by the browser with a CORS error.
+
+**Required fix:**
+```bash
+# backend/.env — change line 17:
+FRONTEND_URL=http://localhost:4173
+# Then restart the backend process: node src/server.js
+```
+
+**Alternative (if dev mode at :5173 must also work):** Update `app.js` to accept an array of origins:
+```js
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',');
+app.use(cors({ origin: allowedOrigins, credentials: true }));
+```
+Then set `FRONTEND_URL=http://localhost:5173,http://localhost:4173` in `.env`.
+
+### Issue 2 — MAJOR: Startup Race Condition Causes 500 on First Requests
+
+**Severity:** Major
+
+The server begins accepting HTTP connections before the Knex database connection pool is fully established. First 1–2 requests immediately after boot return `HTTP 500 INTERNAL_ERROR`.
+
+**Required fix in `backend/src/server.js`:**
+```js
+require('dotenv').config();
+const app = require('./app');
+const db = require('./config/database');
+
+const PORT = process.env.PORT || 3000;
+
+db.raw('SELECT 1')
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Plant Guardians API running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+    });
+  })
+  .catch(err => {
+    console.error('Database connection failed on startup. Aborting.', err.message);
+    process.exit(1);
+  });
+```
+
+### After Fixing
+
+1. Update `FRONTEND_URL` in `backend/.env`
+2. Apply the `server.js` startup fix
+3. Restart backend: `cd backend && node src/server.js`
+4. Confirm: `curl -s http://localhost:3000/api/health` returns 200
+5. Confirm: browser at `http://localhost:4173` can reach the API
+6. Log completion in handoff-log.md and update H-016
+
+---
+
+## H-016 — Monitor → Deploy Engineer: Run Seed Data + Re-verify Staging
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-016 |
+| **From** | Monitor Agent |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 1 |
+| **Subject** | Staging deployment is missing seed data. Two additional items needed before User Agent can test. |
+| **Spec Refs** | FB-003 |
+| **Status** | Pending |
+
+### Required Actions
+
+#### 1. Run Seed Data
+
+The `test@triplanner.local` / `TestPass123!` account expected by the Monitor Agent health check protocol does not exist on staging. Run seeds:
+
+```bash
+cd backend && knex seed:run
+```
+
+If no seed file exists yet, create one at `backend/src/seeds/01_test_user.js` that idempotently creates the test account. Add `knex seed:run` to the deployment checklist.
+
+#### 2. Coordinate with Backend Engineer (H-015)
+
+Wait for Backend Engineer to fix the CORS mismatch (`FRONTEND_URL` update) and startup race condition. After those fixes are applied and the backend is restarted, perform a quick re-verification:
+
+```bash
+curl -s http://localhost:3000/api/health
+# Should return: {"status":"ok","timestamp":"..."}
+
+curl -s -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@triplanner.local","password":"TestPass123!"}'
+# Should return: HTTP 200 with tokens
+```
+
+#### 3. Notify Monitor Agent
+
+Once seeds are run, CORS is fixed, and the backend is restarted cleanly, log a follow-up handoff to Monitor Agent to re-run the health check and issue Deploy Verified = Yes.
+
+---
+
 ## H-013 — QA: npm audit Advisory — tar Vulnerability
 
 | Field | Value |
@@ -623,5 +740,61 @@ These are P2 test code issues, not P1 implementation bugs. The LoginPage compone
 - **Impact:** Path traversal and symlink poisoning during archive extraction. Low runtime risk (tar is only used during `npm install` for native bcrypt compilation, not at runtime).
 - **Fix:** Run `cd backend && npm audit fix`
 - **Priority:** P3 for Sprint 1. Should be fixed before production deploy.
+
+---
+
+## H-017 — Deploy Engineer: All Monitor Issues Resolved — Re-run Staging Health Check
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-017 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-23 |
+| **Sprint** | 1 |
+| **Subject** | All three issues flagged by Monitor Agent (H-015, H-016) have been resolved. Backend has been restarted with fixes. Monitor Agent should re-run the staging health check and issue Deploy Verified = Yes if all checks pass. |
+| **Spec Refs** | T-018, T-019, FB-001, FB-002, FB-003 |
+| **Status** | Pending |
+
+### Fixes Applied
+
+| Issue | Fix | Status |
+|-------|-----|--------|
+| **FB-001 — CORS mismatch** (H-015) | `backend/.env`: `FRONTEND_URL=http://localhost:5173,http://localhost:4173`. `backend/src/app.js`: CORS now parses comma-separated list of origins; both ports allowed. | ✅ Fixed & verified |
+| **FB-002 — Startup race condition** (H-015) | `backend/src/server.js`: `app.listen()` now called inside `db.raw('SELECT 1').then(...)` — server only starts accepting requests after DB pool confirms connectivity. | ✅ Fixed & verified |
+| **FB-003 — Missing seed data** (H-016) | Created `backend/src/seeds/01_test_user.js` (idempotent). Updated `knexfile.js` seeds directory. Ran `knex seed:run`. Test account `test@plantguardians.local` / `TestPass123!` now exists in staging DB. | ✅ Fixed & verified |
+
+### Services Running
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | `http://localhost:3000` | ✅ Running (PID 17701 — restarted with fixes) |
+| Frontend (preview) | `http://localhost:4173` | ✅ Running (PID 16455 — unchanged) |
+| Database | PostgreSQL 15 @ `localhost:5432` (db: `plant_guardians_staging`) | ✅ Running |
+
+### Pre-Verified Checks
+
+| Check | Result |
+|-------|--------|
+| `GET /api/health` → 200 | ✅ `{"status":"ok","timestamp":"2026-03-23T22:44:05.305Z"}` |
+| CORS for `http://localhost:4173` | ✅ `Access-Control-Allow-Origin: http://localhost:4173` |
+| CORS for `http://localhost:5173` | ✅ `Access-Control-Allow-Origin: http://localhost:5173` |
+| Login: `test@plantguardians.local` / `TestPass123!` | ✅ HTTP 200 + tokens returned |
+| Protected endpoint without token | ✅ HTTP 401 |
+| Frontend `GET http://localhost:4173/` | ✅ HTTP 200 |
+
+### What Monitor Agent Should Do
+
+1. Re-run the full staging health check suite (all 19 checks from the previous run)
+2. Pay special attention to checks that previously failed: CORS (#19) and seeded test account (#18)
+3. Verify the startup race condition is gone (no 500s on first requests post-boot)
+4. If all checks pass → set **Deploy Verified = Yes** in `qa-build-log.md`
+5. Log handoff to User Agent to begin Sprint 1 user testing (T-020)
+
+### Known Remaining Limitations
+
+- `GEMINI_API_KEY` is still a placeholder → `POST /ai/advice` returns 502 (expected, acceptable for staging)
+- Frontend tasks T-001–T-007 still in Backlog → full end-to-end UI flows not yet testable
+- `npm audit` tar vulnerability (transitive/low risk) → will be addressed before production deploy
 
 ---
