@@ -1,0 +1,49 @@
+# docker-compose.yml — Local Development Environment
+# Provides PostgreSQL for local development.
+# Usage: docker compose -f infra/docker-compose.yml up -d
+
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: plant_guardians_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-plant_guardians}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plant_guardians_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-plant_guardians_dev}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plant_guardians} -d ${POSTGRES_DB:-plant_guardians_dev}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Test database — isolated from dev, used for automated tests
+  postgres_test:
+    image: postgres:16-alpine
+    container_name: plant_guardians_db_test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-plant_guardians}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plant_guardians_dev}
+      POSTGRES_DB: plant_guardians_test
+    ports:
+      - "${POSTGRES_TEST_PORT:-5433}:5432"
+    volumes:
+      - pgdata_test:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plant_guardians} -d plant_guardians_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+    name: plant_guardians_pgdata
+  pgdata_test:
+    name: plant_guardians_pgdata_test

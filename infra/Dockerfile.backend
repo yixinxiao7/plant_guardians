@@ -1,0 +1,46 @@
+# Dockerfile.backend — Production/Staging Backend Container
+# Multi-stage build: build stage installs all deps, prod stage ships only runtime deps.
+
+# ─── Stage 1: Build ───────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies first (leverages Docker layer caching)
+COPY backend/package*.json ./
+RUN npm ci --frozen-lockfile
+
+# Copy source
+COPY backend/ ./
+
+# ─── Stage 2: Production ──────────────────────────────────────────────────────
+FROM node:20-alpine AS production
+
+# Security: run as non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser  -S nodejs -u 1001
+
+WORKDIR /app
+
+# Install only production dependencies
+COPY backend/package*.json ./
+RUN npm ci --frozen-lockfile --omit=dev && \
+    npm cache clean --force
+
+# Copy built application from builder stage
+COPY --from=builder --chown=nodejs:nodejs /app/src ./src
+COPY --from=builder --chown=nodejs:nodejs /app/knexfile.js ./knexfile.js
+
+# Create uploads directory with correct permissions (for staging; use object storage in prod)
+RUN mkdir -p /app/uploads && chown nodejs:nodejs /app/uploads
+
+USER nodejs
+
+# Expose backend port
+EXPOSE 3000
+
+# Health check — Express must expose GET /health (200 OK)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD wget -qO- http://localhost:3000/health || exit 1
+
+CMD ["node", "src/index.js"]

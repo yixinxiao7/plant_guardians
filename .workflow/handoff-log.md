@@ -159,3 +159,119 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 - See `security-checklist.md` for the full required security verification list.
 
 ---
+
+## H-004 — Backend Implementation Complete — Ready for QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-004 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 1 |
+| **Subject** | All Sprint 1 backend endpoints are implemented with unit tests. Ready for integration testing. |
+| **Spec Refs** | T-008, T-009, T-010, T-011, T-012, T-013, T-014 |
+| **Status** | Pending |
+
+### What Was Implemented
+
+| Task | Endpoints | Files |
+|------|-----------|-------|
+| T-014 | — | 5 Knex migrations: `users`, `refresh_tokens`, `plants`, `care_schedules`, `care_actions` |
+| T-008 | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout` | `routes/auth.js`, `models/User.js`, `models/RefreshToken.js`, `middleware/auth.js` |
+| T-009 | `GET /plants`, `POST /plants`, `GET /plants/:id`, `PUT /plants/:id`, `DELETE /plants/:id` | `routes/plants.js`, `models/Plant.js`, `models/CareSchedule.js` |
+| T-010 | `POST /plants/:id/photo` | `routes/plants.js`, `middleware/upload.js` |
+| T-011 | `POST /ai/advice` | `routes/ai.js` |
+| T-012 | `POST /plants/:id/care-actions`, `DELETE /plants/:id/care-actions/:action_id` | `routes/careActions.js`, `models/CareAction.js` |
+| T-013 | `GET /profile` | `routes/profile.js` |
+
+### What to Test
+
+1. **Auth flows (T-015):** Register → login → refresh → logout; duplicate email (409); wrong password (401); rotated refresh token rejection (401).
+2. **Plants CRUD (T-016):** Create with schedules; list with pagination; get detail with recent actions; update with schedule replacement; delete with cascade; ownership isolation (user A can't see user B's plants).
+3. **Photo upload (T-016):** Valid JPEG/PNG/WebP; reject .exe; reject >5MB; reject no file.
+4. **AI advice (T-017):** Returns 400 with no input; returns 502 when API key not configured; test with mock Gemini response.
+5. **Care actions (T-016):** Create action updates schedule last_done_at; reject for missing schedule (422); delete action reverts last_done_at; reject future performed_at.
+6. **Profile (T-016):** Returns correct plant_count and total_care_actions.
+7. **Security:** All queries use parameterized Knex; passwords hashed with bcrypt (12 rounds); refresh tokens stored as SHA-256 hash; JWT validated in auth middleware; rate limiting on auth endpoints; CORS configured; helmet security headers applied.
+
+### Tests Written
+
+| File | Coverage |
+|------|----------|
+| `tests/auth.test.js` | 8 tests (register happy/error × 3, login happy/error × 2, refresh rotation, logout) |
+| `tests/plants.test.js` | 9 tests (CRUD + ownership isolation + care schedules) |
+| `tests/careActions.test.js` | 5 tests (create/delete + error cases) |
+| `tests/ai.test.js` | 3 tests (validation + auth + unconfigured API) |
+| `tests/profile.test.js` | 2 tests (happy path + auth) |
+
+### Notes
+
+- Run tests with: `cd backend && npm test`
+- Migrations: `cd backend && npm run migrate`
+- Rollback: `cd backend && npm run migrate:rollback`
+- Rate limiting is strict on auth endpoints (20/15min) — QA should test accordingly.
+
+---
+
+## H-005 — Backend API Ready for Frontend Integration
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-005 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 1 |
+| **Subject** | All Sprint 1 API endpoints are implemented. Frontend can begin wiring up API calls per the contracts in `api-contracts.md`. |
+| **Spec Refs** | T-008, T-009, T-010, T-011, T-012, T-013 |
+| **Status** | Pending |
+
+### Notes
+
+- All endpoints match the contracts published in `api-contracts.md` (H-002).
+- Health check: `GET /api/health` returns `{ "status": "ok" }`.
+- Static file serving for uploads at `/uploads/` in development mode.
+- CORS is configured for `http://localhost:5173`.
+- Backend starts on port 3000 by default: `cd backend && npm run dev`.
+
+---
+
+## H-006 — Database Migrations Ready for Deploy
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-006 |
+| **From** | Backend Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 1 |
+| **Subject** | 5 database migrations need to run on staging before deployment. |
+| **Spec Refs** | T-014 |
+| **Status** | Pending |
+
+### Migrations to Run
+
+| # | File | Description |
+|---|------|-------------|
+| 1 | `20260323_01_create_users.js` | Creates `users` table |
+| 2 | `20260323_02_create_refresh_tokens.js` | Creates `refresh_tokens` table |
+| 3 | `20260323_03_create_plants.js` | Creates `plants` table |
+| 4 | `20260323_04_create_care_schedules.js` | Creates `care_schedules` table with check constraints |
+| 5 | `20260323_05_create_care_actions.js` | Creates `care_actions` table with check constraints |
+
+### Commands
+
+```bash
+cd backend
+npm run migrate          # run all pending migrations
+npm run migrate:rollback # rollback if needed
+```
+
+### Notes
+
+- All migrations have reversible `down()` functions.
+- Tables use UUID primary keys with `gen_random_uuid()` (requires PostgreSQL 13+).
+- ON DELETE CASCADE is set on all foreign keys — deleting a user cascades to plants, schedules, and actions.
+
+---

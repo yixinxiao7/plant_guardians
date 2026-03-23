@@ -1,0 +1,158 @@
+.plant-form-page {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.plant-form-title {
+  font-family: var(--font-display);
+  font-size: 32px;
+  color: var(--color-text-primary);
+  margin-bottom: 8px;
+}
+
+.plant-form-subtitle {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  margin-bottom: 32px;
+}
+
+.plant-form {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.plant-form-error {
+  background: var(--color-status-red-bg);
+  color: var(--color-status-red);
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.plant-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.plant-form-section-title {
+  font-size: 18px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
+}
+
+/* AI Advice card */
+.ai-advice-card-section {
+  background: var(--color-surface-alt);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.ai-advice-prompt {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.ai-advice-heading {
+  font-size: 16px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ai-advice-desc {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+/* Form actions */
+.plant-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+/* AI filled highlight */
+.ai-filled-input .input-field {
+  background: rgba(92, 122, 92, 0.08);
+  border-color: var(--color-accent);
+}
+
+/* Loading skeleton for edit page */
+.plant-form-skeleton {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.plant-form-skeleton .skeleton-title {
+  height: 36px;
+  width: 250px;
+  margin-bottom: 8px;
+}
+
+.plant-form-skeleton .skeleton-field {
+  height: 44px;
+  width: 100%;
+}
+
+.plant-form-skeleton .skeleton-textarea {
+  height: 80px;
+  width: 100%;
+}
+
+.plant-form-skeleton .skeleton-photo {
+  height: 220px;
+  width: 100%;
+  border-radius: 12px;
+}
+
+/* Not found */
+.plant-not-found {
+  text-align: center;
+  padding: 60px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.plant-not-found h2 {
+  font-size: 20px;
+  font-family: var(--font-body);
+}
+
+.plant-not-found p {
+  color: var(--color-text-secondary);
+}
+
+/* Responsive */
+@media (max-width: 767px) {
+  .ai-advice-prompt {
+    flex-direction: column;
+  }
+
+  .plant-form-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--color-bg);
+    padding: 16px;
+    margin: 0 -16px;
+    flex-direction: column-reverse;
+  }
+
+  .plant-form-actions .btn {
+    width: 100%;
+  }
+}
