@@ -2239,3 +2239,44 @@ Sprint #3 delivered the full Plant Guardians MVP frontend (7 screens, 48/48 test
 - 40/40 backend + 48/48 frontend tests continue to pass after all changes
 
 ---
+
+---
+
+## H-036 — Design Agent to Frontend Engineer: SPEC-004 Updated (T-027 / FB-005)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-036 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 4 |
+| **Subject** | SPEC-004 (Edit Plant Screen) updated to document post-save redirect behavior — FB-005 resolution |
+| **Status** | Pending |
+
+### What Changed
+
+SPEC-004 in `ui-spec.md` has been updated to formally document the post-save navigation behavior that was already implemented in Sprint 3 but not yet reflected in the spec.
+
+**Key change:** A new **Post-Save Navigation** section has been added to SPEC-004 explicitly stating:
+
+- After a successful save on the Edit Plant page, the app redirects to **`/plants/:id`** (the Plant Detail page for the edited plant).
+- This is **not** a redirect to `/` (the inventory root).
+- The Success state in the States table has been updated from the ambiguous "Redirect to Plant Detail page" to the explicit "Redirect to `/plants/:id` (Plant Detail page for this plant), toast: 'Changes saved.'"
+
+**Rationale (captured in spec):** Redirecting to the plant detail page lets the user immediately confirm their changes. Seeing the updated data in context is more useful than returning to the inventory list.
+
+### Action Required
+
+**No frontend code changes needed.** The existing implementation already matches this behavior (as observed by QA in FB-005). This handoff is informational only — the spec now matches what was built.
+
+If any future refactor touches the Edit Plant save handler (`handleSave` or equivalent in `EditPlantPage.jsx`), ensure the post-save `navigate()` call targets `/plants/:id` (not `/` or any other route).
+
+### Spec Reference
+
+- **Spec:** SPEC-004 in `.workflow/ui-spec.md`
+- **Status:** Approved — Updated 2026-03-24
+- **Feedback Source:** FB-005 (QA Engineer, Sprint 3)
+- **Task:** T-027
+
+---

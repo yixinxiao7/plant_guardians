@@ -415,7 +415,7 @@ When the user clicks "Get AI Advice":
 
 ### SPEC-004 — Edit Plant Screen
 
-**Status:** Approved
+**Status:** Approved — Updated 2026-03-24 (FB-005: post-save redirect clarification)
 **Related Tasks:** T-004 (Edit Plant UI)
 
 #### Description
@@ -435,6 +435,14 @@ Identical in structure to the Add Plant screen (SPEC-003) but pre-populated with
 5. Form Actions: "Cancel" (navigates back to Plant Detail page) + "Save Changes" (primary button)
 6. The "Save Changes" button is disabled until the user makes at least one change (dirty state detection)
 
+#### Post-Save Navigation
+
+After a successful save, the app **redirects to `/plants/:id`** (the Plant Detail page for the edited plant) — **not** to `/` (the inventory).
+
+> **Rationale:** Redirecting to the plant detail page lets the user immediately confirm their changes. Seeing the updated data in context is more useful than returning to the inventory list, which offers no immediate confirmation.
+
+This supersedes any earlier spec language that described a redirect to the inventory root. The current implementation matches this updated behavior.
+
 #### States
 
 | State | Behavior |
@@ -444,7 +452,7 @@ Identical in structure to the Add Plant screen (SPEC-003) but pre-populated with
 | **Pristine (no changes)** | "Save Changes" button disabled, ghost styled |
 | **Dirty (changes made)** | "Save Changes" button enabled |
 | **Saving** | Button spinner, form disabled |
-| **Success** | Redirect to Plant Detail page, toast: "Changes saved." |
+| **Success** | Redirect to `/plants/:id` (Plant Detail page for this plant), toast: "Changes saved." |
 | **Error (load)** | "Couldn't load plant data. Refresh to try again." with retry |
 | **Error (save)** | Error banner above form |
 | **404** | "This plant wasn't found." with a button to return to inventory |
