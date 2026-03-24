@@ -2280,3 +2280,157 @@ If any future refactor touches the Edit Plant save handler (`handleSave` or equi
 - **Task:** T-027
 
 ---
+
+## H-037 — Backend Engineer to Manager: Sprint 4 Schema Review (T-025)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-037 |
+| **From** | Backend Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-03-24 |
+| **Sprint** | 4 |
+| **Subject** | Sprint 4 API contracts review complete — no new endpoints, no schema changes |
+| **Status** | Auto-approved (automated sprint) |
+
+### Summary
+
+Completed Sprint 4 API contracts review for T-025. Findings:
+
+- **No new API endpoints** are introduced in Sprint 4. The 14 endpoints documented in Sprint 1 remain the complete and authoritative contract.
+- **No schema changes** are required. All 5 database tables from Sprint 1 are sufficient for T-025 (Gemini key configuration and AI happy-path verification).
+- The existing `POST /api/v1/ai/advice` contract is complete and requires no amendments.
+- Added a Sprint 4 section to `api-contracts.md` with: happy-path response shape expectations, QA verification notes for T-025, and a clarification on the 502 error behavior relevant to T-026.
+
+### Action Required from Manager
+
+None. This is an informational handoff. No schema migration proposals require approval. The existing implementation and contract are sufficient.
+
+If a real Gemini API key is not provided before T-025 execution, the backend task scope reduces to test validation and gap documentation — no code changes would be needed.
+
+---
+
+## H-038 — Backend Engineer to Frontend Engineer: Sprint 4 Contracts Ready (T-025 / T-026)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-038 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 4 |
+| **Subject** | Sprint 4 API contracts confirmed — no changes; AI advice endpoint notes for T-026 integration |
+| **Status** | Pending |
+
+### What's Ready
+
+The Sprint 4 API contracts review is complete. No contract changes have been made. The `POST /api/v1/ai/advice` endpoint contract is unchanged from Sprint 1.
+
+### Relevant to T-026 (AI Modal 502 Fix)
+
+Your task T-026 is a frontend-only fix. The backend contract for the 502 error case is:
+
+```json
+HTTP 502
+{
+  "error": {
+    "message": "AI service is temporarily unavailable. Please try again later.",
+    "code": "AI_SERVICE_UNAVAILABLE"
+  }
+}
+```
+
+When this response is received in `AIAdviceModal.jsx`, the modal must:
+1. Show **only** the "Close" button — remove the "Try Again" button entirely for this error state
+2. Display the message text: `"Our AI service is temporarily offline. You can still add your plant manually."`
+
+This matches SPEC-006 and the H-020 clarification from Sprint 1. The backend error shape is not changing — only the frontend rendering of that error needs to be fixed.
+
+### No Frontend Changes Required for T-025
+
+T-025 (Gemini key configuration) is a pure backend + operational change. The frontend already handles all four AI modal states (loading, success, 422 not-identifiable, 502 unavailable). No frontend code changes are needed for T-025 to work once the real key is in place.
+
+### Reference
+
+Full contracts: `.workflow/api-contracts.md` — Sprint 4 section (added 2026-03-24).
+
+---
+
+## H-039 — Backend Engineer to QA Engineer: Sprint 4 Contracts for Testing Reference (T-025)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-039 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 4 |
+| **Subject** | Sprint 4 contracts ready — AI advice happy-path test criteria for T-025 |
+| **Status** | Pending |
+
+### What to Test (T-025)
+
+Once T-024 (Monitor health check) returns `Deploy Verified: Yes` and the real `GEMINI_API_KEY` is configured, QA should verify the following:
+
+#### Happy Path — Text Input
+
+**Request:**
+```json
+POST /api/v1/ai/advice
+Authorization: Bearer <valid_access_token>
+Content-Type: application/json
+
+{
+  "plant_type": "Pothos"
+}
+```
+
+**Expected:** HTTP 200 with:
+- `data.care_advice.watering.frequency_value` — a positive integer
+- `data.care_advice.watering.frequency_unit` — one of `"days"`, `"weeks"`, `"months"`
+- `data.care_advice.light` — a non-empty string
+- Response arrives within 15 seconds (allow for Gemini latency)
+
+#### Happy Path — Photo Input
+
+**Request:**
+```json
+POST /api/v1/ai/advice
+Authorization: Bearer <valid_access_token>
+Content-Type: application/json
+
+{
+  "photo_url": "<URL of a previously uploaded plant photo>"
+}
+```
+
+**Expected:** HTTP 200 with:
+- `data.identified_plant_type` — non-null string
+- `data.confidence` — one of `"high"`, `"medium"`, `"low"`
+- `data.care_advice.watering` — present and non-null
+
+#### Error Paths (must still pass — regression check)
+
+| Test | Expected |
+|------|---------|
+| No body fields | 400 `VALIDATION_ERROR` |
+| No Authorization header | 401 `UNAUTHORIZED` |
+| Invalid/expired access token | 401 `UNAUTHORIZED` |
+| GEMINI_API_KEY unset or invalid | 502 `AI_SERVICE_UNAVAILABLE` |
+
+#### Acceptance Criteria for T-025 Sign-off
+
+- [ ] At least one text-input request returns HTTP 200 with valid care advice JSON
+- [ ] At least one photo-input request returns HTTP 200 with `identified_plant_type` present
+- [ ] All 40/40 backend unit tests continue to pass after key is configured
+- [ ] Test results documented in `qa-build-log.md`
+
+### Related Contract Changes
+
+No contract changes. See `.workflow/api-contracts.md` Sprint 4 section for happy-path response shape examples and QA notes.
+
+### T-026 Regression Note
+
+After the Frontend Engineer ships T-026 (AI Modal 502 fix), please verify in the browser that the 502 error state shows only "Close" (no "Try Again") with the correct message. This is a frontend-only change — no backend contract verification needed, but the UI behavior should be confirmed against SPEC-006.
+
+---

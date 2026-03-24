@@ -943,3 +943,107 @@ These items from the security checklist apply to frontend implementation and mus
 ---
 
 *Sprint 3 contract review written by Backend Engineer — 2026-03-23. No new endpoints. All 14 Sprint 1 endpoints confirmed valid.*
+
+---
+
+## Sprint 4 Contracts Review
+
+**Date:** 2026-03-24
+**Author:** Backend Engineer
+**Sprint:** 4
+**Related Task:** T-025 — Configure real Gemini API key + verify AI advice happy path
+
+---
+
+### Summary
+
+Sprint 4 introduces **no new API endpoints**. The active-sprint.md explicitly places any new endpoints out of scope. The full 14-endpoint surface area documented in Sprint 1 remains authoritative and unchanged.
+
+The only backend deliverable this sprint (T-025) is an operational change: replacing the placeholder `GEMINI_API_KEY` in `backend/.env` with a real key and verifying the `POST /api/v1/ai/advice` happy path end-to-end. No contract amendments are needed — the endpoint shape, validation rules, success response, and error codes are already fully specified in Sprint 1 Group 4 above.
+
+---
+
+### T-025 — AI Advice Happy Path: Contract Verification Notes
+
+**Endpoint:** `POST /api/v1/ai/advice` (see Sprint 1, GROUP 4 for full spec)
+
+**Status of contract:** ✅ No changes required. The existing contract is complete.
+
+**Blocking dependency:** T-025 cannot be configured until T-024 (Monitor Agent staging health check) returns `Deploy Verified: Yes`. The endpoint is implemented and tested (3/3 unit tests pass in the unconfigured-key path). The only gap is the live Gemini key.
+
+#### Happy-Path Response — Expected Shape (with real Gemini key)
+
+When `GEMINI_API_KEY` is a valid key, a well-formed request should return HTTP 200 with a body matching this contract:
+
+```json
+{
+  "data": {
+    "identified_plant_type": "Epipremnum aureum",
+    "confidence": "high",
+    "care_advice": {
+      "watering": {
+        "frequency_value": 7,
+        "frequency_unit": "days",
+        "notes": "Allow top inch of soil to dry between waterings. Reduce in winter."
+      },
+      "fertilizing": {
+        "frequency_value": 1,
+        "frequency_unit": "months",
+        "notes": "Feed monthly during the growing season (spring–summer). Skip in winter."
+      },
+      "repotting": {
+        "frequency_value": 2,
+        "frequency_unit": "years",
+        "notes": "Repot when rootbound. Use well-draining potting mix."
+      },
+      "light": "Bright indirect light; tolerates low light",
+      "humidity": "Moderate; mist occasionally",
+      "additional_tips": "Toxic to pets. Wipe leaves monthly to remove dust."
+    }
+  }
+}
+```
+
+**Notes for QA (T-025 verification):**
+- `identified_plant_type`: non-null string when a photo is submitted; may be null for text-only queries where the user already named the plant
+- `confidence`: one of `"high"`, `"medium"`, `"low"`; null for text-only queries
+- `care_advice.repotting.frequency_unit` may be `"years"` — this is valid in the response. The frontend converts years→months (`value × 12`) before writing to care schedule storage. The backend does **not** convert this automatically.
+- `care_advice.fertilizing` and `care_advice.repotting` may be `null` for some plant types if the AI determines they are not applicable.
+- Expected response latency with a real Gemini key: 2–8 seconds. The frontend loading state must remain visible throughout.
+
+#### Error Path Still Under Contract
+
+The following error cases are unchanged and must continue to pass after T-025 is configured:
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | Neither `plant_type` nor `photo_url` provided |
+| 401 | `UNAUTHORIZED` | Missing or invalid access token |
+| 422 | `PLANT_NOT_IDENTIFIABLE` | Gemini could not identify the plant |
+| 502 | `AI_SERVICE_UNAVAILABLE` | Gemini API returned an error or timed out |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+The 502 `AI_SERVICE_UNAVAILABLE` path is directly referenced in T-026 (Frontend: AI Modal 502 fix). The frontend fix must display only a "Close" button (no "Try Again") with the exact message: `"Our AI service is temporarily offline. You can still add your plant manually."` — this is a frontend-only change; the contract error shape is unchanged.
+
+---
+
+### Schema Changes — Sprint 4
+
+**No schema changes.** All 5 tables (`users`, `refresh_tokens`, `plants`, `care_schedules`, `care_actions`) established in Sprint 1 are sufficient. No new tables, columns, or indexes are required for T-025.
+
+---
+
+### Environment Configuration Note (T-025)
+
+The `GEMINI_API_KEY` environment variable is read from `backend/.env`. The variable name and loading mechanism are already in place from Sprint 1 implementation. Only the value needs to change — from the current placeholder to a valid key issued by Google AI Studio.
+
+**No other environment variables need to change for this sprint.**
+
+If the project owner has not yet provided a valid Gemini API key, T-025 scope reduces to:
+1. Documenting the gap in `qa-build-log.md`
+2. Confirming all 40/40 backend unit tests continue to pass with the placeholder key
+3. T-020 user testing proceeds with the AI advice flow known to be non-functional (the 502 error state will be shown — which is the correct and spec-compliant behavior after T-026 is merged)
+
+---
+
+*Sprint 4 contract review written by Backend Engineer — 2026-03-24. No new endpoints. Existing 14-endpoint contract unchanged. T-025 happy-path notes added for QA reference.*
