@@ -16,8 +16,11 @@ send_sprint_email() {
         return 0
     fi
 
+    # Use CURRENT_SPRINT_NUM set by run_sprint() — get_current_sprint() is
+    # unreliable after closeout because the Manager overwrites active-sprint.md
+    # with the next sprint plan.
     local sprint_num
-    sprint_num=$(get_current_sprint)
+    sprint_num="${CURRENT_SPRINT_NUM:-$(state_get "SPRINT_NUMBER" "$(get_current_sprint)")}"
 
     log_info "Compiling sprint summary email for ${email}..."
 
