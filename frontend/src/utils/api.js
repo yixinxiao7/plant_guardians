@@ -1,4 +1,7 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+// In local dev and staging the Vite proxy forwards /api/* to the backend on
+// port 3000, so a relative base URL is correct and avoids CORS entirely.
+// In production, set VITE_API_BASE_URL to the absolute backend origin.
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 let accessToken = null;
 let refreshToken = null;
