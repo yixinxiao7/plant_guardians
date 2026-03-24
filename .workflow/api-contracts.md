@@ -824,3 +824,122 @@ type CareAction = {
 ---
 
 *Contracts written by Backend Engineer — 2026-03-23. Sprint 1.*
+
+---
+
+## Sprint 3 Contracts Review
+
+**Date:** 2026-03-23
+**Author:** Backend Engineer
+**Sprint:** 3
+
+### Summary
+
+No new API endpoints are introduced in Sprint 3. All 14 endpoints documented in Sprint 1 above are fully implemented, tested (40/40 backend tests pass), and staging-verified. The Frontend Engineer may wire up all 7 UI screens directly against the existing contracts.
+
+This section provides a screen-by-screen mapping of which endpoints each UI spec requires, along with Sprint 3-specific integration notes.
+
+---
+
+### Screen → Endpoint Mapping
+
+| Spec | Screen | Endpoints Required | Tasks |
+|------|--------|--------------------|-------|
+| SPEC-001 | Login & Sign Up | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh` | T-001 |
+| SPEC-002 | Plant Inventory (Home) | `GET /plants`, `DELETE /plants/:id` | T-002 |
+| SPEC-003 | Add Plant | `POST /plants`, `POST /plants/:id/photo`, `POST /ai/advice` | T-003 |
+| SPEC-004 | Edit Plant | `GET /plants/:id`, `PUT /plants/:id` | T-004 |
+| SPEC-005 | Plant Detail | `GET /plants/:id`, `POST /plants/:id/care-actions`, `DELETE /plants/:id/care-actions/:action_id` | T-005 |
+| SPEC-006 | AI Advice Modal | `POST /plants/:id/photo` (optional pre-upload), `POST /ai/advice` | T-006 |
+| SPEC-007 | Profile Page | `GET /profile`, `POST /auth/logout` | T-007 |
+
+---
+
+### Sprint 3 Integration Notes (Per Screen)
+
+#### SPEC-001 — Login & Sign Up (T-001)
+
+- `POST /auth/register` returns `access_token` + `refresh_token` in the response body. Store `access_token` in React context memory only (never localStorage). `refresh_token` should be stored in an httpOnly cookie or in memory — do not persist to localStorage.
+- `POST /auth/login` returns the same shape. On success, redirect to `/` (inventory).
+- On 409 `EMAIL_ALREADY_EXISTS`: display inline message beneath the email field: "An account with this email already exists."
+- On 401 `INVALID_CREDENTIALS`: show a form-level banner (not a field error): "Incorrect email or password."
+- Token auto-refresh: when any authenticated request returns 401, call `POST /auth/refresh` with the stored refresh token, then retry the original request. If refresh also fails with 401, clear auth state and redirect to `/login`.
+
+#### SPEC-002 — Plant Inventory / Home (T-002)
+
+- `GET /plants` returns an array under `data` with `pagination`. Default `limit=50` is sufficient for MVP — pagination controls are not required in the UI this sprint.
+- Each plant object includes `care_schedules[]` with computed `status` (`on_track | due_today | overdue`) and `days_overdue`. The frontend must NOT compute these — use the server-provided values directly.
+- Status badge display priority (most urgent shown first on card): `overdue` > `due_today` > `on_track`.
+- `DELETE /plants/:id` returns `{ "data": { "message": "Plant deleted successfully.", "id": "uuid" } }`. The card should animate out (scale + opacity) on success.
+- If `GET /plants` returns 401, the auth auto-refresh flow should handle it silently. Only show the "Couldn't load your plants" error banner on non-auth API failures.
+
+#### SPEC-003 — Add Plant (T-003)
+
+- **Photo upload flow:** `POST /plants/:id/photo` requires the plant to already exist (it needs an `:id`). Recommended workflow: (a) create the plant first without a photo via `POST /plants`, then (b) upload the photo via `POST /plants/:id/photo`, then (c) save the returned `photo_url` to the plant via `PUT /plants/:id`. Alternatively, the UI may upload the photo to a temporary endpoint and include `photo_url` in the initial `POST /plants` — but since `POST /plants/:id/photo` requires an existing plant ID, option (a) is the correct flow.
+- `POST /plants` `care_schedules` field: the UI enforces watering as required client-side. The API accepts it as optional (does not 400 if omitted), so client-side enforcement is the source of truth here.
+- `frequency_unit` values accepted by the API: `"days"`, `"weeks"`, `"months"` only. If the AI advice endpoint returns `"years"` for repotting, convert to months (`value * 12`, unit `"months"`) before submitting to `POST /plants`.
+
+#### SPEC-004 — Edit Plant (T-004)
+
+- Load existing plant data via `GET /plants/:id` on page mount.
+- `PUT /plants/:id` is a **full replacement** of care schedules — send the complete desired schedule state. If the user removes a care type from the form, omit it from the `care_schedules` array in the PUT body (the server will delete it).
+- The "Save" button should be disabled until the user makes at least one change (dirty-state tracking in form state).
+- On success, redirect to the inventory screen (`/`).
+
+#### SPEC-005 — Plant Detail (T-005)
+
+- Load via `GET /plants/:id`. Response includes `care_schedules[]` (with computed `status`) and `recent_care_actions[]` (last 5 actions).
+- **"Mark as done" flow:** Call `POST /plants/:id/care-actions` with the `care_type`. The response contains `updated_schedule` — update that schedule's status in local state from the response (do not re-fetch the full plant).
+- **Undo flow (10-second window):** Call `DELETE /plants/:id/care-actions/:action_id` within 10 seconds. The response contains the reverted `updated_schedule` — update the local schedule state from it.
+- Status badge colors map: `on_track` → Status Green (`#4A7C59`), `due_today` → Status Yellow (`#C4921F`), `overdue` → Status Red (`#B85C38`).
+- `days_overdue` from the response can be displayed as "X days overdue" in the badge label when `status === "overdue"`.
+
+#### SPEC-006 — AI Advice Modal (T-006)
+
+- The modal accepts either a photo upload or a plain-text plant type name. If the user uploads a photo, call `POST /plants/:id/photo` first to get a `photo_url`, then pass that URL to `POST /ai/advice`. If text-only, pass `plant_type` directly.
+- **Note on photo-before-plant scenario:** If the AI modal is opened from the Add Plant screen before the plant is created, the photo cannot be uploaded to `POST /plants/:id/photo` (no plant ID yet). Recommended approach: show a "text-only" mode in the modal when no plant exists yet, or upload the photo after plant creation. The AI endpoint also accepts `photo_url` from any previously uploaded source — the UI may upload to a generic endpoint if one exists, but currently `POST /plants/:id/photo` is the only upload endpoint and requires an existing plant.
+  - **Practical guidance:** The modal should default to text-entry on the Add Plant screen (before a plant exists). If the user wants photo-based AI advice, they should first save the plant, then access the AI modal from the Edit Plant screen. This is acceptable MVP behavior.
+- Expected response latency: 2–8 seconds. Always show a loading spinner/skeleton in the modal.
+- On 422 `PLANT_NOT_IDENTIFIABLE`: show a user-friendly message — "We couldn't identify this plant from the photo. Try a clearer photo or enter the plant name manually."
+- On 502 `AI_SERVICE_UNAVAILABLE`: show — "AI advice is temporarily unavailable. You can add care schedules manually."
+- The "Accept" button should populate the Add/Edit Plant form fields with the AI-suggested values. Map `care_advice.watering`, `care_advice.fertilizing`, `care_advice.repotting` to the corresponding form fields. Convert `"years"` frequency_unit to months before writing to form state.
+
+#### SPEC-007 — Profile Page (T-007)
+
+- `GET /profile` returns `user` (id, full_name, email, created_at) and `stats` (plant_count, days_as_member, total_care_actions). All values are server-computed — display them directly.
+- `POST /auth/logout` requires the current `refresh_token` in the request body (see contract above). On success, clear all auth state (access token, refresh token) from memory and redirect to `/login`.
+- The profile page shows "member since" as a human-readable date formatted from `user.created_at`. Use the browser's `Intl.DateTimeFormat` API or a date utility — do not install a full date library for this one field.
+
+---
+
+### Environment & CORS Configuration (Sprint 3)
+
+Both development and staging origins are whitelisted in the backend CORS config:
+
+| Environment | Frontend Origin | Backend Port |
+|-------------|----------------|-------------|
+| Development (Vite dev server) | `http://localhost:5173` | `:3000` |
+| Staging (Vite preview) | `http://localhost:4173` | `:3000` |
+
+The `FRONTEND_URL` env var in `backend/.env` is set to `http://localhost:5173,http://localhost:4173` (comma-separated list). Both origins are accepted — no CORS issues should occur on either the dev server or the staging preview.
+
+**API base URL for frontend:** `http://localhost:3000/api/v1` (development and staging).
+
+---
+
+### Security Requirements for Frontend (Sprint 3)
+
+These items from the security checklist apply to frontend implementation and must be verified during QA (T-015):
+
+| Requirement | Detail |
+|-------------|--------|
+| Token storage | `access_token` in React context memory only — never `localStorage`, never `sessionStorage` |
+| Refresh token | In memory (React context) or httpOnly cookie — never exposed to JS if possible |
+| Auth guards | All routes except `/login` and `/signup` must redirect unauthenticated users to `/login` |
+| XSS | No use of `dangerouslySetInnerHTML`. All user content rendered as text nodes. |
+| HTTPS | N/A for staging. Required before production deploy. |
+| Token auto-refresh | On 401: silently refresh → retry. On refresh failure: clear auth + redirect to login. |
+
+---
+
+*Sprint 3 contract review written by Backend Engineer — 2026-03-23. No new endpoints. All 14 Sprint 1 endpoints confirmed valid.*

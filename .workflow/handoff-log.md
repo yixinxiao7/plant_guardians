@@ -1187,3 +1187,142 @@ All specs inherit from the Design System Conventions in `ui-spec.md`. Key values
 None from the Design Agent side. All 7 specs are complete, approved, and ready to build against. Backend API is live. API contracts are published in `api-contracts.md`.
 
 ---
+
+## H-021 — Sprint 3: API Contracts Confirmed — Frontend Engineer May Begin Integration
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-021 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 3 |
+| **Subject** | All API contracts from Sprint 1 are confirmed valid for Sprint 3. No new endpoints. Frontend may begin wiring all 7 screens immediately. |
+| **Spec Refs** | SPEC-001, SPEC-002, SPEC-003, SPEC-004, SPEC-005, SPEC-006, SPEC-007 / T-001–T-007 |
+| **Status** | Pending |
+
+### What's Confirmed
+
+All 14 endpoints documented in `.workflow/api-contracts.md` are:
+- ✅ Fully implemented in `backend/src/`
+- ✅ Tested (40/40 backend unit tests pass)
+- ✅ Staging-verified at `http://localhost:3000/api/v1`
+- ✅ No contract changes from Sprint 1 — the existing contracts are the definitive spec
+
+### Screen → Endpoint Quick Reference
+
+| Spec | Endpoints |
+|------|-----------|
+| SPEC-001 (Login/Signup) | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh` |
+| SPEC-002 (Inventory) | `GET /plants`, `DELETE /plants/:id` |
+| SPEC-003 (Add Plant) | `POST /plants`, `POST /plants/:id/photo`, `POST /ai/advice` |
+| SPEC-004 (Edit Plant) | `GET /plants/:id`, `PUT /plants/:id` |
+| SPEC-005 (Plant Detail) | `GET /plants/:id`, `POST /plants/:id/care-actions`, `DELETE /plants/:id/care-actions/:action_id` |
+| SPEC-006 (AI Advice Modal) | `POST /ai/advice` (+ optional `POST /plants/:id/photo` for photo input) |
+| SPEC-007 (Profile) | `GET /profile`, `POST /auth/logout` |
+
+### Sprint 3-Specific Integration Notes
+
+See the **Sprint 3 Contracts Review** section in `.workflow/api-contracts.md` for detailed per-screen integration guidance. Key highlights:
+
+1. **Token storage:** `access_token` in React context memory only. Never `localStorage`. Refresh token in memory or httpOnly cookie.
+2. **Status badges:** Use server-provided `status` and `days_overdue` — do not compute client-side.
+3. **AI photo flow:** `POST /plants/:id/photo` requires an existing plant ID. For the Add Plant modal, default to text-entry mode. Photo-based AI advice is available from the Edit Plant screen after a plant exists.
+4. **"Years" conversion:** AI endpoint may return `frequency_unit: "years"` for repotting. Convert to months (`value * 12, unit: "months"`) before sending to `POST /plants` or `PUT /plants/:id`.
+5. **Mark-as-done:** `POST /plants/:id/care-actions` response includes `updated_schedule`. Update local state from the response — do not re-fetch the full plant.
+6. **Undo:** `DELETE /plants/:id/care-actions/:action_id` response includes reverted `updated_schedule`. Same pattern — update from response.
+7. **CORS:** Both `:5173` (dev) and `:4173` (staging preview) are whitelisted. No CORS issues on either environment.
+
+### Known Backend Limitations
+
+- `GEMINI_API_KEY` is a placeholder → `POST /ai/advice` returns 502 `AI_SERVICE_UNAVAILABLE`. The frontend must handle this gracefully: show "AI advice is temporarily unavailable. You can add care schedules manually."
+- `npm audit fix` (T-022) is in progress — this does not affect any API behavior.
+
+### Backend Task This Sprint
+
+T-022 (`npm audit fix`) is the only backend task in Sprint 3. It has no frontend impact.
+
+---
+
+## H-022 — Sprint 3: API Contracts for QA Integration Test Reference
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-022 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 3 |
+| **Subject** | Sprint 3 API contracts confirmed. No new endpoints. All 14 endpoints from Sprint 1 are valid for QA integration testing (T-015, T-016, T-017). |
+| **Spec Refs** | T-015, T-016, T-017 |
+| **Status** | Pending |
+
+### Backend Status for QA
+
+| Endpoint Group | Status | Test Count |
+|----------------|--------|-----------|
+| Auth (T-008) | ✅ Done, tested | 10 tests |
+| Plants CRUD (T-009) | ✅ Done, tested | 9 tests |
+| Photo Upload (T-010) | ✅ Done, tested | 5 tests |
+| AI Advice (T-011) | ✅ Done, tested | 3 tests |
+| Care Actions (T-012) | ✅ Done, tested | 6 tests |
+| Profile (T-013) | ✅ Done, tested | 2 tests |
+| **Total** | | **40/40 pass** |
+
+### Integration Test Scope for Sprint 3
+
+QA integration tests (T-015, T-016, T-017) are blocked on frontend completion (T-001 through T-007). Once the Frontend Engineer completes their tasks, QA should run the following flows end-to-end in the browser:
+
+#### T-015 — Auth Flows
+
+| Test Scenario | Endpoint(s) | Expected |
+|---------------|------------|---------|
+| New user registration | `POST /auth/register` | 201 + tokens; redirect to inventory; welcome toast |
+| Login with valid credentials | `POST /auth/login` | 200 + tokens; redirect to inventory |
+| Login with wrong password | `POST /auth/login` | 401 `INVALID_CREDENTIALS`; form-level error banner shown |
+| Token auto-refresh | `POST /auth/refresh` | 200 + new token pair; original request retried transparently |
+| Logout | `POST /auth/logout` | 200; auth state cleared; redirect to `/login` |
+| Auth guard — unauthenticated access | Any protected route | Redirect to `/login` |
+| Duplicate email registration | `POST /auth/register` | 409 `EMAIL_ALREADY_EXISTS`; inline field error |
+
+#### T-016 — Plant CRUD Flows
+
+| Test Scenario | Endpoint(s) | Expected |
+|---------------|------------|---------|
+| Add plant with care schedules | `POST /plants` | 201; redirect to inventory; new card appears |
+| Add plant with photo | `POST /plants/:id/photo` → `PUT /plants/:id` | Photo displayed on card |
+| View plant inventory | `GET /plants` | Cards with correct status badges |
+| View plant detail | `GET /plants/:id` | Detail screen with care schedule status badges |
+| Mark care action as done | `POST /plants/:id/care-actions` | Confetti animation; badge updates to "on track" |
+| Undo care action (10s window) | `DELETE /plants/:id/care-actions/:action_id` | Badge reverts to prior status |
+| Edit plant | `GET /plants/:id` → `PUT /plants/:id` | Form pre-populated; changes saved |
+| Delete plant | `DELETE /plants/:id` | Confirmation modal; card animates out; success toast |
+| Empty state | `GET /plants` (no plants) | Empty state illustration + CTA shown |
+
+#### T-017 — AI Advice Flow
+
+| Test Scenario | Endpoint(s) | Expected |
+|---------------|------------|---------|
+| Text-only AI advice | `POST /ai/advice` (plant_type only) | Loading state shown; advice rendered; Accept fills form |
+| AI service unavailable (502) | `POST /ai/advice` (no real Gemini key) | Graceful "unavailable" message; no broken state |
+| Reject AI advice | — | Modal closes; form unchanged |
+| Accept AI advice | — | Form fields populated with AI-suggested values |
+
+### Security Items for Frontend QA
+
+QA must verify the following frontend security requirements during T-015:
+
+| Item | How to Verify |
+|------|--------------|
+| No token in localStorage | Open DevTools → Application → Local Storage → confirm no access_token or refresh_token key |
+| Auth guard works | Navigate to `/` without being logged in → confirm redirect to `/login` |
+| XSS: plant name with `<script>` | Create plant with name `<script>alert(1)</script>` → confirm it renders as text, no execution |
+| CORS: no console errors | Open DevTools → Console → confirm no CORS errors on page load or API calls |
+
+### Notes
+
+- **AI happy path testing:** Requires a real `GEMINI_API_KEY`. For CI and local staging, test the error path (502) and trust the unit test coverage for the happy path.
+- **T-022 (npm audit fix):** Backend will run this during Sprint 3. It has no impact on any endpoint behavior.
+- Full contract details for each endpoint are in `.workflow/api-contracts.md` — see both the Sprint 1 Contracts section and the Sprint 3 Contracts Review section.
+
+---

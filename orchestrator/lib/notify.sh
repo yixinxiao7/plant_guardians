@@ -70,7 +70,9 @@ send_sprint_email() {
 
     # ── Send via Gmail SMTP ───────────────────────────────────────────
 
-    local subject="[Triplanner] Sprint #${sprint_num} Complete"
+    local project_name
+    project_name=$(basename "$PROJECT_ROOT")
+    local subject="[${project_name}] Sprint #${sprint_num} Complete"
 
     if ! command -v python3 &>/dev/null; then
         log_warn "python3 not found — cannot send email."
