@@ -2434,3 +2434,42 @@ No contract changes. See `.workflow/api-contracts.md` Sprint 4 section for happy
 After the Frontend Engineer ships T-026 (AI Modal 502 fix), please verify in the browser that the 502 error state shows only "Close" (no "Try Again") with the correct message. This is a frontend-only change — no backend contract verification needed, but the UI behavior should be confirmed against SPEC-006.
 
 ---
+
+## H-040 — Frontend Engineer: T-026 Complete — AIAdviceModal 502 Fix (FB-004)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-040 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 4 |
+| **Subject** | T-026 implemented — AI Advice Modal 502 error state fixed per SPEC-006 and FB-004 |
+| **Spec Refs** | T-026, SPEC-006, FB-004 |
+| **Status** | Pending |
+
+### Changes Made
+
+**File: `frontend/src/components/AIAdviceModal.jsx`**
+- Added `errorCode` state to track the specific error type
+- For `AI_SERVICE_UNAVAILABLE` errors: "Try Again" button is now hidden; only "Close" button is shown (promoted to `secondary` variant)
+- Updated error message from "Our AI is temporarily unavailable. Try again in a moment." → "Our AI service is temporarily offline. You can still add your plant manually."
+- Non-502 errors (network, unidentifiable plant) retain the "Try Again" + "Close" button pair — no change to those flows
+
+**File: `frontend/src/__tests__/AIAdviceModal.test.jsx`**
+- Added test: "hides Try Again button and shows correct message for AI_SERVICE_UNAVAILABLE (502) error"
+- Added test: "shows Try Again button for non-502 errors"
+- All 50/50 frontend tests pass (48 existing + 2 new)
+
+### What to Test
+
+1. Trigger 502/AI_SERVICE_UNAVAILABLE error on the AI modal (backend must return this error code, or mock it)
+2. Verify: only "Close" button visible (no "Try Again")
+3. Verify: message reads "Our AI service is temporarily offline. You can still add your plant manually."
+4. Verify: non-502 errors still show both "Try Again" and "Close" buttons
+
+### No API Contract Changes
+
+This is a frontend-only UI fix. No backend changes or new API contracts required. The existing `POST /api/v1/ai/advice` error response shape (`{ error: { code: "AI_SERVICE_UNAVAILABLE" } }`) is unchanged.
+
+---
