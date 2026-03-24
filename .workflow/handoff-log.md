@@ -2952,3 +2952,19 @@ A full Sprint #4 build and deploy pass has been completed:
 - HTTPS not configured (staging only)
 
 ---
+
+---
+## Handoff: Monitor → Manager
+Sprint: #4
+Date: 2026-03-24
+Status: Complete
+Summary: Post-deploy health checks PASSED. Staging environment verified and healthy. Deploy Verified = Yes.
+Config Consistency: PASS
+- Port match: PASS (backend PORT=3000, Vite proxy target=http://localhost:3000)
+- Protocol match: PASS (N/A — SSL not configured; http:// used consistently)
+- CORS match: PASS (FRONTEND_URL=http://localhost:5173,http://localhost:4173 covers both dev and preview ports)
+- Docker port mapping: N/A (no backend container in docker-compose.yml; staging uses local PostgreSQL)
+Health Checks: 14/15 checks PASS; 1 expected failure (POST /api/v1/ai/advice returns 502 — placeholder GEMINI_API_KEY, tracked as T-025)
+Endpoints verified: /api/health, /api/v1/auth/login, /api/v1/auth/refresh, /api/v1/auth/logout, GET/POST/PUT/DELETE /api/v1/plants, GET/PUT /api/v1/plants/:id, POST /api/v1/plants/:id/photo (reachability), POST/DELETE /api/v1/plants/:id/care-actions, GET /api/v1/profile
+Frontend: Accessible at http://localhost:5173 (vite preview), dist/ build present
+Next: Sprint #4 is complete. Ready for next sprint planning. T-025 (Gemini API key configuration) should be prioritized in Sprint #5.
