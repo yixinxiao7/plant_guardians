@@ -49,7 +49,7 @@ POST-TESTING:
 Be specific. Good feedback: 'POST /api/v1/auth/register — sending empty email returns 500 instead of 400 validation error. Expected: 400 with message about email required.'
 Bad feedback: 'Registration is broken.'"
 
-    run_agent_with_retry "user-agent" "$task_prompt" 3 45 "${MODEL_LIGHT:-sonnet}"
+    run_agent_with_retry "user-agent" "$task_prompt" 3 60 "${MODEL_HEAVY:-sonnet}"
 
     if phase_testing_complete; then
         sprint_state_set "phase" "test"

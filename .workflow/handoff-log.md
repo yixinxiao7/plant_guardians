@@ -798,3 +798,95 @@ Once seeds are run, CORS is fixed, and the backend is restarted cleanly, log a f
 - `npm audit` tar vulnerability (transitive/low risk) → will be addressed before production deploy
 
 ---
+
+## H-018 — Sprint #2 Kickoff — Manager to All Agents
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-018 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-23 |
+| **Sprint** | 2 |
+| **Subject** | Sprint #1 closed. Sprint #2 is open. Frontend implementation is the critical path. All agents: read active-sprint.md before acting. |
+| **Spec Refs** | T-001–T-007, T-015–T-017, T-020–T-024 |
+| **Status** | Pending |
+
+### Sprint #2 Priorities
+
+| Priority | Agent | Tasks | Notes |
+|----------|-------|-------|-------|
+| **P0 — Immediate** | Frontend Engineer | T-001, T-002, T-003, T-004, T-005, T-006, T-007 | Build all 7 screens in dependency order. Start with T-001 (Login/Signup) — all other screens require auth. Refer to SPEC-001 through SPEC-007 in ui-spec.md. All backend APIs and API contracts are live (see api-contracts.md and H-002). |
+| **P2 — With T-001** | Frontend Engineer | T-021 | Fix LoginPage.test.jsx test selectors while implementing T-001 — same file context. |
+| **P3 — Anytime** | Backend Engineer | T-022 | Run `npm audit fix` to resolve tar vulnerability. Low risk but should be clean before production. |
+| **P0 — After Frontend** | QA Engineer | T-015, T-016, T-017 | Run integration tests once T-001 through T-007 are Done. |
+| **P0 — After QA** | Deploy Engineer | T-023 | Re-deploy staging with full frontend build + T-022 fix. |
+| **P0 — After Deploy** | Monitor Agent | T-024 | Full health check including browser-based verification. No CORS errors, Deploy Verified: Yes. |
+| **P0 — After Monitor** | User Agent | T-020 | Run all 3 MVP user flows from project-brief.md. Log feedback to feedback-log.md. |
+
+### Context for Frontend Engineer
+
+- **All backend endpoints are live** at `http://localhost:3000/api/v1`
+- **API contracts** are in `.workflow/api-contracts.md` — reviewed and fully implemented by the backend
+- **Staging backend is running** at `:3000` (see H-017 for credentials and test account)
+- **Critical UX priority:** The "Mark as done" confetti animation (T-005) is non-negotiable — use `canvas-confetti` dynamically imported
+- **Token storage:** Store `access_token` in memory only (React context), NEVER in localStorage
+- **AI advice latency:** 2–8s — always show loading state in the modal (T-006)
+- Test account for local development: `test@plantguardians.local` / `TestPass123!`
+
+### Known Limitations Entering Sprint #2
+
+- `GEMINI_API_KEY` is a placeholder → AI advice endpoint returns 502 (expected; UI must handle `AI_SERVICE_UNAVAILABLE` gracefully)
+- Docker not installed on dev machine — backend uses local PostgreSQL directly
+- HTTPS not configured (staging only; production phase)
+
+---
+
+## H-019 — Sprint #3 Kickoff — Manager to All Agents
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-019 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-23 |
+| **Sprint** | 3 |
+| **Subject** | Sprint #2 closed with no execution. Sprint #3 is open. Frontend implementation is the critical path — this is the third sprint carrying this goal and it must complete. All agents: read active-sprint.md before acting. |
+| **Spec Refs** | T-001–T-007, T-015–T-017, T-020–T-024 |
+| **Status** | Pending |
+
+### Sprint #3 Priorities
+
+| Priority | Agent | Tasks | Notes |
+|----------|-------|-------|-------|
+| **P0 — Immediate** | Frontend Engineer | T-001, T-002, T-003, T-004, T-005, T-006, T-007 | Build all 7 screens in dependency order. Start with T-001 (Login/Signup) — all other screens require auth. Refer to SPEC-001 through SPEC-007 in ui-spec.md. All backend APIs and API contracts are live. This work has now been deferred two full sprints — no further carry-over is acceptable. |
+| **P2 — With T-001** | Frontend Engineer | T-021 | Fix LoginPage.test.jsx test selectors. Fix `getByText('Plant Guardians')` and `getByLabelText('Email')` — detailed fix guidance in H-012. |
+| **P3 — Anytime** | Backend Engineer | T-022 | Run `npm audit fix` to resolve tar vulnerability. No dependencies — can start immediately. |
+| **P0 — After Frontend** | QA Engineer | T-015, T-016, T-017 | Run integration tests once T-001 through T-007 are Done. |
+| **P0 — After QA** | Deploy Engineer | T-023 | Re-deploy staging with full frontend build + T-022 fix applied. |
+| **P0 — After Deploy** | Monitor Agent | T-024 | Full health check including browser-based verification. No CORS errors; Deploy Verified: Yes. |
+| **P0 — After Monitor** | User Agent | T-020 | Run all 3 MVP user flows from project-brief.md. Log all feedback to feedback-log.md with Status: New. |
+
+### Context for Frontend Engineer
+
+- **All backend endpoints are live** at `http://localhost:3000/api/v1` — no backend work needed
+- **API contracts** are in `.workflow/api-contracts.md` — fully implemented; API client (`frontend/src/utils/api.js`) already wired
+- **All 7 UI specs** are approved in `.workflow/ui-spec.md` (SPEC-001 through SPEC-007)
+- **Staging backend is running** at `:3000` — test account: `test@plantguardians.local` / `TestPass123!`
+- **Critical UX priority:** "Mark as done" confetti animation (T-005/SPEC-005) is non-negotiable — use `canvas-confetti` dynamically imported
+- **Token storage:** Store `access_token` in memory (React context) only — NEVER localStorage
+- **AI advice latency:** 2–8s expected — always show loading state in modal (T-006)
+- **File extension note:** Any new files containing JSX must use `.jsx` extension (Vite 8/rolldown does not process JSX in `.js` files — see H-014)
+
+### Escalation Policy
+
+If the Frontend Engineer cannot begin implementation by the first day of Sprint #3, the Manager Agent will escalate to the human project owner. This goal has carried over twice and represents the entire MVP deliverable.
+
+### Known Limitations Entering Sprint #3
+
+- `GEMINI_API_KEY` is a placeholder → AI advice endpoint returns 502 (expected; UI must handle `AI_SERVICE_UNAVAILABLE` gracefully with a user-friendly message)
+- Docker not installed on dev machine — backend uses local PostgreSQL directly
+- HTTPS not configured (staging only; production phase)
+- `npm audit` tar vulnerability still unresolved — T-022 addresses this
+
+---

@@ -537,3 +537,20 @@ Subsequent identical requests succeeded (HTTP 201 and HTTP 200). Likely cause: K
 
 ---
 
+### Post-Fix Re-Verification (Ops Agent)
+
+All three issues from the initial health check were resolved by Deploy Engineer in commit `4659ca6`:
+
+1. **CORS mismatch** — Fixed. `FRONTEND_URL` now accepts both `:5173` and `:4173`. CORS middleware updated to parse comma-separated origins.
+2. **Startup race condition** — Fixed. `server.js` now awaits `db.raw('SELECT 1')` before calling `app.listen()`.
+3. **Seed data** — Fixed. `01_test_user.js` seed added and run.
+
+| Field | Value |
+|-------|-------|
+| **Deploy Verified** | ✅ Yes |
+| **Verified By** | Ops Agent (manual — Monitor Agent exceeded max turns on retry) |
+| **API Health** | ✅ All 14 endpoints functional |
+| **User Agent Ready** | Yes |
+
+---
+

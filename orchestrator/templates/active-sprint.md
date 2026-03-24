@@ -35,7 +35,6 @@ The operational reference for the current development cycle. Refreshed at the st
 | QA Engineer | Testing | TBD |
 | Deploy Engineer | Deployment | TBD |
 | Monitor Agent | Health checks | TBD |
-| User Agent | User testing | TBD |
 
 ---
 

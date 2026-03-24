@@ -88,17 +88,7 @@ check_definition_of_done() {
         ((failed++))
     fi
 
-    # 8. User testing complete
-    ((total++))
-    if phase_testing_complete; then
-        echo -e "  ${GREEN}✓${NC} User Agent tested and submitted feedback"
-        ((passed++))
-    else
-        echo -e "  ${RED}✗${NC} User Agent tested and submitted feedback"
-        ((failed++))
-    fi
-
-    # 9. Sprint summary written
+    # 8. Sprint summary written
     ((total++))
     if phase_closeout_complete; then
         echo -e "  ${GREEN}✓${NC} Sprint summary added to sprint-log"
@@ -146,7 +136,7 @@ check_for_blockers() {
 }
 
 # ── Critical Feedback Check ──────────────────────────────────────────
-# Check if User Agent or Monitor Agent reported critical issues
+# Check if QA or Monitor Agent reported critical issues
 
 check_critical_feedback() {
     local feedback="${WORKFLOW_DIR}/feedback-log.md"

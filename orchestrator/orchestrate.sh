@@ -132,7 +132,7 @@ run_sprint() {
     fi
 
     # Phase execution with checkpoint tracking
-    local phases=("plan" "design" "contracts" "build" "review" "qa" "deploy" "verify" "test" "closeout")
+    local phases=("plan" "design" "contracts" "build" "review" "qa" "deploy" "verify" "closeout")
     local started=false
 
     for phase in "${phases[@]}"; do
@@ -157,7 +157,6 @@ run_sprint() {
             qa)        run_phase_qa ;;
             deploy)    run_phase_deploy ;;
             verify)    run_phase_verify ;;
-            test)      run_phase_test ;;
             closeout)  run_phase_closeout ;;
         esac
 

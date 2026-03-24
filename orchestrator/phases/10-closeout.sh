@@ -29,6 +29,7 @@ SPRINT SUMMARY:
    - Sprint goal and whether it was met
    - Tasks completed (list task IDs and descriptions)
    - Tasks carried over (if any didn't finish)
+   - Verification failures: check .workflow/qa-build-log.md for 'Deploy Verified: No' — if found, list the issues and note they must be fixed in the next sprint
    - Key feedback themes
    - What went well
    - What to improve

@@ -50,10 +50,18 @@ SECURITY VERIFICATION:
 18. Log results in .workflow/qa-build-log.md (Test Type: Security Scan)
 19. Any security failures → create a handoff to the responsible engineer as P1
 
+PRODUCT-PERSPECTIVE TESTING:
+20. After technical checks, test the product from a user's perspective:
+    - Read .workflow/project-brief.md for the intended user experience
+    - Test each API endpoint with realistic user data (not just valid/invalid — think like a real user)
+    - Try edge cases a user might hit: empty inputs, very long text, special characters, rapid repeated requests
+    - For each observation, create an entry in .workflow/feedback-log.md with Category (Bug, UX Issue, Feature Gap, Positive), Severity, and details
+    - Note anything that works particularly well (Positive feedback helps the team know what to keep)
+
 FINAL STEPS:
-20. If all tests pass: move tasks to 'Done' in dev-cycle-tracker.md
-21. If tests fail: move tasks to 'Blocked' and handoff to the responsible engineer
-22. Log a handoff to Deploy Engineer confirming readiness (or blocking deployment)
+21. If all tests pass: move tasks to 'Done' in dev-cycle-tracker.md
+22. If tests fail: move tasks to 'Blocked' and handoff to the responsible engineer
+23. Log a handoff to Deploy Engineer confirming readiness (or blocking deployment)
 
 Be thorough. Run actual commands to test. Check actual code for security issues."
 
