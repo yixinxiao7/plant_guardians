@@ -2878,3 +2878,77 @@ During this QA pass, the following product-perspective observations were noted:
 QA does not block any Sprint 4 work. All QA-testable tasks are Done. Remaining tasks are Monitor/Backend/User Agent scope.
 
 ---
+
+## H-049 — Deploy Engineer: Sprint 4 Staging Verified — Monitor Agent: Execute T-024
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-049 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-24 |
+| **Sprint** | 4 |
+| **Subject** | Sprint 4 staging fully verified. Fresh build complete. All services healthy. Monitor Agent should execute T-024 health check now. |
+| **Spec Refs** | T-024, T-026, T-028 |
+| **Status** | Pending |
+
+### Deploy Summary
+
+A full Sprint #4 build and deploy pass has been completed:
+
+| Step | Result |
+|------|--------|
+| QA confirmation verified (H-043, H-048) | ✅ All tests pass, no blockers |
+| `cd backend && npm install` — 443 packages, 0 vulns | ✅ |
+| `cd frontend && npm install` — 243 packages, 0 vulns | ✅ |
+| `cd frontend && npm run build` — 0 errors, 156ms | ✅ |
+| `cd backend && npm run migrate` — Already up to date (5/5) | ✅ |
+| Backend health check `:3000/api/health` → 200 | ✅ |
+| Frontend preview `:5173` → 200 | ✅ |
+| Proxy verified: `:5173/api/health` → 200 (forwarded to :3000) | ✅ |
+| Auth login (test account) → access_token | ✅ |
+
+### Current Staging Environment
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| Backend API | http://localhost:3000 | 39598 | ✅ Running |
+| Frontend (vite preview, proxy active) | http://localhost:5173 | 54215 | ✅ Running |
+| PostgreSQL 15 | localhost:5432 (plant_guardians_staging) | 1074 | ✅ Running |
+
+### Test Account
+
+| Email | Password |
+|-------|----------|
+| test@plantguardians.local | TestPass123! |
+
+### Sprint 4 Changes Live in This Build
+
+| Task | Change |
+|------|--------|
+| T-026 | AIAdviceModal: 502 → only "Close" button, correct message text (FB-004 resolved) |
+| T-028 | Vite proxy `/api` → `http://localhost:3000` active in vite preview (PID 54215) |
+
+### T-024 Acceptance Criteria (Monitor Agent Must Verify All)
+
+1. All 14 API endpoints return expected responses (see H-031 for full list)
+2. Frontend loads at http://localhost:5173 — no blank screen
+3. Auth flow completes in browser: login → inventory → plant detail → mark care done
+4. DevTools Console: **no CORS errors**
+5. DevTools Application: **no tokens in localStorage or sessionStorage** (only `pg_user` allowed)
+6. DevTools Network: API requests go to `:5173/api/...` (via proxy) — **NOT directly to `:3000`** (T-028 requirement)
+7. Set `Deploy Verified: Yes` in qa-build-log.md
+
+### After T-024 Passes
+
+1. Update T-024 status → Done in dev-cycle-tracker.md
+2. Log handoff to User Agent (T-020 unblocked)
+3. Log handoff to Backend Engineer (T-025 unblocked)
+
+### Known Limitations
+
+- `GEMINI_API_KEY` is placeholder → `POST /ai/advice` returns 502 (expected; T-025 addresses this)
+- Docker not installed — staging uses local PostgreSQL 15 directly
+- HTTPS not configured (staging only)
+
+---

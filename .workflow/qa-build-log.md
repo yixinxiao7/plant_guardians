@@ -1363,3 +1363,126 @@ This is a documented limitation. The `infra/docker-compose.yml` is available for
 
 ---
 
+
+## Sprint 4 — Staging Re-Deployment Pass 2 (Deploy Engineer — 2026-03-24T17:55:00Z)
+
+**Date:** 2026-03-24T17:55:00Z
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 4
+**Triggered by:** Orchestrator — Sprint #4 deploy phase. Full build + dependency install pass to confirm staging is current and all Sprint 4 changes are live.
+
+---
+
+### Pre-Deploy Checklist
+
+| Requirement | Status |
+|-------------|--------|
+| QA confirmation in handoff-log.md | ✅ H-043 (QA Complete) + H-048 (Re-Verification Complete) |
+| All backend unit tests pass (40/40) | ✅ Verified by QA — H-048 |
+| All frontend unit tests pass (50/50) | ✅ Verified by QA — H-048 |
+| npm audit: 0 vulnerabilities | ✅ Verified by QA — H-043 |
+| Security checklist: all 13 items pass | ✅ Verified by QA — H-043 |
+| Pending migrations | ✅ None — all 5 migrations already applied |
+| Sprint tasks all Done (or appropriately blocked) | ✅ T-026 Done, T-028 Done, T-024/T-020/T-025 blocked on Monitor |
+
+---
+
+### Build Run — Sprint 4 Pass 2
+
+#### Step 1 — Backend: npm install
+
+| Field | Value |
+|-------|-------|
+| **Command** | `cd backend && npm install` |
+| **Date** | 2026-03-24T17:54:00Z |
+| **Result** | ✅ SUCCESS |
+| **Output** | `up to date, audited 443 packages` — 0 vulnerabilities |
+
+#### Step 2 — Frontend: npm install
+
+| Field | Value |
+|-------|-------|
+| **Command** | `cd frontend && npm install` |
+| **Date** | 2026-03-24T17:54:00Z |
+| **Result** | ✅ SUCCESS |
+| **Output** | `up to date, audited 243 packages` — 0 vulnerabilities |
+
+#### Step 3 — Frontend: Production Build
+
+| Field | Value |
+|-------|-------|
+| **Command** | `cd frontend && npm run build` |
+| **Date** | 2026-03-24T17:54:00Z |
+| **Result** | ✅ SUCCESS — 0 errors |
+| **Duration** | 156ms |
+| **Tool** | Vite 8.0.2 |
+
+| Artifact | Size | Gzip |
+|----------|------|------|
+| `dist/index.html` | 0.74 kB | 0.41 kB |
+| `dist/assets/index-ACo76nzn.css` | 29.12 kB | 5.43 kB |
+| `dist/assets/confetti.module-No8_urVw.js` | 10.57 kB | 4.20 kB |
+| `dist/assets/index-CsF38E1Z.js` | 356.84 kB | 106.63 kB |
+
+#### Step 4 — Database Migrations
+
+| Field | Value |
+|-------|-------|
+| **Command** | `cd backend && npm run migrate` |
+| **Environment** | Staging (plant_guardians_staging @ localhost:5432) |
+| **Date** | 2026-03-24T17:54:00Z |
+| **Result** | ✅ Already up to date — all 5 migrations applied |
+
+---
+
+### Deployment — Staging
+
+| Field | Value |
+|-------|-------|
+| **Environment** | Staging (local — Docker not available, PostgreSQL 15 direct) |
+| **Build Status** | ✅ SUCCESS |
+| **Deploy Status** | ✅ SUCCESS — Services running (processes active from H-044) |
+| **Date** | 2026-03-24T17:55:00Z |
+| **Sprint** | 4 |
+
+#### Running Services
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| Backend API | http://localhost:3000 | 39598 | ✅ Running |
+| Frontend (vite preview) | http://localhost:5173 | 54215 | ✅ Running (proxy active) |
+| Database | PostgreSQL 15 @ localhost:5432 | 1074 | ✅ Running |
+| Vite proxy `/api` → `http://localhost:3000` | Active | — | ✅ Verified |
+
+#### Staging Spot-Check Results
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Backend health | `GET http://localhost:3000/api/health` → `{"status":"ok","timestamp":"2026-03-24T17:54:28.664Z"}` | ✅ 200 |
+| Frontend loads | `GET http://localhost:5173/` → HTTP 200 | ✅ 200 |
+| Proxy active | `GET http://localhost:5173/api/health` → `{"status":"ok",...}` | ✅ 200 |
+| Auth: login test account | `POST /api/v1/auth/login` → access_token returned | ✅ 200 |
+| Migrations current | `npm run migrate` → "Already up to date" | ✅ |
+
+#### Sprint 4 Changes Confirmed in Build
+
+| Task | Change | Deployed |
+|------|--------|---------|
+| T-026 | AIAdviceModal 502 fix — only "Close" button, correct message | ✅ |
+| T-028 | Vite proxy `/api` → `:3000` in vite.config.js | ✅ Active (PID 54215) |
+
+---
+
+### Post-Deploy Handoff
+
+**Handoff logged:** H-049 (see handoff-log.md)
+**Next action:** Monitor Agent — run T-024 staging health check
+
+**Test Account:**
+| Email | Password |
+|-------|----------|
+| test@plantguardians.local | TestPass123! |
+
+**Staging status: ✅ READY for Monitor Agent T-024 health check.**
+
+---
