@@ -185,6 +185,100 @@ None — no staging deploy was attempted in Sprint #2.
 
 ---
 
+---
+
+### Sprint #3 — 2026-03-24 to 2026-03-24
+
+**Sprint Goal:** Implement all 7 Plant Guardians frontend screens, wire them up to the live backend API, pass all unit and integration tests, and deliver a fully browser-testable staging environment — completing the MVP scoped in Sprint #1 and carried over through Sprint #2.
+
+**Outcome:** Substantially Complete — All 7 frontend screens implemented, tested (48/48 unit tests + 3 integration test suites passing), and deployed to staging. Monitor health check (T-024) was triggered and is in progress; final browser verification and user testing (T-020) carry into Sprint #4.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-001 | Implement Login & Sign Up UI — 48/48 frontend tests pass; security fix applied (tokens in memory only) |
+| T-002 | Implement Plant Inventory (Home) screen — all states (loading, empty, error, data) verified |
+| T-003 | Implement Add Plant screen — photo upload, care schedule, years→months conversion verified |
+| T-004 | Implement Edit Plant screen — dirty state detection, full schedule replacement verified |
+| T-005 | Implement Plant Detail screen — confetti animation, 10s undo, status badges verified |
+| T-006 | Implement AI Advice Modal — all 4 states (loading, result, error, not-identifiable) verified |
+| T-007 | Implement Profile page — stats display, logout flow, date formatting verified |
+| T-021 | Fix LoginPage.test.jsx test selector failures — 48/48 frontend tests now pass |
+| T-022 | npm audit fix — bcrypt upgraded to 6.0.0; 0 high-severity vulnerabilities |
+| T-015 | QA: Integration test pass — Auth flows (register, login, refresh, logout, auth guards, token storage) |
+| T-016 | QA: Integration test pass — Plant CRUD flows (CRUD, photo upload, care actions, delete modal, undo) |
+| T-017 | QA: Integration test pass — AI Advice flow (all 4 states, accept/reject, form population) |
+| T-023 | Deploy: Full frontend re-deploy to staging — 40/40 backend + 48/48 frontend tests; 0 audit vulns; all pre-deploy checks ✅ |
+
+---
+
+#### Tasks Carried Over to Sprint #4
+
+| Task ID | Description | Reason |
+|---------|-------------|--------|
+| T-024 | Monitor: Full staging health check with browser verification | Triggered but not yet complete — in progress at sprint close |
+| T-020 | User testing: All 3 MVP flows | Blocked on T-024 (Monitor must return Deploy Verified: Yes first) |
+
+---
+
+#### Verification Failures
+
+No `Deploy Verified: No` verdict was returned in Sprint #3. The Deploy Engineer's pre-Monitor verification (H-034, 2026-03-24) confirmed all systems healthy: backend on :3000, frontend on :5173, 5 migrations applied, seed data present, 0 audit vulnerabilities. T-024 (Monitor Agent full health check) was triggered but did not complete before sprint close — it carries into Sprint #4.
+
+The Sprint 1 `Deploy Verified: No` was fully resolved in Sprint 1 (commit `4659ca6`) and is not a Sprint 3 issue.
+
+---
+
+#### Key Feedback Themes
+
+| Feedback ID | Category | Severity | Disposition |
+|-------------|----------|----------|-------------|
+| FB-004 | UX Issue (AI Modal 502 wrong button) | Minor | Tasked → T-028 (Sprint 4) |
+| FB-005 | UX Issue (Edit redirect to detail vs. inventory) | Cosmetic | Acknowledged — current behavior is better UX; spec to be updated |
+| FB-006 | Positive (excellent implementation quality) | — | Acknowledged |
+| FB-007 | Positive (robust edge case handling) | — | Acknowledged |
+
+---
+
+#### What Went Well
+
+- **Frontend fully delivered** — after two consecutive no-op sprints, all 7 screens were implemented, reviewed, and tested in a single sprint
+- **High code quality on first submission** — only one code review return (T-001 sessionStorage security fix); all other tasks passed review on first attempt
+- **Security checklist 13/13 pass** — tokens in memory only, no XSS vectors, auth guards, MIME validation, ownership isolation
+- **Test coverage is strong** — 48/48 frontend unit tests, 40/40 backend unit tests, 3 integration test suites, all passing
+- **QA feedback was thorough and precise** — FB-004, FB-005 reflect careful product-perspective review
+- **Infrastructure resilience** — Deploy Engineer correctly isolated `TEST_DATABASE_URL` after staging tables were wiped, and resolved the port conflict with a concurrent project
+
+---
+
+#### What to Improve
+
+- **Monitor Agent and User testing must complete in Sprint #4** — they have been deferred three sprints and are the final gates before MVP is fully verified
+- **Gemini API key is a placeholder** — AI advice happy path has never been tested end-to-end; this blocks full MVP validation
+- **Vite proxy not configured** — frontend makes direct cross-origin calls; this must be addressed before production deployment
+- **Port conflict management** — concurrent orchestrator runs (triplanner + plant_guardians) caused a port collision; the orchestrator should detect and reserve ports per project
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Owner |
+|------|----------|-------|
+| Gemini API key is placeholder — AI advice always returns 502 | P1 | Backend Engineer (configuration, not code) |
+| AI Advice Modal 502 state shows "Try Again" + wrong message text (FB-004) | P2 | Frontend Engineer → T-028 |
+| No Vite proxy configured — frontend makes direct CORS calls to backend (acceptable for dev, must address before production) | P3 | Deploy Engineer |
+| Database-level encryption not configured | P3 Advisory | Deploy Engineer (production phase) |
+| SPEC-004 describes redirect-to-inventory, but implementation redirects to plant detail (better UX) | P3 Cosmetic | Design Agent → T-029 |
+
+---
+
+*Sprint #3 summary written by Manager Agent on 2026-03-24.*
+
+---
+
 ## Template
 
 ### Sprint #N — [Start Date] to [End Date]

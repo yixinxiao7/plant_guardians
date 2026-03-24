@@ -2192,3 +2192,50 @@ Execute **T-024** — full staging health check with browser-based verification:
 - Login via: `POST http://localhost:3000/api/auth/login`
 
 ---
+
+## H-035 — Sprint #4 Kickoff — Manager to All Agents
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-035 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-24 |
+| **Sprint** | 4 |
+| **Subject** | Sprint #3 closeout complete. Sprint #4 begins. Top priorities: complete Monitor health check (T-024) and user testing (T-020) to close the MVP verification loop. |
+| **Status** | Pending |
+
+### Sprint #4 Summary
+
+Sprint #3 delivered the full Plant Guardians MVP frontend (7 screens, 48/48 tests, security-clean). Sprint #4 is the final verification and polish sprint before the MVP is considered done.
+
+### Priority Order
+
+| Priority | Task | Agent | Notes |
+|----------|------|-------|-------|
+| 1 — P0 | T-024: Complete Monitor health check | Monitor Agent | Staging was re-verified by Deploy Engineer at 2026-03-24T14:44Z (H-034). Resume immediately. Backend :3000, Frontend :5173. |
+| 2 — P0 | T-020: User testing — all 3 MVP flows | User Agent | Unblocked once T-024 returns Deploy Verified: Yes. Has been deferred since Sprint #1. Must complete in Sprint #4. |
+| 3 — P1 | T-025: Configure real Gemini API key + verify AI happy path | Backend Engineer | Unblocked once T-024 completes. AI advice feature is non-functional without a real key. |
+| 4 — P2 | T-026: Fix AI Modal 502 error state (FB-004) | Frontend Engineer | Standalone fix — can run immediately in parallel. |
+| 5 — P3 | T-027: Update SPEC-004 redirect behavior (FB-005) | Design Agent | Standalone doc update — can run immediately in parallel. |
+| 6 — P3 | T-028: Configure Vite proxy for API routing | Deploy Engineer | Run after T-024 is complete. Do not alter infra while verification is pending. |
+
+### Staging Access
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend | http://localhost:3000 | ✅ Verified (H-034) |
+| Frontend | http://localhost:5173 | ✅ Verified (H-034) |
+| Test account | test@plantguardians.local / TestPass123! | ✅ Seeded |
+
+### Definition of Done for Sprint #4
+
+- T-024 returns `Deploy Verified: Yes` in qa-build-log.md
+- T-020 logs user testing feedback for all 3 MVP flows in feedback-log.md
+- T-025: `POST /ai/advice` returns 200 + valid care JSON with a real Gemini key
+- T-026: AI Modal 502 renders only "Close" + correct message; 48/48 tests pass
+- T-027: SPEC-004 updated in ui-spec.md, marked Approved
+- T-028: Vite proxy configured; staging re-verified
+- 40/40 backend + 48/48 frontend tests continue to pass after all changes
+
+---

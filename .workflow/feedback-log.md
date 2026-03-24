@@ -135,7 +135,7 @@ Run `cd backend && knex seed:run` on staging. Add this step to the deployment ch
 | **Date** | 2026-03-24 |
 | **Category** | UX Issue |
 | **Severity** | Minor |
-| **Status** | New |
+| **Status** | Tasked → T-028 (Sprint 4) |
 
 ### Description
 
@@ -162,7 +162,7 @@ In `AIAdviceModal.jsx`, differentiate the error state rendering based on error c
 | **Date** | 2026-03-24 |
 | **Category** | UX Issue |
 | **Severity** | Cosmetic |
-| **Status** | New |
+| **Status** | Acknowledged — Cosmetic spec deviation; current redirect-to-detail behavior is arguably better UX. Spec to be updated in Sprint 4 (T-029). No functional change needed. |
 
 ### Description
 
@@ -189,7 +189,7 @@ Keep the current behavior (redirect to detail) — it's more useful. Update the 
 | **Date** | 2026-03-24 |
 | **Category** | Positive |
 | **Severity** | — |
-| **Status** | New |
+| **Status** | Acknowledged — Strong MVP foundation. Shared with the team. |
 
 ### Description
 
@@ -218,7 +218,7 @@ This is a strong MVP foundation.
 | **Date** | 2026-03-24 |
 | **Category** | Positive |
 | **Severity** | — |
-| **Status** | New |
+| **Status** | Acknowledged — Edge case coverage is production-grade. Noted as a quality benchmark. |
 
 ### Description
 
