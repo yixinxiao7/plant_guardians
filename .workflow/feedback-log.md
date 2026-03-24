@@ -288,7 +288,7 @@ T-028's Vite proxy configuration is a clean technical debt resolution:
 | **Date** | 2026-03-24 |
 | **Category** | Bug |
 | **Severity** | Minor |
-| **Status** | New |
+| **Status** | Acknowledged — Minor flaky test; backlog for Sprint 5 (T-029). Consider `--runInBand` or improved supertest teardown. |
 
 ### Description
 
@@ -321,7 +321,7 @@ Consider adding `--runInBand` to Jest config for CI, or investigating the supert
 | **Date** | 2026-03-24 |
 | **Category** | Positive |
 | **Severity** | — |
-| **Status** | New |
+| **Status** | Acknowledged — Strong architectural pattern; noted as quality benchmark for future services. |
 
 ### Description
 
@@ -341,7 +341,7 @@ The frontend error handling in `api.js` (ApiError class with code/status) and th
 | **Date** | 2026-03-24 |
 | **Category** | Feature Gap |
 | **Severity** | Major |
-| **Status** | New — Tracked as T-025 (Blocked on T-024) |
+| **Status** | Tasked → T-025 (Sprint 5 — T-024 now complete; Gemini key configuration unblocked) |
 
 ### Description
 
@@ -366,7 +366,7 @@ T-025 addresses this but is blocked on T-024 (Monitor health check). Until a rea
 | **Date** | 2026-03-24 |
 | **Category** | Positive |
 | **Severity** | — |
-| **Status** | New |
+| **Status** | Acknowledged — Best-practice XSS-resilient token storage confirmed. Noted as security quality benchmark. |
 
 ### Description
 

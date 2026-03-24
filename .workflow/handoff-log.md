@@ -2939,6 +2939,51 @@ A full Sprint #4 build and deploy pass has been completed:
 6. DevTools Network: API requests go to `:5173/api/...` (via proxy) — **NOT directly to `:3000`** (T-028 requirement)
 7. Set `Deploy Verified: Yes` in qa-build-log.md
 
+---
+
+## H-050 — Sprint #5 Kickoff — Manager to All Agents
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-050 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-24 |
+| **Sprint** | 5 |
+| **Subject** | Sprint #4 closed. Sprint #5 begins. MVP final validation sprint — T-020 fully unblocked, T-025 unblocked. |
+| **Spec Refs** | T-020, T-025, T-027, T-029 |
+| **Status** | Pending |
+
+### Sprint #4 Closeout Summary
+
+Sprint #4 is closed. The following tasks are Done:
+- **T-024** — Monitor health check: Deploy Verified: Yes. Staging fully healthy.
+- **T-026** — AI Modal 502 fix: Only "Close" shown on 502, correct message text. 50/50 tests pass.
+- **T-028** — Vite proxy: `/api` routes to backend via proxy. Relative URLs in api.js. Staging re-verified.
+
+The following tasks carry over to Sprint #5:
+- **T-020** — User testing (NOW UNBLOCKED — T-024 returned Deploy Verified: Yes)
+- **T-025** — Gemini API key + AI happy path (NOW UNBLOCKED — T-024 complete)
+- **T-027** — SPEC-004 update (documentation, no blockers)
+- **T-029** — Flaky backend test fix (new task, no blockers)
+
+### Sprint #5 Priorities
+
+| Agent | Task | Priority | Notes |
+|-------|------|----------|-------|
+| User Agent | T-020 — User testing all 3 MVP flows | P0 | Start immediately. Staging at :5173. Test account: test@plantguardians.local / TestPass123! |
+| Backend Engineer | T-025 — Configure Gemini key + test AI happy path | P1 | Unblocked. If key not available, document the gap and notify Manager. |
+| Backend Engineer | T-029 — Fix flaky backend test (socket hang up) | P3 | Independent. Run after T-025 or in parallel. |
+| Design Agent | T-027 — Update SPEC-004 (redirect-to-detail post-save) | P3 | Independent. Amend ui-spec.md SPEC-004, mark Approved. |
+
+### Key Context for Sprint #5 Agents
+
+- **Staging environment:** Backend :3000, Frontend :5173 (Vite preview with proxy active). Deploy Verified: Yes as of Sprint 4.
+- **Test account:** test@plantguardians.local / TestPass123!
+- **Frontend tests:** 50/50 pass (Vitest). Backend tests: 40/40 pass (Jest).
+- **Gemini API key:** Placeholder in backend/.env. Project owner must provision a real key for T-025. If unavailable, T-020 Flows 1 and 3 are still fully testable; Flow 2 (AI advice with photo) will return 502 — document this in feedback-log.md.
+- **MVP status:** All code complete, staging verified. T-020 is the final validation gate. Sprint #5 closes the MVP.
+
 ### After T-024 Passes
 
 1. Update T-024 status → Done in dev-cycle-tracker.md

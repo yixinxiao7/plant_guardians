@@ -279,6 +279,90 @@ The Sprint 1 `Deploy Verified: No` was fully resolved in Sprint 1 (commit `4659c
 
 ---
 
+---
+
+### Sprint #4 — 2026-03-24 to 2026-03-24
+
+**Sprint Goal:** Close the MVP verification loop — complete the Monitor Agent health check and user testing carried over from Sprint #3, wire up the real Gemini API key for the AI advice happy path, fix the AI Modal 502 UX issue (FB-004), and complete remaining spec/infrastructure cleanup before production.
+
+**Outcome:** Partial — T-024 (Monitor health check) completed with Deploy Verified: Yes; T-026 (AI Modal 502 fix) and T-028 (Vite proxy) both shipped and verified. T-020 (user testing), T-025 (Gemini key), and T-027 (SPEC-004 update) did not complete and carry into Sprint #5.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-024 | Monitor Agent: Full staging health check — Deploy Verified: Yes. 13/14 API endpoints fully pass (POST /ai/advice 502 is expected due to placeholder key). Frontend loads at :5173 via Vite proxy. Auth flow, CRUD, care actions all healthy. CORS pass, no 5xx errors. |
+| T-026 | Frontend: Fix AIAdviceModal 502 error state — 502 now shows only "Close" button + "Our AI service is temporarily offline. You can still add your plant manually." Non-502 errors still show "Try Again". 50/50 frontend tests pass (2 new tests added). QA verified SPEC-006 compliance. |
+| T-028 | Deploy: Vite proxy configured in vite.config.js (server.proxy + preview.proxy → http://localhost:3000). api.js defaults to relative `/api/v1`. `VITE_API_BASE_URL` env var still works for production. Staging re-activated and re-verified post-change. 50/50 frontend tests pass. |
+
+---
+
+#### Tasks Carried Over to Sprint #5
+
+| Task ID | Description | Reason |
+|---------|-------------|--------|
+| T-020 | User testing: All 3 MVP flows (novice, AI advice, inventory management) | T-024 completed this sprint — T-020 is now unblocked. Must complete in Sprint 5. |
+| T-025 | Configure real Gemini API key + verify AI advice happy path | T-024 now complete — blocker resolved. Key must be provided by project owner or retrieved from env config. Must complete in Sprint 5. |
+| T-027 | Update SPEC-004 to document redirect-to-detail behavior post-save (FB-005) | Low priority; no work started. Sprint 5 carry-over. |
+
+---
+
+#### Verification Failures
+
+The Monitor Agent returned **Deploy Verified: Yes** in Sprint #4. No `Deploy Verified: No` verdicts this sprint. The only failing endpoint (POST /ai/advice → 502) is an expected, documented failure due to the placeholder Gemini API key — this does not block staging verification and is tracked as T-025.
+
+---
+
+#### Key Feedback Themes
+
+| Feedback ID | Category | Severity | Disposition |
+|-------------|----------|----------|-------------|
+| FB-008 | Positive (T-026 AI Modal 502 fix — clean UX) | — | Acknowledged |
+| FB-009 | Positive (Vite proxy eliminates CORS complexity) | — | Acknowledged |
+| FB-010 | Bug (flaky backend test — "socket hang up") | Minor | Acknowledged → T-029 (Sprint 5 backlog) |
+| FB-011 | Positive (centralized error handling architecture) | — | Acknowledged |
+| FB-012 | Feature Gap (Gemini API key placeholder — AI non-functional) | Major | Tasked → T-025 (Sprint 5) |
+| FB-013 | Positive (memory-only token storage) | — | Acknowledged |
+
+---
+
+#### What Went Well
+
+- **Monitor health check finally completed** — Deploy Verified: Yes after carrying over from Sprint #1; staging is confirmed production-ready (minus Gemini key)
+- **T-026 and T-028 well-executed** — Both tasks delivered at high quality, verified by QA, and passed code review on first attempt
+- **50/50 frontend tests** — T-026 added 2 new targeted tests; test count grew without regressions
+- **Vite proxy is a clean solution** — Relative API URLs mean dev, staging, and production all work without CORS configuration
+- **QA feedback is consistently thorough** — Positive observations (FB-008, FB-009, FB-011, FB-013) show genuine code quality review, not just issue-finding
+- **Security posture confirmed** — Memory-only tokens, 0 npm audit vulnerabilities, ownership isolation all verified in Sprint 4
+
+---
+
+#### What to Improve
+
+- **User testing (T-020) has been deferred since Sprint #1** — Now that staging is verified, T-020 must be treated as P0 in Sprint 5 with no further deferral
+- **Gemini API key must be obtained before Sprint 5 begins** — Without it, Flow 2 and Flow 3 from the project brief cannot be tested; the MVP cannot be declared complete
+- **Flaky backend test (FB-010)** — intermittent "socket hang up" in plants.test.js should be fixed in Sprint 5 (T-029) to ensure CI reliability
+- **SPEC-004 update (T-027) keeps slipping** — minor but should be completed in Sprint 5 to keep documentation accurate
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Owner |
+|------|----------|-------|
+| Gemini API key is placeholder — AI advice always returns 502 | P1 | Backend Engineer (T-025) |
+| Flaky backend test — "socket hang up" in POST /plants (FB-010) | P3 | Backend Engineer (T-029) |
+| SPEC-004 still documents redirect-to-inventory (actual behavior is redirect-to-detail) | P3 Cosmetic | Design Agent (T-027) |
+| Database-level encryption not configured | P3 Advisory | Deploy Engineer (production phase) |
+
+---
+
+*Sprint #4 summary written by Manager Agent on 2026-03-24.*
+
+---
+
 ## Template
 
 ### Sprint #N — [Start Date] to [End Date]
