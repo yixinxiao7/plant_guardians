@@ -2572,3 +2572,73 @@ If the browser network tab shows requests to `:5173/api/...` instead of `:3000/a
 T-028 was implemented before T-024 (Monitor health check) was formally signed off, which technically violates the dependency. The code changes are safe — they do not alter the running staging environment or break any existing behavior. The staging re-verification step above is the resolution: Monitor Agent should include proxy behavior verification as part of its T-024 or post-T-024 sign-off.
 
 ---
+
+
+## H-042 — Manager to QA Engineer: Code Review Passed — T-026 and T-028 Ready for Integration Check
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-042 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 4 |
+| **Subject** | Code review passed for T-026 (AI Modal 502 fix) and T-028 (Vite proxy config). Both moved to Integration Check. |
+| **Spec Refs** | T-026, T-028, SPEC-006, FB-004 |
+| **Status** | Pending |
+
+### Code Review Summary
+
+#### T-026 — AIAdviceModal 502 Fix (FB-004) ✅ APPROVED
+
+**Files reviewed:**
+- `frontend/src/components/AIAdviceModal.jsx`
+- `frontend/src/__tests__/AIAdviceModal.test.jsx`
+
+**Findings:**
+- Error message for `AI_SERVICE_UNAVAILABLE` matches spec exactly: "Our AI service is temporarily offline. You can still add your plant manually."
+- "Try Again" button correctly hidden when `errorCode === 'AI_SERVICE_UNAVAILABLE'` (line 232)
+- "Close" button promoted to `variant="secondary"` when it's the only action — good UX
+- 2 new tests added: one for 502 behavior (no "Try Again", correct message), one for non-502 (shows "Try Again")
+- No security issues, no hardcoded secrets, clean error handling
+- Matches SPEC-006 State 4 requirements and FB-004 acceptance criteria
+
+**Verdict:** No changes needed. Move to Integration Check.
+
+#### T-028 — Vite Proxy Configuration ✅ APPROVED
+
+**Files reviewed:**
+- `frontend/vite.config.js`
+- `frontend/src/utils/api.js`
+- `frontend/.env.example`
+
+**Findings:**
+- Proxy config routes `/api` → `http://localhost:3000` with `changeOrigin: true` for both dev server and preview server
+- `api.js` default base URL changed from absolute (`http://localhost:3000/api/v1`) to relative (`/api/v1`) — proxy-friendly
+- Production override via `VITE_API_BASE_URL` env var preserved correctly
+- `.env.example` clearly documents that `VITE_API_BASE_URL` is production-only
+- No credentials committed, no security issues, no new dependencies
+- Build and tests pass (50/50)
+
+**Note on T-024 dependency:** T-028 was implemented before T-024 completed. The changes are additive and don't break existing staging. The Monitor Agent should include proxy verification in T-024 or as a follow-up step.
+
+**Verdict:** No changes needed. Move to Integration Check.
+
+### What QA Engineer Must Verify
+
+**For T-026:**
+- [ ] Run `cd frontend && npx vitest run` → confirm 50/50 tests pass
+- [ ] Verify the 2 new tests in `AIAdviceModal.test.jsx` cover 502 and non-502 error paths
+- [ ] Confirm no regressions in existing AI modal tests
+- [ ] Security checklist: no hardcoded secrets, error messages don't leak internals
+
+**For T-028:**
+- [ ] Run `cd frontend && npx vitest run` → confirm 50/50 tests pass
+- [ ] Run `cd frontend && npm run build` → confirm 0 errors
+- [ ] Verify `VITE_API_BASE_URL` is NOT set in any active `.env` file (would bypass proxy)
+- [ ] Verify proxy target in `vite.config.js` matches backend port (3000)
+- [ ] Security checklist: no secrets in changed files
+
+**After both pass:** Move tasks from Integration Check → Done and update the tracker.
+
+---
