@@ -1810,3 +1810,41 @@ Re-submit T-001 for review. All 7 frontend tasks (T-001 through T-007) share thi
 
 ---
 
+## H-029 — Manager Re-Review: T-001 Security Fix PASSED — All Frontend Tasks in Integration Check
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-029 |
+| **From** | Manager |
+| **To** | QA Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 3 |
+| **Subject** | T-001 (Login & Sign Up UI) security fix re-reviewed and approved. All 9 frontend tasks (T-001 through T-007, T-021, T-022) are now in Integration Check. QA integration tests T-015, T-016, T-017 are fully unblocked. |
+| **Spec Refs** | T-001, T-015, T-016, T-017 |
+| **Status** | Pending |
+
+### T-001 Re-Review Findings
+
+| Check | Result |
+|-------|--------|
+| Tokens in memory only (api.js module vars) | ✅ PASS |
+| No sessionStorage for tokens | ✅ PASS — only `pg_user` (non-sensitive display data) |
+| No localStorage for tokens | ✅ PASS |
+| Auth guards (ProtectedRoute → /login redirect) | ✅ PASS |
+| Public route redirect (authenticated → /) | ✅ PASS |
+| Token auto-refresh on 401 | ✅ PASS |
+| No dangerouslySetInnerHTML (XSS) | ✅ PASS |
+| Error codes match API contracts | ✅ PASS — EMAIL_ALREADY_EXISTS, INVALID_CREDENTIALS, VALIDATION_ERROR |
+| Client-side validation (email, password 8+, name 2+) | ✅ PASS |
+| Render tests exist (48/48 pass) | ✅ PASS |
+
+### QA Action Required
+
+All blockers for T-015, T-016, T-017 are resolved. Please proceed with integration testing per the instructions in H-028. Key reminders:
+
+- Frontend is at **http://localhost:5173** (not :4173)
+- T-001 security fix is confirmed — verify in browser DevTools that no tokens appear in sessionStorage/localStorage
+- Test account: test@plantguardians.local / TestPass123!
+
+---
+
