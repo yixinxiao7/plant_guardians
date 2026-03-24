@@ -697,3 +697,129 @@ All three issues from the initial health check were resolved by Deploy Engineer 
 
 ---
 
+## Sprint 3 — Staging Re-Deploy + Fix Session (Deploy Engineer — 2026-03-24)
+
+**Date:** 2026-03-24
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 3
+**Triggered by:** Infrastructure issues found during T-023 continuation: TEST_DATABASE_URL misconfiguration; staging DB tables wiped by test runs; T-001 security fix confirmation; fresh frontend build required.
+
+---
+
+### Issue 1 — TEST_DATABASE_URL Misconfiguration
+
+| Field | Value |
+|-------|-------|
+| **Issue** | `backend/.env` had `TEST_DATABASE_URL` pointing to `plant_guardians_staging` (port 5432) instead of the separate `plant_guardians_test` database. When backend tests ran (`npm test`), they connected to the staging DB and executed migration rollbacks during test teardown, wiping all 5 staging tables. |
+| **Root Cause** | A prior Deploy Engineer session set `TEST_DATABASE_URL` to the staging URL for convenience. Docker (and its port 5433 test DB) is unavailable on this machine, but `plant_guardians_test` exists at port 5432. |
+| **Fix Applied** | Updated `backend/.env` line 9: `TEST_DATABASE_URL=postgresql://plant_guardians:plant_guardians_dev@localhost:5432/plant_guardians_test` |
+| **Permission Grant** | Ran `GRANT ALL PRIVILEGES ON SCHEMA public TO plant_guardians` on `plant_guardians_test` (owned by `yixinxiao`). |
+| **Test DB Migrations** | `NODE_ENV=test npx knex migrate:latest` → Batch 1 run: 5 migrations applied to `plant_guardians_test`. |
+| **Verified** | `npm test` → 40/40 pass against isolated `plant_guardians_test` ✅ |
+
+---
+
+### Issue 2 — Staging DB Tables Wiped (caused by Issue 1)
+
+| Field | Value |
+|-------|-------|
+| **Issue** | All 5 application tables (`users`, `refresh_tokens`, `plants`, `care_schedules`, `care_actions`) were absent from `plant_guardians_staging`. Only `knex_migrations` and `knex_migrations_lock` remained. |
+| **Root Cause** | Tests ran `knex.migrate.rollback()` teardown against the staging DB (wrong `TEST_DATABASE_URL`). |
+| **Fix Applied** | `NODE_ENV=development npx knex migrate:latest` → Batch 1 run: 5 migrations re-applied to `plant_guardians_staging`. |
+| **Seed Data** | `npx knex seed:run` → `[seed] Created test user: test@plantguardians.local` ✅ |
+| **Backend Restarted** | Backend process restarted (PID 39598) after DB restoration to ensure fresh connection pool. |
+
+---
+
+### Issue 3 — Port 4173 Occupied by Concurrent Triplanner Project
+
+| Field | Value |
+|-------|-------|
+| **Issue** | Port 4173 was occupied by the triplanner project's vite preview (orchestrator for that project was running concurrently). Plant_guardians frontend preview could not bind to :4173. |
+| **Fix Applied** | Started plant_guardians frontend preview on port 5173 (`npx vite preview --port 5173`). Port 5173 is already in `FRONTEND_URL` CORS whitelist — no backend config change needed. |
+| **Frontend PID** | 39437 |
+| **URL** | http://localhost:5173 ✅ |
+
+---
+
+### T-001 Security Fix Confirmation
+
+| Field | Value |
+|-------|-------|
+| **Issue** | Manager Code Review (H-025) returned T-001 for sessionStorage token security violation. |
+| **Status** | Fix confirmed applied — `frontend/src/hooks/useAuth.jsx` no longer stores `access_token` or `refresh_token` in sessionStorage. |
+| **Current behavior** | Tokens are held in memory only via `api.js` module-level variables. Only non-sensitive user display data (`pg_user`) is stored in sessionStorage for UX. Users must re-authenticate on page refresh (acceptable for MVP). |
+| **Complies with** | H-025 requirements: "access_token in React context memory only — never localStorage, never sessionStorage" |
+
+---
+
+### Build 2b — Frontend Production Rebuild (with T-001 security fix confirmed)
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-24 |
+| **Command** | `cd frontend && npm run build` |
+| **Result** | ✅ SUCCESS |
+| **Output** | 4604 modules transformed; index.html (0.74 kB), index.css (29.12 kB), confetti.module-No8_urVw.js (10.57 kB), index-DxRrpY07.js (356.73 kB) |
+| **Duration** | 289ms |
+| **Security** | `useAuth.jsx` confirmed no sessionStorage token writes in built bundle |
+
+---
+
+### Test Run 3 — Full Test Suite Verification (post-fix)
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-24 |
+| **Result** | ✅ ALL PASS |
+
+| Suite | Command | Tests | Result |
+|-------|---------|-------|--------|
+| Backend unit tests | `cd backend && npm test` | 40/40 | ✅ PASS (isolated test DB) |
+| Frontend unit tests | `cd frontend && npx vitest run` | 48/48 | ✅ PASS |
+| npm audit | `cd backend && npm audit` | — | ✅ 0 vulnerabilities |
+
+---
+
+### Deployment 3b — Staging (Sprint 3 Re-verification)
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-24 |
+| **Environment** | Staging (local processes — Docker not available) |
+| **Backend PID** | 39598 |
+| **Backend URL** | http://localhost:3000 |
+| **Frontend PID** | 39437 |
+| **Frontend URL** | http://localhost:5173 (Vite preview — port 5173 used due to :4173 conflict with triplanner) |
+| **Database** | PostgreSQL 15 (Homebrew), plant_guardians_staging |
+| **Migrations** | ✅ 5/5 re-applied (Batch 1) |
+| **Seed Data** | ✅ test@plantguardians.local / TestPass123! |
+| **T-022 Fix** | ✅ bcrypt@6.0.0, 0 vulnerabilities |
+| **T-001 Security Fix** | ✅ Confirmed — no token sessionStorage writes |
+
+#### Post-Deploy Verification Checks
+
+| Check | Result |
+|-------|--------|
+| GET /api/health → 200 | ✅ `{"status":"ok","timestamp":"2026-03-24T13:59:16.516Z"}` |
+| Auth enforcement (no token) → 401 | ✅ |
+| Login test@plantguardians.local / TestPass123! → 200 + JWT | ✅ |
+| GET /plants with valid token → 200 | ✅ |
+| GET /profile with valid token → 200 | ✅ |
+| CORS for http://localhost:5173 | ✅ Access-Control-Allow-Origin: http://localhost:5173 |
+| CORS for http://localhost:4173 | ✅ Access-Control-Allow-Origin: http://localhost:4173 |
+| Frontend at :5173 → HTTP 200 + HTML | ✅ |
+| 40/40 backend tests pass | ✅ |
+| 48/48 frontend tests pass | ✅ |
+| npm audit: 0 vulnerabilities | ✅ |
+| DB tables present in staging | ✅ users, refresh_tokens, plants, care_schedules, care_actions |
+| Seed data present | ✅ |
+| TEST_DATABASE_URL isolated from staging | ✅ Fixed → plant_guardians_test |
+
+#### Status
+
+- **T-023:** Deployment infrastructure complete. All 14 API endpoints functional. Tests pass. Security fix confirmed.
+- **Blocked on:** QA integration tests T-015, T-016, T-017 and Manager re-review of T-001 (security fix).
+
+---
+

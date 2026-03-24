@@ -1711,3 +1711,102 @@ Re-submit T-001 for review. All 7 frontend tasks (T-001 through T-007) share thi
 
 ---
 
+## H-028 — Deploy Engineer: Staging Re-Verified (Sprint 3) — QA: All Integration Tests Unblocked
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-028 |
+| **From** | Deploy Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 3 |
+| **Subject** | Staging environment fully re-verified after critical infrastructure fixes. T-001 security fix confirmed in deployed code. All three integration tests (T-015, T-016, T-017) are now unblocked. |
+| **Spec Refs** | T-023, T-015, T-016, T-017 |
+| **Status** | Pending |
+
+### Infrastructure Issues Resolved
+
+| Issue | Fix Applied | Verified |
+|-------|-------------|----------|
+| `TEST_DATABASE_URL` pointed to staging DB — test suite was wiping staging tables | Updated `backend/.env`: `TEST_DATABASE_URL` now points to `plant_guardians_test` (isolated). Granted `plant_guardians` user permissions on test DB and ran 5 migrations. | ✅ `npm test` → 40/40 pass against test DB only |
+| Staging DB tables wiped by test rollbacks | Re-ran `knex migrate:latest` and `knex seed:run` on staging | ✅ All 5 tables restored, seed data present |
+| Port 4173 occupied by concurrent triplanner project | Frontend preview moved to port 5173 (already CORS-whitelisted in `FRONTEND_URL`) | ✅ http://localhost:5173 → HTTP 200 |
+| T-001 security fix status | Confirmed: `useAuth.jsx` has no `pg_access` or `pg_refresh` in sessionStorage. Frontend production bundle rebuilt. | ✅ Token-free sessionStorage verified |
+
+### Current Staging Environment
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running (PID 39598) |
+| Frontend (preview) | **http://localhost:5173** ← ⚠️ Changed from :4173 | ✅ Running (PID 39437, production build) |
+| Database | PostgreSQL 15 @ localhost:5432 (plant_guardians_staging) | ✅ Running |
+
+### Test Account
+
+| Email | Password |
+|-------|----------|
+| test@plantguardians.local | TestPass123! |
+
+### Pre-Verified Checks
+
+| Check | Result |
+|-------|--------|
+| `GET /api/health` → 200 | ✅ `{"status":"ok","timestamp":"2026-03-24T13:59:16.516Z"}` |
+| Auth guard → 401 (no token) | ✅ |
+| Login test account → 200 + JWT | ✅ |
+| `GET /plants` with token → 200 | ✅ |
+| `GET /profile` with token → 200 | ✅ |
+| CORS for http://localhost:5173 | ✅ `Access-Control-Allow-Origin: http://localhost:5173` |
+| CORS for http://localhost:4173 | ✅ `Access-Control-Allow-Origin: http://localhost:4173` |
+| Frontend at :5173 → 200 | ✅ |
+| 40/40 backend tests | ✅ |
+| 48/48 frontend tests | ✅ |
+| npm audit: 0 vulnerabilities | ✅ |
+| 5/5 DB migrations applied | ✅ |
+| Seed data present | ✅ |
+| No `pg_access`/`pg_refresh` in sessionStorage | ✅ (verified in useAuth.jsx source) |
+
+### QA Integration Test Instructions
+
+⚠️ **Important:** Frontend is now at **http://localhost:5173**, not :4173.
+
+**T-015 — Auth Flows (NOW UNBLOCKED — T-001 security fix confirmed):**
+1. Open http://localhost:5173 in a browser
+2. Register a new account → expect redirect to `/` with welcome toast
+3. Log in with test@plantguardians.local / TestPass123! → expect redirect to inventory
+4. Log in with wrong password → expect inline error banner
+5. Log out from Profile page → expect redirect to /login
+6. Navigate to `/` unauthenticated → expect redirect to /login
+7. DevTools → Application → **Local Storage**: confirm NO `access_token` or `refresh_token` keys
+8. DevTools → Application → **Session Storage**: confirm NO `pg_access` or `pg_refresh` keys (only `pg_user` with name/email is acceptable)
+9. XSS test: create plant named `<script>alert(1)</script>` → confirm renders as escaped text
+
+**T-016 — Plant CRUD Flows:**
+1. Add a plant with name, type, watering schedule → confirm card appears in inventory
+2. View plant detail → confirm care schedule badge shown
+3. Click "Mark as done" → confirm confetti fires, badge updates
+4. Click Undo within 10s → confirm badge reverts
+5. Edit the plant → confirm form pre-populated, Save disabled until change made
+6. Delete the plant → confirm confirmation modal → card removed on success
+7. Empty state: delete all plants → confirm empty state shown
+
+**T-017 — AI Advice Flow:**
+1. Open Add Plant, click "Get AI Advice"
+2. Enter plant type text (e.g., "Monstera"), click Submit
+3. Expect graceful 502 error: "AI advice is unavailable right now" (GEMINI_API_KEY is placeholder)
+4. Click Reject → confirm modal closes, form unchanged
+5. No broken/stuck loading state
+
+**Security Checks for T-015:**
+- Verify DevTools Console: no CORS errors on page load or API calls
+- Verify no tokens in localStorage or sessionStorage (only `pg_user` with non-sensitive data acceptable)
+
+### After QA Passes
+
+1. Update T-015, T-016, T-017 status to Done in dev-cycle-tracker.md
+2. Update T-023 status to In Review
+3. Log handoff H-029 to Monitor Agent to run T-024 (full staging health check)
+4. Monitor Agent will verify all 14 endpoints + browser auth flow → set Deploy Verified: Yes
+
+---
+
