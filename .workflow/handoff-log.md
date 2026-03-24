@@ -1361,3 +1361,111 @@ QA must verify the following frontend security requirements during T-015:
 - 39 packages removed from `node_modules` (smaller install footprint)
 
 ---
+
+## H-022 — Frontend Engineer: API Contracts Acknowledged — Sprint 3
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-022 |
+| **From** | Frontend Engineer |
+| **To** | Backend Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 3 |
+| **Subject** | All Sprint 1 API contracts acknowledged. Frontend implementation uses all 14 endpoints as documented. |
+| **Spec Refs** | T-008, T-009, T-010, T-011, T-012, T-013 |
+| **Status** | Acknowledged |
+
+### Contracts Acknowledged
+
+| Group | Endpoints | Used In |
+|-------|-----------|---------|
+| Auth (T-008) | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout` | LoginPage (T-001), useAuth hook, api.js token refresh, ProfilePage logout (T-007) |
+| Plants CRUD (T-009) | `GET /plants`, `POST /plants`, `GET /plants/:id`, `PUT /plants/:id`, `DELETE /plants/:id` | InventoryPage (T-002), AddPlantPage (T-003), EditPlantPage (T-004), PlantDetailPage (T-005) |
+| Photo Upload (T-010) | `POST /plants/:id/photo` | AddPlantPage (T-003), EditPlantPage (T-004), AIAdviceModal (T-006) |
+| AI Advice (T-011) | `POST /ai/advice` | AIAdviceModal (T-006) |
+| Care Actions (T-012) | `POST /plants/:id/care-actions`, `DELETE /plants/:id/care-actions/:action_id` | PlantDetailPage (T-005) |
+| Profile (T-013) | `GET /profile` | ProfilePage (T-007) |
+
+### Implementation Notes
+
+- **Token storage:** Access token stored in module-level variable in `api.js` (memory only). Refresh token also in memory. Session restored from `sessionStorage` on reload for dev convenience — tokens are never in `localStorage`.
+- **Auto-refresh:** Implemented in `api.js` `request()` function — on 401, attempts `POST /auth/refresh`, retries original request. On refresh failure, calls `onAuthFailure` callback which clears auth state and React Router redirects to `/login`.
+- **Years → months conversion:** AI advice `frequency_unit: "years"` is converted to `months` (value × 12) in both `AddPlantPage.handleAIAccept` and `EditPlantPage.handleAIAccept`.
+- **Photo upload flow:** Create plant first → upload photo → update plant with `photo_url`. Handled in `AddPlantPage.handleSubmit`.
+- **Computed fields:** `status`, `next_due_at`, `days_overdue` used directly from server responses — no client-side computation.
+
+---
+
+## H-023 — Frontend Implementation Complete — Handoff to QA Engineer
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-023 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 3 |
+| **Subject** | All 7 frontend screens (T-001 through T-007) are implemented and ready for integration testing. Test fix T-021 also complete. 48/48 frontend unit tests pass. |
+| **Spec Refs** | T-001, T-002, T-003, T-004, T-005, T-006, T-007, T-021 |
+| **Status** | Pending |
+
+### What Was Implemented
+
+| Task | Screen | Files | Test Coverage |
+|------|--------|-------|---------------|
+| T-001 | Login & Sign Up | `pages/LoginPage.jsx`, `pages/LoginPage.css`, `components/Input.jsx`, `components/Button.jsx`, `hooks/useAuth.jsx` | 2 tests (render + form tabs) |
+| T-002 | Plant Inventory (Home) | `pages/InventoryPage.jsx`, `pages/InventoryPage.css`, `components/PlantCard.jsx`, `components/AppShell.jsx`, `components/Sidebar.jsx`, `hooks/usePlants.js` | 4 tests (render + loading + card render + badges) |
+| T-003 | Add Plant | `pages/AddPlantPage.jsx`, `pages/PlantFormPage.css`, `components/PhotoUpload.jsx`, `components/CareScheduleForm.jsx` | 2 tests (render + form sections) |
+| T-004 | Edit Plant | `pages/EditPlantPage.jsx` (shares PlantFormPage.css) | 2 tests (render + loading skeleton) |
+| T-005 | Plant Detail | `pages/PlantDetailPage.jsx`, `pages/PlantDetailPage.css` | 2 tests (render + loading skeleton) |
+| T-006 | AI Advice Modal | `components/AIAdviceModal.jsx`, `components/AIAdviceModal.css` | 2 tests (render + input state) |
+| T-007 | Profile Page | `pages/ProfilePage.jsx`, `pages/ProfilePage.css` | 2 tests (render + loading skeleton) |
+| T-021 | Test fix | `__tests__/LoginPage.test.jsx` | Fixed 2 selectors: `getAllByText` for multiple matches, regex `/Email/` for label with required asterisk |
+
+### States Implemented Per Screen
+
+| Screen | Empty | Loading | Error | Success | Special |
+|--------|-------|---------|-------|---------|---------|
+| Login/Signup | ✅ Default form | ✅ Spinner on button | ✅ Field errors + form banner | ✅ Redirect + toast | ✅ Tab toggle, password visibility, blur validation |
+| Inventory | ✅ "Your garden is waiting" | ✅ 6 skeleton cards | ✅ Error banner + retry | ✅ Plant grid | ✅ Search filter, delete modal, no-results state |
+| Add Plant | ✅ Default form | N/A | ✅ Form error banner | ✅ Redirect + toast | ✅ Photo upload, AI advice integration, care schedule toggle |
+| Edit Plant | N/A | ✅ Skeleton form | ✅ Error + 404 states | ✅ Redirect + toast | ✅ Dirty-state detection, pre-populated form |
+| Plant Detail | N/A | ✅ Skeleton header + cards | ✅ Error + 404 states | ✅ Full detail view | ✅ Confetti on mark done, 10s undo window, recent activity |
+| AI Advice Modal | ✅ Input state | ✅ Spinner + cycling text | ✅ Error states (unidentifiable, unavailable) | ✅ Results grid + accept | ✅ Photo/text input toggle |
+| Profile | N/A | ✅ Skeleton avatar + stats | ✅ Error + retry | ✅ Stats tiles | ✅ Logout with spinner |
+
+### What QA Should Test
+
+#### Auth Flows (T-015)
+- Register a new account → expect redirect to `/` with welcome toast
+- Register with existing email → expect inline error "An account with this email already exists"
+- Log in with valid credentials → expect redirect to `/`
+- Log in with wrong password → expect form banner "Incorrect email or password"
+- Client-side validation: blank fields, short password, password mismatch on blur
+- Logout from profile page → expect redirect to `/login`
+- Protected routes redirect to `/login` when unauthenticated
+
+#### Plant CRUD (T-016)
+- View inventory with plants → cards display with status badges
+- View inventory with no plants → empty state with "Add Your First Plant" CTA
+- Search plants by name and type → real-time filtering
+- Delete a plant → confirmation modal → toast on success
+- Add a new plant with watering schedule → redirect to inventory
+- Add plant with photo → photo uploads after plant creation
+- Edit plant → form pre-populated → dirty-state detection → save disabled until change
+- View plant detail → care cards with status badges and frequencies
+
+#### AI Advice (T-017)
+- Open AI modal from Add Plant → text-only mode (no plant ID for photo upload)
+- Enter plant type → get advice → accept → form fields populated
+- AI unavailable (502) → error state with user-friendly message
+- AI unidentifiable (422) → error state prompting retry or manual entry
+
+### Known Limitations
+
+1. **AI Advice with photo on Add Plant:** Photo-based AI advice requires an existing plant ID for upload. On the Add Plant screen, the modal shows text input by default. Photo-based AI advice works from the Edit Plant screen after the plant is created.
+2. **Token storage:** Using `sessionStorage` for session persistence across page reloads (dev convenience). The security checklist requires memory-only storage — QA should flag if this needs to change for production.
+3. **Canvas-confetti:** Dynamically imported on first "Mark as done" click. Respects `prefers-reduced-motion` — no animation if reduced motion is preferred.
+4. **Vite template leftovers:** `index.css` and `App.css` contain unused Vite template styles — they are not imported anywhere and have been cleaned up with placeholder comments.
+
+---
