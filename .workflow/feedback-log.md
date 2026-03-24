@@ -125,3 +125,111 @@ Run `cd backend && knex seed:run` on staging. Add this step to the deployment ch
 
 ---
 
+## FB-004 — AI Modal: "Try Again" Shown on 502 Service Unavailable
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-004 |
+| **Source** | QA Engineer |
+| **Sprint** | 3 |
+| **Date** | 2026-03-24 |
+| **Category** | UX Issue |
+| **Severity** | Minor |
+| **Status** | New |
+
+### Description
+
+When the AI advice endpoint returns 502 (AI_SERVICE_UNAVAILABLE), the modal shows both "Try Again" and "Close" buttons. Per H-020 clarification 2, the 502 error state should NOT show "Try Again" since the AI service is down (not a user error). Only "Close" should be shown. Additionally, the error message text says "Our AI is temporarily unavailable. Try again in a moment." but the spec says "Our AI service is temporarily offline. You can still add your plant manually."
+
+### Expected vs Actual
+
+- **Expected:** 502 → show only "Close" button + "AI service is temporarily offline" message
+- **Actual:** 502 → shows both "Try Again" and "Close" + "temporarily unavailable" message
+
+### Fix
+
+In `AIAdviceModal.jsx`, differentiate the error state rendering based on error code. For 502, hide the "Try Again" button and update the message text.
+
+---
+
+## FB-005 — Edit Plant Redirects to Detail Page Instead of Inventory
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-005 |
+| **Source** | QA Engineer |
+| **Sprint** | 3 |
+| **Date** | 2026-03-24 |
+| **Category** | UX Issue |
+| **Severity** | Cosmetic |
+| **Status** | New |
+
+### Description
+
+After saving changes on the Edit Plant page, the app redirects to `/plants/:id` (plant detail page) instead of `/` (inventory) as specified in SPEC-004 and the API contracts. Redirecting to the detail page is arguably better UX — the user can immediately see their changes.
+
+### Expected vs Actual
+
+- **Expected (per spec):** Redirect to inventory `/`
+- **Actual:** Redirect to plant detail `/plants/:id`
+
+### Recommendation
+
+Keep the current behavior (redirect to detail) — it's more useful. Update the spec to match if agreed.
+
+---
+
+## FB-006 — Positive: Excellent Implementation Quality Across All 7 Screens
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-006 |
+| **Source** | QA Engineer |
+| **Sprint** | 3 |
+| **Date** | 2026-03-24 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | New |
+
+### Description
+
+The Sprint 3 frontend implementation is comprehensive and well-executed:
+
+1. **All UI states implemented** — loading skeletons, error states with retry, empty states, success states across all 7 screens
+2. **API contract adherence** — all request/response shapes match the contracts exactly
+3. **Security** — tokens stored in memory only, no XSS vectors, proper auth guards
+4. **Accessibility** — aria-labels, role attributes, keyboard navigation, prefers-reduced-motion check on confetti
+5. **Error handling** — graceful degradation on API failures, informative user messages, proper error code mapping
+6. **Code organization** — clean separation of concerns (api.js, hooks, pages, components)
+7. **Care schedule flow** — years→months conversion, dirty state detection, full schedule replacement all work correctly
+8. **10-second undo window** — timer with proper cleanup on unmount, clear UX
+
+This is a strong MVP foundation.
+
+---
+
+## FB-007 — Positive: Robust Edge Case Handling
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-007 |
+| **Source** | QA Engineer |
+| **Sprint** | 3 |
+| **Date** | 2026-03-24 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | New |
+
+### Description
+
+During final product-perspective testing, the following edge cases were verified as well-handled:
+
+1. **Input validation** — Frontend validates email format, password length (8+), full name length (2+), plant name required, frequency values (1–365) before submission. Backend mirrors all validations server-side.
+2. **Care schedule edge cases** — Empty schedules allowed (API doesn't require watering; UI enforces it). Duplicate care types rejected with 400. Schedule deletion via PUT omission works correctly.
+3. **Photo upload** — MIME type validation (JPEG/PNG/WebP only), 5MB limit enforced, UUID filenames prevent path traversal. Missing file and invalid type produce clear error codes.
+4. **Auth resilience** — Token auto-refresh silently handles expired access tokens. Failed refresh redirects to login. Rate limiting (20 auth requests/15min) prevents brute force.
+5. **Plant ownership isolation** — Attempting to access another user's plant returns 404 (not 403), preventing existence leakage.
+6. **Confetti accessibility** — `prefers-reduced-motion` media query check before firing animation.
+
+---
+

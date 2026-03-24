@@ -1159,3 +1159,133 @@ No P1 security issues found. All critical items verified. HTTPS and encryption a
 
 ---
 
+## Sprint 3 — Final QA Verification (T-023 Integration Check → Done)
+
+**Date:** 2026-03-24
+**QA Engineer:** QA Agent
+**Task:** T-023 — Final integration check before moving to Done
+
+---
+
+### Test Run 9 — Final Unit Tests Re-Verification
+
+| Field | Value |
+|-------|-------|
+| **Test Type** | Unit Test |
+| **Date** | 2026-03-24 |
+| **Target** | Full stack (backend + frontend) |
+| **Result** | ✅ PASS |
+
+| Suite | Command | Tests | Result |
+|-------|---------|-------|--------|
+| Backend unit tests | `cd backend && npm test` | 40/40 | ✅ PASS (8.95s) |
+| Frontend unit tests | `cd frontend && npx vitest run` | 48/48 | ✅ PASS (1.39s) |
+
+---
+
+### Test Run 10 — Final Security Re-Verification
+
+| Field | Value |
+|-------|-------|
+| **Test Type** | Security Scan |
+| **Date** | 2026-03-24 |
+| **Target** | Full stack (backend + frontend) |
+| **Result** | ✅ PASS — All 13 security items verified |
+
+| # | Security Check | Status |
+|---|----------------|--------|
+| 1 | No hardcoded secrets in source | ✅ PASS |
+| 2 | SQL injection — all queries use Knex | ✅ PASS |
+| 3 | XSS — no dangerouslySetInnerHTML | ✅ PASS |
+| 4 | Token storage — memory only | ✅ PASS |
+| 5 | Auth middleware on all protected routes | ✅ PASS |
+| 6 | Error response leakage — generic errors only | ✅ PASS |
+| 7 | Input validation — comprehensive validation middleware | ✅ PASS |
+| 8 | CORS — whitelist-based origin control | ✅ PASS |
+| 9 | Rate limiting — auth 20/15min, general 100/15min | ✅ PASS |
+| 10 | Password hashing — bcrypt with salt rounds 12 | ✅ PASS |
+| 11 | File upload validation — MIME + size + UUID rename | ✅ PASS |
+| 12 | .env not tracked in git | ✅ PASS |
+| 13 | Security headers — Helmet.js enabled | ✅ PASS |
+
+---
+
+### Test Run 11 — npm audit
+
+| Field | Value |
+|-------|-------|
+| **Test Type** | Security Scan (Dependencies) |
+| **Date** | 2026-03-24 |
+| **Command** | `cd backend && npm audit` |
+| **Result** | ✅ PASS — 0 vulnerabilities |
+
+---
+
+### Test Run 12 — Integration Contract Verification (Final)
+
+| Field | Value |
+|-------|-------|
+| **Test Type** | Integration Test |
+| **Date** | 2026-03-24 |
+| **Target** | Frontend ↔ Backend API contract compliance |
+| **Result** | ✅ PASS — All 20 checks pass |
+
+| Check | Status |
+|-------|--------|
+| Base URL /api/v1/ | ✅ |
+| All 14 endpoints implemented with correct methods/paths | ✅ |
+| Auth header (Bearer token) auto-injected | ✅ |
+| Token storage in memory only (no localStorage/sessionStorage) | ✅ |
+| Token auto-refresh on 401 with retry | ✅ |
+| Loading state (skeleton loaders) | ✅ |
+| Empty state ("Your garden is waiting") | ✅ |
+| Error state (banners with retry) | ✅ |
+| Success state (data rendered correctly) | ✅ |
+| Data wrapper { data: ... } correctly unwrapped | ✅ |
+| Care schedules sent as full replacement in PUT | ✅ |
+| Status badges use server-provided values | ✅ |
+| Photo upload flow: POST plant → upload → PUT with URL | ✅ |
+| Years→months conversion in AI advice accept | ✅ |
+| Care action marking: correct payload + local state update | ✅ |
+| Undo flow with 10-second timer | ✅ |
+| Profile stats displayed from server | ✅ |
+| Logout sends refresh_token in body | ✅ |
+| Route protection (ProtectedRoute + PublicRoute) | ✅ |
+| Error codes handled (EMAIL_ALREADY_EXISTS, INVALID_CREDENTIALS, etc.) | ✅ |
+
+---
+
+### Config Consistency Re-Verification
+
+| Field | Value |
+|-------|-------|
+| **Test Type** | Config Consistency |
+| **Date** | 2026-03-24 |
+| **Result** | ✅ PASS — No mismatches |
+
+| Check | Result |
+|-------|--------|
+| Backend PORT=3000, no Vite proxy, frontend calls API directly | ✅ Consistent |
+| No SSL/HTTPS configured (staging) | ✅ N/A |
+| CORS: FRONTEND_URL=http://localhost:5173,http://localhost:4173 | ✅ Both origins allowed |
+| Docker compose DB ports match .env | ✅ Consistent |
+
+---
+
+### Pre-Deploy Verification Checklist
+
+| Requirement | Status |
+|-------------|--------|
+| All unit tests pass (40/40 backend, 48/48 frontend) | ✅ |
+| Integration tests pass (T-015, T-016, T-017 all Done) | ✅ |
+| Security checklist verified (all 13 items) | ✅ |
+| npm audit: 0 vulnerabilities | ✅ |
+| Config consistency: no mismatches | ✅ |
+| All Sprint 3 tasks in scope are Done | ✅ (T-001–T-007, T-015–T-017, T-021, T-022) |
+| T-023 code review passed (H-032) | ✅ |
+| No P1 security issues | ✅ |
+
+**Verdict: T-023 → Done. Sprint 3 QA is COMPLETE. Ready for Monitor Agent health check (T-024).**
+
+---
+

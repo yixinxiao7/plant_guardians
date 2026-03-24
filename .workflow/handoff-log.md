@@ -1992,3 +1992,120 @@ Run the full health check suite — all 14 API endpoints plus browser-based veri
 
 ---
 
+## H-032 — Manager Code Review: T-023 PASSED — Handoff to Monitor Agent for T-024
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-032 |
+| **From** | Manager Agent |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-24 |
+| **Sprint** | 3 |
+| **Subject** | T-023 (Deploy: Re-stage with full frontend) passed code review. Moved to Integration Check. Monitor Agent should now execute T-024 (full staging health check with browser verification). |
+| **Spec Refs** | T-023, T-024 |
+| **Status** | Pending |
+
+### Code Review Summary
+
+T-023 is the only task that was in "In Review" this cycle. All other Sprint 3 tasks are already Done.
+
+**Infrastructure artifacts reviewed:**
+
+| File | Verdict | Notes |
+|------|---------|-------|
+| `infra/Dockerfile.backend` | ✅ PASS | Multi-stage build, non-root user (nodejs:1001), production-only deps, healthcheck, no secrets |
+| `infra/Dockerfile.frontend` | ✅ PASS | Multi-stage with Vite build + Nginx, API URL as build arg, proper permissions |
+| `infra/nginx.conf` | ✅ PASS | Security headers (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy), SPA fallback, cache-busting for index.html, server_tokens off |
+| `infra/docker-compose.staging.yml` | ✅ PASS | Postgres not exposed externally, health check dependencies, migration runner as one-shot service, env vars from .env.staging |
+| `infra/docker-compose.yml` | ✅ PASS | Isolated test DB on port 5433, dev DB on 5432 |
+| `infra/deploy-staging.sh` | ✅ PASS | `set -euo pipefail`, retry health check with rollback, no secrets in script |
+
+**Security Review:**
+
+| Check | Result |
+|-------|--------|
+| No hardcoded secrets in infra files | ✅ All via env vars / .env.staging |
+| Non-root containers | ✅ Backend: nodejs:1001, Frontend: nginx worker |
+| Postgres not externally exposed | ✅ Uses `expose` not `ports` in staging compose |
+| Security headers in Nginx | ✅ X-Frame-Options DENY, X-Content-Type-Options nosniff, etc. |
+| Deploy rollback on health check failure | ✅ `docker compose down` after max retries |
+| CORS properly configured | ✅ Both :5173 and :4173 whitelisted |
+
+**QA Verification (already complete):**
+- T-015 (Auth flows): Done ✅
+- T-016 (Plant CRUD flows): Done ✅
+- T-017 (AI Advice flow): Done ✅
+- 40/40 backend + 48/48 frontend unit tests pass ✅
+- npm audit: 0 vulnerabilities ✅
+
+### Monitor Agent Action Required
+
+Execute T-024 per the instructions in H-031. Key details:
+- Backend: http://localhost:3000
+- Frontend: **http://localhost:5173** (not :4173)
+- Test account: test@plantguardians.local / TestPass123!
+- Run all 19 checks listed in H-031
+- Set Deploy Verified: Yes if all pass
+
+After T-024 passes, T-020 (User Agent testing) is unblocked.
+
+---
+
+## H-033 — QA Final Verification Complete — T-023 Done — Monitor Agent: Execute T-024
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-033 |
+| **From** | QA Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-24 |
+| **Sprint** | 3 |
+| **Subject** | Sprint 3 QA verification complete. T-023 moved to Done. All tests pass. Monitor Agent should now execute T-024 (full staging health check with browser verification). |
+| **Spec Refs** | T-023, T-024, T-015, T-016, T-017 |
+| **Status** | Pending |
+
+### QA Verification Summary
+
+All Sprint 3 QA tasks are complete. Final re-verification performed 2026-03-24:
+
+| Check | Result |
+|-------|--------|
+| Backend unit tests | ✅ 40/40 pass |
+| Frontend unit tests | ✅ 48/48 pass |
+| Integration tests (T-015, T-016, T-017) | ✅ All Done |
+| Security checklist (13 items) | ✅ All pass |
+| npm audit | ✅ 0 vulnerabilities |
+| Config consistency | ✅ No mismatches |
+| Code review (H-032) | ✅ Passed |
+
+### Tasks Status
+
+| Task | Status |
+|------|--------|
+| T-001 through T-007 (Frontend screens) | ✅ Done |
+| T-015, T-016, T-017 (QA integration tests) | ✅ Done |
+| T-021 (LoginPage test fix) | ✅ Done |
+| T-022 (npm audit fix) | ✅ Done |
+| T-023 (Staging deployment) | ✅ Done |
+| T-024 (Monitor health check) | ⏳ Backlog — **ACTION REQUIRED** |
+| T-020 (User testing) | ⏳ Backlog — blocked on T-024 |
+
+### Monitor Agent Instructions
+
+1. Backend: http://localhost:3000
+2. Frontend: http://localhost:5173 (port changed from :4173 — see H-031)
+3. Test account: test@plantguardians.local / TestPass123!
+4. Verify all 14 API endpoints + frontend accessibility + CORS + browser auth flow
+5. Set Deploy Verified: Yes if all checks pass
+
+### Minor UX Note (Non-Blocking)
+
+FB-004: AI Advice Modal shows "Try Again" button for 502 errors (AI_SERVICE_UNAVAILABLE). Spec recommends only "Close" for service-down errors. Logged in feedback-log.md. Does not block deployment.
+
+### Deployment Readiness
+
+**✅ QA confirms: Sprint 3 is ready for Monitor Agent health check and subsequent user testing.**
+
+No P1 security issues. No blocking bugs. All acceptance criteria met.
+
+---
