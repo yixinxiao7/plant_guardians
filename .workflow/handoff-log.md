@@ -1469,3 +1469,94 @@ QA must verify the following frontend security requirements during T-015:
 4. **Vite template leftovers:** `index.css` and `App.css` contain unused Vite template styles — they are not imported anywhere and have been cleaned up with placeholder comments.
 
 ---
+
+## H-024 — Sprint 3 Staging Ready — QA: Run Integration Tests (T-015, T-016, T-017)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-024 |
+| **From** | Deploy Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 3 |
+| **Subject** | Staging environment is fully deployed with all 7 frontend screens. QA must run T-015, T-016, T-017 integration tests before T-023 can be closed out and Monitor can be triggered. |
+| **Spec Refs** | T-023, T-015, T-016, T-017 |
+| **Status** | Pending |
+
+### Staging Environment
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running |
+| Frontend (preview) | http://localhost:4173 | ✅ Running (production build, all 7 screens) |
+| Database | PostgreSQL 15 @ localhost:5432 (db: plant_guardians_staging) | ✅ Running |
+
+### Test Account
+
+| Field | Value |
+|-------|-------|
+| Email | test@plantguardians.local |
+| Password | TestPass123! |
+
+### Pre-Deploy Verification (completed by Deploy Engineer)
+
+| Check | Result |
+|-------|--------|
+| GET /api/health → 200 | ✅ |
+| Auth: no token → 401 | ✅ |
+| Auth: test account login → 200 + JWT | ✅ |
+| GET /plants with token → 200 | ✅ |
+| GET /profile with token → 200 | ✅ |
+| CORS for :4173 | ✅ Access-Control-Allow-Origin: http://localhost:4173 |
+| CORS for :5173 | ✅ Access-Control-Allow-Origin: http://localhost:5173 |
+| Frontend loads at :4173 | ✅ HTTP 200, HTML response |
+| 40/40 backend unit tests pass | ✅ |
+| 48/48 frontend unit tests pass | ✅ |
+| npm audit: 0 vulnerabilities | ✅ bcrypt 6.0.0 applied (T-022) |
+| 5/5 DB migrations applied | ✅ |
+| Seed data present | ✅ |
+
+### What QA Must Do
+
+**T-015 — Auth Flows (browser-based):**
+1. Open http://localhost:4173 in a browser
+2. Register a new account → confirm redirect to inventory with welcome toast
+3. Log in with test@plantguardians.local / TestPass123! → confirm redirect to inventory
+4. Log in with wrong password → confirm error message displayed inline
+5. Log out from Profile page → confirm redirect to /login
+6. Try to access / while not logged in → confirm redirect to /login
+7. Open DevTools → Application → Local Storage → confirm NO access_token or refresh_token keys
+
+**T-016 — Plant CRUD Flows (browser-based):**
+1. Add a plant with name, type, and a watering schedule → confirm card appears in inventory
+2. Open plant detail → confirm care schedule badge shown
+3. Click "Mark as done" → confirm confetti animation fires, badge updates
+4. Wait 5s, click Undo → confirm badge reverts
+5. Edit the plant → confirm form pre-populated, Save disabled until change made
+6. Delete the plant → confirm confirmation modal → plant card removed on success
+7. View inventory with no plants → confirm empty state shown
+
+**T-017 — AI Advice Flow (browser-based):**
+1. Open Add Plant, click AI Advice button
+2. Enter plant type text, submit → AI returns 502 (expected) → confirm graceful error message
+3. Click Reject → confirm modal closes, form unchanged
+
+**Security Checks (T-015):**
+- Verify no tokens in localStorage (DevTools)
+- Verify CORS: open DevTools Console → confirm no CORS errors on page load or API calls
+- XSS: try creating a plant named `<script>alert(1)</script>` → confirm rendered as text, no execution
+
+### After QA Passes
+
+1. Log H-025 (or update this entry) confirming T-015, T-016, T-017 pass
+2. Update T-023 status to In Review in dev-cycle-tracker.md
+3. Deploy Engineer will log H-025 → Monitor Agent to run T-024 (full health check)
+
+### Known Limitations for QA
+
+- GEMINI_API_KEY is a placeholder — AI advice will return 502 AI_SERVICE_UNAVAILABLE (expected; the frontend must show the graceful degradation message)
+- Photo-based AI advice on Add Plant screen is disabled (requires existing plant ID for upload). QA should test text-only input for the modal.
+- Test the happy path for AI advice by verifying the graceful 502 error state — not the AI response itself.
+
+---
+

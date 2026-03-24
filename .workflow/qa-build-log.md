@@ -554,3 +554,146 @@ All three issues from the initial health check were resolved by Deploy Engineer 
 
 ---
 
+## Sprint 3 — Staging Deployment (T-023)
+
+**Date:** 2026-03-24
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 3
+**Task:** T-023 — Re-deploy to staging with full frontend implementation
+
+---
+
+### Build 1 — Backend: npm ci + Security Verification (T-022 fix)
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-24 |
+| **Command** | `cd backend && npm ci` |
+| **Result** | ✅ SUCCESS |
+| **bcrypt version** | 6.0.0 (upgraded from 5.1.1 — T-022 fix applied) |
+| **npm audit** | ✅ 0 vulnerabilities (was 2 high-severity tar CVEs before T-022 fix) |
+
+---
+
+### Build 2 — Frontend Production Build
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-24 |
+| **Command** | `cd frontend && npm run build` |
+| **Result** | ✅ SUCCESS |
+| **Output** | 4604 modules transformed; dist/index.html (0.74 kB), dist/assets/index.css (29.12 kB), dist/assets/index.js (357.08 kB), dist/assets/confetti.module.js (10.57 kB) |
+| **Duration** | 302ms |
+| **Screens included** | All 7: Login/Signup, Plant Inventory, Add Plant, Edit Plant, Plant Detail, AI Advice Modal, Profile |
+
+---
+
+### Test Run 1 — Backend Unit Tests (pre-deploy)
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-24 |
+| **Command** | `cd backend && npm test` |
+| **Result** | ✅ PASS — 40/40 tests passed |
+| **Duration** | 9.16s |
+
+| Suite | Tests | Result |
+|-------|-------|--------|
+| tests/auth.test.js | 10 | ✅ All pass |
+| tests/plants.test.js | 14 (CRUD + photo) | ✅ All pass |
+| tests/careActions.test.js | 6 | ✅ All pass |
+| tests/ai.test.js | 3 | ✅ All pass |
+| tests/profile.test.js | 2 | ✅ All pass |
+
+---
+
+### Test Run 2 — Frontend Unit Tests (pre-deploy)
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-24 |
+| **Command** | `cd frontend && npx vitest run` |
+| **Result** | ✅ PASS — 48/48 tests passed |
+| **Duration** | 1.30s |
+| **Test Files** | 17/17 passed (all suites including LoginPage.test.jsx — T-021 fix confirmed) |
+
+---
+
+### Build 3 — Database Migrations (Staging)
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-24 |
+| **Environment** | Staging (local — PostgreSQL 15, db: plant_guardians_staging) |
+| **Command** | `cd backend && npm run migrate` |
+| **Result** | ✅ SUCCESS — 5/5 migrations applied (Batch 1 from Sprint 1; no new migrations in Sprint 3) |
+
+---
+
+### Build 4 — Seed Data
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-24 |
+| **Command** | `cd backend && npx knex seed:run` |
+| **Result** | ✅ [seed] Created test user: test@plantguardians.local |
+
+---
+
+### Deployment 3 — Staging (Sprint 3: Full Frontend + T-022 Fix)
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-24 |
+| **Environment** | Staging (local — Docker not available) |
+| **Backend URL** | http://localhost:3000 |
+| **Frontend URL** | http://localhost:4173 (Vite preview of production build) |
+| **Build Status** | ✅ Success |
+| **Database** | PostgreSQL 15 (Homebrew), plant_guardians_staging |
+| **Migrations** | ✅ 5/5 applied |
+| **Seed Data** | ✅ test@plantguardians.local / TestPass123! present |
+| **T-022 Fix** | ✅ bcrypt@6.0.0 — npm audit shows 0 vulnerabilities |
+
+#### Post-Deploy Health Checks
+
+| Check | Result |
+|-------|--------|
+| GET /api/health → 200 | ✅ {"status":"ok","timestamp":"2026-03-24T01:24:07.541Z"} |
+| Auth enforcement — no token → 401 | ✅ |
+| Auth login (test account) → 200 + JWT | ✅ test@plantguardians.local works |
+| GET /plants with valid token → 200 | ✅ |
+| GET /profile with valid token → 200 | ✅ |
+| CORS for http://localhost:4173 | ✅ Access-Control-Allow-Origin: http://localhost:4173 |
+| CORS for http://localhost:5173 | ✅ Access-Control-Allow-Origin: http://localhost:5173 |
+| Frontend at :4173 → HTTP 200 + HTML | ✅ |
+| uploads/ directory exists | ✅ |
+| canvas-confetti dynamic chunk in dist | ✅ confetti.module-No8_urVw.js present |
+| DB startup race condition fix | ✅ server.js awaits db.raw('SELECT 1') before listen |
+
+#### Pre-Deploy Checklist
+
+| Requirement | Status |
+|-------------|--------|
+| Backend tasks Done (T-008 – T-014) | ✅ |
+| Frontend tasks Done (T-001 – T-007, T-021) | ✅ per H-023 |
+| T-022 fix applied (bcrypt 6.0.0, 0 audit vulns) | ✅ |
+| All frontend unit tests pass (48/48) | ✅ |
+| All backend unit tests pass (40/40) | ✅ |
+| Migrations run successfully | ✅ |
+| Backend starts and health check passes | ✅ |
+| Frontend build succeeds with all 7 screens | ✅ |
+| uploads/ directory exists | ✅ |
+| JWT secret generated (not default placeholder) | ✅ |
+| Seed data present | ✅ |
+| CORS configured for both :5173 and :4173 | ✅ |
+| QA integration tests confirmed (T-015, T-016) | ⏳ PENDING — awaiting QA run |
+
+#### Known Limitations
+
+- GEMINI_API_KEY is a placeholder — POST /ai/advice returns 502 (expected; frontend handles gracefully)
+- Docker not installed — staging uses local PostgreSQL 15 directly
+- HTTPS not configured (staging only; production phase)
+- T-023 marked In Progress pending QA integration test confirmation (T-015, T-016, T-017)
+
+---
+
