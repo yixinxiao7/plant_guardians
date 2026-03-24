@@ -1289,3 +1289,123 @@ No P1 security issues found. All critical items verified. HTTPS and encryption a
 
 ---
 
+## Sprint 3 — Deploy Engineer: Build & Staging Deployment (2026-03-24)
+
+**Date:** 2026-03-24T14:44:00Z
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 3
+**Tasks in scope:** T-023 (re-verification), T-024 trigger
+
+---
+
+### Pre-Deploy Checklist
+
+| Requirement | Status |
+|-------------|--------|
+| QA confirmation in handoff-log.md (H-033) | ✅ |
+| All Sprint 3 tasks Done (T-001–T-007, T-015–T-017, T-021–T-023) | ✅ |
+| Pending migrations reviewed (technical-context.md) | ✅ |
+| Docker not available — local process mode | ✅ (documented) |
+
+---
+
+### Build Run 1 — Dependency Install
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-24 |
+| **Command** | `cd backend && npm install` |
+| **Result** | ✅ PASS — 0 vulnerabilities |
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-24 |
+| **Command** | `cd frontend && npm install` |
+| **Result** | ✅ PASS — 0 vulnerabilities |
+
+---
+
+### Build Run 2 — Frontend Production Build
+
+| Field | Value |
+|-------|-------|
+| **Test Type** | Build |
+| **Date** | 2026-03-24T14:44:00Z |
+| **Environment** | Staging (local) |
+| **Command** | `cd frontend && npm run build` |
+| **Result** | ✅ SUCCESS |
+| **Duration** | 279ms |
+| **Tool** | Vite v8.0.2 |
+
+#### Build Artifacts
+
+| File | Size | Gzip |
+|------|------|------|
+| `dist/index.html` | 0.74 kB | 0.41 kB |
+| `dist/assets/index-ACo76nzn.css` | 29.12 kB | 5.43 kB |
+| `dist/assets/confetti.module-No8_urVw.js` | 10.57 kB | 4.20 kB |
+| `dist/assets/index-DxRrpY07.js` | 356.73 kB | 106.59 kB |
+
+**Build errors:** None. ✅
+
+---
+
+### Staging Deployment
+
+| Field | Value |
+|-------|-------|
+| **Environment** | Staging (local) |
+| **Date** | 2026-03-24T14:44:00Z |
+| **Build Status** | ✅ Success |
+
+#### Database Migrations
+
+| Field | Value |
+|-------|-------|
+| **Command** | `cd backend && npm run migrate` |
+| **Result** | ✅ Already up to date — all 5 migrations applied |
+| **Migrations applied** | 0 new (all previously applied) |
+
+All 5 schema migrations confirmed applied:
+- `20260323_01_create_users.js` ✅
+- `20260323_02_create_refresh_tokens.js` ✅
+- `20260323_03_create_plants.js` ✅
+- `20260323_04_create_care_schedules.js` ✅
+- `20260323_05_create_care_actions.js` ✅
+
+#### Service Health Verification
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running |
+| Backend Health | http://localhost:3000/api/health | ✅ `{"status":"ok","timestamp":"2026-03-24T14:44:19.284Z"}` |
+| Frontend (dev server) | http://localhost:5173 | ✅ Running — HTML served |
+| Frontend (production build) | `frontend/dist/` | ✅ Built — artifacts present |
+
+#### Docker Note
+
+Docker is not installed on this machine. Staging uses local processes:
+- Backend: started via `npm start` (Express on port 3000)
+- Frontend: served via `vite preview` on port 5173
+- Database: local PostgreSQL instance (from previous sprint setup)
+
+This is a documented limitation. The `infra/docker-compose.yml` is available for environments with Docker installed.
+
+---
+
+### Summary
+
+| Check | Result |
+|-------|--------|
+| Backend dependencies installed | ✅ 0 vulnerabilities |
+| Frontend dependencies installed | ✅ 0 vulnerabilities |
+| Frontend production build | ✅ No errors, 279ms |
+| Database migrations | ✅ All 5 applied, up to date |
+| Backend responding on :3000 | ✅ `{"status":"ok"}` |
+| Frontend serving on :5173 | ✅ HTML served |
+
+**Staging deployment: ✅ VERIFIED**
+**Handoff to Monitor Agent logged: H-034**
+
+---
+

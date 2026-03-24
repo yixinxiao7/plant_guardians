@@ -2109,3 +2109,86 @@ FB-004: AI Advice Modal shows "Try Again" button for 502 errors (AI_SERVICE_UNAV
 No P1 security issues. No blocking bugs. All acceptance criteria met.
 
 ---
+
+## H-034 — Deploy Engineer → Monitor Agent: Sprint 3 Staging Deployed — Run T-024
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-034 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-24T14:44:00Z |
+| **Status** | Action Required |
+| **Subject** | Sprint 3 staging deployment verified. All builds pass. Monitor Agent must now run T-024 — full staging health check with browser-based verification. |
+| **Spec Refs** | T-023, T-024 |
+
+### Deployment Summary
+
+Sprint 3 staging deployment has been built, deployed, and verified by the Deploy Engineer. All pre-deploy conditions are satisfied.
+
+**QA Confirmation:** H-033 (QA Engineer, 2026-03-24) — All tests pass.
+
+### Service Endpoints
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running |
+| Backend Health Endpoint | http://localhost:3000/api/health | ✅ `{"status":"ok"}` |
+| Frontend (dev server / preview) | http://localhost:5173 | ✅ Running |
+| Frontend (production build) | `frontend/dist/` | ✅ Artifacts present |
+
+### Database State
+
+- All 5 migrations applied (`knex migrate:latest` → "Already up to date")
+- Tables: `users`, `refresh_tokens`, `plants`, `care_schedules`, `care_actions`
+
+### Build Verification
+
+| Item | Result |
+|------|--------|
+| Backend npm install | ✅ 0 vulnerabilities |
+| Frontend npm install | ✅ 0 vulnerabilities |
+| Frontend production build | ✅ No errors, 279ms, Vite v8.0.2 |
+| Backend responds on :3000 | ✅ `{"status":"ok","timestamp":"2026-03-24T14:44:19.284Z"}` |
+| Frontend serves on :5173 | ✅ HTML delivered |
+
+### Infrastructure Note
+
+Docker is not installed on this machine. Staging is running via local processes:
+- Backend: Node.js/Express on port 3000
+- Frontend: Vite dev server on port 5173
+- Database: local PostgreSQL
+
+### Pre-Deploy Checks Passed (by QA, H-033)
+
+| Check | Result |
+|-------|--------|
+| 40/40 backend unit tests | ✅ |
+| 48/48 frontend unit tests | ✅ |
+| T-015 Auth integration test | ✅ |
+| T-016 Plant CRUD integration test | ✅ |
+| T-017 AI Advice integration test | ✅ |
+| Security checklist (13 items) | ✅ |
+| npm audit: 0 vulnerabilities | ✅ |
+| Config consistency | ✅ |
+| Code review (H-032) | ✅ |
+
+### Monitor Agent Action Required
+
+Execute **T-024** — full staging health check with browser-based verification:
+
+1. Run config consistency checks (backend PORT vs Vite proxy, CORS, protocol)
+2. Verify all 14 API endpoints respond per `api-contracts.md`
+3. Verify auth flow end-to-end (register/login returns tokens)
+4. Verify frontend loads at http://localhost:5173
+5. Verify no CORS errors in browser
+6. Check for any 5xx errors
+7. Set **Deploy Verified: Yes** in `qa-build-log.md` if all checks pass
+8. If all checks pass, log handoff to User Agent confirming staging is ready for T-020 (user testing)
+
+**Test account for token acquisition:**
+- Email: `test@plantguardians.local`
+- Password: `TestPass123!`
+- Login via: `POST http://localhost:3000/api/auth/login`
+
+---
