@@ -47,28 +47,29 @@ send_sprint_email() {
         body+="Sprint #${sprint_num} completed. No summary found in sprint-log.md."
     fi
 
-    # Section 2: Blockers (from active-sprint.md — the next sprint plan)
+    # Section 2: Next sprint preview (from active-sprint.md)
+    local next_sprint_num=$((sprint_num + 1))
+    local next_sprint_goal=""
+    if [[ -f "$active_sprint" ]]; then
+        next_sprint_goal=$(sed -n '/^\*\*Sprint Goal:/,/^$/{ p; }' "$active_sprint" 2>/dev/null | head -5 || true)
+    fi
+
+    if [[ -n "$next_sprint_goal" ]]; then
+        body+=$'\n\n'"NEXT UP: SPRINT #${next_sprint_num}"
+        body+=$'\n'"=========================="
+        body+=$'\n'"${next_sprint_goal}"
+    fi
+
+    # Section 3: Blockers for next sprint (from active-sprint.md)
     local blockers=""
     if [[ -f "$active_sprint" ]]; then
         blockers=$(sed -n '/^## Blockers/,/^## /{ /^## Blockers/d; /^## /d; p; }' "$active_sprint" 2>/dev/null || true)
     fi
 
-    if [[ -n "$blockers" ]]; then
-        body+=$'\n\n'"BLOCKERS"
-        body+=$'\n'"========"
+    if [[ -n "$blockers" ]] && ! echo "$blockers" | grep -q '^- None'; then
+        body+=$'\n\n'"BLOCKERS (SPRINT #${next_sprint_num})"
+        body+=$'\n'"=============================="
         body+=$'\n'"${blockers}"
-    fi
-
-    # Section 3: Next sprint plan (from active-sprint.md)
-    local next_sprint_goal=""
-    if [[ -f "$active_sprint" ]]; then
-        next_sprint_goal=$(sed -n '/^## Sprint #/,/^## Out of Scope/{ /^## Out of Scope/d; p; }' "$active_sprint" 2>/dev/null || true)
-    fi
-
-    if [[ -n "$next_sprint_goal" ]]; then
-        body+=$'\n\n'"NEXT SPRINT PLAN"
-        body+=$'\n'"================"
-        body+=$'\n'"${next_sprint_goal}"
     fi
 
     # ── Send via Gmail SMTP ───────────────────────────────────────────
