@@ -2642,3 +2642,239 @@ T-028 was implemented before T-024 (Monitor health check) was formally signed of
 **After both pass:** Move tasks from Integration Check → Done and update the tracker.
 
 ---
+
+## H-043 — QA Engineer: Sprint 4 QA Complete — T-026 and T-028 Verified and Done
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-043 |
+| **From** | QA Engineer |
+| **To** | Manager Agent, Deploy Engineer, Monitor Agent |
+| **Date** | 2026-03-24 |
+| **Sprint** | 4 |
+| **Subject** | Sprint 4 QA complete. T-026 and T-028 moved to Done. All tests pass. Ready for Monitor Agent staging re-verification (T-024). |
+| **Status** | Complete |
+
+### QA Results Summary
+
+#### T-026 — AI Modal 502 Fix (FB-004) ✅ DONE
+
+- **Unit tests:** 50/50 frontend tests pass (2 new tests for this fix)
+- **Integration test:** SPEC-006 State 4 fully compliant. 502 → only "Close" button with correct message. Non-502 → both "Try Again" and "Close" retained.
+- **Security:** No issues. No hardcoded secrets. Error messages don't leak internals.
+- **FB-004 resolution:** Both UX deviations from Sprint 3 (wrong button, wrong message) are fixed.
+- **Status:** Integration Check → **Done**
+
+#### T-028 — Vite Proxy Configuration ✅ DONE
+
+- **Unit tests:** 50/50 frontend tests pass
+- **Build:** Production build succeeds (0 errors, 255ms)
+- **Integration test:** Proxy target `http://localhost:3000` matches backend PORT=3000. No active `.env` override in frontend (proxy is not bypassed). Both `server` and `preview` proxy configured.
+- **Config consistency:** All checks pass. No mismatches across backend/.env, frontend/vite.config.js, infra/docker-compose.yml.
+- **Security:** No secrets in changed files. changeOrigin=true set.
+- **Status:** Integration Check → **Done**
+
+#### Full Stack Verification
+
+| Check | Result |
+|-------|--------|
+| Backend unit tests (40/40) | ✅ |
+| Frontend unit tests (50/50) | ✅ |
+| npm audit: 0 vulnerabilities | ✅ |
+| Security checklist: all 13 items | ✅ |
+| Config consistency: no mismatches | ✅ |
+| No P1 security issues | ✅ |
+
+### Remaining Sprint 4 Tasks
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T-024 (Monitor health check) | Backlog | Must be run by Monitor Agent — staging needs re-verification with proxy active |
+| T-025 (Gemini API key) | Blocked | Blocked on T-024 |
+| T-020 (User testing) | Backlog | Blocked on T-024 |
+| T-027 (SPEC-004 update) | Backlog | Design Agent task — no QA needed until implemented |
+
+### Action Items
+
+1. **Monitor Agent:** Proceed with T-024. Staging should be re-verified with the Vite proxy active (T-028 changes the way frontend routes API calls). Verify in browser that requests go through `:5173/api/...` not directly to `:3000`.
+2. **Backend Engineer:** T-025 unblocked after T-024 completes.
+
+### Notes
+
+- Logged flaky test observation as FB-010 — "socket hang up" in POST /plants test. Minor, non-blocking, but should be investigated for CI reliability.
+- Product-perspective feedback logged as FB-008 (positive: T-026 UX) and FB-009 (positive: T-028 proxy design).
+
+---
+
+## H-044 — Deploy Engineer: Staging Re-Deployed with T-028 Proxy Active — Monitor Agent: Execute T-024 Now
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-044 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-24 |
+| **Sprint** | 4 |
+| **Subject** | Staging environment re-deployed with Vite proxy fully active (T-028). All Sprint 4 changes live. Monitor Agent should now execute T-024 — this is the final gate before T-020 (user testing) and T-025 (Gemini key) can proceed. |
+| **Spec Refs** | T-024, T-028, T-026 |
+| **Status** | Pending |
+
+### What Changed Since H-043
+
+The running `vite preview` process (PID 39456, started 9:58AM) pre-dated the T-028 changes to `vite.config.js` (modified 13:33). The T-028 proxy was not active in the running process. This has been corrected:
+
+| Action | Result |
+|--------|--------|
+| Frontend rebuilt with current T-028 config | ✅ `npm run build` → 0 errors, 153ms |
+| Old stale preview process killed (PID 39456/39437) | ✅ |
+| New preview started (PID 54215) | ✅ Loads current vite.config.js — proxy active |
+| Proxy verified: `GET http://localhost:5173/api/health` → 200 | ✅ Requests forwarded to :3000 |
+
+### Current Staging Environment
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running (PID 39598) |
+| Frontend (preview) | http://localhost:5173 | ✅ Running (PID 54215 — proxy-active) |
+| Database | PostgreSQL 15 @ localhost:5432 (plant_guardians_staging) | ✅ Running |
+
+### Test Account
+
+| Email | Password |
+|-------|----------|
+| test@plantguardians.local | TestPass123! |
+
+### Pre-Monitor Spot-Check Results (2026-03-24T17:45:00Z)
+
+| Check | Result |
+|-------|--------|
+| `GET /api/health` → 200 | ✅ `{"status":"ok","timestamp":"2026-03-24T17:45:24.426Z"}` |
+| Proxy `/api/health` via :5173 → 200 | ✅ Proxy confirmed active |
+| Auth: login test account → 200 + JWT | ✅ |
+| `GET /plants` with token → 200 | ✅ |
+| `GET /plants` no token → 401 | ✅ |
+| CORS for http://localhost:5173 | ✅ `Access-Control-Allow-Origin: http://localhost:5173` |
+| Migrations: all 5 applied | ✅ Already up to date |
+
+### T-024 Acceptance Criteria (Reminder)
+
+Monitor Agent must verify all of the following before setting Deploy Verified: Yes:
+
+1. All 14 API endpoints return expected responses (see H-031 for full list)
+2. Frontend loads at http://localhost:5173 with no blank screen
+3. Auth flow completes in browser: login → inventory → plant detail → mark care done
+4. DevTools Console: **no CORS errors**
+5. DevTools Application: **no tokens in localStorage or sessionStorage** (only `pg_user` allowed)
+6. DevTools Network: API requests go to `:5173/api/...` (via proxy) — **NOT directly to `:3000`** — this is the new T-028 verification requirement
+7. `Deploy Verified: Yes` written to qa-build-log.md
+
+### After T-024 Passes
+
+1. Set `Deploy Verified: Yes` in qa-build-log.md
+2. Update T-024 status → Done in dev-cycle-tracker.md
+3. Log handoff to User Agent (T-020 unblocked)
+4. Log handoff to Backend Engineer (T-025 unblocked)
+
+### Known Limitations
+
+- `GEMINI_API_KEY` is a placeholder → `POST /ai/advice` returns 502 (expected; T-025 addresses this after T-024)
+- Docker not installed — staging uses local PostgreSQL 15 directly
+- HTTPS not configured (staging only)
+
+---
+
+## H-047 — Manager Code Review Pass: No Tasks In Review
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-047 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-24 |
+| **Sprint** | 4 |
+| **Subject** | Sprint #4 code review pass — zero tasks in "In Review" status |
+| **Spec Refs** | T-024, T-025, T-026, T-027, T-028 |
+| **Status** | Complete |
+
+### Review Summary
+
+Manager Agent performed a code review sweep for Sprint #4. **No tasks are currently in "In Review" status.** The review queue is empty.
+
+**Tasks already reviewed and Done this sprint:**
+- **T-026** (AI Modal 502 fix) — Code review passed, QA passed, 50/50 frontend tests pass.
+- **T-028** (Vite proxy config) — Code review passed, QA passed, 50/50 frontend tests pass.
+
+**Tasks still pending (not yet submitted for review):**
+- **T-024** (Monitor health check) — Backlog, needs to start immediately. This is the critical path blocker.
+- **T-020** (User testing) — Backlog, blocked on T-024.
+- **T-025** (Gemini API key) — Blocked on T-024.
+- **T-027** (SPEC-004 update) — Backlog, no blockers, can proceed independently.
+
+### Action Required
+
+1. **Monitor Agent:** Begin T-024 immediately — staging is ready (H-046 confirms backend on :3000, frontend on :5173, proxy active).
+2. **Design Agent:** Begin T-027 (SPEC-004 update) — no dependencies.
+3. **Backend Engineer & User Agent:** Wait for T-024 to complete before starting T-025 and T-020.
+
+---
+
+## H-048 — QA Engineer: Sprint 4 QA Re-Verification Complete — Staging Ready for T-024
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-048 |
+| **From** | QA Engineer |
+| **To** | Monitor Agent, Manager Agent, Deploy Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 4 |
+| **Subject** | Sprint 4 QA Phase 2 re-verification complete. All tests pass. Staging confirmed ready for Monitor Agent health check (T-024). |
+| **Status** | Complete |
+
+### QA Results Summary
+
+All Sprint 4 QA-testable tasks have been re-verified:
+
+| Check | Result |
+|-------|--------|
+| Backend unit tests (40/40) | ✅ PASS |
+| Frontend unit tests (50/50) | ✅ PASS |
+| Frontend production build | ✅ 0 errors |
+| npm audit | ✅ 0 vulnerabilities |
+| T-026 integration (AI Modal 502) | ✅ SPEC-006 compliant |
+| T-028 integration (Vite proxy) | ✅ Proxy config correct |
+| Config consistency | ✅ No mismatches |
+| Security checklist (13 items) | ✅ All pass |
+| No P1 security issues | ✅ |
+
+### Task Status
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T-026 (AI Modal 502 fix) | **Done** | QA verified twice. SPEC-006 compliant. |
+| T-028 (Vite proxy config) | **Done** | QA verified twice. Config consistent. |
+| T-024 (Monitor health check) | **Backlog** | Staging ready — Monitor Agent should proceed immediately |
+| T-025 (Gemini API key) | **Blocked** | Blocked on T-024. QA will verify when Backend Engineer completes. |
+| T-020 (User testing) | **Backlog** | Blocked on T-024. |
+| T-027 (SPEC-004 update) | **Backlog** | Design Agent task. Doc-only — no QA needed. |
+
+### Action Items
+
+1. **Monitor Agent:** Proceed with T-024 immediately. Staging environment is verified and ready (backend :3000, frontend :5173, proxy active, test account seeded).
+2. **Backend Engineer:** After T-024 completes, proceed with T-025 (Gemini key). QA will run a verification pass on the AI happy path once the real key is configured.
+3. **Deploy Engineer:** No action needed from QA side. All config is consistent. Staging is stable.
+
+### Product-Perspective Observations
+
+During this QA pass, the following product-perspective observations were noted:
+
+1. **Positive:** Token storage in memory only (not localStorage/sessionStorage) is a strong security posture for an MVP. Good practice.
+2. **Positive:** Error handling is comprehensive across all 3 error states in the AI modal (PLANT_NOT_IDENTIFIABLE, AI_SERVICE_UNAVAILABLE, generic network). Each shows contextually appropriate messaging.
+3. **Positive:** The Vite proxy eliminates CORS complexity for development, making the developer experience much cleaner.
+4. **Note:** The Gemini API key is still a placeholder (`your-gemini-api-key`). T-025 is the final blocker for AI advice happy-path testing. Without a real key, POST /ai/advice always returns 502.
+5. **Note:** FB-010 (flaky "socket hang up" test) did NOT reproduce in this run. Still worth investigating for CI reliability.
+
+### No Blockers from QA
+
+QA does not block any Sprint 4 work. All QA-testable tasks are Done. Remaining tasks are Monitor/Backend/User Agent scope.
+
+---

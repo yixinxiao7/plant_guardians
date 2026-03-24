@@ -233,3 +233,144 @@ During final product-perspective testing, the following edge cases were verified
 
 ---
 
+## FB-008 — Positive: T-026 AI Modal 502 Error Handling — Clean User Experience
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-008 |
+| **Source** | QA Engineer |
+| **Sprint** | 4 |
+| **Date** | 2026-03-24 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | Acknowledged |
+
+### Description
+
+The T-026 fix for the AI Modal 502 error state is well-implemented from a user's perspective:
+
+1. **No confusing "Try Again" for service outages** — When the AI service is down (502), showing only "Close" is the right UX. Users shouldn't repeatedly retry when the issue is server-side.
+2. **Helpful fallback message** — "You can still add your plant manually" is actionable. The user knows what to do next instead of being stuck.
+3. **Non-502 errors still offer retry** — Network errors and unidentifiable plant errors still show "Try Again", which is correct since those may be transient or user-correctable.
+4. **"Close" button promotion** — Promoting the Close button from `ghost` to `secondary` variant when it's the only action provides appropriate visual weight.
+
+---
+
+## FB-009 — Positive: Vite Proxy Eliminates CORS Complexity for Development
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-009 |
+| **Source** | QA Engineer |
+| **Sprint** | 4 |
+| **Date** | 2026-03-24 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | Acknowledged |
+
+### Description
+
+T-028's Vite proxy configuration is a clean technical debt resolution:
+
+1. **Relative API URLs** — `api.js` defaults to `/api/v1` instead of `http://localhost:3000/api/v1`. This means dev, staging, and production all work without CORS issues.
+2. **Production override preserved** — `VITE_API_BASE_URL` env var still works for production deployments with a separate backend origin.
+3. **Both dev and preview covered** — Proxy is configured on both `server` and `preview`, so `npm run dev` and `npm run preview` both work identically.
+
+---
+
+## FB-010 — Observation: Flaky Backend Test — "socket hang up" in POST /plants
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-010 |
+| **Source** | QA Engineer |
+| **Sprint** | 4 |
+| **Date** | 2026-03-24 |
+| **Category** | Bug |
+| **Severity** | Minor |
+| **Status** | New |
+
+### Description
+
+During Sprint 4 backend test runs, `POST /api/v1/plants > should create a plant with care schedules` failed with "socket hang up" on the first full-suite run. The same test passed on subsequent runs (both isolated and full-suite). This appears to be a flaky test caused by concurrency in the test runner (Jest parallel test suites competing for DB connections or server ports).
+
+### Steps to Reproduce
+
+1. `cd backend && npm test` — run all 5 test suites in parallel
+2. Observe occasional "socket hang up" failure on the `plants.test.js` create test
+3. Re-run → passes
+
+### Expected vs Actual
+
+- **Expected:** 40/40 tests pass reliably on every run
+- **Actual:** Intermittent 39/40 with "socket hang up" on plant creation test
+
+### Recommendation
+
+Consider adding `--runInBand` to Jest config for CI, or investigating the supertest/server teardown timing between suites.
+
+---
+
+## FB-011 — Positive: Comprehensive Error Handling Architecture
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-011 |
+| **Source** | QA Engineer |
+| **Sprint** | 4 |
+| **Date** | 2026-03-24 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | New |
+
+### Description
+
+The centralized error handling architecture (AppError hierarchy → errorHandler middleware → structured JSON responses) is well designed. Unknown errors never leak stack traces or internal details — they return `{"error":{"message":"An unexpected error occurred.","code":"INTERNAL_ERROR"}}`. This is a strong security and UX pattern.
+
+The frontend error handling in `api.js` (ApiError class with code/status) and the AI modal's per-error-code branching provide contextually useful messages to users. This is production-quality error handling for an MVP.
+
+---
+
+## FB-012 — Observation: Gemini API Key Still Placeholder — AI Feature Non-Functional
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-012 |
+| **Source** | QA Engineer |
+| **Sprint** | 4 |
+| **Date** | 2026-03-24 |
+| **Category** | Feature Gap |
+| **Severity** | Major |
+| **Status** | New — Tracked as T-025 (Blocked on T-024) |
+
+### Description
+
+`backend/.env` has `GEMINI_API_KEY=your-gemini-api-key` (placeholder). The backend correctly detects this (line 80 in `ai.js`: `!apiKey || apiKey === 'your-gemini-api-key'`) and returns 502 AI_SERVICE_UNAVAILABLE. This means the AI advice feature — a core MVP pillar — is completely non-functional.
+
+T-025 addresses this but is blocked on T-024 (Monitor health check). Until a real Gemini key is configured, Flow 2 and Flow 3 from the project brief cannot be fully tested.
+
+### Expected vs Actual
+
+- **Expected:** POST /ai/advice returns 200 with care advice
+- **Actual:** POST /ai/advice returns 502 AI_SERVICE_UNAVAILABLE
+
+---
+
+## FB-013 — Positive: Memory-Only Token Storage
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-013 |
+| **Source** | QA Engineer |
+| **Sprint** | 4 |
+| **Date** | 2026-03-24 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | New |
+
+### Description
+
+Access and refresh tokens are stored exclusively in module-level variables in `api.js` (not localStorage, not sessionStorage). Only non-sensitive display data (`pg_user` — name and email) is stored in sessionStorage. This is best practice for XSS-resilient token management in SPAs. Good implementation.
+
+---
+
