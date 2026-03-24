@@ -890,3 +890,300 @@ If the Frontend Engineer cannot begin implementation by the first day of Sprint 
 - `npm audit` tar vulnerability still unresolved — T-022 addresses this
 
 ---
+
+## H-020 — Sprint #3 Design Handoff: All UI Specs Confirmed Approved — Frontend Engineer: Begin Implementation
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-020 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 3 |
+| **Subject** | All 7 UI specs confirmed approved and ready for implementation. Sprint #3 clarifications and implementation guidance included below. No spec changes — build from existing SPEC-001 through SPEC-007 in ui-spec.md. |
+| **Spec Refs** | SPEC-001, SPEC-002, SPEC-003, SPEC-004, SPEC-005, SPEC-006, SPEC-007 |
+| **Status** | Pending |
+
+### Status Confirmation
+
+All 7 screen specs in `ui-spec.md` are **Approved** and unchanged from Sprint 1. No revisions have been made. The Frontend Engineer should build exactly to spec — no design decisions are outstanding.
+
+| Spec ID | Screen | Task | Status |
+|---------|--------|------|--------|
+| SPEC-001 | Login & Sign Up | T-001 | ✅ Approved |
+| SPEC-002 | Plant Inventory (Home) | T-002 | ✅ Approved |
+| SPEC-003 | Add Plant | T-003 | ✅ Approved |
+| SPEC-004 | Edit Plant | T-004 | ✅ Approved |
+| SPEC-005 | Plant Detail | T-005 | ✅ Approved |
+| SPEC-006 | AI Advice Modal | T-006 | ✅ Approved |
+| SPEC-007 | Profile Page | T-007 | ✅ Approved |
+
+---
+
+### Sprint #3 Implementation Clarifications
+
+These clarifications address edge cases and ambiguities that may arise during implementation. They supplement (not replace) the full spec detail in `ui-spec.md`.
+
+---
+
+#### SPEC-001 — Login & Sign Up
+
+**Clarification 1: Required-field asterisk and label accessibility (T-021 fix)**
+
+The `<label>` for required fields must contain a `<span aria-hidden="true">*</span>` adjacent to the label text — never inside the text node itself. This means `getByLabelText('Email')` in tests will only find the input if the label's accessible name is exactly `"Email"`, not `"Email *"`. Implement like this:
+
+```html
+<label htmlFor="email">
+  Email <span aria-hidden="true" className="required-asterisk">*</span>
+</label>
+<input id="email" ... />
+```
+
+The asterisk `span` with `aria-hidden="true"` ensures screen readers announce "Email" (not "Email asterisk"), and `getByLabelText('Email')` matches cleanly. This is the fix for the failing selector in `LoginPage.test.jsx`.
+
+**Clarification 2: Tab toggle vs. URL routing**
+
+The Login/Signup tabs (`/login` default, `/signup` accessible via tab click) should update the URL — use React Router with `?mode=signup` query param or separate `/login` and `/signup` routes. Both should render the same two-panel layout; only the form content and active tab change. This ensures users can bookmark or share the signup URL.
+
+**Clarification 3: JWT storage**
+
+Store the `access_token` in React context/state (in-memory) only. The backend sets the `refresh_token` as an `httpOnly` cookie. The frontend must never write any token to `localStorage` or `sessionStorage`. The API client should silently retry with a refresh call on 401 responses before redirecting to login.
+
+---
+
+#### SPEC-002 — Plant Inventory (Home)
+
+**Clarification 1: Status badge priority on cards**
+
+Each plant card shows up to 3 status badges (watering, fertilizing, repotting). Badge order is always: Watering → Fertilizing → Repotting. For cards, the visual weight of overdue badges (red) should draw the eye first — implement using CSS ordering or sort the badge array: overdue first, then due today, then on track.
+
+**Clarification 2: Skeleton count**
+
+The loading skeleton state should show exactly 6 placeholder cards (matching a typical first-load scenario). Skeletons must use a pulsing CSS shimmer animation (`background: linear-gradient(90deg, #E0DDD6 25%, #EBE8E3 50%, #E0DDD6 75%)`, `background-size: 200% 100%`, `animation: shimmer 1.5s infinite`). Do not use a spinner for the main grid load.
+
+**Clarification 3: Search is client-side only**
+
+The search input filters the already-loaded `plants` array — no API calls on keystrokes. Filtering matches on `plant.name` and `plant.type` (case-insensitive substring match). Debouncing is not required since the filter is synchronous.
+
+**Clarification 4: Delete modal — plant name in title**
+
+The delete confirmation modal title must interpolate the actual plant name: `"Remove [Plant Name]?"`. The body text must also interpolate: `"This will permanently remove [Plant Name] from your garden. This can't be undone."` Do not use a generic "Remove this plant?" fallback.
+
+---
+
+#### SPEC-003 — Add Plant
+
+**Clarification 1: Photo upload then plant creation order**
+
+Photo upload is a two-step API process:
+1. `POST /plants/:id/photo` (multipart) — uploads and returns `photo_url`
+2. The `photo_url` is included in the `POST /plants` body
+
+However, the plant must exist before uploading a photo (the endpoint is `/plants/:id/photo`). The correct flow is:
+- If user has NOT uploaded a photo: `POST /plants` with no `photo_url` → redirect to inventory
+- If user HAS uploaded a photo: `POST /plants` with no photo → `POST /plants/:id/photo` → `PUT /plants/:id` with `photo_url` from upload response → redirect
+
+Alternatively, create the plant first (without photo), then immediately upload the photo using the new plant's ID, then update the plant. Show a two-step progress indicator if needed. The simpler UX is to upload the photo last, after the plant is created.
+
+**Clarification 2: Watering schedule — "last watered" date is optional**
+
+If the user leaves "Last watered date" blank, omit `last_done_at` from the care schedule object sent to the backend. The backend defaults to treating the plant as freshly cared for (or calculates status from creation date). Do not default to today's date client-side — let the backend handle the null case.
+
+**Clarification 3: Frequency unit normalization**
+
+The backend stores `frequency_value` (integer) and `frequency_unit` (one of: `"days"`, `"weeks"`, `"months"`, `"years"`). If the AI advice modal returns a `years` unit for repotting, convert to months before submitting: `frequency_value * 12`, `frequency_unit = "months"`. The conversion note is in H-002 — handle this in the "Accept & Fill Form" logic.
+
+---
+
+#### SPEC-004 — Edit Plant
+
+**Clarification 1: Dirty-state detection**
+
+The "Save Changes" button starts disabled. It must only enable when the current form values differ from the originally loaded values. Use a deep-compare of the form state vs. a `originalValues` snapshot taken when the form data loads. Disabling the button on pristine state prevents accidental no-op saves and communicates to the user that no changes have been made.
+
+**Clarification 2: Photo replacement**
+
+If the user uploads a new photo on the Edit page, the upload should call `POST /plants/:id/photo` immediately (on file selection), not on form submit. Store the returned `photo_url` in form state and include it in the `PUT /plants/:id` payload on save. Show the new photo preview immediately after upload completes.
+
+**Clarification 3: Schedule removal**
+
+If the user toggles off the fertilizing or repotting schedule (collapses the section and clears the values), the `PUT /plants/:id` payload should omit that schedule type entirely. The backend interprets a missing schedule as "remove this schedule." Do not send a schedule object with null/empty values.
+
+---
+
+#### SPEC-005 — Plant Detail
+
+**Clarification 1: Confetti implementation (non-negotiable)**
+
+Use `canvas-confetti` with a dynamic import to avoid bundling it on initial load:
+
+```js
+const fireConfetti = async (buttonEl) => {
+  const { default: confetti } = await import('canvas-confetti');
+  const rect = buttonEl.getBoundingClientRect();
+  confetti({
+    particleCount: 35,
+    spread: 60,
+    origin: {
+      x: (rect.left + rect.width / 2) / window.innerWidth,
+      y: (rect.top + rect.height / 2) / window.innerHeight,
+    },
+    colors: ['#5C7A5C', '#A67C5B', '#C4921F', '#4A7C59'],
+    ticks: 200,
+  });
+};
+```
+
+Wrap in `prefers-reduced-motion` check — if the user prefers reduced motion, skip confetti but still update the button state and status badge.
+
+**Clarification 2: Undo window timing**
+
+After "Mark as done" succeeds:
+1. Immediately show "Undo" ghost button (replacing the confetti-state button)
+2. Start a 10-second countdown — optionally show a subtle countdown ring or just hide the button after 10s
+3. If user clicks Undo: call `DELETE /plants/:id/care-actions/:action_id`, then restore previous state from the response's `updated_schedule`
+4. After 10 seconds without undo: Undo button disappears, "Mark as done" button returns to its standard (on-track) state
+
+Store the `action_id` returned from `POST /plants/:id/care-actions` in local state for the undo call. The `action_id` is only available within this 10-second window.
+
+**Clarification 3: Care card "Not Set" state**
+
+When a plant has no fertilizing or repotting schedule, the care card for that type should show:
+- Status badge: "Not set" (muted gray pill)
+- Frequency: "Schedule not configured" (italic, `#B0ADA5`)
+- No "Mark as done" button — instead: "Add Schedule →" (ghost link) that routes to `/plants/:id/edit`
+- Card opacity: 0.6
+
+Do not hide or remove the card entirely — always show all three care types so users know the feature exists.
+
+**Clarification 4: Relative timestamps**
+
+Use a library like `date-fns` (`formatDistanceToNow`) for relative timestamps ("5 days ago", "Just now", "Today"). "Just now" should be used for timestamps within the last 60 seconds. For dates more than 2 weeks ago, fall back to absolute date format ("Mar 15, 2026").
+
+---
+
+#### SPEC-006 — AI Advice Modal
+
+**Clarification 1: Photo pre-population from parent form**
+
+If the user has already uploaded a photo on the Add Plant form, that photo should appear pre-populated in the modal's mini upload zone (State 1 — Input). The modal receives the `photo_url` (already uploaded) as a prop. When the user clicks "Get AI Advice," send `{ photo_url }` to `POST /ai/advice`. No second upload is needed.
+
+If no photo was uploaded on the parent form, the mini upload zone in the modal is empty and the user must either upload a photo there or type the plant type.
+
+**Clarification 2: GEMINI_API_KEY placeholder — graceful degradation**
+
+In the current staging environment, `GEMINI_API_KEY` is a placeholder, so `POST /ai/advice` returns `HTTP 502 AI_SERVICE_UNAVAILABLE`. The modal must handle this error gracefully:
+
+- Error state heading: "AI advice is unavailable right now"
+- Body: "Our AI service is temporarily offline. You can still add your plant manually."
+- Actions: "Close" button (ghost)
+- Do NOT show "Try Again" for a 502 — the service is down, not the user's fault
+
+For `PLANT_NOT_IDENTIFIABLE` (422): show "We couldn't identify the plant from this photo. Try a clearer photo or enter the plant type manually." with a "Try Again" button that returns to State 1.
+
+**Clarification 3: Bottom sheet on mobile**
+
+On mobile (<768px), the modal renders as a bottom sheet: slides up from the bottom, full viewport width, `border-radius: 16px 16px 0 0`, minimum height 60vh, with a drag handle (short horizontal pill, `background: #E0DDD6`, centered at top of sheet). The backdrop tap should dismiss it. The close X button remains in the top-right corner inside the sheet.
+
+**Clarification 4: "Accept & Fill Form" field mapping**
+
+When the user accepts AI advice, map the AI response fields to the parent form as follows:
+
+| AI Response Field | Form Field | Notes |
+|---|---|---|
+| `plant_type` | Plant Type input | Only if Plant Type field is currently empty |
+| `watering.frequency_value` + `watering.frequency_unit` | Watering frequency number + unit select | Always overwrite |
+| `fertilizing.frequency_value` + `fertilizing.frequency_unit` | Fertilizing frequency (expand section first) | Only if provided by AI |
+| `repotting.frequency_value` + `repotting.frequency_unit` | Repotting frequency (expand section first, convert years→months) | Only if provided by AI |
+
+After filling, highlight each auto-filled field with `background: rgba(92,122,92,0.08)` + `border-color: #5C7A5C` for 2 seconds, then fade to normal. Show a small "Filled by AI" badge below each auto-filled field.
+
+---
+
+#### SPEC-007 — Profile Page
+
+**Clarification 1: Stats from API**
+
+The `GET /profile` endpoint returns:
+```json
+{
+  "user": { "name": "...", "email": "...", "created_at": "..." },
+  "stats": { "plant_count": 3, "days_as_member": 42, "total_care_actions": 17 }
+}
+```
+
+Map these directly: `stats.plant_count` → "Plants in care", `stats.days_as_member` → "Days as a Guardian", `stats.total_care_actions` → "Care actions completed".
+
+**Clarification 2: Avatar initials**
+
+Generate initials from `user.name`: take the first character of the first word and the first character of the last word (if it exists). For "Jane Doe" → "JD". For "Madonna" → "M". Display in uppercase, Playfair Display, 36px, `color: #FFFFFF` on `background: #5C7A5C`, 88×88px circle.
+
+**Clarification 3: "Member since" format**
+
+Format `user.created_at` as "Guardian since [Month YYYY]" — e.g., "Guardian since January 2026". Use `date-fns` `format(new Date(created_at), 'MMMM yyyy')`.
+
+**Clarification 4: Logout flow**
+
+On logout click:
+1. Call `POST /auth/logout` (sends refresh token cookie automatically)
+2. Clear `access_token` from React auth context
+3. Redirect to `/login`
+4. No confirmation dialog needed — logout is reversible
+
+If `POST /auth/logout` fails (network error), still clear local auth state and redirect. Never leave the user stuck on the profile page due to a logout API failure.
+
+**Clarification 5: "Delete Account" — disabled state**
+
+Show the "Delete Account" link as disabled/coming soon: ghost text, `color: #B0ADA5` (disabled color), `cursor: not-allowed`, `font-size: 13px`. Add a tooltip on hover: "Coming soon". Do not hook it up to any action.
+
+---
+
+### Build Order Recommendation (Sprint 3)
+
+Follow this order strictly — it mirrors the dependency chain in active-sprint.md:
+
+1. **T-001 (SPEC-001)** — Login & Sign Up. Establishes auth context, routing, and the app shell layout. All other screens require this.
+2. **T-002 (SPEC-002)** — Plant Inventory. Establishes the sidebar, grid, and plant card component. These are reused everywhere.
+3. **T-003 (SPEC-003)** — Add Plant. Core data-entry form. Photo upload and schedule inputs defined here.
+4. **T-006 (SPEC-006)** — AI Advice Modal. Can be built concurrently with T-003 since it's a modal overlay. Depends on T-003's form context.
+5. **T-004 (SPEC-004)** — Edit Plant. Reuses all T-003 form components; only differences are pre-population and dirty state.
+6. **T-005 (SPEC-005)** — Plant Detail. Requires plants to exist (T-002 data flow). Confetti animation is the priority UX moment.
+7. **T-007 (SPEC-007)** — Profile Page. Least complex, can be done last.
+8. **T-021** — LoginPage test selector fix. Address alongside or immediately after T-001.
+
+### Design System Quick Reference
+
+All specs inherit from the Design System Conventions in `ui-spec.md`. Key values for implementation:
+
+| Token | Value | Use |
+|-------|-------|-----|
+| Background | `#F7F4EF` | Page/app background |
+| Surface | `#FFFFFF` | Cards, panels |
+| Surface Alt | `#F0EDE6` | Inset areas, secondary cards |
+| Text Primary | `#2C2C2C` | Body text, headings |
+| Text Secondary | `#6B6B5F` | Labels, supporting text |
+| Accent | `#5C7A5C` | Primary CTAs, links, active states |
+| Status Green | `#4A7C59` | On track |
+| Status Yellow | `#C4921F` | Due today |
+| Status Red | `#B85C38` | Overdue |
+| Border | `#E0DDD6` | Cards, inputs |
+| Font (body) | `DM Sans` 400/500/600 | All UI text |
+| Font (display) | `Playfair Display` 600 | Page titles only |
+| Border Radius (card) | `12px` | Plant cards, modals |
+| Border Radius (input) | `8px` | Inputs, secondary buttons |
+| Border Radius (badge) | `24px` | Status pills |
+
+### Notes for Frontend Engineer
+
+- **All specs are finalized.** Do not wait for further design input. If something is unclear, make a reasonable decision consistent with the Japandi botanical aesthetic and log it in this handoff file.
+- **The confetti animation on "Mark as done" is a product-defining moment.** It must feel genuinely satisfying. Do not simplify it or stub it out — it is P0.
+- **AI service 502s are expected in staging.** The frontend must display a graceful degradation message — not a broken loading state or an unhandled error.
+- **Responsive behavior is required for all 7 screens** — desktop (≥1024px), tablet (768–1023px), mobile (<768px) — per the breakpoints defined in each spec.
+- **All animations must respect `prefers-reduced-motion`.** Wrap canvas-confetti and transition animations in the media query.
+- **`useToast.js` and `useAuth.js` must use `.jsx` extension** if they contain JSX — Vite 8/rolldown will reject JSX in `.js` files (see H-014).
+
+### Blockers
+
+None from the Design Agent side. All 7 specs are complete, approved, and ready to build against. Backend API is live. API contracts are published in `api-contracts.md`.
+
+---
