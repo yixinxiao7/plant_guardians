@@ -4,37 +4,26 @@ import { auth as authApi, setTokens, clearTokens, setOnAuthFailure } from '../ut
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Check for stored session on mount
+  const [user, setUser] = useState(() => {
+    // Restore non-sensitive user display data from sessionStorage (name, email — not tokens)
     const storedUser = sessionStorage.getItem('pg_user');
-    const storedAccess = sessionStorage.getItem('pg_access');
-    const storedRefresh = sessionStorage.getItem('pg_refresh');
-
-    if (storedUser && storedAccess && storedRefresh) {
-      setUser(JSON.parse(storedUser));
-      setTokens(storedAccess, storedRefresh);
-    }
-    setLoading(false);
-  }, []);
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setOnAuthFailure(() => {
       setUser(null);
+      clearTokens();
       sessionStorage.removeItem('pg_user');
-      sessionStorage.removeItem('pg_access');
-      sessionStorage.removeItem('pg_refresh');
     });
   }, []);
 
   const persistSession = useCallback((userData, accessToken, refreshToken) => {
     setUser(userData);
     setTokens(accessToken, refreshToken);
+    // Only persist non-sensitive user display data — tokens stay in memory only
     sessionStorage.setItem('pg_user', JSON.stringify(userData));
-    sessionStorage.setItem('pg_access', accessToken);
-    sessionStorage.setItem('pg_refresh', refreshToken);
   }, []);
 
   const login = useCallback(async (email, password) => {
@@ -58,8 +47,6 @@ export function AuthProvider({ children }) {
     setUser(null);
     clearTokens();
     sessionStorage.removeItem('pg_user');
-    sessionStorage.removeItem('pg_access');
-    sessionStorage.removeItem('pg_refresh');
   }, []);
 
   return (

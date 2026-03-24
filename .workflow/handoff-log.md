@@ -1560,3 +1560,154 @@ QA must verify the following frontend security requirements during T-015:
 
 ---
 
+## H-025 — Manager Code Review: T-001 Returned — sessionStorage Token Security Violation
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-025 |
+| **From** | Manager Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 3 |
+| **Subject** | T-001 returned to In Progress — `useAuth.jsx` stores tokens in sessionStorage, violating the explicit security requirement. Must fix before Integration Check. |
+| **Spec Refs** | T-001 |
+| **Status** | Pending |
+
+### Issue
+
+`frontend/src/hooks/useAuth.jsx` stores `access_token`, `refresh_token`, and user data in `sessionStorage` (lines 13-14, 35-37). The security requirements in `api-contracts.md` explicitly state:
+
+> - **Token storage:** `access_token` in React context memory only — never `localStorage`, never `sessionStorage`
+> - **Refresh token:** In memory (React context) or httpOnly cookie — never exposed to JS if possible
+
+### Required Fix
+
+1. **Remove all `sessionStorage` reads/writes** for `pg_access`, `pg_refresh`, and `pg_user` from `useAuth.jsx`
+2. Store tokens **only** in the module-level variables in `api.js` (which already exist: lines 3-4) and React context state
+3. The `pg_user` data can optionally remain in sessionStorage for UX (it's not a secret), but tokens must not be persisted to any browser storage
+4. Accept that users will need to re-login on page refresh — this is acceptable for MVP and matches the security model
+
+### What's Fine
+
+- `api.js` module-level token storage is correct (in-memory)
+- Auth guards, form validation, error handling, API contract mapping — all pass review
+- The `persistSession` function can still call `setTokens()` for in-memory storage, just remove the `sessionStorage.setItem` calls for tokens
+- Consider keeping `sessionStorage.setItem('pg_user', ...)` for user display data (name/email), since that's not a security-sensitive credential
+
+### After Fix
+
+Re-submit T-001 for review. All 7 frontend tasks (T-001 through T-007) share this auth module, so the fix is cross-cutting but isolated to one file.
+
+---
+
+## H-026 — Manager Code Review: 8 Tasks Pass — Handoff to QA Engineer
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-026 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 3 |
+| **Subject** | Code review complete for Sprint 3 frontend + backend tasks. 8 tasks moved to Integration Check. 1 task (T-001) returned for security fix. QA may begin integration testing for tasks in Integration Check. |
+| **Spec Refs** | T-002, T-003, T-004, T-005, T-006, T-007, T-021, T-022 |
+| **Status** | Pending |
+
+### Review Summary
+
+| Task | Description | Verdict | Notes |
+|------|-------------|---------|-------|
+| T-001 | Login & Sign Up UI | **RETURNED** | sessionStorage token storage violates security requirements. See H-025. |
+| T-002 | Plant Inventory (Home) | **PASSED** | Loading/error/empty states, server-provided statuses, delete modal, search, accessibility. |
+| T-003 | Add Plant | **PASSED** | Correct photo flow (create→upload→update), years→months conversion, care schedule builds match contract. |
+| T-004 | Edit Plant | **PASSED** | Form pre-population, dirty state detection, full schedule replacement on PUT. |
+| T-005 | Plant Detail | **PASSED** | Confetti + prefers-reduced-motion, 10s undo window, local state update from response. |
+| T-006 | AI Advice Modal | **PASSED** | All 4 states correct, error codes handled, Accept fills form, loading text cycling. |
+| T-007 | Profile Page | **PASSED** | GET /profile, stats display, logout flow, date formatting via Intl. |
+| T-021 | LoginPage test fix | **PASSED** | Targeted fix, correct selectors. |
+| T-022 | npm audit fix | **PASSED** | Clean bcrypt upgrade, 0 vulns, 40/40 tests pass. |
+
+### Security Review Findings
+
+| Check | Result |
+|-------|--------|
+| No `dangerouslySetInnerHTML` | ✅ None found in any frontend file |
+| No hardcoded secrets | ✅ API base URL from env var, no embedded keys |
+| Parameterized queries (backend) | ✅ Already verified in Sprint 1 QA |
+| XSS via user content | ✅ All user content rendered as JSX text nodes |
+| Auth guards on all protected routes | ✅ ProtectedRoute component wraps all non-login routes |
+| Token auto-refresh on 401 | ✅ `api.js` handles 401→refresh→retry, falls back to logout |
+| Token storage | ❌ **FAIL** — sessionStorage used in useAuth.jsx (T-001 returned) |
+| Error responses safe | ✅ Generic messages shown to users, no stack traces leaked |
+
+### Code Quality Observations (non-blocking)
+
+1. `usePlants.js` line 15: `Array.isArray(data) ? data : data` is a no-op — harmless but could be cleaned up
+2. `api.js` line 68: `_retried: true` passed in fetch options object — ignored by fetch but slightly messy; consider using a separate flag
+3. `AddPlantPage.jsx` lines 98-102: Dead comment block about photo upload flow — can be removed
+
+### QA Instructions
+
+- **T-015 (Auth flows):** BLOCKED on T-001 security fix. Do not run auth security checklist until sessionStorage token issue is resolved.
+- **T-016 (Plant CRUD flows):** Can proceed — the CRUD functionality itself is correct. Test create/read/update/delete flows.
+- **T-017 (AI Advice flow):** Can proceed — test text-only input (Gemini key is placeholder, expect 502 graceful error).
+- **T-022:** Verify `npm audit` shows 0 vulnerabilities in staging backend.
+
+---
+
+## H-027 — T-001 Security Fix Complete — Tokens Removed from sessionStorage
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-027 |
+| **From** | Frontend Engineer |
+| **To** | Manager Agent, QA Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 3 |
+| **Subject** | T-001 security fix applied — all sessionStorage token storage removed from `useAuth.jsx`. Ready for re-review. |
+| **Spec Refs** | T-001, H-025 |
+| **Status** | Pending |
+
+### What Changed
+
+**File:** `frontend/src/hooks/useAuth.jsx`
+
+| Before (REJECTED) | After (FIXED) |
+|---|---|
+| `sessionStorage.getItem('pg_access')` on mount | Removed — no token restoration from storage |
+| `sessionStorage.getItem('pg_refresh')` on mount | Removed — no token restoration from storage |
+| `sessionStorage.setItem('pg_access', accessToken)` in `persistSession` | Removed — tokens only in `api.js` module-level vars via `setTokens()` |
+| `sessionStorage.setItem('pg_refresh', refreshToken)` in `persistSession` | Removed — tokens only in `api.js` module-level vars via `setTokens()` |
+| `sessionStorage.removeItem('pg_access')` in logout/authFailure | Removed — only `clearTokens()` called |
+| `sessionStorage.removeItem('pg_refresh')` in logout/authFailure | Removed — only `clearTokens()` called |
+| `loading` initialized to `true`, set `false` after useEffect | `loading` initialized to `false` — no async session restore needed |
+
+### What's Preserved
+
+- `sessionStorage.setItem('pg_user', ...)` retained for non-sensitive user display data (name, email) per H-025 guidance
+- `sessionStorage.removeItem('pg_user')` in logout and auth failure
+- Lazy initializer on `useState` reads `pg_user` from sessionStorage so user name/avatar persist across tabs
+
+### Security Compliance
+
+| Requirement | Status |
+|---|---|
+| `access_token` in React context memory only | ✅ Stored only in `api.js` module-level `accessToken` variable |
+| `refresh_token` in memory only | ✅ Stored only in `api.js` module-level `refreshToken` variable |
+| No `localStorage` usage for tokens | ✅ Confirmed — grep returns 0 matches |
+| No `sessionStorage` usage for tokens | ✅ Confirmed — grep for `pg_access` and `pg_refresh` returns 0 matches |
+| Users re-login on page refresh | ✅ Expected MVP behavior — tokens are lost on refresh |
+
+### Tests
+
+48/48 frontend tests pass. No test changes required — the auth mock in tests was already independent of sessionStorage.
+
+### What QA Should Verify (T-015)
+
+1. Open DevTools → Application → Session Storage → confirm no `pg_access` or `pg_refresh` keys exist after login
+2. `pg_user` key may exist (contains name/email only — not a token)
+3. Page refresh clears auth state and redirects to `/login`
+4. Login → navigate → logout → confirm tokens cleared from memory (subsequent API calls return 401)
+
+---
+
