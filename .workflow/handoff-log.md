@@ -1326,3 +1326,38 @@ QA must verify the following frontend security requirements during T-015:
 - Full contract details for each endpoint are in `.workflow/api-contracts.md` — see both the Sprint 1 Contracts section and the Sprint 3 Contracts Review section.
 
 ---
+
+## H-018 — T-022 Complete: npm audit vulnerability fix (bcrypt upgrade)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-018 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer, Deploy Engineer |
+| **Date** | 2026-03-23 |
+| **Sprint** | 3 |
+| **Subject** | Resolved 2 high-severity `tar` vulnerabilities by upgrading `bcrypt` from 5.1.1 to 6.0.0 |
+| **Spec Refs** | T-022 |
+| **Status** | Pending |
+
+### What Changed
+
+- **Dependency upgraded:** `bcrypt` 5.1.1 → 6.0.0
+- **Root cause:** `bcrypt@5.1.1` depended on `@mapbox/node-pre-gyp@1.0.11` which pulled in `tar@6.2.1` (6 high-severity path traversal CVEs)
+- **Fix:** `bcrypt@6.0.0` drops `@mapbox/node-pre-gyp` entirely, replacing it with `node-gyp-build`. This removes `tar` from the dependency tree.
+- **Result:** `npm audit` now reports 0 vulnerabilities
+- **Tests:** All 40/40 backend tests pass — no behavioral changes to the bcrypt API
+
+### What QA Should Verify
+
+1. Run `npm audit` in `backend/` — confirm 0 vulnerabilities
+2. Run `npm test` in `backend/` — confirm 40/40 tests pass
+3. Verify auth flows (register, login, refresh) still work — bcrypt hashing/comparing is unchanged in v6
+
+### What Deploy Engineer Should Know
+
+- `package.json` and `package-lock.json` changed — run `npm ci` before deploying
+- No migration changes, no env var changes, no code changes — only dependency update
+- 39 packages removed from `node_modules` (smaller install footprint)
+
+---
