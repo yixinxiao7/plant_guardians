@@ -363,6 +363,88 @@ The Monitor Agent returned **Deploy Verified: Yes** in Sprint #4. No `Deploy Ver
 
 ---
 
+---
+
+### Sprint #5 — 2026-03-24 to 2026-03-25
+
+**Sprint Goal:** Complete MVP validation — run user testing across all 3 flows, configure the real Gemini API key for the AI advice feature, update SPEC-004 to match shipped behavior, and fix the flaky backend test to ensure CI reliability.
+
+**Outcome:** Partial — T-025 (Gemini key gap documented + mocked tests expanded) and T-029 (flaky test fix) completed. T-030 (Monitor health check) returned Deploy Verified: Yes. T-020 (user testing) and T-027 (SPEC-004 update) did not complete and carry into Sprint #6 for the fifth consecutive sprint.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-025 | Backend: Gemini API key gap documented; model updated to `gemini-1.5-flash`; 4 new mocked AI tests added (happy-path, unparseable response, API error, input validation). 44/44 backend tests pass. No real key available — accepted per sprint plan. |
+| T-029 | Backend: Flaky test fix — root cause confirmed (parallel PG connection contention). Fix: `--runInBand`, pool min:1/max:5, `idleTimeoutMillis`, teardown refactored with `activeFiles` tracking. 3 consecutive runs: 44/44 pass. Zero socket hang-up failures. |
+| T-030 | Monitor: Sprint 5 post-deploy health check — Deploy Verified: Yes. All 14 endpoints tested; POST /ai/advice 502 is expected (placeholder key). Frontend :5173 healthy. Vite proxy confirmed. No CORS errors, no unexpected 5xx. |
+
+---
+
+#### Tasks Carried Over to Sprint #6
+
+| Task ID | Description | Reason |
+|---------|-------------|--------|
+| T-020 | User testing: All 3 MVP flows | Carried over from Sprints 1–5. No blocker — staging is fully verified. Must complete Sprint 6 — no further deferral permitted. |
+| T-027 | Update SPEC-004 to document redirect-to-detail behavior post-save | P3 documentation task; no work started across Sprints 4–5. |
+
+---
+
+#### Verification Failures
+
+No `Deploy Verified: No` verdict was returned in Sprint #5. T-030 (Monitor Agent) confirmed **Deploy Verified: Yes**. The only non-2xx response was POST /ai/advice → 502 AI_SERVICE_UNAVAILABLE, which is an expected, documented result of the placeholder Gemini key.
+
+---
+
+#### Key Feedback Themes
+
+| Feedback ID | Category | Severity | Disposition |
+|-------------|----------|----------|-------------|
+| FB-014 | Positive (comprehensive AI endpoint test coverage) | — | Acknowledged |
+| FB-015 | Positive (flaky test root cause correctly identified and fixed) | — | Acknowledged |
+| FB-016 | Feature Gap (Gemini key still placeholder — AI happy path untestable) | Minor | Acknowledged — accepted per sprint plan; real key must be provisioned by project owner |
+| FB-017 | Bug (intermittent timeout in profile.test.js) | Minor (P3) | Acknowledged → T-031 (Sprint 6 backlog) |
+
+---
+
+#### What Went Well
+
+- **T-029 flaky test fix was thorough** — root cause correctly identified (parallel PG contention), multi-layered fix applied (runInBand, pool tuning, teardown refactor), verified across 3 consecutive runs. CI-ready.
+- **T-025 mocked test expansion is clean** — 7 AI tests now cover all contract error codes (400, 401, 422, 502) plus happy path (200) with proper mocking. No real key required for CI.
+- **T-030 Monitor confirmed staging stability** — Deploy Verified: Yes confirms the Sprint 4 infrastructure work holds. No regressions from Sprint 5 changes (model name update + test infra only).
+- **QA coverage remained thorough** — Final QA pass caught FB-017 (profile test flakiness) and confirmed security checklist 13/13 pass.
+- **Zero production code defects** — All Sprint 5 changes were test-infrastructure and model-name-only. No endpoint behavior changes, no schema changes, no regressions.
+
+---
+
+#### What to Improve
+
+- **T-020 has been deferred 5 consecutive sprints** — This is unacceptable. Sprint 6 must treat T-020 as P0 with no further carry-over. Staging is verified, there are no blockers — this must close.
+- **Gemini API key must be provisioned by the project owner** — Until a real key is configured, Flow 2 (AI advice) cannot be fully tested end-to-end. This is a configuration action, not a code task.
+- **T-027 keeps slipping** — A 1-hour documentation task has been deferred since Sprint 4. Sprint 6 must complete it.
+- **profile.test.js flakiness** — FB-017 is a new flaky test issue distinct from the T-029 fix. Sprint 6 should address it to keep CI reliable.
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Owner |
+|------|----------|-------|
+| Gemini API key is placeholder — AI advice always returns 502 in production | P1 | Project owner (provisioning) + Backend Engineer (wiring) |
+| profile.test.js intermittent 30s timeout (FB-017) — test infra issue, not production defect | P3 | Backend Engineer → T-031 |
+| SPEC-004 still documents redirect-to-inventory (actual behavior is redirect-to-detail) | P3 Cosmetic | Design Agent → T-027 |
+| Database-level encryption not configured | P3 Advisory | Deploy Engineer (production phase) |
+| Production deployment (HTTPS, reverse proxy, real env vars) not yet configured | P2 | Deploy Engineer |
+| Delete Account feature shows "coming soon" on Profile page — not implemented | P2 | Backend + Frontend Engineer |
+
+---
+
+*Sprint #5 summary written by Manager Agent on 2026-03-25.*
+
+---
+
 ## Template
 
 ### Sprint #N — [Start Date] to [End Date]

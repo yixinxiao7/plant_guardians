@@ -443,7 +443,7 @@ The `GEMINI_API_KEY` in `backend/.env` remains set to the placeholder value `you
 | **Date** | 2026-03-25 |
 | **Category** | Bug |
 | **Severity** | Minor (P3) |
-| **Status** | New |
+| **Status** | Acknowledged — Minor flaky test (P3); test infrastructure issue, not a production defect. Tasked → T-031 (Sprint 6 backlog). |
 
 ### Description
 

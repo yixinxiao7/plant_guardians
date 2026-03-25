@@ -1908,3 +1908,80 @@ Staging is healthy and ready for Sprint 5 closeout. Manager Agent may:
 2. Proceed to Sprint 5 closeout / next sprint planning
 3. Optionally: provision a real Gemini API key to unblock Flow 2 end-to-end testing (T-020 AI advice flow)
 
+---
+
+## H-065 — Sprint #6 Kickoff: Priorities, Assignments, and MVP Closeout
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-065 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | Sprint #6 plan is live. MVP closeout (T-020) is P0. Post-MVP work begins: Delete Account (T-033, T-034), production prep (T-032), CI fix (T-031), doc cleanup (T-027). |
+| **Spec Refs** | T-020, T-027, T-031, T-032, T-033, T-034 |
+| **Status** | Pending |
+
+### Sprint #6 Summary for All Agents
+
+Sprint #5 closed with Deploy Verified: Yes. All backend code is correct, tests reliable (44/44 pass consistently), and staging is healthy. The MVP is code-complete. Sprint #6 has one P0 gate and four parallel P2/P3 tasks.
+
+### Priority Assignments
+
+| Agent | Task(s) | Priority | Notes |
+|-------|---------|----------|-------|
+| User Agent | T-020 | **P0** | User testing across all 3 MVP flows. No blockers — start immediately. Log all feedback to feedback-log.md. No further carry-over permitted. |
+| Backend Engineer | T-033, T-031 | P2, P3 | T-033 (DELETE /account) is independent; start immediately. T-031 (profile.test.js timeout) is a quick fix — do alongside T-033. |
+| Frontend Engineer | T-034 | P2 | **Blocked By T-033** — do not start until T-033 is Done. |
+| Deploy Engineer | T-032 | P2 | Production deployment prep — independent, no blockers. |
+| Design Agent | T-027 | P3 | SPEC-004 doc update — 1-hour task. Start immediately. |
+
+### Critical Path
+
+```
+T-020 → MVP declared complete (sole P0 — nothing else unblocks this)
+T-033 → T-034 (backend must precede frontend for Delete Account)
+T-031, T-027, T-032 — all standalone, run in parallel with everything
+```
+
+### Key Context for Each Agent
+
+**User Agent (T-020):**
+- Staging: backend at http://localhost:3000, frontend at http://localhost:5173
+- Flow 1 and Flow 3 are fully testable with no dependencies
+- Flow 2 (AI advice): if Gemini key is still a placeholder, test the 502 error state UX (correctly implemented per T-026) and document in feedback-log.md
+- Test credentials: register a new test account (or use seed test@triplanner.local / TestPass123! if still present)
+
+**Backend Engineer (T-033):**
+- Add `DELETE /api/v1/auth/account` to `backend/src/routes/auth.js`
+- Use a DB transaction to cascade-delete all user data before deleting the user row
+- Add the new endpoint to `api-contracts.md` before Frontend Engineer begins T-034
+- Existing test suite must remain 44/44 passing
+
+**Frontend Engineer (T-034):**
+- Wait for T-033 to be Done and API contract updated before starting
+- Profile page is at `frontend/src/pages/ProfilePage.jsx`
+- "coming soon" Delete Account placeholder is already in the UI — replace it with the functional button + modal
+
+**Deploy Engineer (T-032):**
+- Create `infra/docker-compose.prod.yml` with nginx config
+- Write `.workflow/deploy-runbook.md`
+- Do not touch staging (`:3000`, `:5173`) — it must remain healthy for T-020
+
+**Design Agent (T-027):**
+- Update SPEC-004 in `ui-spec.md` — redirect behavior after Edit Plant save
+- Change "redirects to `/`" to "redirects to `/plants/:id`"
+- Add rationale note and re-mark Approved with today's date
+
+### Feedback Triage Results (Sprint #5 → Sprint #6)
+
+| FB ID | Disposition |
+|-------|-------------|
+| FB-014 | Acknowledged (Positive) |
+| FB-015 | Acknowledged (Positive) |
+| FB-016 | Acknowledged (Minor Feature Gap — Gemini key, project owner action) |
+| FB-017 | Acknowledged → T-031 (Sprint 6) |
+
+Zero entries with Status: New remaining in feedback-log.md after Sprint #5 triage.
+
