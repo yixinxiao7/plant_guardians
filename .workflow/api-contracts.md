@@ -1117,3 +1117,107 @@ The only environment change this sprint is replacing the placeholder value of `G
 ---
 
 *Sprint 5 contract review written by Backend Engineer — 2026-03-24. No new endpoints. No schema changes. Existing 14-endpoint contract is final and complete. T-025 and T-029 are operational/stability tasks only.*
+
+---
+
+## Sprint 6 Contracts — 2026-03-25
+
+---
+
+### Summary
+
+Sprint 6 introduces **one new API endpoint**: `DELETE /api/v1/auth/account` (T-033). No other endpoints are added or changed. No schema migrations are required — all foreign key `ON DELETE CASCADE` constraints needed for the cascade delete were established in Sprint 1.
+
+**Backend tasks this sprint with API impact:**
+
+| Task | Type | API Impact |
+|------|------|-----------|
+| T-033 | DELETE /api/v1/auth/account endpoint | New endpoint — fully specified below |
+| T-031 | Fix profile.test.js intermittent 30s timeout | No contract change — test infrastructure fix only |
+
+---
+
+### GROUP 5 — Account Management (T-033)
+
+---
+
+#### DELETE /api/v1/auth/account
+
+**Auth:** Required — Bearer token in `Authorization: Bearer <access_token>` header
+
+**Description:** Permanently deletes the authenticated user's account and all associated data. This action is irreversible. On success, the server invalidates all session data and returns 204 with no body.
+
+**Data deleted (cascade order):**
+1. `care_actions` — all care events for plants owned by this user (cascades from plants)
+2. `care_schedules` — all care schedules for plants owned by this user (cascades from plants)
+3. `plants` — all plants owned by this user (cascades from users)
+4. `refresh_tokens` — all refresh tokens for this user (cascades from users)
+5. Photo files on disk — any uploaded plant photo files associated with this user's plants (deleted by model layer before DB delete)
+6. `users` — the user record itself
+
+**Request Body:** None — no request body required or expected.
+
+**Request Headers:**
+
+```
+Authorization: Bearer <access_token>   // required
+```
+
+**Success Response — 204 No Content:**
+
+```
+(empty body)
+```
+
+No `data` wrapper is returned for 204 responses (standard HTTP behavior for No Content).
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 401 | `UNAUTHORIZED` | Missing, expired, or invalid access token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error during deletion (e.g., DB failure, file system error). If the DB delete fails mid-way, the operation is atomic via a transaction — no partial deletes. |
+
+**Notes for Frontend Engineer:**
+
+- After a successful 204 response: clear all tokens (memory + any sessionStorage), then redirect to `/login`. Show a toast: "Your account has been deleted."
+- If the request returns 401 (session expired before delete completes): display "Session expired. Please log in again." and redirect to `/login` after 2 seconds.
+- If the request returns a network error or 5xx: re-enable the delete button and show inline error: "Something went wrong. Please try again."
+- Do **not** retry the delete automatically — require the user to re-confirm.
+- The full modal interaction spec is in SPEC-007 (ui-spec.md), documented as part of H-067.
+
+**Notes for QA Engineer:**
+
+Test cases required per T-033 acceptance criteria:
+1. **Happy path (204):** Authenticated user calls DELETE /account → 204 returned → all DB rows for that user deleted → photo files cleaned up → calling GET /plants or GET /auth/profile with the same (now-deleted) account's credentials returns 401.
+2. **Unauthenticated (401):** Request with no Authorization header → 401 `UNAUTHORIZED`.
+3. **Invalid token (401):** Request with a malformed or expired JWT → 401 `UNAUTHORIZED`.
+4. **Cascade verification:** After delete, query DB directly to confirm users, plants, care_schedules, care_actions, and refresh_tokens rows for that user_id are all gone.
+5. **Regression:** All 44 existing backend tests continue to pass after T-033 is merged.
+
+---
+
+### Schema Changes — Sprint 6
+
+**No new migrations required.** All foreign key `ON DELETE CASCADE` constraints established in Sprint 1 are sufficient:
+
+| Table | FK to | Cascade |
+|-------|-------|---------|
+| `refresh_tokens` | `users.id` | `ON DELETE CASCADE` — tokens deleted when user deleted |
+| `plants` | `users.id` | `ON DELETE CASCADE` — plants deleted when user deleted |
+| `care_schedules` | `plants.id` | `ON DELETE CASCADE` — schedules deleted when plant deleted |
+| `care_actions` | `care_schedules.id` | `ON DELETE CASCADE` — actions deleted when schedule deleted |
+
+Photo file cleanup (files in `backend/uploads/`) is handled in the application layer (User model) — not a DB schema concern.
+
+**No migration files will be created this sprint.**
+
+---
+
+### Environment Configuration — Sprint 6
+
+No new environment variables are required for T-033 or T-031.
+
+---
+
+*Sprint 6 contract written by Backend Engineer — 2026-03-25. One new endpoint: DELETE /api/v1/auth/account. No schema changes. All 14 prior endpoints unchanged.*

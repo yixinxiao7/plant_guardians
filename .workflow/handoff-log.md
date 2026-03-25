@@ -1594,3 +1594,98 @@ Five new states added: Modal open, Deleting, Delete success, Delete error, Delet
 - After 204: call the same logout/token-clear utility already used by the Log Out button, then `navigate('/login')`
 - Unit tests required: modal renders, Cancel closes modal, Confirm triggers DELETE, success redirects, error shows inline message
 
+
+---
+
+## H-068 — Sprint 6 API Contract Ready: DELETE /api/v1/auth/account (T-033)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-068 |
+| **From** | Backend Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | Sprint 6 API contract published for T-033. Schema change assessment: no new migrations required. Existing ON DELETE CASCADE constraints are sufficient. |
+| **Spec Refs** | T-033, api-contracts.md Sprint 6 section |
+| **Status** | Pending |
+
+### Schema Assessment
+
+**No new migrations required for Sprint 6.**
+
+All data associated with a user account (plants, care_schedules, care_actions, refresh_tokens) is already covered by `ON DELETE CASCADE` foreign keys established in Sprint 1 migrations. Photo files on disk will be cleaned up by the application layer (User model) before the DB delete.
+
+**Auto-approved (automated sprint):** The absence of schema changes means no new migration review is needed. Manager Agent will verify this assessment during the closeout phase. The contract is considered approved and implementation may proceed.
+
+---
+
+## H-069 — API Contract Ready for Frontend: DELETE /api/v1/auth/account
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-069 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | DELETE /api/v1/auth/account contract is published in api-contracts.md (Sprint 6 section). T-034 may begin implementation once T-033 implementation is complete. |
+| **Spec Refs** | T-033, T-034, api-contracts.md Sprint 6 — GROUP 5 |
+| **Status** | Pending |
+
+### Contract Summary for Frontend
+
+**Endpoint:** `DELETE /api/v1/auth/account`
+**Auth:** Bearer token required
+**Request body:** None
+**Success:** 204 No Content (empty body)
+**Error cases:**
+- `401 UNAUTHORIZED` — missing/expired/invalid token
+- `500 INTERNAL_ERROR` — server-side failure (show inline error, do not auto-retry)
+
+### Frontend Integration Notes
+
+- Use the existing `api.js` authenticated request pattern
+- After 204: clear tokens (memory + sessionStorage) → redirect `/login` → show toast "Your account has been deleted."
+- After 401: show "Session expired. Please log in again." → redirect `/login` after 2s
+- After 5xx/network error: re-enable buttons, show inline error "Something went wrong. Please try again."
+- Full modal spec is in SPEC-007 (ui-spec.md) — see H-067 for detailed spec notes
+- ⚠️ **Dependency:** T-034 is blocked by T-033. Do not begin implementation until T-033 is marked Done and the endpoint is live on staging.
+
+---
+
+## H-070 — QA Reference: Sprint 6 API Contract for DELETE /api/v1/auth/account
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-070 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | Sprint 6 API contract published. QA reference for T-033 (backend) and T-034 (frontend delete account flow). |
+| **Spec Refs** | T-033, T-034, api-contracts.md Sprint 6 — GROUP 5 |
+| **Status** | Pending |
+
+### What QA Should Test (T-033 — Backend)
+
+Per the contract and T-033 acceptance criteria, the following test cases are required:
+
+1. **Happy path (204):** Authenticated DELETE /api/v1/auth/account → 204 No Content. Verify all user data is purged from DB (users, plants, care_schedules, care_actions, refresh_tokens). Verify photo files removed from disk.
+2. **Unauthorized — no token (401):** DELETE without Authorization header → 401 `UNAUTHORIZED`.
+3. **Unauthorized — expired/invalid token (401):** DELETE with malformed JWT → 401 `UNAUTHORIZED`.
+4. **Cascade verification:** Direct DB query post-delete — confirm zero rows for that user_id across all 5 tables.
+5. **Regression:** All 44 existing backend unit tests still pass after T-033 is merged.
+
+### What QA Should Test (T-034 — Frontend, after T-033 is live)
+
+1. "Delete Account" button on Profile page is functional (not "coming soon")
+2. Clicking opens confirmation modal per SPEC-007
+3. Cancel closes modal with no side effects
+4. Confirm triggers DELETE /api/v1/auth/account → on 204: tokens cleared, redirect to `/login`, toast displayed
+5. On 5xx error: inline error shown, buttons re-enabled, no redirect
+6. All 50+ existing frontend tests continue to pass
+
+### No Schema Changes
+
+No new migrations were required this sprint. Existing CASCADE constraints cover all delete cascade requirements. No Deploy Engineer action needed for schema.
