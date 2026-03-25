@@ -88,7 +88,7 @@ router.post('/advice', async (req, res, next) => {
     try {
       const { GoogleGenerativeAI } = require('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
       const prompt = buildPrompt(plant_type, photo_url);
       const response = await model.generateContent(prompt);

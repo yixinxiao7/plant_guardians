@@ -1,5 +1,9 @@
 /**
  * Test setup — shared helpers for all test files.
+ *
+ * With --runInBand, all test files share a single process and module cache.
+ * We track migration state to avoid redundant migrate/rollback cycles and
+ * ensure db.destroy() is only called once (via the process exit handler).
  */
 const request = require('supertest');
 const app = require('../src/app');
@@ -11,16 +15,32 @@ process.env.JWT_SECRET = 'test-jwt-secret-for-testing-only';
 process.env.JWT_EXPIRES_IN = '15m';
 process.env.REFRESH_TOKEN_EXPIRES_DAYS = '7';
 
+// Track whether migrations have been applied (shared across test files in --runInBand mode)
+let migrationsApplied = false;
+let activeFiles = 0;
+
 /**
- * Run all migrations before tests and clean up after.
+ * Run all migrations before tests. Idempotent — safe to call from every test file.
  */
 async function setupDatabase() {
-  await db.migrate.latest();
+  activeFiles++;
+  if (!migrationsApplied) {
+    await db.migrate.latest();
+    migrationsApplied = true;
+  }
 }
 
+/**
+ * Roll back migrations and destroy the connection pool.
+ * Only actually runs when the last test file tears down.
+ */
 async function teardownDatabase() {
-  await db.migrate.rollback(true);
-  await db.destroy();
+  activeFiles--;
+  if (activeFiles <= 0) {
+    await db.migrate.rollback(true);
+    migrationsApplied = false;
+    await db.destroy();
+  }
 }
 
 async function cleanTables() {

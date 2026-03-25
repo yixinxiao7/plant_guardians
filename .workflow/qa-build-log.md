@@ -632,6 +632,80 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 5 — Pre-Flight Staging Verification (Deploy Engineer — 2026-03-25)
+
+**Date:** 2026-03-25
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 5
+**Purpose:** Confirm staging environment is healthy and unchanged at the start of Sprint #5. No new Deploy Engineer tasks are assigned this sprint — all infrastructure work (T-018, T-023, T-028) is Done. This entry documents the Sprint 5 environment baseline.
+
+---
+
+### Pre-Flight Context
+
+| Item | Status |
+|------|--------|
+| All Deploy Engineer tasks | ✅ Done (T-018, T-023, T-028) |
+| Sprint 5 Deploy Engineer assignments | ✅ None — no new infra tasks |
+| Last verified deployment | Sprint 4 Pass 2 — 2026-03-24T17:55:00Z |
+| Last Monitor verification (T-024) | ✅ Done — Deploy Verified: Yes (2026-03-24) |
+| Sprint 5 tasks requiring infra support | T-025 (Backend: Gemini key), T-029 (Backend: flaky test fix) |
+
+---
+
+### Live Service Health Check
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Backend health | `GET http://localhost:3000/api/health` | ✅ 200 — `{"status":"ok","timestamp":"2026-03-25T03:32:17.926Z"}` |
+| Frontend health | `GET http://localhost:5173/` | ✅ 200 |
+| Auth guard enforcement | `GET /api/v1/plants` (invalid Bearer token) | ✅ 401 — `{"error":{"message":"Invalid or expired access token.","code":"UNAUTHORIZED"}}` |
+
+---
+
+### Current Staging Environment
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running |
+| Frontend (vite preview) | http://localhost:5173 | ✅ Running (proxy active) |
+| Database | PostgreSQL 15 @ localhost:5432 (plant_guardians_staging) | ✅ Running |
+| Vite proxy `/api` → `http://localhost:3000` | Active | ✅ Verified |
+| Migrations | All 5/5 applied | ✅ Up to date |
+
+**Test account:** test@plantguardians.local / TestPass123!
+
+---
+
+### Infrastructure Readiness for Sprint 5 Tasks
+
+| Task | Infra Requirement | Status |
+|------|-------------------|--------|
+| T-025 (Gemini key + AI happy path) | `GEMINI_API_KEY` variable in `backend/.env` — placeholder currently set; Backend Engineer replaces value | ✅ Infrastructure ready — backend server auto-picks up new key value on restart |
+| T-029 (Flaky test fix) | No infra changes needed — test runner config only | ✅ No action required |
+| T-020 (User testing) | Staging fully operational — `Deploy Verified: Yes` from T-024 | ✅ Ready |
+| T-027 (SPEC-004 update) | Documentation only — no infra impact | ✅ N/A |
+
+**Note for Backend Engineer (T-025):** After updating `GEMINI_API_KEY` in `backend/.env`, restart the backend process: `cd backend && node src/server.js &`. No migration or build steps needed — key change takes effect on restart only.
+
+---
+
+### Security Self-Check (Sprint 5 Pre-Flight)
+
+| # | Check | Status |
+|---|-------|--------|
+| 1 | `.env` not committed (`.gitignore` verified) | ✅ PASS |
+| 2 | No secrets in `infra/` files | ✅ PASS |
+| 3 | Auth guard active (verified above) | ✅ PASS |
+| 4 | CORS config unchanged (`FRONTEND_URL=http://localhost:5173,http://localhost:4173`) | ✅ PASS |
+| 5 | npm audit baseline: 0 vulnerabilities (verified Sprint 4) | ✅ PASS |
+
+---
+
+**Staging Status: ✅ HEALTHY — No action required from Deploy Engineer. All Sprint 5 tasks have the infrastructure they need. Backend Engineer can update Gemini key and restart backend independently.**
+
+---
+
 ---
 ## Post-Deploy Health Check — Sprint #4
 Date: 2026-03-24

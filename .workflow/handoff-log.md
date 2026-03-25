@@ -1420,3 +1420,111 @@ Sprint 5 introduces no new endpoints. Two backend tasks are in scope:
 
 **Test strategy reference:** api-contracts.md Sprint 5 → T-029 section documents the three candidate fixes. The acceptance criterion is 3 clean consecutive runs.
 
+---
+
+## H-054 — Deploy Engineer: Sprint 5 Infrastructure Status — Staging Healthy, No New Deploy Tasks
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-054 |
+| **From** | Deploy Engineer |
+| **To** | All Agents (Backend Engineer, User Agent, QA Engineer) |
+| **Date** | 2026-03-25 |
+| **Sprint** | 5 |
+| **Subject** | Sprint 5 pre-flight complete. Staging is healthy. No Deploy Engineer tasks remain. Infrastructure is ready for all Sprint 5 work. |
+| **Spec Refs** | T-020, T-025, T-027, T-029 |
+| **Status** | Complete |
+
+### Summary
+
+All Deploy Engineer tasks (T-018, T-023, T-028) are **Done**. Sprint #5 assigns no new infrastructure work to this role. A pre-flight health check was run at sprint start — staging is fully operational.
+
+### Live Staging Services (Verified 2026-03-25)
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Healthy — `{"status":"ok","timestamp":"2026-03-25T03:32:17.926Z"}` |
+| Frontend (vite preview + proxy) | http://localhost:5173 | ✅ HTTP 200 |
+| Auth guard | GET /api/v1/plants (invalid token) → 401 | ✅ Enforced |
+| Database migrations | 5/5 applied | ✅ Up to date |
+
+**Test account:** test@plantguardians.local / TestPass123!
+
+### Notes for Sprint 5 Agents
+
+**Backend Engineer (T-025 — Gemini key):**
+- Update `GEMINI_API_KEY` in `backend/.env` with a real key
+- Restart backend: `cd backend && node src/server.js &` (or kill existing process first)
+- No migration, build, or proxy changes required
+- After restart, `POST /api/v1/ai/advice` should return 200 instead of 502
+
+**Backend Engineer (T-029 — flaky test fix):**
+- Test runner environment is unchanged — no infra blockers
+- Acceptance: 3 consecutive `npm test` runs with 40/40 pass and 0 socket hang-up failures
+
+**User Agent (T-020 — user testing):**
+- Staging is verified and ready: Deploy Verified: Yes from T-024
+- Frontend at http://localhost:5173 — Vite proxy routes `/api` → backend at :3000
+- All 3 MVP flows are testable; Flow 2 (AI advice) will return 502 until T-025 is complete
+
+**QA Engineer:**
+- No new deploy-side changes to verify this sprint
+- When T-025 is marked In Review, verify `POST /api/v1/ai/advice` returns 200 with valid JSON
+- When T-029 is marked In Review, run 3 consecutive `npm test` passes
+
+---
+
+## H-055 — Backend Sprint 5 Tasks Complete — T-025 + T-029 Ready for QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-055 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 5 |
+| **Subject** | T-025 (AI advice improvements) and T-029 (flaky test fix) are both In Review. Ready for QA verification. |
+| **Spec Refs** | T-025, T-029 |
+| **Status** | Pending |
+
+### T-025 — AI Advice Improvements
+
+**What was done:**
+- Updated Gemini model from `gemini-pro` to `gemini-1.5-flash` (current recommended model)
+- Added 4 new tests with mocked Gemini SDK (total AI tests: 7):
+  - **Happy path:** Mock Gemini returns valid JSON → 200 with full care advice structure
+  - **Unparseable response:** Mock Gemini returns plain text → 422 PLANT_NOT_IDENTIFIABLE
+  - **API error:** Mock Gemini throws error → 502 AI_SERVICE_UNAVAILABLE
+  - **Input validation:** plant_type >200 chars → 400 VALIDATION_ERROR
+- No real Gemini API key is available — placeholder remains in `.env`
+- API contract and response shapes are unchanged
+
+**What to test:**
+1. Run `cd backend && npm test` — all 44/44 tests must pass
+2. Verify the 7 AI tests cover: validation (400), auth (401), unconfigured key (502), happy path (200), unparseable (422), API error (502), input length (400)
+3. Confirm no endpoint behavior changes — only test coverage improvements and model name update
+
+**Files changed:**
+- `backend/src/routes/ai.js` — Model name update (gemini-pro → gemini-1.5-flash)
+- `backend/tests/ai.test.js` — 4 new mocked tests added
+
+### T-029 — Flaky Test Fix
+
+**Root cause:** Test files running in parallel competed for PostgreSQL connections. Multiple concurrent `db.destroy()` calls during `teardownDatabase()` could kill the shared connection pool mid-request, causing "socket hang up" errors.
+
+**Fixes applied:**
+1. Added `--runInBand` to `npm test` and `npm test:coverage` scripts — forces serial test file execution
+2. Reduced test DB pool size from min:2/max:10 to min:1/max:5 with 10s idle timeout
+3. Refactored `tests/setup.js` teardown: tracks active test files and only calls `db.destroy()` when the last file completes
+
+**What to test:**
+1. Run `cd backend && npm test` three consecutive times
+2. All 3 runs must complete with **44/44 tests passing** (was 40, now 44 with new AI tests) and **zero "socket hang up" failures**
+3. Verify no endpoint behavior changes
+
+**Files changed:**
+- `backend/package.json` — Added `--runInBand` to test scripts
+- `backend/jest.config.js` — Comment documenting the runInBand approach
+- `backend/knexfile.js` — Reduced test pool size, added idleTimeoutMillis
+- `backend/tests/setup.js` — Refactored teardown with active file tracking
+

@@ -22,8 +22,10 @@ module.exports = {
       directory: './src/migrations',
     },
     pool: {
-      min: 2,
-      max: 10,
+      min: 1,
+      max: 5,
+      // Destroy idle connections faster in test to prevent "socket hang up"
+      idleTimeoutMillis: 10000,
     },
   },
   staging: {
