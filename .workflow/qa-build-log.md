@@ -1273,3 +1273,109 @@ All 17 test suites, 50/50 tests pass.
 **New Issue Found:** Intermittent profile.test.js timeout — logged as FB-017, recommended as P3 bug for next sprint.
 
 **Sprint 5 Engineering QA Verdict:** ✅ PASS with caveat. All production code is correct, secure, and contract-compliant. The profile test flakiness is a test infrastructure issue (P3) that does not affect production behavior. T-025 and T-029 remain verified. T-020 (user testing) and T-027 (SPEC-004 update) are outside QA scope (User Agent and Design Agent tasks respectively).
+
+---
+
+## Sprint 5 — Deploy Report
+
+**Date:** 2026-03-25
+**Deploy Engineer:** Deploy Agent
+**Tasks in scope:** T-018 (re-verify), T-023 (re-verify), T-025, T-029
+
+---
+
+### Pre-Deploy Verification
+
+| Gate | Status | Notes |
+|------|--------|-------|
+| QA confirmation (H-061) | ✅ PASS | Deploy readiness confirmed by QA Engineer 2026-03-25 |
+| All Sprint 5 tasks Done | ✅ PASS | T-025, T-029 Done; T-027 (P3 doc) and T-020 (User Agent) non-blocking |
+| Pending migrations | ✅ None | All 5 migrations (Sprint 1) already applied; `knex migrate:latest` → "Already up to date" |
+| No P0/P1 blockers | ✅ PASS | FB-017 is P3 test infrastructure; does not affect production |
+
+---
+
+### Build — Step 1: Dependency Install
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-25 |
+| **Backend** | `cd backend && npm install` → 0 vulnerabilities |
+| **Frontend** | `cd frontend && npm install` → 0 vulnerabilities |
+| **Result** | ✅ PASS |
+
+---
+
+### Build — Step 2: Frontend Production Build
+
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-03-25 |
+| **Command** | `cd frontend && npm run build` |
+| **Tool** | Vite v8.0.2 |
+| **Result** | ✅ PASS — 0 errors, 4 output files |
+| **Duration** | 288ms |
+| **Git SHA** | `9fd58f5f3cf4a9a9d36594c856302fa2b09eb522` |
+
+#### Build Artifacts
+
+| File | Size | Gzip |
+|------|------|------|
+| `dist/index.html` | 0.74 kB | 0.41 kB |
+| `dist/assets/index-ACo76nzn.css` | 29.12 kB | 5.43 kB |
+| `dist/assets/confetti.module-No8_urVw.js` | 10.57 kB | 4.20 kB |
+| `dist/assets/index-CsF38E1Z.js` | 356.84 kB | 106.63 kB |
+
+---
+
+### Staging Deployment
+
+| Field | Value |
+|-------|-------|
+| **Environment** | Staging (local) |
+| **Date** | 2026-03-25 |
+| **Build Status** | ✅ Success |
+| **Git SHA** | `9fd58f5f3cf4a9a9d36594c856302fa2b09eb522` |
+
+#### Database Migrations
+
+| Field | Value |
+|-------|-------|
+| **Command** | `cd backend && npm run migrate` |
+| **Result** | ✅ Already up to date — 5/5 migrations applied (Sprint 1) |
+| **Knex env** | development |
+
+#### Service Status
+
+| Service | Port | PID | Status |
+|---------|------|-----|--------|
+| Backend (Node/Express) | :3000 | 39598 | ✅ Running |
+| Frontend (Vite preview) | :5173 | 54215 | ✅ Running |
+| Frontend (Vite preview alt) | :4173 | 64637 | ✅ Running |
+
+#### Health Checks
+
+| Check | Result |
+|-------|--------|
+| `GET http://localhost:3000/api/health` | ✅ 200 `{"status":"ok","timestamp":"2026-03-25T04:04:03.541Z"}` |
+| `GET http://localhost:5173` | ✅ 200 — HTML served correctly |
+
+#### Notes
+
+- Sprint 5 changes (T-025, T-029) are **test-infrastructure and model-name only** — no new endpoints, no schema changes, no migration needed.
+- Docker not used for local staging; services run as Node processes directly.
+- Staging is fully operational and matches the verified Sprint 4 state, updated with Sprint 5 dependency install + fresh production build.
+
+---
+
+### Sprint 5 Deploy Summary
+
+| Step | Status |
+|------|--------|
+| Pre-deploy QA confirmation | ✅ |
+| npm install (backend + frontend) | ✅ 0 vulnerabilities |
+| Frontend production build | ✅ 0 errors |
+| Database migrations | ✅ Already up to date |
+| Backend health check | ✅ HTTP 200 |
+| Frontend health check | ✅ HTTP 200 |
+| **Overall Deploy Status** | **✅ SUCCESS** |

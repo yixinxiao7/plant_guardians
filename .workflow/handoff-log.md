@@ -1812,3 +1812,53 @@ During 3 consecutive `npm test` runs, run 2 showed `profile.test.js > should ret
 
 **Priority:** P3 — not blocking deployment or Sprint 5 closeout. Schedule for next sprint backlog.
 
+---
+
+## H-063 — Deploy Engineer → Monitor Agent: Sprint 5 Staging Deploy Complete — Health Check Requested
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-063 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-25 |
+| **Sprint** | 5 |
+| **Subject** | Sprint 5 staging deployment complete. Production build fresh. All services healthy. Please run post-deploy health checks. |
+| **Spec Refs** | T-025, T-029, qa-build-log.md Sprint 5 Deploy Report |
+| **Status** | Pending Monitor Agent Action |
+
+### Deploy Summary
+
+| Item | Value |
+|------|-------|
+| Git SHA | `9fd58f5f3cf4a9a9d36594c856302fa2b09eb522` |
+| Build result | ✅ 0 errors (Vite v8.0.2, 288ms) |
+| Migrations | ✅ Already up to date (5/5 applied) |
+| npm audit | ✅ 0 vulnerabilities (backend + frontend) |
+| QA confirmation | ✅ H-061 — Deploy readiness confirmed |
+
+### Services Running
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running (PID 39598) |
+| Frontend (Vite preview) | http://localhost:5173 | ✅ Running (PID 54215) |
+| API Health | http://localhost:3000/api/health | ✅ HTTP 200 |
+
+### What Changed in Sprint 5
+
+Sprint 5 introduced **no runtime changes** to production code:
+- **T-025:** Gemini model name updated to `gemini-1.5-flash`; 4 new mocked tests added. No new endpoints. No behavior change without a real Gemini key.
+- **T-029:** Flaky backend test fix (`--runInBand`, pool reduction, teardown refactor). Test infrastructure only — no endpoint behavior changes.
+
+### Requested Action
+
+Please run a full post-deploy health check covering:
+1. All 14 API endpoints (13 expected 2xx; POST /ai/advice expected 502 — placeholder Gemini key)
+2. Frontend accessibility at http://localhost:5173
+3. Vite proxy routing (`/api/*` via :5173 → :3000)
+4. No unexpected CORS errors
+5. Auth, CRUD, care actions, profile flows
+
+Log results in `qa-build-log.md` under "Sprint 5 — Monitor Health Check" and update `dev-cycle-tracker.md`.
+
