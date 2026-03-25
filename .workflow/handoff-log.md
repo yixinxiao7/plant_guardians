@@ -1894,3 +1894,50 @@ This task involves infrastructure configuration only — no application code was
 - Config correctness (no typos, correct variable names, correct service names)
 - Security posture (headers, TLS settings, network exposure)
 - Completeness of the runbook for a project owner attempting first-time production deployment
+
+---
+
+## H-076 — Manager Code Review: Sprint 6 Tasks T-031, T-032, T-033, T-034 → QA Engineer
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-076 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | Code review passed for all 4 In Review tasks — moved to Integration Check |
+| **Spec Refs** | T-031, T-032, T-033, T-034, SPEC-007 |
+| **Status** | Pending |
+| **Notes** | All 4 Sprint 6 tasks pass code review. QA Engineer: please run your verification pass. |
+
+### Review Results
+
+#### T-031 — Fix profile.test.js intermittent 30s timeout ✅ PASSED
+- **Change:** Added `jest.setTimeout(60000)` to the profile stats test
+- **Verdict:** Targeted fix with clear comment referencing T-031. No behavioral changes to endpoints. 3 consecutive clean runs reported (48/48).
+- **Security:** N/A — test-only change
+- **QA focus:** Verify 3 consecutive runs with 0 timeouts. Confirm all 48 backend tests pass.
+
+#### T-032 — Production deployment preparation ✅ PASSED
+- **Files:** `infra/docker-compose.prod.yml`, `infra/nginx.prod.conf`, `.env.production.example`, `infra/deploy-prod.sh`, `.workflow/deploy-runbook.md`
+- **Verdict:** Well-structured production stack. Postgres and backend are internal-only (no exposed ports). nginx handles HTTPS termination with TLS 1.2/1.3, HSTS (1 year + preload), X-Frame-Options DENY, X-Content-Type-Options nosniff, server_tokens off. SPA fallback with proper cache strategy. Deploy script has pre-flight checks for .env and SSL certs. .gitignore covers infra/ssl/ and .env.production. No real secrets in committed files.
+- **Security:** All headers present. No secrets committed. SSL cert validation in deploy script. Network isolation correct.
+- **QA focus:** Config correctness review — variable names, service names, paths. Verify runbook completeness. No automated tests to run (infra-only).
+
+#### T-033 — Backend DELETE /api/v1/auth/account ✅ PASSED
+- **Files:** `backend/src/routes/auth.js` (DELETE /account), `backend/src/models/User.js` (deleteById, findPhotoUrlsByUserId), `backend/tests/account.test.js`
+- **Verdict:** Auth enforced via `authenticate` middleware. Parameterized Knex queries — no SQL injection. Returns 204 with empty body — no info leaks. Cascade deletion via ON DELETE CASCADE. Best-effort photo file cleanup after DB delete. API contract match verified (endpoint path, response codes, cascade behavior).
+- **Security:** ✅ Auth required. ✅ Parameterized queries. ✅ No stack traces leaked. ✅ fs/path imported correctly.
+- **Tests:** 4 tests — happy path with full cascade verification (users, plants, care_schedules, care_actions, refresh_tokens), 401 no auth, 401 invalid token, multi-user isolation.
+- **QA focus:** Run 48/48 backend tests. Verify cascade deletion. Verify API contract match. Security checklist.
+
+#### T-034 — Frontend Delete Account UI ✅ PASSED
+- **Files:** `frontend/src/pages/ProfilePage.jsx`, `frontend/src/components/DeleteAccountModal.jsx`, `frontend/src/components/DeleteAccountModal.css`, `frontend/src/utils/api.js` (deleteAccount method), `frontend/src/__tests__/ProfilePage.test.jsx`
+- **Verdict:** Matches SPEC-007 — modal text, WarningOctagon icon (36px, #B85C38), "Delete your account?" heading, destructive warning body, Cancel + "Delete my account" buttons. Full accessibility: role=dialog, aria-modal, aria-labelledby, aria-describedby, focus trap (Tab cycles between buttons), Escape dismisses, default focus on Cancel (safest), aria-busy on loading. Error handling: 401 → "Session expired. Please log in again." + delayed redirect after 2s; other errors → "Something went wrong. Please try again." + re-enable buttons. Success: clears tokens, removes pg_user from sessionStorage, toast "Your account has been deleted.", redirects to /login. API auto-refresh on 401 before showing session expired.
+- **Security:** ✅ Tokens cleared on delete. ✅ No sensitive data in error messages. ✅ sessionStorage cleaned.
+- **Tests:** 11 new tests, 61/61 total frontend tests pass.
+- **QA focus:** Integration test — DELETE /account end-to-end, cascade verification, modal UX, error states. Security checklist.
+
+### Process Note
+T-034 has `Blocked By: T-033`. Both were submitted for review simultaneously. The dependency is satisfied — T-033 endpoint exists and is functional. Approving both together for efficiency.
