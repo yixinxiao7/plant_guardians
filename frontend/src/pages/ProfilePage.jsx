@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plant, CalendarBlank, CheckCircle, SignOut } from '@phosphor-icons/react';
-import { profile as profileApi } from '../utils/api.js';
+import { profile as profileApi, auth as authApi, clearTokens } from '../utils/api.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useToast } from '../hooks/useToast.jsx';
 import { formatMonthYear } from '../utils/formatDate.js';
 import Button from '../components/Button.jsx';
+import DeleteAccountModal from '../components/DeleteAccountModal.jsx';
 import './ProfilePage.css';
 
 export default function ProfilePage() {
@@ -17,6 +18,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -41,6 +43,30 @@ export default function ProfilePage() {
       addToast('Logout failed.', 'error');
       setLoggingOut(false);
     }
+  };
+
+  const handleDeleteAccount = async () => {
+    // This is called from the modal's onConfirm
+    // If it throws, the modal catches it and shows inline error
+    const err = await authApi.deleteAccount().then(() => null, (e) => e);
+
+    if (err) {
+      if (err.status === 401) {
+        // Session expired — redirect after 2s
+        setTimeout(() => {
+          clearTokens();
+          sessionStorage.removeItem('pg_user');
+          navigate('/login');
+        }, 2000);
+      }
+      throw err;
+    }
+
+    // Success: clear everything and redirect
+    clearTokens();
+    sessionStorage.removeItem('pg_user');
+    addToast('Your account has been deleted.', 'error');
+    navigate('/login');
   };
 
   const getInitials = (name) => {
@@ -127,10 +153,21 @@ export default function ProfilePage() {
         <Button variant="secondary" onClick={handleLogout} loading={loggingOut}>
           <SignOut size={18} /> Log Out
         </Button>
-        <button className="profile-delete-link" disabled>
-          Delete Account (coming soon)
+        <button
+          className="profile-delete-btn"
+          onClick={() => setShowDeleteModal(true)}
+          aria-label="Delete account"
+          aria-haspopup="dialog"
+        >
+          Delete Account
         </button>
       </div>
+
+      <DeleteAccountModal
+        isOpen={showDeleteModal}
+        onCancel={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteAccount}
+      />
     </div>
   );
 }

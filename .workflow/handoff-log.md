@@ -1689,3 +1689,208 @@ Per the contract and T-033 acceptance criteria, the following test cases are req
 ### No Schema Changes
 
 No new migrations were required this sprint. Existing CASCADE constraints cover all delete cascade requirements. No Deploy Engineer action needed for schema.
+
+---
+
+## H-071 — Backend Implementation Complete: T-031 + T-033
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-071 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | Sprint 6 backend tasks implemented and ready for QA: T-031 (profile test timeout fix) and T-033 (DELETE /api/v1/auth/account endpoint). |
+| **Spec Refs** | T-031, T-033 |
+| **Status** | Pending |
+
+### T-031 — Fix profile.test.js intermittent 30s timeout (FB-017)
+
+**What changed:** Added `jest.setTimeout(60000)` to the "should return user profile with stats" test in `backend/tests/profile.test.js`. The root cause is that bcrypt hashing in `createTestUser` plus a JOIN-based count query can exceed the default 30s timeout on cold PG connections.
+
+**What to test:**
+- Run `npm test` 3 consecutive times — all 48 tests should pass with zero timeouts
+- Profile test should complete well under 60s
+
+### T-033 — DELETE /api/v1/auth/account endpoint
+
+**What changed:**
+- `backend/src/models/User.js`: Added `deleteById(id)` and `findPhotoUrlsByUserId(userId)` methods
+- `backend/src/routes/auth.js`: Added `DELETE /account` route (authenticated, returns 204)
+- `backend/tests/account.test.js`: 4 new tests
+
+**What to test (per api-contracts.md):**
+1. **Happy path (204):** Authenticated user → DELETE /account → 204. Verify all DB rows cascade-deleted (users, plants, care_schedules, care_actions, refresh_tokens).
+2. **Unauthenticated (401):** No Authorization header → 401 UNAUTHORIZED.
+3. **Invalid token (401):** Malformed/expired JWT → 401 UNAUTHORIZED.
+4. **Isolation:** Deleting user1 does not affect user2's data.
+5. **Regression:** All 48 tests pass (44 existing + 4 new).
+
+**Security self-check:**
+- Auth required (authenticate middleware) ✓
+- No user input in SQL — uses parameterized Knex `where('id', id).del()` ✓
+- No secrets hardcoded ✓
+- Error responses don't leak internals ✓
+- Photo file cleanup is best-effort (errors silently ignored) ✓
+
+---
+
+## H-072 — API Ready for Frontend: DELETE /api/v1/auth/account
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-072 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | DELETE /api/v1/auth/account endpoint is implemented and ready for frontend integration (T-034). See api-contracts.md GROUP 5 for full spec. |
+| **Spec Refs** | T-033, T-034 |
+| **Status** | Pending |
+
+### Notes
+
+- Endpoint: `DELETE /api/v1/auth/account`
+- Auth: Bearer token required
+- Success: 204 No Content (empty body)
+- Errors: 401 UNAUTHORIZED, 500 INTERNAL_ERROR
+- After 204: clear all tokens, redirect to /login, show toast "Your account has been deleted."
+- Full contract in api-contracts.md under GROUP 5 — Account Management (T-033)
+
+---
+
+## H-073 — Frontend Engineer: API Contract Acknowledged — DELETE /api/v1/auth/account (T-034)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-073 |
+| **From** | Frontend Engineer |
+| **To** | Backend Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | Acknowledging API contract for DELETE /api/v1/auth/account (H-069, H-072). Frontend implementation of T-034 complete. |
+| **Spec Refs** | T-034, T-033, SPEC-007, api-contracts.md GROUP 5 |
+| **Status** | Acknowledged |
+
+### Contract Acknowledged
+
+- Endpoint: `DELETE /api/v1/auth/account` — Auth required (Bearer token)
+- Success: 204 No Content — frontend clears all tokens (memory + sessionStorage), redirects to `/login`, shows toast
+- Error 401: "Session expired. Please log in again." → redirect to `/login` after 2s
+- Error 5xx/network: inline error, buttons re-enabled
+- Custom `auth.deleteAccount()` added to `api.js` — handles 204 No Content specially (bypasses standard `request()` which calls `res.json()`)
+
+---
+
+## H-074 — Frontend Engineer → QA Engineer: T-034 Delete Account UI Ready for Testing
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-074 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | T-034 Delete Account UI implementation complete. Ready for code review and QA testing. |
+| **Spec Refs** | T-034, SPEC-007, T-033 |
+| **Status** | Pending |
+
+### What Was Implemented
+
+**Files changed/created:**
+
+1. `frontend/src/utils/api.js` — Added `auth.deleteAccount()` method. Handles 204 No Content, auto-refresh on 401, proper error propagation.
+2. `frontend/src/components/DeleteAccountModal.jsx` — New component per SPEC-007: WarningOctagon icon, heading, body copy, Cancel + "Delete my account" buttons. Focus trap, Escape key, ARIA (`role="dialog"`, `aria-modal`, `aria-labelledby`, `aria-describedby`). Loading spinner on confirm. Inline error on failure. Session expired → 2s redirect.
+3. `frontend/src/components/DeleteAccountModal.css` — Styles per SPEC-007: overlay `rgba(44,44,44,0.45)` z-index 1000, centered card max-width 480px, danger color #B85C38. Mobile: stacked buttons.
+4. `frontend/src/pages/ProfilePage.jsx` — Replaced "coming soon" placeholder with functional Delete Account button + DeleteAccountModal integration. Full deletion flow.
+5. `frontend/src/pages/ProfilePage.css` — `.profile-delete-btn` ghost danger style replacing `.profile-delete-link`.
+6. `frontend/src/__tests__/DeleteAccountModal.test.jsx` — 5 new tests (render states, cancel, ARIA, icon).
+7. `frontend/src/__tests__/ProfilePage.test.jsx` — 6 new tests (button visible, modal opens, cancel closes, success flow, 500 error, 401 error).
+
+### Test Results
+
+**61/61 frontend tests pass** (was 50; 11 new tests added for T-034).
+
+### What QA Should Test
+
+1. Profile page shows "Delete Account" button — ghost danger style (#B85C38), not "coming soon"
+2. Click opens confirmation modal, Cancel button focused by default
+3. Escape key and Cancel both dismiss modal with no side effects
+4. Backdrop click does NOT dismiss modal (destructive action — explicit cancel required)
+5. "Delete my account" → spinner → API call → redirect to `/login` + toast "Your account has been deleted."
+6. On 5xx/network error: error message below body copy, buttons re-enabled
+7. On 401: "Session expired" message → redirect after 2s
+8. Focus trap between Cancel and Delete buttons only
+9. Mobile: buttons stack vertically, card full-width
+
+### Known Limitations
+
+- Backend T-033 must be deployed to staging for end-to-end integration testing. T-033 is currently "In Review" — endpoint should be available once code review passes.
+
+---
+
+## H-075 — Deploy Engineer → QA Engineer: T-032 Production Deployment Prep Ready for Review
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-075 |
+| **From** | Deploy Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | T-032 production deployment preparation complete — infrastructure files ready for review |
+| **Spec Refs** | T-032 |
+| **Status** | Pending |
+
+### What Was Implemented
+
+**New files created (all infrastructure — no application code changes):**
+
+| File | Purpose |
+|------|---------|
+| `infra/nginx.prod.conf` | Production nginx config: HTTP→HTTPS redirect, TLS 1.2/1.3 hardening, HSTS, API reverse proxy to backend:3000, SPA fallback routing |
+| `infra/docker-compose.prod.yml` | Production Docker Compose: isolated network, postgres (internal), backend, one-shot migrate runner, nginx (ports 80+443) |
+| `.env.production.example` | Template for production secrets — all values are REPLACE_ME placeholders, safe to commit |
+| `infra/deploy-prod.sh` | 6-step production deploy script with pre-flight safety checks (SSL cert existence, .env.production presence) |
+| `.workflow/deploy-runbook.md` | Full runbook: first-time server setup, SSL provisioning (Let's Encrypt + BYO), pre-deploy checklist, startup sequence, rollback steps, DB migration rollback, troubleshooting guide |
+
+**Updated files:**
+
+| File | Change |
+|------|--------|
+| `.gitignore` | Added `infra/ssl/` and `.env.production` entries (secrets must never be committed) |
+
+### Staging Unaffected
+
+The staging environment (`docker-compose.staging.yml`, `nginx.conf`, local Vite dev server) is completely unchanged. The production compose uses a separate Docker network (`plant_guardians_prod`), separate named volumes (`pgdata_prod`, `uploads_prod`), and separate container names (`pg_prod`, `backend_prod`, `nginx_prod`). No conflicts possible.
+
+### Security Checklist Review
+
+- ✅ HTTPS enforced — HTTP redirects to HTTPS (301), HSTS header set (max-age=63072000, includeSubDomains, preload)
+- ✅ TLS 1.2/1.3 only — older protocols disabled, Mozilla Modern cipher suite
+- ✅ OCSP stapling enabled
+- ✅ All security headers present: Strict-Transport-Security, X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy
+- ✅ server_tokens off (nginx version hidden)
+- ✅ No secrets in any committed file — all sensitive values use `${VAR}` substitution
+- ✅ `.env.production` added to .gitignore
+- ✅ `infra/ssl/` added to .gitignore (private key directory)
+- ✅ PostgreSQL has no external port binding (internal Docker network only)
+- ✅ Backend has no external port binding (nginx proxies to it internally)
+- ✅ client_max_body_size set to 6M (matches MAX_UPLOAD_SIZE_MB=5 + 1M margin)
+- ✅ Migrations run as separate one-shot service before backend starts
+
+### What QA Should Review
+
+1. **docker-compose.prod.yml** — verify all required env vars are passed to backend/postgres, staging is unaffected, network isolation is correct
+2. **nginx.prod.conf** — verify HTTPS redirect works, API proxy path (`/api/`) is correct, SPA fallback present, security headers complete
+3. **.env.production.example** — verify no real secrets present, all REPLACE_ME placeholders, documentation is accurate
+4. **deploy-runbook.md** — verify pre-deploy checklist is complete, startup sequence is correct, rollback steps are actionable
+5. **deploy-prod.sh** — verify pre-flight checks catch missing certs and .env, health check logic is sound, no force-push or destructive git operations
+
+### Note for QA
+
+This task involves infrastructure configuration only — no application code was modified. There are no automated test suites to run against infra configs. QA review should focus on:
+- Config correctness (no typos, correct variable names, correct service names)
+- Security posture (headers, TLS settings, network exposure)
+- Completeness of the runbook for a project owner attempting first-time production deployment

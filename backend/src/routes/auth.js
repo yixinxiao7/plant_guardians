@@ -1,5 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const User = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
@@ -171,6 +173,45 @@ router.post(
           message: 'Logged out successfully.',
         },
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// DELETE /api/v1/auth/account (T-033)
+router.delete(
+  '/account',
+  authenticate,
+  async (req, res, next) => {
+    try {
+      // 1. Collect photo URLs before deleting DB rows (for file cleanup)
+      const photoUrls = await User.findPhotoUrlsByUserId(req.user.id);
+
+      // 2. Delete user — ON DELETE CASCADE removes refresh_tokens, plants,
+      //    care_schedules (via plants), and care_actions (via plants)
+      const deleted = await User.deleteById(req.user.id);
+      if (!deleted) {
+        // User not found (already deleted or race condition) — still return 204
+        return res.status(204).end();
+      }
+
+      // 3. Best-effort cleanup of uploaded photo files
+      const uploadDir = process.env.UPLOAD_DIR || './uploads';
+      for (const url of photoUrls) {
+        try {
+          // photo_url is stored as "/uploads/filename.ext"
+          const filename = url.split('/').pop();
+          if (filename) {
+            const filePath = path.resolve(uploadDir, filename);
+            fs.unlinkSync(filePath);
+          }
+        } catch {
+          // File may already be missing — non-critical, continue
+        }
+      }
+
+      res.status(204).end();
     } catch (err) {
       next(err);
     }

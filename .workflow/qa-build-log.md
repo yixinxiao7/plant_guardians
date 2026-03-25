@@ -816,3 +816,56 @@ All 17 test suites, 50/50 tests pass.
 - No regressions detected from Sprint 4 verified state. Sprint 5 changes (T-025: model name update + mocked tests; T-029: test infra fix) have zero runtime impact — all endpoints behave identically to Sprint 4.
 
 **Error Summary:** None. All checks passed. The only non-2xx response is POST /ai/advice (502) which is a known and accepted limitation due to placeholder Gemini API key.
+
+---
+
+## Sprint 6 — T-032 Infrastructure Build Entry (Deploy Engineer — 2026-03-25)
+
+**Date:** 2026-03-25
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 6
+**Task:** T-032 — Production deployment preparation
+**Build Status:** Complete (infrastructure config — no compiled artifact)
+
+### Files Created / Modified
+
+| File | Type | Status |
+|------|------|--------|
+| `infra/nginx.prod.conf` | New | ✅ Created |
+| `infra/docker-compose.prod.yml` | New | ✅ Created |
+| `.env.production.example` | New | ✅ Created |
+| `infra/deploy-prod.sh` | New | ✅ Created (chmod +x) |
+| `.workflow/deploy-runbook.md` | New | ✅ Created |
+| `.gitignore` | Modified | ✅ Added `infra/ssl/` + `.env.production` |
+
+### Security Self-Check
+
+| Item | Result |
+|------|--------|
+| HTTPS enforced (HTTP → 301 redirect) | ✅ Pass |
+| TLS 1.2/1.3 only (no TLS 1.0/1.1) | ✅ Pass |
+| HSTS header (max-age=63072000, preload) | ✅ Pass |
+| All security response headers present | ✅ Pass |
+| server_tokens off | ✅ Pass |
+| No secrets in committed files | ✅ Pass |
+| .env.production in .gitignore | ✅ Pass |
+| infra/ssl/ in .gitignore | ✅ Pass |
+| PostgreSQL no external port exposure | ✅ Pass |
+| Backend no external port exposure | ✅ Pass |
+| Staging environment unchanged | ✅ Pass |
+| All env vars via ${VAR} substitution | ✅ Pass |
+
+### Staging Impact
+
+None. Production compose uses completely separate:
+- Named volumes: `plant_guardians_pgdata_prod`, `plant_guardians_uploads_prod`
+- Container names: `pg_prod`, `backend_prod`, `nginx_prod`
+- Docker network: `plant_guardians_prod`
+
+The staging environment continues to run unmodified on the existing local Vite/Express setup.
+
+### Next Steps
+
+- Handoff H-075 → QA Engineer for config review
+- Project owner to provision production server and SSL certificates per `.workflow/deploy-runbook.md`
+- When ready to go live: follow deploy-runbook.md startup sequence, then trigger Monitor Agent post-deploy health check

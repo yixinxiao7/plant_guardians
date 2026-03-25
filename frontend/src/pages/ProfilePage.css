@@ -101,12 +101,20 @@
   gap: 12px;
 }
 
-.profile-delete-link {
+.profile-delete-btn {
   font-size: 13px;
-  color: var(--color-text-disabled);
+  color: #B85C38;
   background: none;
   border: none;
-  cursor: not-allowed;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 4px;
+  font-weight: 500;
+  transition: var(--transition-base);
+}
+
+.profile-delete-btn:hover {
+  opacity: 0.8;
 }
 
 /* Error */

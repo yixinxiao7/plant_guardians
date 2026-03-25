@@ -115,6 +115,40 @@ export const auth = {
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
   },
+  async deleteAccount() {
+    const url = `${API_BASE}/auth/account`;
+    const headers = {};
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
+    let res = await fetch(url, { method: 'DELETE', headers });
+
+    // Auto-refresh on 401
+    if (res.status === 401 && refreshToken) {
+      try {
+        await refreshAccessToken();
+        headers['Authorization'] = `Bearer ${accessToken}`;
+        res = await fetch(url, { method: 'DELETE', headers });
+      } catch {
+        throw new ApiError('Session expired. Please log in again.', 'UNAUTHORIZED', 401);
+      }
+    }
+
+    if (res.status === 204) {
+      return null; // Success — no content
+    }
+
+    // Handle errors
+    let err = {};
+    try {
+      const json = await res.json();
+      err = json.error || {};
+    } catch {
+      // Response may not have a JSON body
+    }
+    throw new ApiError(err.message || 'Something went wrong.', err.code || 'UNKNOWN', res.status);
+  },
 };
 
 // Plant endpoints

@@ -1,0 +1,153 @@
+# docker-compose.prod.yml — Production Environment
+#
+# Full production stack:
+#   postgres  — PostgreSQL (internal only, no port exposure)
+#   backend   — Express API (internal only)
+#   migrate   — One-shot migration runner (exits after completion)
+#   nginx     — Reverse proxy: HTTPS termination + SPA static files + API proxy
+#
+# Usage:
+#   1. Provision SSL certificates (see .workflow/deploy-runbook.md)
+#   2. Copy .env.production.example → .env.production and fill in all values
+#   3. Run:  docker compose -f infra/docker-compose.prod.yml --env-file .env.production up -d
+#
+# Requires:
+#   - .env.production (never committed — see .env.production.example for template)
+#   - infra/ssl/fullchain.pem  (SSL certificate + chain)
+#   - infra/ssl/privkey.pem    (SSL private key)
+#   - Docker + Docker Compose v2 installed on the host
+#
+# NOTE: STAGING ENVIRONMENT IS UNAFFECTED. This file is completely independent
+# of docker-compose.staging.yml. Both can coexist on the same host if needed.
+
+version: "3.9"
+
+services:
+
+  # ─── PostgreSQL Database ────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: pg_prod
+    restart: always
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB:       ${POSTGRES_DB}
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    # No external port — database only reachable from within the Docker network
+    expose:
+      - "5432"
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout:  5s
+      retries:  10
+    networks:
+      - plant_guardians_prod
+
+  # ─── Database Migration Runner ──────────────────────────────────────────────
+  # Runs `knex migrate:latest` once per deploy then exits.
+  # The main services depend on this completing successfully before they start.
+  migrate:
+    build:
+      context:    ..
+      dockerfile: infra/Dockerfile.backend
+    container_name: migrate_prod
+    command: ["node", "node_modules/.bin/knex", "migrate:latest"]
+    environment:
+      NODE_ENV:     production
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - plant_guardians_prod
+
+  # ─── Express API Backend ────────────────────────────────────────────────────
+  backend:
+    build:
+      context:    ..
+      dockerfile: infra/Dockerfile.backend
+    container_name: backend_prod
+    restart: always
+    environment:
+      NODE_ENV:                   production
+      PORT:                       3000
+      DATABASE_URL:               postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET:                 ${JWT_SECRET}
+      JWT_EXPIRES_IN:             ${JWT_EXPIRES_IN:-15m}
+      REFRESH_TOKEN_EXPIRES_DAYS: ${REFRESH_TOKEN_EXPIRES_DAYS:-7}
+      GEMINI_API_KEY:             ${GEMINI_API_KEY}
+      UPLOAD_DIR:                 /app/uploads
+      MAX_UPLOAD_SIZE_MB:         ${MAX_UPLOAD_SIZE_MB:-5}
+      # In production nginx proxies all traffic — FRONTEND_URL must match the
+      # public domain so CORS allows the browser origin.
+      FRONTEND_URL:               ${FRONTEND_URL}
+      RATE_LIMIT_WINDOW_MS:       ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX:             ${RATE_LIMIT_MAX:-100}
+      AUTH_RATE_LIMIT_MAX:        ${AUTH_RATE_LIMIT_MAX:-20}
+    volumes:
+      - uploads_prod:/app/uploads
+    expose:
+      - "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:         ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval:     30s
+      timeout:      10s
+      start_period: 20s
+      retries:      3
+    networks:
+      - plant_guardians_prod
+
+  # ─── Nginx — HTTPS termination + SPA + API proxy ───────────────────────────
+  nginx:
+    build:
+      context:    ..
+      dockerfile: infra/Dockerfile.frontend
+      args:
+        # In production, React calls /api/... (relative). nginx proxies it to backend.
+        # Leave VITE_API_BASE_URL empty so the compiled JS uses relative paths.
+        VITE_API_BASE_URL: ""
+    container_name: nginx_prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Mount production nginx config (HTTPS + API proxy) over the staging-only one
+      - ./nginx.prod.conf:/etc/nginx/conf.d/app.conf:ro
+      # SSL certificates — provision before first deploy (see deploy-runbook.md)
+      # Use absolute host paths or symlinks to your cert provider's files:
+      #   Let's Encrypt: /etc/letsencrypt/live/<domain>/{fullchain,privkey}.pem
+      #   BYO cert:      infra/ssl/{fullchain,privkey}.pem
+      - ${SSL_CERT_PATH:?SSL_CERT_PATH is required}:/etc/ssl/certs/plant-guardians/fullchain.pem:ro
+      - ${SSL_KEY_PATH:?SSL_KEY_PATH is required}:/etc/ssl/certs/plant-guardians/privkey.pem:ro
+      # (Optional) certbot webroot for HTTP-01 ACME challenges
+      - certbot_webroot:/var/www/certbot:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - plant_guardians_prod
+
+# ─── Persistent Volumes ────────────────────────────────────────────────────────
+volumes:
+  pgdata_prod:
+    name: plant_guardians_pgdata_prod
+  uploads_prod:
+    name: plant_guardians_uploads_prod
+  certbot_webroot:
+    name: plant_guardians_certbot_webroot
+
+# ─── Network (isolated from staging) ──────────────────────────────────────────
+networks:
+  plant_guardians_prod:
+    name: plant_guardians_prod
+    driver: bridge
