@@ -1379,3 +1379,68 @@ All 17 test suites, 50/50 tests pass.
 | Backend health check | ✅ HTTP 200 |
 | Frontend health check | ✅ HTTP 200 |
 | **Overall Deploy Status** | **✅ SUCCESS** |
+
+---
+
+## Sprint #5 — Post-Deploy Health Check
+**Date:** 2026-03-25
+**Environment:** Staging (local)
+**Performed by:** Monitor Agent
+
+---
+
+### Config Consistency Check
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Backend PORT vs Vite proxy port | PASS | PORT=3000 in backend/.env; Vite proxy target `http://localhost:3000` — match |
+| Protocol match (HTTP/HTTPS) | PASS | No SSL_KEY_PATH or SSL_CERT_PATH set in .env; Vite proxy uses `http://` — consistent |
+| CORS_ORIGIN vs frontend origin | PASS | FRONTEND_URL=`http://localhost:5173,http://localhost:4173`; frontend dev server on :5173 — included |
+| Docker port mapping | N/A | docker-compose.yml only maps PostgreSQL (:5432); backend server not containerized — staging runs as local Node process |
+
+**Config Consistency Result:** PASS
+
+**Notes:**
+- SSL not configured — no SSL_KEY_PATH or SSL_CERT_PATH in backend/.env. HTTP everywhere is correct and consistent for local staging.
+- CORS correctly covers both the dev server (:5173) and the Vite preview port (:4173) via comma-separated FRONTEND_URL.
+- Vite proxy target port (3000) matches backend PORT=3000 exactly.
+
+---
+
+### Health Checks
+
+| Check | Result | Details |
+|-------|--------|---------|
+| App responds (GET /api/health → 200) | PASS | HTTP 200, body: `{"status":"ok","timestamp":"2026-03-25T04:06:30.382Z"}` |
+| Auth works (POST /api/v1/auth/login → 200) | PASS | HTTP 200 with `access_token` and `refresh_token` for `test@plantguardians.local` |
+| POST /api/v1/auth/register | PASS | HTTP 201 — new user creation verified (test account used) |
+| POST /api/v1/auth/refresh | PASS | HTTP 200 — refresh token rotated and new tokens returned |
+| POST /api/v1/auth/logout | PASS | HTTP 200 — refresh token invalidated |
+| GET /api/v1/plants | PASS | HTTP 200 — plant list with care_schedules and pagination |
+| POST /api/v1/plants | PASS | HTTP 201 — plant created with care schedule |
+| GET /api/v1/plants/:id | PASS | HTTP 200 — single plant with recent_care_actions |
+| PUT /api/v1/plants/:id | PASS | HTTP 200 — plant updated with new care schedule |
+| DELETE /api/v1/plants/:id | PASS | HTTP 200 — plant deleted |
+| POST /api/v1/plants/:id/photo (no file) | PASS | HTTP 400 `MISSING_FILE` — correct error code confirmed |
+| POST /api/v1/plants/:id/care-actions | PASS | HTTP 201 — care action logged, updated_schedule returned |
+| DELETE /api/v1/plants/:id/care-actions/:id | PASS | HTTP 200 — care action undone |
+| GET /api/v1/profile | PASS | HTTP 200 — user object with stats |
+| POST /api/v1/ai/advice (placeholder key) | PASS (expected 502) | HTTP 502 `AI_SERVICE_UNAVAILABLE` — placeholder GEMINI_API_KEY; expected and accepted |
+| POST /api/v1/ai/advice (missing both fields) | PASS | HTTP 400 `VALIDATION_ERROR` — validation works |
+| Auth guard (GET /api/v1/plants, no token) | PASS | HTTP 401 — auth middleware enforcing correctly |
+| No 5xx errors (excluding expected 502) | PASS | All endpoints return expected status codes; no unexpected server errors |
+| Frontend accessible (GET http://localhost:5173) | PASS | HTTP 200 — Vite preview serving React app |
+| Vite proxy routing (/api/health via :5173) | PASS | HTTP 200 `{"status":"ok"}` — proxy routing to :3000 confirmed |
+| Vite proxy auth guard (GET /api/v1/plants via :5173, no token) | PASS | HTTP 401 — proxy + auth guard both working |
+| Frontend dist build exists | PASS | `/frontend/dist/` contains `index.html`, `assets/` (CSS, JS, confetti module, icons) |
+
+**Deploy Verified: Yes**
+
+**Notes:**
+- Health endpoint is at `/api/health` (not `/api/v1/health`) — this is intentional per `app.js` implementation.
+- Seeded test account email is `test@plantguardians.local` / `TestPass123!` (not `test@triplanner.local` as in older agent prompts — seed file `01_test_user.js` uses the correct email).
+- POST /api/v1/ai/advice returning 502 is expected and accepted — GEMINI_API_KEY remains placeholder. Tracked as FB-016 (Minor, Acknowledged).
+- Frontend alt preview port :4173 is not running at time of check; however, the primary frontend on :5173 is healthy. CORS config includes both ports as a precaution.
+- No regressions detected from Sprint 4 verified state. Sprint 5 changes (T-025: model name update + mocked tests; T-029: test infra fix) have zero runtime impact — all endpoints behave identically to Sprint 4.
+
+**Error Summary:** None. All checks passed. The only non-2xx response is POST /ai/advice (502) which is a known and accepted limitation due to placeholder Gemini API key.

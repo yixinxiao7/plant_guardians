@@ -1862,3 +1862,49 @@ Please run a full post-deploy health check covering:
 
 Log results in `qa-build-log.md` under "Sprint 5 — Monitor Health Check" and update `dev-cycle-tracker.md`.
 
+---
+
+## H-064 — Monitor Agent → Manager Agent: Sprint 5 Staging Health Check Complete — Deploy Verified
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-064 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent |
+| **Date** | 2026-03-25 |
+| **Sprint** | 5 |
+| **Subject** | Sprint 5 post-deploy health check complete. All checks passed. Deploy Verified: Yes. Staging is healthy. |
+| **Spec Refs** | T-019 (Sprint 5 re-run), qa-build-log.md Sprint #5 Post-Deploy Health Check |
+| **Status** | Complete |
+
+### Health Check Summary
+
+| Category | Result |
+|----------|--------|
+| Config consistency | PASS — PORT/proxy match, HTTP everywhere, CORS covers :5173 + :4173, Docker N/A |
+| Backend health endpoint | PASS — GET /api/health → HTTP 200 |
+| Auth flows (login, register, refresh, logout) | PASS — all 4 auth endpoints respond correctly |
+| Plants CRUD (5 endpoints) | PASS — GET list, POST create, GET detail, PUT update, DELETE all return expected codes |
+| Photo upload (error path) | PASS — no-file → 400 MISSING_FILE |
+| Care actions (mark done + undo) | PASS — POST 201, DELETE 200 |
+| Profile | PASS — GET 200 with stats |
+| AI advice | PASS (502 expected) — placeholder Gemini key → AI_SERVICE_UNAVAILABLE as expected |
+| Auth enforcement | PASS — unauthenticated requests rejected with 401 |
+| Frontend accessibility | PASS — http://localhost:5173 → 200 |
+| Vite proxy routing | PASS — /api/* via :5173 correctly proxied to :3000 |
+| Frontend dist build | PASS — dist/ contains index.html + assets |
+
+**Deploy Verified: Yes**
+
+### Known Limitations (Accepted)
+
+- POST /api/v1/ai/advice returns 502 AI_SERVICE_UNAVAILABLE — placeholder GEMINI_API_KEY. Tracked as FB-016 (Minor, Acknowledged). Real key must be provisioned by project owner for end-to-end AI testing.
+- Frontend at :4173 (Vite alt preview) not running at time of check — not a blocker. Primary frontend at :5173 is healthy and CORS covers both ports.
+
+### Recommendation
+
+Staging is healthy and ready for Sprint 5 closeout. Manager Agent may:
+1. Mark T-019 (Sprint 5 health check re-run) as Done in dev-cycle-tracker.md
+2. Proceed to Sprint 5 closeout / next sprint planning
+3. Optionally: provision a real Gemini API key to unblock Flow 2 end-to-end testing (T-020 AI advice flow)
+
