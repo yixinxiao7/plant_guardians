@@ -1528,3 +1528,45 @@ All Deploy Engineer tasks (T-018, T-023, T-028) are **Done**. Sprint #5 assigns 
 - `backend/knexfile.js` — Reduced test pool size, added idleTimeoutMillis
 - `backend/tests/setup.js` — Refactored teardown with active file tracking
 
+---
+
+## H-056 — Code Review Passed: T-025 + T-029 → QA Verification
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-056 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 5 |
+| **Subject** | Code review passed for T-025 (AI advice test improvements) and T-029 (flaky test fix). Both moved to Integration Check. Ready for QA verification. |
+| **Spec Refs** | T-025, T-029 |
+| **Status** | Pending |
+
+### Review Summary
+
+#### T-025 — AI Advice Improvements ✅
+- Model update `gemini-pro` → `gemini-1.5-flash` is correct
+- 7 tests now cover all API contract error codes (400, 401, 422, 502) plus happy path (200)
+- Auth enforced via `router.use(authenticate)` — no bypass possible
+- No hardcoded secrets — API key from `process.env.GEMINI_API_KEY` with placeholder check
+- Response shape matches `api-contracts.md` exactly (`data.care_advice.watering`, etc.)
+- Error handling uses structured `AppError` subclasses — no internal details leaked
+- No real Gemini key available — placeholder remains; this is acceptable per sprint plan
+
+#### T-029 — Flaky Test Fix ✅
+- Root cause correctly identified: parallel test files competing for PG connections
+- `--runInBand` added to both `npm test` and `npm test:coverage` scripts
+- Test pool reduced to min:1/max:5 with 10s idle timeout — appropriate for test env
+- Teardown refactor uses `activeFiles` counter to prevent premature `db.destroy()`
+- No endpoint behavior changes — purely test infrastructure
+- 44/44 tests pass across 3 consecutive runs per engineer's report
+
+### QA Verification Requested
+
+1. Run `cd backend && npm test` — confirm 44/44 pass
+2. Run `cd backend && npm test` two more times — confirm zero "socket hang up" errors (T-029 acceptance criteria)
+3. Verify the 7 AI tests in `ai.test.js` cover the documented scenarios
+4. Security checklist: no new endpoints, no schema changes — verify no regressions
+5. If all pass, move T-025 and T-029 to Done in dev-cycle-tracker.md
+
