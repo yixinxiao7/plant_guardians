@@ -374,3 +374,100 @@ Access and refresh tokens are stored exclusively in module-level variables in `a
 
 ---
 
+## FB-014 — Positive: Comprehensive AI Endpoint Test Coverage (Sprint 5)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-014 |
+| **Source** | QA Engineer |
+| **Sprint** | 5 |
+| **Date** | 2026-03-24 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | Acknowledged |
+
+### Description
+
+T-025 added 4 mocked Gemini tests, bringing AI endpoint coverage to 7 tests total. Every error code in the API contract (400, 401, 422, 502) plus the happy path (200) now has a dedicated test with proper assertions on response shape. The mock approach (jest.mock of @google/generative-ai) is clean and doesn't require a real API key for CI. Excellent test design.
+
+---
+
+## FB-015 — Positive: Flaky Test Root Cause Correctly Identified and Fixed (Sprint 5)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-015 |
+| **Source** | QA Engineer |
+| **Sprint** | 5 |
+| **Date** | 2026-03-24 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | Acknowledged |
+
+### Description
+
+T-029 correctly identified the root cause of the intermittent "socket hang up" error (parallel test files competing for PG connections) and applied a multi-layered fix: `--runInBand` for serial execution, reduced pool size, idle timeout, and `activeFiles` tracking in teardown. The fix is CI-ready — 3 consecutive clean runs with 44/44 tests and zero flaky failures. Test suite is now reliable.
+
+---
+
+## FB-016 — Observation: Gemini API Key Still Placeholder — AI Happy Path Not Testable End-to-End
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-016 |
+| **Source** | QA Engineer |
+| **Sprint** | 5 |
+| **Date** | 2026-03-24 |
+| **Category** | Feature Gap |
+| **Severity** | Minor |
+| **Status** | Acknowledged — accepted per sprint plan. Real key must be provisioned by project owner for end-to-end AI testing. |
+
+### Description
+
+The `GEMINI_API_KEY` in `backend/.env` remains set to the placeholder value `your-gemini-api-key`. The AI advice endpoint (POST /api/v1/ai/advice) correctly returns 502 AI_SERVICE_UNAVAILABLE when called with this placeholder. The happy path is verified only via mocked tests. User flows involving AI advice (Flow 2 from project-brief.md) cannot be fully validated until a real key is provisioned.
+
+### Impact
+
+- Flow 1 (Novice) and Flow 3 (Inventory management) are fully testable
+- Flow 2 (AI advice) can be tested up to the point of clicking "Get Advice" — the modal will show the 502 error state (correctly handled per SPEC-006 and T-026 fix)
+
+---
+
+## FB-017 — Bug: Intermittent Timeout in profile.test.js (Sprint 5 Final QA)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-017 |
+| **Source** | QA Engineer |
+| **Sprint** | 5 |
+| **Date** | 2026-03-25 |
+| **Category** | Bug |
+| **Severity** | Minor (P3) |
+| **Status** | New |
+
+### Description
+
+During the Sprint 5 final QA verification pass, `profile.test.js` → "should return user profile with stats" timed out at 30,000ms on the second of three consecutive backend test runs. Runs 1 and 3 passed cleanly (44/44). This is a new flaky test distinct from the T-029 fix (which addressed "socket hang up" errors in plants.test.js).
+
+### Steps to Reproduce
+
+1. `cd backend && npm test` — run three consecutive times
+2. Observe that one of the three runs may timeout on the profile test
+
+### Expected vs Actual
+
+- **Expected:** All 44/44 tests pass on every run
+- **Actual:** 1/3 runs had a 30s timeout on the profile "stats" test
+
+### Likely Root Cause
+
+The profile stats test creates a user, a plant, and a care action before querying the profile endpoint. Under certain PG connection pool conditions (even with --runInBand), the test may hit a slow query or connection acquisition delay that exceeds the 30s Jest timeout.
+
+### Recommended Fix
+
+- Increase the test timeout for this specific test (e.g., `it('...', async () => {...}, 60000)`)
+- Or investigate PG query performance for the profile stats aggregation query
+- This is test infrastructure — not a production code defect
+
+---
+

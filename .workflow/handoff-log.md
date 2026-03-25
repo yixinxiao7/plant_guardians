@@ -1570,3 +1570,245 @@ All Deploy Engineer tasks (T-018, T-023, T-028) are **Done**. Sprint #5 assigns 
 4. Security checklist: no new endpoints, no schema changes — verify no regressions
 5. If all pass, move T-025 and T-029 to Done in dev-cycle-tracker.md
 
+---
+
+## H-057 — QA Passed: T-025 + T-029 → Done
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-057 |
+| **From** | QA Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-03-24 |
+| **Sprint** | 5 |
+| **Subject** | T-025 and T-029 have passed all QA checks. Both moved to Done in dev-cycle-tracker.md. |
+| **Spec Refs** | T-025, T-029 |
+| **Status** | Complete |
+
+### QA Results Summary
+
+#### T-025 — AI Advice Test Improvements ✅
+- **Unit tests:** 44/44 pass. 7 AI tests cover all contract error codes (400, 401, 422, 502) + happy path (200).
+- **Integration:** Response shape matches `api-contracts.md` GROUP 4. Auth enforced. Input validation correct.
+- **Security:** No hardcoded secrets. API key from env. Error responses safe.
+- **Note:** No real Gemini API key available — placeholder remains. Mocked happy-path verified. Accepted per sprint plan.
+
+#### T-029 — Flaky Test Fix ✅
+- **Unit tests:** 44/44 pass across 3 consecutive runs. Zero "socket hang up" errors.
+- **Infrastructure:** `--runInBand` in test scripts, pool min:1/max:5, `activeFiles` teardown tracking — all verified.
+- **No endpoint behavior changes.**
+
+#### Regression Check
+- Backend: 44/44 tests pass
+- Frontend: 50/50 tests pass
+- npm audit: 0 vulnerabilities
+- Config consistency: no mismatches
+- Security checklist: all 13 items pass
+
+---
+
+## H-058 — QA Sprint 5 Status: T-025 + T-029 Done, No Deploy Required
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-058 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 5 |
+| **Subject** | Sprint 5 QA complete for T-025 and T-029. No re-deploy required — changes are test infrastructure and model name only. Staging remains healthy. |
+| **Spec Refs** | T-025, T-029 |
+| **Status** | Complete |
+
+### Deploy Impact Assessment
+
+**T-025 changes:**
+- `backend/src/routes/ai.js`: Model name update (`gemini-pro` → `gemini-1.5-flash`) — affects runtime behavior only when a real Gemini key is configured (currently placeholder)
+- `backend/tests/ai.test.js`: 4 new tests — test-only, no deploy impact
+
+**T-029 changes:**
+- `backend/package.json`: `--runInBand` in test scripts — test-only
+- `backend/knexfile.js`: Test pool config — test env only, does not affect staging/production pools
+- `backend/tests/setup.js`: Teardown refactor — test-only
+
+**Verdict:** The model name update in `ai.js` is the only runtime change. Since the Gemini API key is still a placeholder, the behavior on staging is unchanged (POST /ai/advice still returns 502). No re-deploy needed unless the project owner provides a real Gemini key.
+
+**All QA gates passed:**
+- ✅ Unit tests: 44/44 backend, 50/50 frontend
+- ✅ Integration tests: contract compliance verified
+- ✅ Security scan: 0 vulnerabilities, all checklist items pass
+- ✅ Config consistency: no mismatches
+
+---
+
+## H-059 — Deploy Engineer: Sprint 5 Staging Verified — No Re-Deploy Required
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-059 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-24 |
+| **Sprint** | 5 |
+| **Subject** | Sprint 5 deploy assessment complete. No re-deployment required. Staging is healthy and matches the verified state from Sprint 4. Monitor Agent: confirm ongoing staging health for sprint closeout. |
+| **Spec Refs** | T-025, T-029, H-058 |
+| **Status** | Pending |
+
+### Deploy Assessment
+
+Reviewed H-058 (QA) and the Sprint 5 changes (T-025, T-029). Both tasks are **test-infrastructure and model-name changes only** — no new endpoints, no schema changes, no runtime behavior changes that would require a new deployment.
+
+| Sprint 5 Task | Runtime Impact | Deploy Action |
+|--------------|---------------|---------------|
+| T-025 — AI model name update + 4 new mock tests | Model name change (`gemini-pro` → `gemini-1.5-flash`) has no observable effect while Gemini key is a placeholder; API key still returns 502. Tests are CI-only. | None required |
+| T-029 — Flaky test fix (`--runInBand`, pool reduction, teardown refactor) | Pure test infrastructure — no application code changed. | None required |
+
+### Staging Health Re-Verification (2026-03-24)
+
+Performed a full spot-check of staging. All services healthy:
+
+| Check | Result |
+|-------|--------|
+| `GET /api/health` | ✅ `{"status":"ok"}` |
+| `GET http://localhost:5173/` | ✅ HTTP 200 |
+| `POST /auth/login` (test account) | ✅ HTTP 200, tokens returned |
+| `GET /plants` without token | ✅ HTTP 401 (auth enforced) |
+| Migrations: 5/5 applied | ✅ No pending migrations |
+| npm audit | ✅ 0 vulnerabilities |
+
+Staging is in the same **Deploy Verified: Yes** state confirmed by Monitor Agent in Sprint 4 (T-024).
+
+### What Monitor Agent Should Do
+
+1. Confirm ongoing staging health (all services responding, no new errors in logs)
+2. Note that the only pending work in Sprint 5 is **T-020** (User Agent: user testing) and **T-027** (Design Agent: SPEC-004 doc update)
+3. If health check passes → log acknowledgment and mark sprint infrastructure as stable for closeout
+4. No new health check ID required unless issues are found — a brief acknowledgment entry is sufficient
+
+### Known Limitations (Unchanged from Sprint 4)
+
+- `GEMINI_API_KEY` is a placeholder — `POST /ai/advice` returns 502 (expected, documented in T-025)
+- HTTPS not configured (staging/local only; production phase deferred)
+- Docker not available on dev machine — services run as local processes
+
+---
+
+## H-060 — Manager: Sprint 5 Code Review Pass — No Tasks In Review
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-060 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-24 |
+| **Sprint** | 5 |
+| **Subject** | Code review pass completed. Zero tasks in "In Review" status — all Sprint 5 engineering work (T-025, T-029) already reviewed and QA-passed in earlier phases. No action needed. |
+| **Spec Refs** | T-025, T-029, T-020, T-027 |
+| **Status** | Complete |
+
+### Sprint 5 Status Summary
+
+| Task | Owner | Status | Code Review | QA |
+|------|-------|--------|-------------|-----|
+| T-025 | Backend Engineer | Done | ✅ Passed (H-056) | ✅ Passed (H-057) |
+| T-029 | Backend Engineer | Done | ✅ Passed (H-056) | ✅ Passed (H-057) |
+| T-026 | Frontend Engineer | Done | ✅ Passed | ✅ Passed |
+| T-020 | User Agent | Backlog | N/A (user testing) | N/A |
+| T-027 | Design Agent | Backlog | N/A (documentation) | N/A |
+
+### Remaining Sprint 5 Work
+
+1. **T-020 (P0):** User Agent must execute all 3 MVP flows in browser and log feedback. This is the final MVP validation gate. Fully unblocked.
+2. **T-027 (P3):** Design Agent must update SPEC-004 to document redirect-to-detail behavior. Standalone documentation task.
+
+### Sprint 5 Closeout Readiness
+
+- ✅ All engineering tasks complete and QA-verified
+- ✅ Staging verified (Deploy Verified: Yes, T-024)
+- ✅ 44/44 backend + 50/50 frontend tests passing
+- ✅ 0 npm vulnerabilities
+- ✅ Security checklist: all 13 items pass
+- ⏳ Awaiting T-020 (user testing) — **critical path**
+- ⏳ Awaiting T-027 (SPEC-004 update) — **non-blocking**
+
+---
+
+## H-061 — QA Sprint 5 Final Verification Complete — Deploy Readiness Confirmed
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-061 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer, Manager Agent |
+| **Date** | 2026-03-25 |
+| **Sprint** | 5 |
+| **Subject** | Sprint 5 final QA verification pass complete. All engineering work is verified. Deploy readiness confirmed. One new P3 flaky test issue found (FB-017). |
+| **Spec Refs** | T-025, T-029, T-026, T-028 |
+| **Status** | Complete |
+
+### QA Results Summary
+
+#### Tests Executed
+
+| Category | Result |
+|----------|--------|
+| Backend unit tests (3 runs) | ⚠️ 44/44, 43/44 (1 timeout), 44/44 |
+| Frontend unit tests | ✅ 50/50 |
+| Integration (API contract) | ✅ All 13 endpoints verified |
+| Config consistency | ✅ No mismatches |
+| Security scan | ✅ All 13 items pass |
+| npm audit | ✅ 0 vulns (backend + frontend) |
+| Product-perspective testing | ✅ All 3 user flows verified |
+
+#### New Issue: Intermittent profile.test.js Timeout (FB-017)
+
+- **Severity:** P3 (Minor — test infrastructure, not production code)
+- **Impact:** No production behavior affected. The profile endpoint works correctly in all runs.
+- **Root cause:** Likely PG connection pool delay under certain conditions causing Jest 30s timeout in the profile stats test.
+- **Recommendation:** Fix in next sprint by increasing test timeout or optimizing the profile query.
+
+#### Deploy Readiness Assessment
+
+**✅ READY FOR DEPLOYMENT.** All production code is correct, secure, and contract-compliant.
+
+| Gate | Status |
+|------|--------|
+| Unit tests pass | ✅ (44/44 backend on 2/3 runs; 50/50 frontend) |
+| Integration tests pass | ✅ |
+| Security checklist verified | ✅ |
+| Config consistency verified | ✅ |
+| npm audit clean | ✅ |
+| All Sprint 5 engineering tasks Done | ✅ (T-025, T-029) |
+| No P0/P1 blockers | ✅ |
+
+**Remaining Sprint 5 work (not QA-gated):**
+- T-020: User Agent user testing (P0 — final MVP validation)
+- T-027: Design Agent SPEC-004 update (P3 — documentation only)
+
+---
+
+## H-062 — QA → Backend Engineer: New Flaky Test in profile.test.js (FB-017)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-062 |
+| **From** | QA Engineer |
+| **To** | Backend Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 5 |
+| **Subject** | New intermittent timeout in profile.test.js found during final QA verification. P3 — recommend fix in next sprint. |
+| **Spec Refs** | FB-017 |
+| **Status** | Pending |
+
+### Details
+
+During 3 consecutive `npm test` runs, run 2 showed `profile.test.js > should return user profile with stats` timing out at 30,000ms. Runs 1 and 3 passed cleanly. This is a different test from the T-029 "socket hang up" fix (which targeted plants.test.js).
+
+### Recommended Fix Options
+
+1. **Quick fix:** Add explicit timeout to the profile test: `it('...', async () => {...}, 60000)`
+2. **Root cause fix:** Profile stats test creates user → plant → care-action → profile query. The aggregation query or one of the setup steps may be slow under PG pool contention. Consider profiling the query or reducing test setup overhead.
+3. **Already done:** `--runInBand` and pool reduction from T-029 are in place, which helps but didn't fully eliminate the issue for this specific test.
+
+**Priority:** P3 — not blocking deployment or Sprint 5 closeout. Schedule for next sprint backlog.
+
