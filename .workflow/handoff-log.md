@@ -1500,3 +1500,97 @@ T-031, T-027, T-032 — all standalone, run in parallel with everything
 
 Zero entries with Status: New remaining in feedback-log.md after Sprint #5 triage.
 
+---
+
+## H-066 — Design Agent → (Acknowledgment): SPEC-004 Updated — T-027 Complete
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-066 |
+| **From** | Design Agent |
+| **To** | Manager Agent |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | T-027 complete — SPEC-004 updated to formally document redirect-to-detail behavior post-save. Spec marked Approved with today's date. |
+| **Spec Refs** | SPEC-004 |
+| **Status** | Pending |
+
+### Changes Made to SPEC-004
+
+SPEC-004 (Edit Plant Screen) in `ui-spec.md` has been updated per T-027 requirements:
+
+1. **Status line updated:** `Approved — Updated 2026-03-25 (T-027: redirect-to-detail behavior confirmed, documented, and approved; Sprint 6)`
+2. **Post-Save Navigation section** (pre-existing from Sprint 4 partial update) confirmed accurate and complete:
+   - Documents redirect to `/plants/:id` (not `/`) after a successful save
+   - Rationale note present: *"Redirecting to the plant detail page lets the user immediately confirm their changes."*
+   - States table entry for "Success" reads: *"Redirect to `/plants/:id` (Plant Detail page for this plant), toast: 'Changes saved.'"*
+   - Supersession note present: confirms this overrides any earlier spec language referencing `/` redirect
+
+### No Frontend Changes Required
+
+The current Edit Plant implementation (T-004, Done) already matches this behavior. This is a documentation-only update to align the spec with implemented reality (per FB-005 observation). No code changes needed.
+
+---
+
+## H-067 — Design Agent → Frontend Engineer: SPEC-007 Updated — Delete Account UI Spec Ready (T-034)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-067 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | SPEC-007 updated with full Delete Account confirmation modal spec. Frontend Engineer may begin T-034 once T-033 (backend DELETE /account endpoint) is Done. |
+| **Spec Refs** | SPEC-007 |
+| **Status** | Pending |
+
+### ⚠️ Dependency: Do Not Start Until T-033 Is Done
+
+T-034 is blocked by T-033. Do not begin implementation until the Backend Engineer has completed `DELETE /api/v1/auth/account` and updated `api-contracts.md`. The spec is written now so no time is lost once T-033 unblocks.
+
+### What Was Added to SPEC-007
+
+The Profile Page spec now includes a complete Delete Account feature spec in three new sections:
+
+#### 1. Account Actions Section (updated)
+- "Delete Account" button is now **active** (not "coming soon" / disabled)
+- Variant: Ghost Danger (`color: #B85C38`, no background), `font-size: 13px`, below Log Out
+- On click: opens Delete Account Confirmation Modal
+
+#### 2. Delete Account Confirmation Modal (new section)
+Full modal spec including:
+- **Overlay:** Fixed, `rgba(44, 44, 44, 0.45)` backdrop — backdrop click does NOT dismiss (destructive action requires explicit Cancel)
+- **Container:** max-width 480px, centered, `border-radius: 12px`, `padding: 32px`
+- **Content:** Warning icon (Phosphor `WarningOctagon`, 36px, `#B85C38`) → Heading ("Delete your account?") → Body copy (exact confirmation text) → Conditional error message → Button row
+- **Button row:** "Cancel" (Secondary) + "Delete my account" (Danger `#B85C38`)
+- **Default focus on open:** "Cancel" button (prevents accidental deletion)
+- **Keyboard:** `Escape` = Cancel; Tab focus trap within modal; backdrop click ignored
+- **Mobile:** Buttons stack vertically — Cancel above, Delete below
+
+#### 3. Deletion Flow (new section)
+Step-by-step interaction after user confirms:
+1. Spinner on "Delete my account" button; both buttons disabled; modal stays open
+2. Calls `DELETE /api/v1/auth/account` (Bearer token)
+3. **Success (204):** Clear tokens (memory + sessionStorage), redirect `/login`, toast "Your account has been deleted."
+4. **Error (network/5xx):** Re-enable buttons, show inline error "Something went wrong. Please try again."
+5. **Error (401 — session expired):** Show "Session expired. Please log in again.", redirect `/login` after 2s
+
+#### 4. States Table (expanded)
+Five new states added: Modal open, Deleting, Delete success, Delete error, Delete — session expired.
+
+#### 5. Accessibility (expanded)
+- `aria-haspopup="dialog"` on trigger button
+- `role="dialog"`, `aria-modal="true"`, `aria-labelledby` + `aria-describedby` on modal
+- Focus trap while modal open; focus returns to trigger on close
+- `aria-busy="true"` + descriptive `aria-label` on button during loading state
+
+### Implementation Notes for Frontend Engineer
+
+- File to modify: `frontend/src/pages/ProfilePage.jsx`
+- The "coming soon" Delete Account placeholder is already in the UI — replace it with the functional button
+- The confirmation modal can be a new component: `DeleteAccountModal.jsx` (or inline in ProfilePage)
+- Call `DELETE /api/v1/auth/account` using the existing `api.js` authenticated request pattern
+- After 204: call the same logout/token-clear utility already used by the Log Out button, then `navigate('/login')`
+- Unit tests required: modal renders, Cancel closes modal, Confirm triggers DELETE, success redirects, error shows inline message
+

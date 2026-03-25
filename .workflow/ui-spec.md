@@ -415,7 +415,7 @@ When the user clicks "Get AI Advice":
 
 ### SPEC-004 — Edit Plant Screen
 
-**Status:** Approved — Updated 2026-03-24 (FB-005: post-save redirect clarification)
+**Status:** Approved — Updated 2026-03-25 (T-027: redirect-to-detail behavior confirmed, documented, and approved; Sprint 6)
 **Related Tasks:** T-004 (Edit Plant UI)
 
 #### Description
@@ -708,8 +708,8 @@ Fields that are NOT auto-filled:
 
 ### SPEC-007 — Profile Page
 
-**Status:** Approved
-**Related Tasks:** T-007 (Profile UI)
+**Status:** Approved — Updated 2026-03-25 (T-034: Delete Account button and confirmation modal spec added; Sprint 6)
+**Related Tasks:** T-007 (Profile UI), T-034 (Delete Account UI)
 
 #### Description
 
@@ -756,34 +756,85 @@ Each tile: `background: #F7F4EF`, `border-radius: 12px`, `padding: 24px`, center
 
 #### Account Actions Section
 
-Below stats, a simple actions card:
+Below stats, a simple actions card. `background: #FFFFFF`, `border-radius: 12px`, `padding: 24px`, `border: 1.5px solid #E0DDD6`.
 
-- "Log Out" button (secondary, full-width on mobile, auto-width on desktop)
-- "Delete Account" link (ghost danger, `color: #B85C38`, small, below logout) — out of scope for Sprint 1, show as disabled/coming soon link
+- **"Log Out" button** — Secondary variant, `min-width: 140px`, full-width on mobile, auto-width on desktop. Clicking logs the user out, clears tokens, and redirects to `/login`.
+- **"Delete Account" button** — Ghost Danger variant (`color: #B85C38`, no background, no border), `font-size: 13px`, positioned below the Log Out button with `margin-top: 16px`. Clicking opens the Delete Account Confirmation Modal.
+
+> **Layout:** Both actions are left-aligned on desktop (inside the card). On mobile, both buttons stretch to full width and stack vertically.
+
+#### Delete Account Confirmation Modal
+
+Triggered by clicking the "Delete Account" button on the Profile page. Uses the standard modal/overlay pattern.
+
+**Overlay:** `position: fixed`, full viewport, `background: rgba(44, 44, 44, 0.45)`, `z-index: 1000`. Clicking the backdrop does **not** dismiss the modal (destructive action — explicit Cancel is required).
+
+**Modal Container:** Centered horizontally and vertically. `max-width: 480px`, `width: calc(100% - 32px)` on mobile, `padding: 32px`, `border-radius: 12px`, `background: #FFFFFF`, `box-shadow: 0 8px 32px rgba(44, 44, 44, 0.18)`.
+
+**Modal Content (top to bottom):**
+
+1. **Warning Icon:** Phosphor `WarningOctagon` icon, 36px, `color: #B85C38`, centered, `margin-bottom: 16px`.
+2. **Heading:** "Delete your account?" — Playfair Display, 24px, `font-weight: 600`, `color: #2C2C2C`, `text-align: center`.
+3. **Body copy:** "This will permanently delete your account and all your plants. This cannot be undone. Are you sure?" — DM Sans, 15px, `color: #6B6B5F`, `text-align: center`, `line-height: 1.6`, `margin-top: 12px`.
+4. **Error message (conditional):** Shown only when the deletion API call fails. `color: #B85C38`, `font-size: 13px`, `text-align: center`, `margin-top: 12px`, `background: #FAEAE4`, `border-radius: 8px`, `padding: 8px 16px`. Text: "Something went wrong. Please try again."
+5. **Button row:** `margin-top: 24px`, `display: flex`, `gap: 12px`, `justify-content: center`.
+   - **"Cancel"** — Secondary button, `min-width: 120px`. Dismisses modal immediately; no action taken; focus returns to the "Delete Account" trigger button.
+   - **"Delete my account"** — Danger button (`background: #B85C38`, `color: #FFFFFF`), `min-width: 160px`. Triggers the deletion flow (see below).
+
+**Mobile button layout:** Buttons stack vertically at full width — "Cancel" on top, "Delete my account" below (safer position to reduce accidental taps).
+
+**Keyboard Behavior:**
+- `Escape` key → same as clicking "Cancel" (dismisses modal, no action).
+- Tab cycles **only** between "Cancel" and "Delete my account" buttons while the modal is open (focus trap — no tab escape to page behind).
+- **Default focus on open:** "Cancel" button (safest default; prevents accidental deletion via Enter key on open).
+
+#### Deletion Flow (Post-Confirm)
+
+1. User clicks "Delete my account."
+2. "Delete my account" button immediately shows a loading spinner (`border: 2px solid rgba(255,255,255,0.4)`, spinning segment `rgba(255,255,255,1)`, 16px); button label hidden. Both buttons disabled. No close affordance — user must wait.
+3. Frontend calls `DELETE /api/v1/auth/account` with the current access token in the `Authorization: Bearer` header.
+4. **On success (204 No Content):**
+   - Clear access token and refresh token from memory (`api.js` module variables).
+   - Clear `pg_user` from `sessionStorage`.
+   - Redirect to `/login`.
+   - Show toast notification (top-right, 4-second auto-dismiss): "Your account has been deleted." Left border: `#B85C38` (use the error/danger variant of the toast).
+5. **On error (network failure, 401, 5xx):**
+   - Remove spinner; re-enable both buttons.
+   - Show the error message below the body copy (see content item 4 above).
+   - If 401 (auth expired during open modal): show "Session expired. Please log in again." and redirect to `/login` after 2 seconds.
 
 #### States
 
 | State | Behavior |
 |-------|---------|
 | **Loading** | Skeleton avatar, skeleton name, skeleton stat tiles |
-| **Loaded** | Full profile content |
+| **Loaded** | Full profile content; "Delete Account" button visible and enabled |
 | **Error (load)** | "Couldn't load your profile. Refresh to try again." |
-| **Logging out** | Logout button shows spinner, redirects to `/login` on success |
+| **Logging out** | Logout button shows spinner; redirects to `/login` on success |
+| **Modal open** | Confirmation modal overlaid; page behind is non-interactive; "Cancel" focused |
+| **Deleting** | Modal stays open; "Delete my account" shows spinner; both buttons disabled; no close |
+| **Delete success** | Redirected to `/login`; toast "Your account has been deleted." displayed |
+| **Delete error** | Modal stays open; error message rendered below body copy; buttons re-enabled |
+| **Delete — session expired** | Show "Session expired. Please log in again."; redirect to `/login` after 2s |
 
 #### Responsive Behavior
 
 | Breakpoint | Layout |
 |-----------|--------|
-| Desktop (≥1024px) | Profile card with inline avatar + details; 3-column stat grid |
+| Desktop (≥1024px) | Profile card with inline avatar + details; 3-column stat grid; actions left-aligned |
 | Tablet (768–1023px) | Same layout, slightly reduced padding |
-| Mobile (<768px) | Avatar centered above details; stats stacked vertically; all full-width |
+| Mobile (<768px) | Avatar centered above details; stats stacked vertically; all full-width; modal buttons stacked |
 
 #### Accessibility
 
 - Avatar: `role="img"`, `aria-label="[User Name] profile picture"` (or "Initials avatar" if initials)
 - Stat tiles: `role="figure"` with `aria-label="[Number] [Label]"` so screen readers announce the full stat
-- Logout: confirm step not required (not destructive), but redirect should be announced
-- Color contrast on all text elements: WCAG AA
+- Logout button: no confirm step required (not destructive); redirect should be announced via live region
+- "Delete Account" button: `aria-label="Delete account"`, `aria-haspopup="dialog"`
+- Modal: `role="dialog"`, `aria-modal="true"`, `aria-labelledby` pointing to the modal heading element ID, `aria-describedby` pointing to the body copy element ID
+- Focus trap: keyboard focus is constrained within the modal while open. On close (Cancel or Escape), focus returns to the "Delete Account" trigger button
+- "Delete my account" in loading state: `aria-busy="true"`, `aria-label="Deleting account, please wait"` while spinner is shown
+- Color contrast on all text elements: WCAG AA minimum
 
 ---
 
