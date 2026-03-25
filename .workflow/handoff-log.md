@@ -1352,3 +1352,71 @@ Health Checks: 14/15 checks PASS; 1 expected failure (POST /api/v1/ai/advice ret
 Endpoints verified: /api/health, /api/v1/auth/login, /api/v1/auth/refresh, /api/v1/auth/logout, GET/POST/PUT/DELETE /api/v1/plants, GET/PUT /api/v1/plants/:id, POST /api/v1/plants/:id/photo (reachability), POST/DELETE /api/v1/plants/:id/care-actions, GET /api/v1/profile
 Frontend: Accessible at http://localhost:5173 (vite preview), dist/ build present
 Next: Sprint #4 is complete. Ready for next sprint planning. T-025 (Gemini API key configuration) should be prioritized in Sprint #5.
+
+---
+
+## H-052 — Sprint 5 API Contracts Ready: No Changes (Backend → Frontend Engineer)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-052 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 5 |
+| **Subject** | Sprint 5 API contract review complete — no new or changed endpoints |
+| **Spec Refs** | T-025, T-029, api-contracts.md Sprint 5 section |
+| **Status** | Pending |
+
+### Notes
+
+Sprint 5 introduces **no new API endpoints and no schema changes**. The full 14-endpoint contract from Sprint 1 remains authoritative.
+
+**What this means for Frontend Engineer:**
+- No integration changes required
+- No new request shapes, response shapes, or error codes to handle
+- The `POST /api/v1/ai/advice` endpoint (T-025) is contract-stable — only the backend's Gemini key configuration is changing; the request/response shape is identical to the Sprint 1 / Sprint 4 spec
+
+**T-029 (flaky test fix):** This is a backend test infrastructure fix. No frontend impact.
+
+**Action required:** None — this handoff is informational. Sprint 5 frontend work (T-020 user testing) requires no backend API changes.
+
+---
+
+## H-053 — Sprint 5 API Contracts for QA Reference (Backend → QA Engineer)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-053 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 5 |
+| **Subject** | Sprint 5 API contract review — testing reference for T-025 and T-029 |
+| **Spec Refs** | T-025, T-029, api-contracts.md Sprint 5 section |
+| **Status** | Pending |
+
+### Notes
+
+Sprint 5 introduces no new endpoints. Two backend tasks are in scope:
+
+#### T-025 — Gemini API Key + AI Advice Happy Path
+
+**What to test (once Backend Engineer marks T-025 In Review):**
+
+1. `POST /api/v1/ai/advice` with `plant_type` body → expect HTTP 200 with full care advice JSON (see Sprint 1 Group 4 + Sprint 4 T-025 notes for exact shape)
+2. `POST /api/v1/ai/advice` with `photo_url` body → expect HTTP 200 with `identified_plant_type` and `confidence` populated
+3. All error paths must still pass — `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`, `422 PLANT_NOT_IDENTIFIABLE`, `502 AI_SERVICE_UNAVAILABLE`
+4. All 40/40 backend unit tests must still pass after key is configured
+
+**If no valid Gemini key is available:** Verify T-025 gap is documented in `qa-build-log.md`. Confirm 40/40 tests still pass with placeholder key.
+
+#### T-029 — Flaky Test Fix
+
+**What to test:**
+1. Run `cd backend && npm test` three consecutive times
+2. All 3 runs must complete with **40/40 tests passing** and **zero "socket hang up" failures**
+3. No endpoint behavior changes — existing contract error codes and response shapes are unchanged
+
+**Test strategy reference:** api-contracts.md Sprint 5 → T-029 section documents the three candidate fixes. The acceptance criterion is 3 clean consecutive runs.
+

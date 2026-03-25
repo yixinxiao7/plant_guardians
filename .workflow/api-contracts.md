@@ -1047,3 +1047,73 @@ If the project owner has not yet provided a valid Gemini API key, T-025 scope re
 ---
 
 *Sprint 4 contract review written by Backend Engineer — 2026-03-24. No new endpoints. Existing 14-endpoint contract unchanged. T-025 happy-path notes added for QA reference.*
+
+---
+
+## Sprint 5 Contracts — 2026-03-24
+
+---
+
+### Summary
+
+Sprint 5 introduces **no new API endpoints and no schema changes**. The active-sprint.md explicitly places all new features out of scope — Sprint 5 is exclusively MVP validation and closeout.
+
+The full 14-endpoint API surface documented in Sprint 1 (Groups 1–4) remains the authoritative and complete contract. No amendments are required.
+
+**Backend tasks this sprint:**
+
+| Task | Type | API Impact |
+|------|------|-----------|
+| T-025 | Configure real `GEMINI_API_KEY` + verify `POST /api/v1/ai/advice` happy path | No contract change — endpoint fully specified in Sprint 1 Group 4 and Sprint 4 T-025 notes |
+| T-029 | Fix intermittent "socket hang up" in `POST /api/v1/plants` backend test | No contract change — test infrastructure fix only |
+
+---
+
+### T-025 — Sprint 5 Status: Contract Verification (Carry-Over)
+
+**Endpoint:** `POST /api/v1/ai/advice` — see Sprint 1, GROUP 4 for full spec; see Sprint 4 T-025 section for happy-path response shape and QA notes.
+
+**Contract status:** ✅ No changes. All sprint 4 contract verification notes remain current and authoritative.
+
+**Sprint 5 scope:** The Backend Engineer will attempt to configure `GEMINI_API_KEY` in `backend/.env` with a valid key from Google AI Studio, then manually exercise the endpoint to confirm the happy-path 200 response matches the shape documented in the Sprint 4 T-025 section. Results will be written to `qa-build-log.md`.
+
+**If no valid key is available:** T-025 scope reduces to documenting the gap in `qa-build-log.md`. The 40/40 backend unit tests must still pass. T-020 user testing continues — Flow 1 and Flow 3 do not require AI; Flow 2 will show the spec-compliant 502 error state.
+
+**No frontend action required** — the `POST /api/v1/ai/advice` request/response shape is unchanged.
+
+---
+
+### T-029 — Sprint 5 Status: Flaky Test Fix (No API Impact)
+
+**Affected area:** Backend test suite only — `POST /api/v1/plants > should create a plant with care schedules` intermittently throws "socket hang up" due to supertest/server teardown timing.
+
+**API contract impact:** None. The `POST /api/v1/plants` endpoint behavior and contract are unchanged. This is a test infrastructure stability fix.
+
+**Resolution approaches under consideration:**
+1. Add `--runInBand` to Jest config (`backend/package.json` test script) to serialize test suites and eliminate cross-suite socket collisions
+2. Improve supertest server teardown — ensure `server.close()` is called with a callback (not fire-and-forget) in `afterAll` hooks
+3. Add a small `afterAll` delay between test files if teardown race conditions persist
+
+**Acceptance criteria (contract-level):** All 40/40 backend tests pass reliably across 3 consecutive full-suite runs. No endpoint behavior changes.
+
+---
+
+### Schema Changes — Sprint 5
+
+**No schema changes.** All 5 tables (`users`, `refresh_tokens`, `plants`, `care_schedules`, `care_actions`) from Sprint 1 are sufficient for all Sprint 5 work.
+
+No migration files will be created this sprint.
+
+---
+
+### Environment Configuration — Sprint 5
+
+The only environment change this sprint is replacing the placeholder value of `GEMINI_API_KEY` in `backend/.env` with a real key. No new variables are introduced, and no other variables change.
+
+| Variable | Change | Notes |
+|----------|--------|-------|
+| `GEMINI_API_KEY` | Value updated (placeholder → valid key) | Only if project owner provisions a key; documented in `qa-build-log.md` either way |
+
+---
+
+*Sprint 5 contract review written by Backend Engineer — 2026-03-24. No new endpoints. No schema changes. Existing 14-endpoint contract is final and complete. T-025 and T-029 are operational/stability tasks only.*
