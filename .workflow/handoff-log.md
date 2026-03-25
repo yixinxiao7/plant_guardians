@@ -1297,6 +1297,46 @@ The following tasks carry over to Sprint #5:
 
 ---
 
+## H-051 — SPEC-004 Updated: Redirect-to-Detail Post-Save (T-027)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-051 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-24 |
+| **Sprint** | 5 |
+| **Subject** | SPEC-004 (Edit Plant Screen) updated to formally document the post-save redirect to `/plants/:id`. Spec is Approved. No implementation change required. |
+| **Spec Refs** | SPEC-004, T-027, FB-005 |
+| **Status** | Complete |
+
+### What Changed in SPEC-004
+
+The spec has been updated to reflect the actual implemented behavior (and the better UX behavior). Specifically:
+
+**Added: Post-Save Navigation section** in SPEC-004
+
+> After a successful save, the app **redirects to `/plants/:id`** (the Plant Detail page for the edited plant) — **not** to `/` (the inventory).
+>
+> **Rationale:** Redirecting to the plant detail page lets the user immediately confirm their changes. Seeing the updated data in context is more useful than returning to the inventory list, which offers no immediate confirmation.
+
+**Updated: States table** — The "Success" state row now explicitly reads:
+- `Redirect to /plants:id (Plant Detail page for this plant), toast: "Changes saved."`
+
+**Superseded:** Any earlier spec language that described a post-save redirect to the inventory root (`/`) is now formally overridden by this section.
+
+### Action Required
+
+**None.** The Frontend Engineer's T-004 implementation already redirects to `/plants/:id` after save, which is the correct and intended behavior. This handoff is a spec documentation closure — it brings the written spec in line with the running code, closing the spec debt from FB-005.
+
+No code changes, no re-testing, no re-review required.
+
+### Spec Status
+
+SPEC-004 is **Approved** as of 2026-03-24.
+
+---
+
 ---
 ## Handoff: Monitor → Manager
 Sprint: #4
