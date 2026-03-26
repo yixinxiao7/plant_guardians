@@ -178,3 +178,53 @@ CREATE INDEX idx_care_actions_performed_at ON care_actions (plant_id, performed_
 | Multer (npm) | Multipart file upload handling for photo endpoint (T-010) | `backend/src/middleware/upload.js` |
 
 ---
+
+## Sprint 7 — Schema & Migration Notes (T-039)
+
+**Proposed by:** Backend Engineer — 2026-03-25
+**Status: Auto-approved (automated sprint)** — Manager Agent will review in closeout phase.
+
+### No New Migrations Required
+
+The `GET /api/v1/care-actions` endpoint (T-039) requires **no schema changes**. The existing `care_actions` table created in Sprint 1 (migration `20260323_05_create_care_actions.js`) already provides:
+
+- All required columns: `id`, `plant_id`, `care_type`, `performed_at`
+- Ownership linkage via `plant_id → plants.id → user_id` (for auth scoping)
+- Required indexes for efficient paginated queries: `idx_care_actions_plant_id` and `idx_care_actions_performed_at`
+
+The `plant_name` field in the API response is resolved by a `JOIN` with the `plants` table at query time — no denormalization, no new columns.
+
+**No migration files will be created for Sprint 7.**
+
+### Query Design (for implementation reference)
+
+The core query pattern for `GET /api/v1/care-actions`:
+
+```sql
+SELECT
+  ca.id,
+  ca.plant_id,
+  p.name AS plant_name,
+  ca.care_type,
+  ca.performed_at
+FROM care_actions ca
+JOIN plants p ON ca.plant_id = p.id
+WHERE p.user_id = :userId          -- ownership scoping (auth)
+  [AND ca.plant_id = :plantId]     -- optional plant filter
+ORDER BY ca.performed_at DESC
+LIMIT :limit OFFSET :offset;
+```
+
+Count query (for pagination `total`):
+
+```sql
+SELECT COUNT(*) AS total
+FROM care_actions ca
+JOIN plants p ON ca.plant_id = p.id
+WHERE p.user_id = :userId
+  [AND ca.plant_id = :plantId];
+```
+
+Both queries use parameterized values via Knex — no string concatenation.
+
+---

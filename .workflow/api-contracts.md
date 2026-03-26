@@ -1221,3 +1221,176 @@ No new environment variables are required for T-033 or T-031.
 ---
 
 *Sprint 6 contract written by Backend Engineer — 2026-03-25. One new endpoint: DELETE /api/v1/auth/account. No schema changes. All 14 prior endpoints unchanged.*
+
+---
+
+## Sprint 7 Contracts — 2026-03-25
+
+---
+
+### Summary
+
+Sprint 7 introduces **one new API endpoint**: `GET /api/v1/care-actions` (T-039). No other endpoints are added or changed. No schema migrations are required — the `care_actions` table and all necessary indexes were established in Sprint 1 (T-014). A cross-table JOIN with `plants` satisfies the `plant_name` field requirement without any schema change.
+
+**New endpoints this sprint: 1** (total endpoints: 16)
+
+---
+
+### GROUP 7 — Care History (T-039)
+
+---
+
+#### GET /api/v1/care-actions
+
+**Auth:** Bearer token (required)
+
+**Description:** Returns a paginated, reverse-chronological list of all care actions performed by the authenticated user across all their plants. Optionally filtered to a single plant via the `plant_id` query parameter. Used by the Care History page (`/history`, SPEC-008).
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Rules |
+|-----------|------|----------|---------|-------|
+| `page` | integer | No | `1` | Must be ≥ 1 |
+| `limit` | integer | No | `20` | Must be between 1 and 100 inclusive |
+| `plant_id` | UUID string | No | — | If provided, must be a valid UUID; results restricted to this plant; returns empty array (not 404) if the plant has no care actions. If the plant_id does not belong to the authenticated user, return empty array (ownership isolation — do not reveal existence of other users' plants). |
+
+**Request Body:** None
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "plant_id": "uuid",
+      "plant_name": "string",
+      "care_type": "watering | fertilizing | repotting",
+      "performed_at": "ISO8601"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 42
+  }
+}
+```
+
+**Field Notes:**
+
+| Field | Source | Notes |
+|-------|--------|-------|
+| `id` | `care_actions.id` | UUID v4 |
+| `plant_id` | `care_actions.plant_id` | UUID v4 |
+| `plant_name` | `plants.name` (JOIN) | The plant's display name at time of query |
+| `care_type` | `care_actions.care_type` | Enum: `"watering"`, `"fertilizing"`, `"repotting"` |
+| `performed_at` | `care_actions.performed_at` | ISO 8601 UTC; used to compute relative timestamps on the frontend |
+
+**Sorting:** Always sorted by `performed_at DESC` (most recent first). Sorting is not configurable by the client.
+
+**Pagination Behavior:**
+- `page` and `limit` follow standard offset pagination: `OFFSET = (page - 1) * limit`
+- `total` is the count of all matching rows before pagination (used by frontend to compute "N remaining" for load-more)
+- Empty result is a valid 200 response: `{ "data": [], "pagination": { "page": 1, "limit": 20, "total": 0 } }`
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `page` or `limit` is not a positive integer; `limit` exceeds 100; `plant_id` is not a valid UUID format |
+| 401 | `UNAUTHORIZED` | Missing or invalid access token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Example — successful response with filter:**
+
+```
+GET /api/v1/care-actions?plant_id=abc123de-...&page=1&limit=20
+Authorization: Bearer <access_token>
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "plant_id": "abc123de-0000-0000-0000-000000000001",
+      "plant_name": "Monstera Deliciosa",
+      "care_type": "watering",
+      "performed_at": "2026-03-24T14:32:00.000Z"
+    },
+    {
+      "id": "a1b2c3d4-58cc-4372-a567-0e02b2c3d480",
+      "plant_id": "abc123de-0000-0000-0000-000000000001",
+      "plant_name": "Monstera Deliciosa",
+      "care_type": "fertilizing",
+      "performed_at": "2026-03-20T09:15:00.000Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 2
+  }
+}
+```
+
+**Example — empty result (no care actions or no-match filter):**
+
+```json
+{
+  "data": [],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 0
+  }
+}
+```
+
+**Example error (401):**
+
+```json
+{
+  "error": {
+    "message": "Authentication required.",
+    "code": "UNAUTHORIZED"
+  }
+}
+```
+
+**Example error (400 — invalid plant_id format):**
+
+```json
+{
+  "error": {
+    "message": "plant_id must be a valid UUID.",
+    "code": "VALIDATION_ERROR"
+  }
+}
+```
+
+---
+
+### Schema Changes — Sprint 7
+
+**No new migrations required.** The `care_actions` table was created in Sprint 1 (T-014, migration `20260323_05_create_care_actions.js`) and already contains all fields needed by this endpoint. The required indexes are already in place:
+
+| Index | Columns | Purpose |
+|-------|---------|---------|
+| `idx_care_actions_plant_id` | `plant_id` | Fast filter-by-plant queries |
+| `idx_care_actions_performed_at` | `(plant_id, performed_at)` | Fast sort + filter for history listing |
+
+The `plant_name` field is resolved at query time via a `JOIN` on the `plants` table — no denormalization or new columns needed.
+
+**No migration files will be created this sprint.**
+
+---
+
+### Environment Configuration — Sprint 7
+
+No new environment variables are required for T-039.
+
+---
+
+*Sprint 7 contract written by Backend Engineer — 2026-03-25. One new endpoint: GET /api/v1/care-actions. No schema changes. All 15 prior endpoints unchanged.*

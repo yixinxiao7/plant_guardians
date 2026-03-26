@@ -1223,6 +1223,117 @@ All 14 endpoints documented in `.workflow/api-contracts.md` are:
 
 ---
 
+## H-088 — Backend Engineer → Manager: Sprint 7 Schema Proposal — Auto-Approved
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-088 |
+| **From** | Backend Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-03-25 |
+| **Sprint** | 7 |
+| **Subject** | Sprint 7 schema change proposal for T-039 — no new migrations required |
+| **Spec Refs** | T-039 |
+| **Status** | Auto-approved (automated sprint) |
+
+### Proposal Summary
+
+`GET /api/v1/care-actions` (T-039) requires **no new database migrations**. All needed schema elements (the `care_actions` table, indexes, and FK relationships) were established in Sprint 1.
+
+- `plant_name` resolved via JOIN with `plants` at query time — no denormalization needed.
+- No new environment variables.
+- No new third-party services.
+
+Full details in `.workflow/technical-context.md` under "Sprint 7 — Schema & Migration Notes (T-039)".
+
+**Decision:** Auto-approved for the automated sprint flow. Manager to review at closeout.
+
+---
+
+## H-089 — Backend Engineer → Frontend Engineer: Sprint 7 API Contract Ready
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-089 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 7 |
+| **Subject** | `GET /api/v1/care-actions` contract published — T-040 (Care History page) may begin implementation |
+| **Spec Refs** | T-039, T-040, SPEC-008 |
+| **Status** | Pending |
+
+### What's Ready
+
+The API contract for Sprint 7's sole new endpoint has been documented in `.workflow/api-contracts.md` under **Sprint 7 Contracts → GROUP 7 — Care History (T-039)**.
+
+### Endpoint Summary
+
+| | Details |
+|-|---------|
+| **Method + Path** | `GET /api/v1/care-actions` |
+| **Auth** | Bearer token (required) |
+| **Query Params** | `plant_id` (optional UUID), `page` (default 1), `limit` (default 20, max 100) |
+| **Response Shape** | `{ data: [{ id, plant_id, plant_name, care_type, performed_at }], pagination: { page, limit, total } }` |
+| **Sort order** | `performed_at DESC` always |
+| **Empty result** | 200 with `data: []` and `pagination.total: 0` — not a 404 |
+
+### Key Integration Notes for T-040
+
+1. **Filter dropdown population:** Fetch `GET /api/v1/plants` (existing endpoint) in parallel with the initial care-actions fetch to populate the plant filter dropdown — ensures all plants appear even those with no care history entries.
+2. **Unfiltered fetch:** Omit `plant_id` param to get all plants' history.
+3. **Filtered fetch:** Pass `plant_id=<uuid>` to filter to a single plant.
+4. **Load-more pagination:** Increment `page` param on each "Load more" tap; append new `data[]` entries to the existing list without scroll reset. Use `pagination.total` to compute "N remaining" (`total - page * limit`).
+5. **Empty state disambiguation:** If `pagination.total === 0` AND no `plant_id` filter is active → render global empty state ("No care actions yet."). If `pagination.total === 0` AND a filter is active → render filtered empty state ("No actions for this plant yet.").
+6. **`performed_at` field:** ISO 8601 UTC string. Use this to derive all relative timestamp display ("X minutes ago", "X days ago", etc.) per SPEC-008 timestamp format rules.
+7. **`care_type` values:** Exactly `"watering"`, `"fertilizing"`, or `"repotting"` — use these to drive icon and color selection per SPEC-008 care-type color table.
+
+Both T-038 (SPEC-008) and T-039 (this contract) are now satisfied — **T-040 is unblocked**.
+
+---
+
+## H-090 — Backend Engineer → QA Engineer: Sprint 7 API Contract for Testing Reference
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-090 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 7 |
+| **Subject** | `GET /api/v1/care-actions` API contract published — reference for T-039 unit tests and Care History feature QA |
+| **Spec Refs** | T-039, T-040, SPEC-008 |
+| **Status** | Pending |
+
+### Contract Location
+
+Full contract in `.workflow/api-contracts.md` → **Sprint 7 Contracts → GROUP 7 — Care History (T-039)**.
+
+### Test Scenarios to Verify (T-039 Backend)
+
+When the Backend Engineer completes T-039 implementation, QA should verify:
+
+| # | Scenario | Expected |
+|---|----------|---------|
+| 1 | **Happy path — no filter** | 200; returns all user's care actions sorted `performed_at DESC`; `pagination.total` matches actual count |
+| 2 | **Happy path — plant_id filter** | 200; returns only actions for that plant; `plant_name` matches the plant's name |
+| 3 | **Empty result — no actions exist** | 200; `data: []`; `pagination.total: 0` |
+| 4 | **Empty result — filter with no actions** | 200; `data: []`; `pagination.total: 0` (not 404) |
+| 5 | **Pagination** | Page 2 returns the correct offset; `total` is consistent across pages |
+| 6 | **Ownership isolation** | User A's `plant_id` passed by User B returns empty array (not 404, not 403) |
+| 7 | **Unauthenticated** | 401 `UNAUTHORIZED` |
+| 8 | **Invalid plant_id format** | 400 `VALIDATION_ERROR` |
+| 9 | **Invalid page/limit** | 400 `VALIDATION_ERROR` (page < 1, limit > 100, non-integer) |
+| 10 | **`plant_name` join** | `plant_name` in response matches `plants.name` for the referenced plant |
+
+### Notes
+
+- The `care_actions` table and all indexes already exist — no migration to run in staging before testing.
+- All 48 existing backend tests must continue to pass after T-039 implementation.
+- API response `performed_at` must be ISO 8601 UTC — verify format precision (`.000Z` suffix).
+
+---
+
 ## H-087 — Design Agent → Frontend Engineer: SPEC-008 Care History Page Approved — Ready to Build
 
 | Field | Value |
