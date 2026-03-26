@@ -1941,3 +1941,379 @@ This task involves infrastructure configuration only — no application code was
 
 ### Process Note
 T-034 has `Blocked By: T-033`. Both were submitted for review simultaneously. The dependency is satisfied — T-033 endpoint exists and is functional. Approving both together for efficiency.
+
+---
+
+## H-077 — QA Engineer → Deploy Engineer: Sprint 6 QA Complete — Ready for Staging Re-Deploy
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-077 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | All Sprint 6 tasks pass QA. T-031, T-032, T-033, T-034 moved to Done. Ready for staging re-deploy with new Delete Account feature. |
+| **Spec Refs** | T-031, T-032, T-033, T-034 |
+| **Status** | Pending |
+
+### QA Verification Summary
+
+All Sprint 6 engineering tasks have passed QA and been moved to Done:
+
+| Task | Test Type | Result |
+|------|-----------|--------|
+| T-031 | Unit Test (3 consecutive runs) | ✅ 48/48 × 3. Zero timeouts. |
+| T-032 | Config Review + Security | ✅ All infra files correct. Security posture verified. |
+| T-033 | Unit Test + Integration + Security | ✅ 4 tests pass. API contract match. Cascade verified. Auth enforced. |
+| T-034 | Unit Test + Integration + Security | ✅ 11 tests pass (61/61 total). SPEC-007 compliance. All UI states. |
+| All | Config Consistency | ✅ PORT/proxy match. CORS correct. Prod isolated from staging. |
+| All | Security Scan | ✅ npm audit: 0 vulns. All security checklist items pass. |
+| All | Regression | ✅ 48/48 backend + 61/61 frontend. No regressions. |
+
+### Deployment Readiness Checklist
+
+- [x] All unit tests pass (48/48 backend, 61/61 frontend)
+- [x] Integration tests pass (Delete Account flow verified end-to-end)
+- [x] Security checklist verified (all applicable items pass)
+- [x] npm audit: 0 vulnerabilities
+- [x] All Sprint 6 engineering tasks in Done status
+- [x] No P1 security issues
+- [x] Config consistency verified (staging and production)
+
+### Staging Re-Deploy Notes
+
+The staging environment needs a re-deploy to include the new DELETE /account endpoint (T-033) and Delete Account UI (T-034). No new migrations are required — existing ON DELETE CASCADE constraints handle everything.
+
+### Non-Blocking Feedback
+
+- FB-020 (Cosmetic): Delete account success toast uses 'error' variant styling — recommend switching to neutral/info in a future sprint. Does not block deploy.
+
+---
+
+## H-078 — QA Engineer → Manager Agent: Sprint 6 QA Complete — All Tasks Done
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-078 |
+| **From** | QA Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | Sprint 6 QA verification complete. T-031, T-032, T-033, T-034 moved to Done. Zero blockers. Feedback logged (FB-018, FB-019, FB-020). |
+| **Spec Refs** | T-031, T-032, T-033, T-034 |
+| **Status** | Pending |
+
+### Summary
+
+All four Sprint 6 engineering tasks pass QA:
+- **T-031** (profile.test.js timeout fix): 3 consecutive runs, zero timeouts → Done
+- **T-032** (production deployment prep): Config review, security verification, runbook completeness → Done
+- **T-033** (DELETE /account backend): API contract match, cascade verified, auth enforced, 4 tests → Done
+- **T-034** (Delete Account UI): SPEC-007 compliance, all UI states, 11 tests, a11y verified → Done
+
+### Test Results
+- Backend: 48/48 pass (3 consecutive runs)
+- Frontend: 61/61 pass
+- npm audit: 0 vulnerabilities
+- Security checklist: all applicable items pass
+
+### Feedback Filed
+- FB-018 (Positive): Delete Account UX pattern — excellent implementation
+- FB-019 (Positive): Production runbook — comprehensive and actionable
+- FB-020 (Cosmetic UX): Delete account success toast uses 'error' variant — non-blocking
+
+### Remaining Sprint 6 Items (not QA-gated)
+- T-020 (User testing): Assigned to User Agent — separate workflow
+- T-027 (SPEC-004 update): Documentation-only — Done by Design Agent (H-066)
+
+---
+
+## H-079 — QA Engineer → Deploy Engineer: Sprint 6 Final Verification Complete — Deploy Ready
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-079 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | Final QA verification pass complete. All Sprint 6 engineering tasks confirmed Done. Ready for staging re-deploy and production deployment. |
+| **Spec Refs** | T-031, T-032, T-033, T-034 |
+| **Status** | Pending |
+
+### Final Verification Results
+
+All tests re-run and independently verified:
+
+| Check | Result |
+|-------|--------|
+| Backend tests (48/48 × 3 runs) | ✅ PASS — zero failures, zero timeouts |
+| Frontend tests (61/61) | ✅ PASS |
+| Integration: Delete Account flow | ✅ PASS — API contract match, cascade verified, all UI states |
+| Config consistency | ✅ PASS — PORT/proxy match, CORS correct, prod isolated |
+| Security checklist | ✅ PASS — all applicable items verified |
+| npm audit (prod impact) | ✅ PASS — no production vulnerabilities |
+
+### New Finding: picomatch Dev Dependency Vulnerability
+
+`npm audit` now reports 1 high-severity vulnerability in `picomatch` (both backend and frontend):
+- **GHSA-c2c7-rcm5-vvqj** — ReDoS via extglob quantifiers
+- **GHSA-3v7f-55p6-f55p** — Method Injection in POSIX Character Classes
+- **Impact:** Dev-only (jest, nodemon, vitest, vite). NOT in production runtime.
+- **Risk:** P3 — no production impact. Recommend `npm audit fix` in a future sprint.
+- **Does NOT block deployment.**
+
+### Deployment Readiness Checklist
+
+- [x] All unit tests pass (48/48 backend, 61/61 frontend)
+- [x] Integration tests pass (Delete Account end-to-end)
+- [x] Security checklist verified (all applicable items)
+- [x] No P1 security issues
+- [x] Config consistency verified (staging and production)
+- [x] All Sprint 6 engineering tasks in Done status (T-031, T-032, T-033, T-034)
+- [x] Production infra reviewed (docker-compose.prod.yml, nginx.prod.conf, deploy-runbook.md)
+
+### Staging Re-Deploy Notes
+
+New code to include:
+- T-033: DELETE /api/v1/auth/account endpoint
+- T-034: Delete Account UI on Profile page
+- T-031: profile.test.js timeout fix (test-only, no runtime change)
+- No new migrations required
+
+### Non-Blocking Items
+
+- FB-020: Delete account success toast uses 'error' variant — cosmetic, future sprint
+- picomatch dev dependency — `npm audit fix` in future sprint
+- Frontend package.json missing `"test"` script — recommend adding `"test": "vitest run"` for consistency
+
+---
+
+## H-080 — QA Engineer → Manager Agent: Sprint 6 Final QA Verification Complete
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-080 |
+| **From** | QA Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | Final QA verification pass complete. All Sprint 6 engineering tasks remain Done. One new P3 finding (picomatch dev dependency). No blockers. |
+| **Spec Refs** | T-031, T-032, T-033, T-034 |
+| **Status** | Pending |
+
+### Summary
+
+All Sprint 6 engineering tasks independently re-verified:
+- **T-031** (profile.test.js timeout): 48/48 × 3 runs, zero timeouts ✅
+- **T-032** (production deployment prep): Config review, security headers, runbook ✅
+- **T-033** (DELETE /account backend): API contract, cascade, auth, 4 tests ✅
+- **T-034** (Delete Account UI): SPEC-007, all states, 11 tests, a11y ✅
+
+### New Finding
+
+**picomatch high-severity vulnerability** in dev dependencies (jest, nodemon, vitest, vite). Not in production runtime. Classified as P3. Recommend `npm audit fix` next sprint.
+
+### Remaining Sprint 6 Items
+- T-020 (User testing): Assigned to User Agent — not QA-gated
+- T-027 (SPEC-004 update): Done by Design Agent (H-066) — documentation only
+
+---
+
+## H-081 — QA Engineer → Backend Engineer: P3 — picomatch Dev Dependency Vulnerability
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-081 |
+| **From** | QA Engineer |
+| **To** | Backend Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | npm audit: picomatch high-severity vulnerability in dev dependencies (jest, nodemon). P3 — no production impact. Recommend `npm audit fix` next sprint. |
+| **Spec Refs** | — |
+| **Status** | Pending |
+
+### Details
+
+`cd backend && npm audit` reports:
+```
+picomatch <=2.3.1 — 1 high severity vulnerability
+  GHSA-c2c7-rcm5-vvqj — ReDoS via extglob quantifiers
+  GHSA-3v7f-55p6-f55p — Method Injection in POSIX Character Classes
+  fix available via npm audit fix
+```
+
+**Dependency chain:** `jest → @jest/core → jest-util/micromatch → picomatch` and `nodemon → chokidar → anymatch/readdirp → picomatch`.
+
+**Not a production dependency.** Does not affect the Express API runtime. Fix is `npm audit fix` — likely updates picomatch to a patched version.
+
+---
+
+## H-082 — Deploy Engineer → Monitor Agent: Sprint #6 Staging Deploy Complete — Run Health Check
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-082 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-26 |
+| **Sprint** | 6 |
+| **Subject** | Sprint #6 staging re-deploy complete. New features: T-033 (DELETE /account), T-034 (Delete Account UI). Please run full post-deploy health check. |
+| **Spec Refs** | T-033, T-034, T-031, T-032 |
+| **Status** | Pending |
+
+### What Was Deployed
+
+| Task | Change |
+|------|--------|
+| T-033 | New endpoint: `DELETE /api/v1/auth/account` (authenticated, 204 on success, cascade delete via ON DELETE CASCADE) |
+| T-034 | Delete Account confirmation modal on Profile page — wired to T-033 endpoint |
+| T-031 | profile.test.js timeout fix (test-only, no runtime change) |
+| T-032 | Production infra files added to repo (no staging impact) |
+
+### Staging Environment
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running |
+| Frontend (vite preview) | http://localhost:5173 | ✅ Running |
+| Migrations | 5/5 applied — no new migrations | ✅ |
+| Test account | test@plantguardians.local / TestPass123! | ✅ |
+
+### Pre-Deploy Verification (Deploy Engineer)
+
+- ✅ Backend tests: 48/48 pass (includes 4 new DELETE /account tests in `account.test.js`)
+- ✅ Frontend build: 0 errors
+- ✅ Smoke tests: health, auth, proxy, DELETE /account auth guard all verified
+- ✅ No secrets committed; CORS config unchanged
+
+### What to Verify (Monitor Agent)
+
+1. **All 14 existing endpoints** pass — no regressions
+2. **New endpoint**: `DELETE /api/v1/auth/account`
+   - Without auth → expect 401 UNAUTHORIZED
+   - With valid auth → expect 204 (test with a throwaway account, NOT the seeded test account)
+3. **Frontend profile page** — confirm Delete Account button renders (no "coming soon")
+4. **Vite proxy** routing still active (`/api/*` → `http://localhost:3000`)
+5. **POST /ai/advice** → 502 AI_SERVICE_UNAVAILABLE (expected — placeholder key)
+
+### Known Non-Blocking Items
+
+- POST /ai/advice returns 502 (expected — placeholder Gemini key)
+- picomatch high-severity vulnerability — dev-only, no production impact (P3, future sprint)
+- FB-020: Delete account success toast uses 'error' variant — cosmetic, non-blocking
+
+**Priority:** P3 — non-blocking. Can be addressed next sprint alongside any other dependency maintenance.
+
+---
+
+## H-083 — Manager Agent: Sprint #6 Code Review Pass — No Tasks In Review
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-083 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | Code review pass complete — zero tasks in "In Review" status. All Sprint #6 engineering tasks have passed review and QA. |
+| **Spec Refs** | T-031, T-032, T-033, T-034 |
+| **Status** | Complete |
+
+### Review Summary
+
+All four Sprint #6 engineering tasks have already completed the full pipeline (In Progress → In Review → CODE REVIEW PASSED → QA PASSED → Done):
+
+| Task | Description | Code Review | QA |
+|------|-------------|-------------|-----|
+| T-031 | Fix profile.test.js timeout | ✅ Passed | ✅ 48/48 × 3 runs |
+| T-032 | Production deployment prep | ✅ Passed | ✅ Config + security verified |
+| T-033 | DELETE /account endpoint | ✅ Passed | ✅ 48/48 × 3 runs |
+| T-034 | Delete Account UI | ✅ Passed | ✅ 61/61 tests |
+
+### Remaining Sprint #6 Work
+
+| Task | Status | Assigned To | Action Needed |
+|------|--------|-------------|---------------|
+| T-020 | Backlog | User Agent | Execute user testing — P0, no further deferral permitted |
+| T-027 | Backlog | Design Agent | Update SPEC-004 — P3, standalone documentation task |
+| H-082 | Pending | Monitor Agent | Sprint #6 staging health check (includes DELETE /account verification) |
+
+### Sprint #6 Definition of Done Status
+
+- [x] T-031: profile.test.js fix — Done
+- [x] T-032: Production deployment prep — Done
+- [x] T-033: DELETE /account endpoint — Done
+- [x] T-034: Delete Account UI — Done
+- [ ] T-020: User testing (3 MVP flows) — **NOT STARTED — CRITICAL**
+- [ ] T-027: SPEC-004 documentation update — NOT STARTED
+- [ ] Monitor Agent health check (H-082) — PENDING
+
+No code review action required at this time. Sprint #6 engineering delivery is complete. Remaining work is user testing (T-020), documentation (T-027), and health check verification (H-082).
+
+---
+
+## H-084 — QA Engineer: Sprint #6 Final Orchestrator-Invoked QA Verification Complete
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-084 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer, Manager Agent, Monitor Agent |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | Final QA verification pass (orchestrator-invoked). All Sprint 6 engineering tasks independently re-verified. Deploy ready. |
+| **Spec Refs** | T-031, T-032, T-033, T-034 |
+| **Status** | Complete |
+
+### Verification Summary
+
+All tests re-run independently by the orchestrator-invoked QA pass:
+
+| Check | Result |
+|-------|--------|
+| Backend unit tests (48/48 × 3 runs) | ✅ PASS — zero failures, zero timeouts |
+| Frontend unit tests (61/61 × 1 run) | ✅ PASS — 18 suites |
+| Integration: Delete Account flow | ✅ PASS — API contract match, all UI states, cascade, a11y |
+| Config consistency (staging + prod) | ✅ PASS — PORT/proxy match, CORS correct, prod isolated |
+| Security checklist (all applicable items) | ✅ PASS — no P1 issues |
+| npm audit | ✅ PASS — 0 production vulnerabilities |
+| Production infra review (T-032) | ✅ PASS — TLS, headers, isolation, runbook |
+
+### Task Status Confirmation
+
+All Sprint 6 engineering tasks remain in **Done** status:
+
+| Task | Status | QA Verdict |
+|------|--------|------------|
+| T-031 | Done | ✅ 3 runs, zero timeouts |
+| T-032 | Done | ✅ Config + security review pass |
+| T-033 | Done | ✅ API contract, cascade, auth, 4 tests |
+| T-034 | Done | ✅ SPEC-007, all states, 11 tests, a11y |
+
+### Deployment Readiness
+
+- [x] All unit tests pass (48/48 backend, 61/61 frontend)
+- [x] Integration tests pass
+- [x] Security checklist verified
+- [x] No P1 security issues
+- [x] Config consistency verified
+- [x] All Sprint 6 engineering tasks Done
+- [x] Staging re-deploy complete (H-082)
+
+**Deploy Engineer:** Staging is ready. Monitor Agent health check (H-082) is the final gate before Sprint 6 close.
+
+**Manager Agent:** QA confirms all engineering tasks are Done with full test coverage. Remaining: T-020 (user testing), T-027 (SPEC-004 doc update — Done per H-066), Monitor health check.
+
+### Non-Blocking Items
+
+| Item | Severity | Notes |
+|------|----------|-------|
+| FB-020 | Cosmetic | Delete account success toast uses 'error' variant |
+| FB-021 | Minor | Frontend missing `"test"` script in package.json |
+| FB-022 | P3 | picomatch dev-only vulnerability — `npm audit fix` next sprint |
+
+### Full QA Build Log
+
+See `qa-build-log.md` — Test Runs 8–12 for this verification pass.

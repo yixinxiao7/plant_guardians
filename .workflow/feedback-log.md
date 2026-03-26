@@ -471,3 +471,103 @@ The profile stats test creates a user, a plant, and a care action before queryin
 
 ---
 
+## FB-018 — Delete Account: Excellent Destructive Action UX Pattern
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-018 |
+| **Source** | QA Engineer |
+| **Sprint** | 6 |
+| **Date** | 2026-03-25 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | New |
+
+### Description
+
+The Delete Account feature (T-033 + T-034) implements a best-practice destructive action pattern: confirmation modal with clear warning text, default focus on Cancel (not Delete), Escape key dismisses, backdrop click does NOT dismiss, focus trap within modal, aria-modal + role=dialog, and distinct error states for 401 vs 5xx. This is a model for how to handle irreversible operations in the app.
+
+---
+
+## FB-019 — Production Runbook: Comprehensive and Actionable
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-019 |
+| **Source** | QA Engineer |
+| **Sprint** | 6 |
+| **Date** | 2026-03-25 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | New |
+
+### Description
+
+The production deployment runbook (T-032) covers first-time server setup, two SSL provisioning methods (Let's Encrypt + BYO), pre-deploy checklist with 4 quality gates, startup sequence for both manual and automated deploys, rollback steps with severity classification, DB migration rollback with warnings, environment variable reference with generation commands, and 4 troubleshooting scenarios. The deploy-prod.sh script has pre-flight safety checks that abort on missing .env or SSL certs. This level of documentation significantly reduces production deployment risk.
+
+---
+
+## FB-020 — Delete Account: Toast Uses 'error' Variant for Success Notification
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-020 |
+| **Source** | QA Engineer |
+| **Sprint** | 6 |
+| **Date** | 2026-03-25 |
+| **Category** | UX Issue |
+| **Severity** | Cosmetic |
+| **Status** | New |
+
+### Description
+
+In ProfilePage.jsx, the delete account success toast uses the 'error' variant: `addToast('Your account has been deleted.', 'error')`. While the message is correct, using an error-styled toast (typically red) for a successful operation may confuse users. A neutral or info variant would be more appropriate for a confirmation message after a deliberate destructive action.
+
+### Steps to Reproduce
+
+1. Log in, go to Profile
+2. Click "Delete Account" → Confirm
+3. Observe the toast notification on the /login page
+
+### Expected vs Actual
+
+- **Expected:** Toast with neutral/info styling confirming account deletion
+- **Actual:** Toast with error styling (red) confirming account deletion
+
+---
+
+## FB-021 — Frontend: Missing "test" Script in package.json
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-021 |
+| **Source** | QA Engineer |
+| **Sprint** | 6 |
+| **Date** | 2026-03-25 |
+| **Category** | UX Issue |
+| **Severity** | Minor |
+| **Status** | New |
+
+### Description
+
+Frontend `package.json` does not have a `"test"` script entry. Running `npm test` fails with "Missing script: test". Tests must be invoked via `npx vitest run` instead. This is inconsistent with the backend (which has `"test": "NODE_ENV=test jest --runInBand --forceExit --detectOpenHandles"`). Recommend adding `"test": "vitest run"` to `frontend/package.json` scripts for CI consistency and developer ergonomics.
+
+---
+
+## FB-022 — Dev Dependency Vulnerability: picomatch (High Severity, Dev-Only)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-022 |
+| **Source** | QA Engineer |
+| **Sprint** | 6 |
+| **Date** | 2026-03-25 |
+| **Category** | Bug |
+| **Severity** | Minor |
+| **Status** | New |
+
+### Description
+
+`npm audit` now reports 1 high-severity vulnerability in `picomatch` (both backend and frontend). The vulnerability is in dev-only dependencies (jest, nodemon, vitest, vite) and does NOT affect production runtime. Fix available via `npm audit fix`. Recommend addressing in next sprint's dependency maintenance pass.
+
+---
