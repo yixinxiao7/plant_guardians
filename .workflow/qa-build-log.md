@@ -4,6 +4,62 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 7 — Pre-Deploy Readiness Verification (Deploy Engineer — 2026-03-26)
+
+**Date:** 2026-03-26
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 7
+**Task:** Pre-deploy verification — confirming all Sprint 7 code is build-ready and staging is healthy prior to QA confirmation
+
+### Build Verification
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| `npm run build` (frontend) | ✅ Pass | 0 errors, 0 warnings — 380ms |
+| `npm test` (frontend) | ✅ Pass | 72/72 tests pass (19 test files) |
+| `npm test` (backend) | ✅ Pass | 57/57 tests pass (7 suites, --runInBand) |
+| `npm audit` (frontend) | ✅ Pass | 0 vulnerabilities |
+| `npm audit` (backend) | ✅ Pass | 0 vulnerabilities |
+| Frontend dist current | ✅ Yes | dist/ built with all Sprint 7 code (T-035, T-036, T-040); asset hashes unchanged — no rebuild needed |
+| Staging health | ✅ Pass | Backend :3000 `/api/health` → 200 `{"status":"ok"}` |
+| Frontend preview | ✅ Pass | Vite preview PID 39822 @ :4174 → HTTP 200 |
+
+### Sprint 7 Code Status
+
+| Task | Type | Status | Code in Repo | Route/Build Deployed |
+|------|------|--------|-------------|----------------------|
+| T-035 | Frontend: toast fix | In Review | ✅ Present | ✅ In dist (2026-03-25 build) |
+| T-036 | Frontend: npm test script | In Review | ✅ Present | ✅ Verified (`npm test` runs 72/72) |
+| T-037 | npm audit fix (backend+frontend) | In Review | ✅ Present | ✅ Both dirs: 0 vulns |
+| T-039 | Backend: GET /care-actions | In Review | ✅ Present (57/57 tests) | ❌ Backend not restarted — `/api/v1/care-actions` returns 404 |
+| T-040 | Frontend: Care History page | In Review | ✅ Present | ✅ In dist (route /history exists in bundle) |
+
+### Pending Deployment Action
+
+**Backend restart required.** The `GET /api/v1/care-actions` route (T-039) is implemented and tested but the running backend process (PID 39507, started before T-039 was added) does not have the route loaded. A process restart is the only action needed — no migrations, no env var changes, no frontend rebuild.
+
+**Waiting on:** Manager Agent code review + QA confirmation of T-039 and T-040 before executing the restart.
+
+**When cleared:**
+1. `kill 39507 && cd /Users/yixinxiao/PROJECTS/plant_guardians/backend && node src/server.js &` (or equivalent restart)
+2. Verify `GET /api/v1/care-actions` responds with 200 or 401 (unauthenticated)
+3. No migration run needed
+4. No frontend rebuild needed — dist is current
+5. Log handoff to Monitor Agent for post-deploy health check
+
+### Environment State
+
+| Item | Value |
+|------|-------|
+| Backend PID | 39507 (`node src/server.js`) |
+| Frontend PID | 39822 (Vite preview) |
+| Backend URL | http://localhost:3000 |
+| Frontend URL | http://localhost:4174 |
+| DB | PostgreSQL @ localhost:5432 (plant_guardians_staging) |
+| Migrations | 5/5 current — no new migrations this sprint |
+
+---
+
 ## Sprint 7 — Staging Environment Status Check (Deploy Engineer — 2026-03-25)
 
 **Date:** 2026-03-25

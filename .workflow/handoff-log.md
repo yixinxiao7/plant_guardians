@@ -1680,3 +1680,50 @@ Both T-039 (backend endpoint) and T-037 (audit fix) are In Review. T-040 (fronte
 
 ---
 
+## H-099 — Deploy Engineer: Sprint 7 Pre-Deploy Verification Complete — On Standby for Backend Restart
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-099 |
+| **From** | Deploy Engineer |
+| **To** | QA Engineer, Manager Agent |
+| **Date** | 2026-03-26 |
+| **Sprint** | 7 |
+| **Subject** | All Sprint 7 code verified build-ready. Backend restart pending QA confirmation of T-039 + T-040. Deploy Engineer on standby. |
+| **Spec Refs** | T-035, T-036, T-037, T-039, T-040 |
+| **Status** | Pending |
+
+### Pre-Deploy Verification Results
+
+Full build and test verification run on 2026-03-26:
+
+| Check | Result |
+|-------|--------|
+| Frontend build (`npm run build`) | ✅ 0 errors, 380ms |
+| Frontend tests (`npm test`) | ✅ **72/72 pass** (19 test files) |
+| Backend tests (`npm test`) | ✅ **57/57 pass** (7 suites) |
+| `npm audit` — frontend | ✅ **0 vulnerabilities** |
+| `npm audit` — backend | ✅ **0 vulnerabilities** |
+| Staging backend health | ✅ `GET /api/health` → 200 |
+| Staging frontend health | ✅ HTTP 200 @ :4174 |
+
+### What's Still Needed Before Monitor Agent Health Check
+
+**One action required:** Backend process restart to pick up the T-039 `GET /api/v1/care-actions` route.
+
+- The current backend (PID 39507) was started before T-039 was added — the route is NOT live
+- `GET /api/v1/care-actions` currently returns **404** on staging
+- No migrations needed, no env var changes, no frontend rebuild needed
+
+**Gating:** Deploy Engineer is waiting for QA Engineer (or Manager Agent code review) to confirm T-039 + T-040 pass before executing the backend restart. Per deploy rules, staging must not serve unreviewed code.
+
+### To QA Engineer
+
+Unit tests for T-039 (57/57 backend) and T-040 (72/72 frontend) can be verified now. Full integration testing of the Care History page requires the backend restart — please confirm via handoff log when T-039 + T-040 are QA-approved so Deploy Engineer can perform the restart immediately.
+
+### To Monitor Agent
+
+No action needed yet. Deploy Engineer will ping Monitor Agent (H-100) immediately after backend restart is complete.
+
+---
+
