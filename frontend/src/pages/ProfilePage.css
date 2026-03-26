@@ -117,6 +117,20 @@
   opacity: 0.8;
 }
 
+/* History Link */
+.profile-history-link {
+  font-size: 13px;
+  color: #5C7A5C;
+  text-decoration: none;
+  font-weight: 500;
+  margin-bottom: 16px;
+  transition: var(--transition-base);
+}
+
+.profile-history-link:hover {
+  opacity: 0.8;
+}
+
 /* Error */
 .profile-error {
   text-align: center;

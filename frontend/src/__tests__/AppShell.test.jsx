@@ -8,6 +8,7 @@ vi.mock('@phosphor-icons/react', () => ({
   User: (props) => <span data-testid="icon-user" {...props} />,
   SignOut: (props) => <span data-testid="icon-signout" {...props} />,
   X: (props) => <span data-testid="icon-x" {...props} />,
+  ClockCounterClockwise: (props) => <span data-testid="icon-clock" {...props} />,
 }));
 
 vi.mock('../hooks/useAuth.jsx', () => ({

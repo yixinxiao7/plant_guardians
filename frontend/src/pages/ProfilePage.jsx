@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Plant, CalendarBlank, CheckCircle, SignOut } from '@phosphor-icons/react';
 import { profile as profileApi, auth as authApi, clearTokens } from '../utils/api.js';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -65,7 +65,7 @@ export default function ProfilePage() {
     // Success: clear everything and redirect
     clearTokens();
     sessionStorage.removeItem('pg_user');
-    addToast('Your account has been deleted.', 'error');
+    addToast('Your account has been deleted.', 'info');
     navigate('/login');
   };
 
@@ -150,6 +150,7 @@ export default function ProfilePage() {
 
       {/* Account Actions */}
       <div className="profile-actions-card">
+        <Link to="/history" className="profile-history-link">View care history →</Link>
         <Button variant="secondary" onClick={handleLogout} loading={loggingOut}>
           <SignOut size={18} /> Log Out
         </Button>

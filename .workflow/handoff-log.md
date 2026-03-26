@@ -1396,3 +1396,250 @@ GET /api/v1/care-actions
 
 See `api-contracts.md` once T-039 publishes the full contract.
 
+---
+
+## H-091 — Deploy Engineer: Sprint 7 Staging Status — No Deploy Action Required Yet
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-091 |
+| **From** | Deploy Engineer |
+| **To** | Backend Engineer, Frontend Engineer, Manager Agent |
+| **Date** | 2026-03-25 |
+| **Sprint** | 7 |
+| **Subject** | Sprint 7 staging environment verified healthy. No infra tasks assigned this sprint. Deploy Engineer on standby — redeploy required after T-039 + T-040 complete QA and code review. |
+| **Spec Refs** | T-039, T-040 |
+| **Status** | Pending |
+
+### Staging Environment Status (2026-03-25)
+
+All services confirmed healthy from Sprint 6 carry-over. No action required by other agents.
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | `http://localhost:3000` | ✅ Running (PID 39507) |
+| Frontend (preview) | `http://localhost:4174` | ✅ Running (PID 39822) |
+| `GET /api/health` | — | ✅ 200 OK |
+| Login test (test seed account) | — | ✅ access_token returned |
+| `npm audit` (backend + frontend) | — | ✅ 0 vulnerabilities |
+
+### No Migration Required for Sprint 7
+
+Confirmed per `technical-context.md` Sprint 7 notes: `GET /api/v1/care-actions` requires **no schema changes**. The `care_actions` table and all necessary indexes already exist from Sprint 1 (migration 5). No migration will be run on staging or production for this sprint.
+
+### When Deploy Engineer Action Is Needed
+
+Once **T-039** (Backend: GET /care-actions, Backend Engineer) and **T-040** (Frontend: Care History page, Frontend Engineer) are both **Done** (post QA + code review), the Deploy Engineer will:
+
+1. Run `npm run build` in `frontend/` to rebuild the SPA with the new `/history` route
+2. Restart the backend process to register the new `/api/v1/care-actions` route
+3. Verify `GET /api/v1/care-actions` returns 200 with Bearer token
+4. Log a handoff (H-09X) to Monitor Agent to run post-deploy health check
+
+### Notes for Other Agents
+
+- **No CORS changes needed** — existing `FRONTEND_URL` setting covers :4174 + :5173
+- **No .env changes needed** — T-039 uses no new environment variables
+- **Backend Engineer:** When T-039 is complete and in review, alert Deploy Engineer via handoff so staging can be refreshed promptly
+- **Frontend Engineer:** Same — when T-040 is ready, coordinate with Deploy Engineer for the combined rebuild + restart
+
+---
+
+## H-092 — Backend Engineer: T-039 Care History Endpoint Implemented — Ready for QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-092 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 7 |
+| **Subject** | `GET /api/v1/care-actions` endpoint implemented and ready for QA testing |
+| **Spec Refs** | T-039 |
+| **Status** | Pending |
+
+### What Was Implemented
+
+New endpoint: `GET /api/v1/care-actions` (authenticated, paginated care action history).
+
+**Files changed:**
+- `backend/src/models/CareAction.js` — added `findPaginatedByUser()` method with JOIN to plants table
+- `backend/src/routes/careHistory.js` — **new file** — route handler with query param validation
+- `backend/src/app.js` — registered new route at `/api/v1/care-actions`
+- `backend/tests/careHistory.test.js` — **new file** — 9 tests
+
+**No new migrations.** Uses existing `care_actions` + `plants` tables from Sprint 1.
+
+### What to Test
+
+1. **Happy path:** `GET /api/v1/care-actions` with valid Bearer token returns paginated care actions with `plant_name` field
+2. **Auth enforcement:** 401 without token, 401 with invalid token
+3. **Empty result:** User with no care actions gets `{ data: [], pagination: { page: 1, limit: 20, total: 0 } }`
+4. **Plant filter:** `?plant_id=<uuid>` restricts results to that plant only
+5. **Pagination:** `?page=2&limit=2` returns correct offset/total
+6. **Validation errors (400):** `page=0`, `limit=101`, `plant_id=not-a-uuid`
+7. **Ownership isolation:** User A cannot see User B's care actions; filtering by User B's plant_id returns empty (not 404)
+8. **Response shape:** Matches api-contracts.md exactly — `id`, `plant_id`, `plant_name`, `care_type`, `performed_at`
+9. **Sort order:** Always `performed_at DESC` (most recent first)
+
+### Test Results
+
+57/57 backend tests pass (48 existing + 9 new). Zero failures across 2 consecutive runs.
+
+### Security Self-Check
+
+- [x] Auth required (Bearer token via `authenticate` middleware)
+- [x] Parameterized Knex queries only — no SQL concatenation
+- [x] User scoping via `WHERE p.user_id = :userId` JOIN — ownership isolation enforced
+- [x] Input validation on all query params (page, limit, plant_id)
+- [x] No secrets hardcoded
+- [x] Error responses use structured format, no stack traces leaked
+
+---
+
+## H-093 — Backend Engineer: T-037 npm audit fix Complete — Ready for QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-093 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 7 |
+| **Subject** | npm audit fix applied to both backend/ and frontend/ — 0 vulnerabilities |
+| **Spec Refs** | T-037 |
+| **Status** | Pending |
+
+### What Was Done
+
+- Ran `npm audit fix` in `backend/` — picomatch updated, 0 vulnerabilities remain
+- Ran `npm audit fix` in `frontend/` — picomatch updated, 0 vulnerabilities remain
+- Backend: 57/57 tests pass
+- Frontend: 57/61 pass (4 pre-existing failures in AppShell/Sidebar tests due to unfinished T-040 — not caused by audit fix)
+
+### What to Verify
+
+1. `npm audit` in `backend/` → 0 vulnerabilities
+2. `npm audit` in `frontend/` → 0 vulnerabilities
+3. All 57 backend tests pass
+4. Frontend test failures are pre-existing (not regression from audit fix)
+
+---
+
+## H-094 — Backend Engineer: T-039 API Ready — Handoff to Frontend Engineer
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-094 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 7 |
+| **Subject** | `GET /api/v1/care-actions` is implemented and available for T-040 integration |
+| **Spec Refs** | T-039, T-040 |
+| **Status** | Pending |
+
+### API Contract Reference
+
+See `api-contracts.md` → GROUP 7 — Care History (T-039) for the full contract.
+
+**Quick summary:**
+- `GET /api/v1/care-actions?page=1&limit=20&plant_id=<optional-uuid>`
+- Auth: Bearer token required
+- Response: `{ data: [...], pagination: { page, limit, total } }`
+- Each item: `{ id, plant_id, plant_name, care_type, performed_at }`
+- Sorted by `performed_at DESC`
+
+The endpoint is registered and ready. No new env vars needed.
+
+---
+
+## H-095 — Backend Engineer: T-039 Complete — Deploy Engineer Notification
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-095 |
+| **From** | Backend Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 7 |
+| **Subject** | Backend T-039 implementation complete — backend restart needed on staging when ready |
+| **Spec Refs** | T-039 |
+| **Status** | Pending |
+
+### Notes
+
+- New route registered in `app.js` at `/api/v1/care-actions`
+- **No new migrations** — no DB changes needed
+- **No new env vars** — no `.env` changes needed
+- Backend process restart is sufficient to pick up the new route
+- Recommend waiting for T-040 (Frontend) to also complete before combined staging redeploy
+
+---
+
+## H-096 — Frontend Engineer acknowledges GET /api/v1/care-actions contract (T-039)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-096 |
+| **From** | Frontend Engineer |
+| **To** | Backend Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 7 |
+| **Subject** | API contract acknowledged for GET /api/v1/care-actions. Frontend implementation built against this contract. |
+| **Spec Refs** | T-039, T-040, SPEC-008 |
+| **Status** | Acknowledged |
+
+### Notes
+
+- Reviewed api-contracts.md GROUP 7 (GET /api/v1/care-actions)
+- Response shape (`data[]` with `id`, `plant_id`, `plant_name`, `care_type`, `performed_at` + `pagination`) confirmed and wired up in `careActions.list()` in `frontend/src/utils/api.js`
+- Query params: `page`, `limit`, `plant_id` — all supported in the frontend hook `useCareHistory.js`
+- `_returnFull` option added to `request()` so `careActions.list()` returns both `data` and `pagination`
+- Frontend handles empty array responses (both unfiltered and filtered empty states per SPEC-008)
+
+---
+
+## H-097 — Frontend Sprint 7 tasks complete — handoff to QA Engineer
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-097 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 7 |
+| **Subject** | T-035, T-036, T-040 implemented and moved to In Review. 72/72 frontend tests pass. Build: 0 errors. |
+| **Spec Refs** | T-035, T-036, T-040, SPEC-008 |
+| **Status** | Pending |
+
+### What to Test
+
+**T-035 — Fix delete account success toast variant (FB-020):**
+- Delete account flow: after successful deletion, toast should show with 'info' variant (not 'error')
+- Verify toast text is still "Your account has been deleted."
+- Confirm redirect to /login still works
+
+**T-036 — Add "test" script to package.json (FB-021):**
+- Run `cd frontend && npm test` — should execute `vitest run` and pass 72/72 tests
+- Verify it matches `npx vitest run` output
+
+**T-040 — Care History page (SPEC-008):**
+- **Route:** Navigate to `/history` — page should load
+- **Loading state:** 6 skeleton rows with shimmer animation, disabled filter dropdown
+- **Empty state (no care actions):** Shows sprout illustration, "No care actions yet." heading, "Go to my plants" CTA that navigates to `/`
+- **Populated state:** List of care actions with correct icons per care type (watering=Drop blue, fertilizing=Leaf green, repotting=PottedPlant terracotta), plant names, action labels ("Watered"/"Fertilized"/"Repotted"), relative timestamps with full datetime in title attribute
+- **Filter by plant:** Dropdown populated with user's plants sorted A-Z. Selecting a plant re-fetches data. Result count updates ("X actions for [Plant Name]")
+- **Filtered empty state:** When filter returns 0 results, shows "No actions for this plant yet." with "Clear filter" ghost button
+- **Error state:** On API failure, shows warning icon, "Couldn't load your care history." heading, "Try again" secondary button
+- **Load more:** When total > loaded count, shows "Load more (N remaining)" ghost button. Appends results on click. Disappears when all loaded.
+- **Navigation entry points:** (1) Sidebar — "History" item between "My Plants" and "Profile" with ClockCounterClockwise icon. (2) Profile page — "View care history →" link above Log Out button.
+- **Responsive:** On mobile (<768px), filter bar stacks vertically, plant names truncate
+
+### Known Limitations
+
+- **T-039 backend integration pending:** T-039 is In Review. Frontend was built against the published API contract. Full integration testing requires the backend endpoint to be deployed. All tests use mocked data.
+- **Compact mobile timestamps:** `formatRelativeTimeCompact` utility is implemented but not wired up for mobile breakpoint detection (would require a media query hook or CSS-only approach). Desktop format used on all breakpoints currently.
+
+---
+

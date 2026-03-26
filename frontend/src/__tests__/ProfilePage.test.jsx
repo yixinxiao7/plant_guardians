@@ -4,6 +4,7 @@ import ProfilePage from '../pages/ProfilePage.jsx';
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
+  Link: ({ children, ...props }) => <a {...props}>{children}</a>,
 }));
 
 vi.mock('@phosphor-icons/react', () => ({
@@ -104,7 +105,7 @@ describe('ProfilePage', () => {
       await waitFor(() => {
         expect(mockDeleteAccount).toHaveBeenCalledTimes(1);
         expect(mockNavigate).toHaveBeenCalledWith('/login');
-        expect(mockAddToast).toHaveBeenCalledWith('Your account has been deleted.', 'error');
+        expect(mockAddToast).toHaveBeenCalledWith('Your account has been deleted.', 'info');
       });
     });
 

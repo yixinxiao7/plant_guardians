@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Plant, User, SignOut, List, X } from '@phosphor-icons/react';
+import { Plant, User, SignOut, List, X, ClockCounterClockwise } from '@phosphor-icons/react';
 import { useAuth } from '../hooks/useAuth.jsx';
 import './Sidebar.css';
 
@@ -40,6 +40,14 @@ export default function Sidebar({ isOpen, onClose }) {
           >
             <Plant size={20} />
             <span>Inventory</span>
+          </NavLink>
+          <NavLink
+            to="/history"
+            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+            onClick={onClose}
+          >
+            <ClockCounterClockwise size={20} />
+            <span>History</span>
           </NavLink>
           <NavLink
             to="/profile"

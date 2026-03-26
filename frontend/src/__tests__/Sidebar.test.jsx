@@ -8,6 +8,7 @@ vi.mock('@phosphor-icons/react', () => ({
   SignOut: (props) => <span data-testid="icon-signout" {...props} />,
   List: (props) => <span data-testid="icon-list" {...props} />,
   X: (props) => <span data-testid="icon-x" {...props} />,
+  ClockCounterClockwise: (props) => <span data-testid="icon-clock" {...props} />,
 }));
 
 vi.mock('../hooks/useAuth.jsx', () => ({
@@ -34,6 +35,7 @@ describe('Sidebar', () => {
       </MemoryRouter>
     );
     expect(screen.getByText('Inventory')).toBeInTheDocument();
+    expect(screen.getByText('History')).toBeInTheDocument();
     expect(screen.getByText('Profile')).toBeInTheDocument();
   });
 });

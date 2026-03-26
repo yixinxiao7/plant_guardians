@@ -64,6 +64,45 @@ const CareAction = {
       .count('care_actions.id as count');
     return parseInt(count, 10);
   },
+
+  /**
+   * Paginated care action history for a user, optionally filtered by plant_id.
+   * Returns { data, total } where data includes plant_name via JOIN.
+   * (T-039)
+   */
+  async findPaginatedByUser(userId, { page = 1, limit = 20, plantId = null } = {}) {
+    const offset = (page - 1) * limit;
+
+    const buildBase = () => {
+      const q = db('care_actions as ca')
+        .join('plants as p', 'ca.plant_id', 'p.id')
+        .where('p.user_id', userId);
+      if (plantId) {
+        q.andWhere('ca.plant_id', plantId);
+      }
+      return q;
+    };
+
+    const [data, [{ count }]] = await Promise.all([
+      buildBase()
+        .select(
+          'ca.id',
+          'ca.plant_id',
+          'p.name as plant_name',
+          'ca.care_type',
+          'ca.performed_at'
+        )
+        .orderBy('ca.performed_at', 'desc')
+        .limit(limit)
+        .offset(offset),
+      buildBase().count('ca.id as count'),
+    ]);
+
+    return {
+      data,
+      total: parseInt(count, 10),
+    };
+  },
 };
 
 module.exports = CareAction;

@@ -82,7 +82,7 @@ async function request(path, options = {}) {
     throw new ApiError(err.message || 'Something went wrong.', err.code || 'UNKNOWN', res.status);
   }
 
-  return json.data;
+  return options._returnFull ? json : json.data;
 }
 
 export class ApiError extends Error {
@@ -198,6 +198,14 @@ export const careActions = {
     return request(`/plants/${plantId}/care-actions/${actionId}`, {
       method: 'DELETE',
     });
+  },
+  list(params = {}) {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.plant_id) query.set('plant_id', params.plant_id);
+    const qs = query.toString();
+    return request(`/care-actions${qs ? `?${qs}` : ''}`, { _returnFull: true });
   },
 };
 

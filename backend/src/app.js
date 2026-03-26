@@ -11,6 +11,7 @@ const plantsRoutes = require('./routes/plants');
 const careActionsRoutes = require('./routes/careActions');
 const aiRoutes = require('./routes/ai');
 const profileRoutes = require('./routes/profile');
+const careHistoryRoutes = require('./routes/careHistory');
 
 const app = express();
 
@@ -73,6 +74,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/plants', plantsRoutes);
 app.use('/api/v1/plants', careActionsRoutes);  // care-actions are nested under plants
 app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/care-actions', careHistoryRoutes);
 app.use('/api/v1/profile', profileRoutes);
 
 // 404 handler for unknown routes

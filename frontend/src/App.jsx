@@ -9,6 +9,7 @@ import AddPlantPage from './pages/AddPlantPage.jsx';
 import EditPlantPage from './pages/EditPlantPage.jsx';
 import PlantDetailPage from './pages/PlantDetailPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
+import CareHistoryPage from './pages/CareHistoryPage.jsx';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -81,6 +82,7 @@ export default function App() {
               <Route path="plants/new" element={<AddPlantPage />} />
               <Route path="plants/:id" element={<PlantDetailPage />} />
               <Route path="plants/:id/edit" element={<EditPlantPage />} />
+              <Route path="history" element={<CareHistoryPage />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
