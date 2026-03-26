@@ -2317,3 +2317,71 @@ All Sprint 6 engineering tasks remain in **Done** status:
 ### Full QA Build Log
 
 See `qa-build-log.md` — Test Runs 8–12 for this verification pass.
+
+---
+
+## H-084 — Deploy Engineer → Monitor Agent: Sprint #6 Staging Re-Deploy Complete — Run Health Check
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-084 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-25 |
+| **Sprint** | 6 |
+| **Subject** | Sprint #6 staging re-deploy confirmed complete. Services running with new Sprint 6 features (T-033, T-034). Please run full post-deploy health check. |
+| **Spec Refs** | T-033, T-034, T-031, T-032 |
+| **Status** | Pending |
+
+### Deploy Summary
+
+| Step | Result |
+|------|--------|
+| QA confirmation received | ✅ H-077 + H-079 |
+| Backend `npm install` | ✅ Up to date |
+| Frontend `npm install` | ✅ Up to date |
+| Frontend `npm run build` | ✅ 0 errors (265ms) |
+| Database migrations | ✅ Already up to date (5/5 Sprint 1 migrations) |
+| Backend start | ✅ http://localhost:3000 — HTTP 200 |
+| Frontend preview start | ✅ http://localhost:4174 — HTTP 200 |
+| Vite proxy (`/api/*` → `:3000`) | ✅ Verified via `curl http://localhost:4174/api/health` → 200 |
+| Docker | ⚠️ Not available — local process deployment used (per task spec) |
+
+### Staging Services
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| Backend API | http://localhost:3000 | 39507 | ✅ Running |
+| Frontend (vite preview) | http://localhost:4174 | 39804 | ✅ Running |
+
+**Port note:** Port 4173 is occupied by an unrelated project on this machine. Plant Guardians staging preview uses port **4174**. The Vite proxy (`vite.config.js preview.proxy`) routes `/api/*` to `http://localhost:3000` — no CORS issue.
+
+### What Was Deployed
+
+| Task | Change |
+|------|--------|
+| T-033 | New endpoint: `DELETE /api/v1/auth/account` (authenticated, 204 on success, cascade delete via ON DELETE CASCADE) |
+| T-034 | Delete Account confirmation modal on Profile page — wired to T-033, full a11y |
+| T-031 | profile.test.js timeout fix (test-only, no runtime behavior change) |
+| T-032 | Production infra files added to repo (no staging impact) |
+
+### What Monitor Agent Should Verify
+
+1. **All 14 existing API endpoints** — no regressions (full endpoint list in H-082 and previous health check logs)
+2. **New endpoint: `DELETE /api/v1/auth/account`**
+   - No auth → expect `401 UNAUTHORIZED`
+   - Valid auth → expect `204 No Content` (use a throwaway test account, NOT any seeded account)
+3. **Frontend profile page** (`http://localhost:4174`) — confirm "Delete Account" button renders (not "coming soon")
+4. **Vite proxy** — `/api/*` via `:4174` routes correctly to backend `:3000`
+5. **POST /ai/advice** → `502 AI_SERVICE_UNAVAILABLE` (expected — placeholder Gemini key, non-blocking)
+6. **CORS** — no cross-origin errors (proxy handles routing, no direct cross-origin requests from :4174)
+
+### Known Non-Blocking Items
+
+| Item | Severity | Notes |
+|------|----------|-------|
+| POST /ai/advice 502 | Expected | Placeholder Gemini key — not a regression |
+| FB-020 | Cosmetic | Delete account success toast uses 'error' variant |
+| picomatch vulnerability | P3 dev-only | No production impact, tracked for next sprint |
+
+**Deploy Log:** See `qa-build-log.md` — Sprint #6 Staging Deploy (Deploy Engineer — 2026-03-25)

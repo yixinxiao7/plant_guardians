@@ -1804,3 +1804,72 @@ All Sprint 6 engineering tasks (T-031, T-032, T-033, T-034) are verified and con
 **Remaining Sprint 6 items (outside QA scope):**
 - T-020: User testing (User Agent) — separate workflow
 - T-027: SPEC-004 update (Design Agent) — documentation only, Done per H-066
+
+---
+
+## Sprint #6 — Staging Deploy (Deploy Engineer — 2026-03-25)
+
+**Date:** 2026-03-25
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 6
+**Purpose:** Re-deploy staging environment with Sprint #6 features: T-033 (DELETE /account endpoint) and T-034 (Delete Account UI).
+
+### Pre-Deploy Checklist
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| QA confirmation (H-077, H-079) | ✅ PASS | QA Engineer confirmed all Sprint 6 tasks Done; deploy-ready |
+| All Sprint 6 tasks Done | ✅ PASS | T-031, T-032, T-033, T-034 all Done |
+| Pending migrations | ✅ None | `knex migrate:latest` → "Already up to date" (5/5 applied) |
+| No new migrations (Sprint 6) | ✅ Confirmed | H-068: ON DELETE CASCADE covers T-033, no schema changes needed |
+| No P0/P1 blockers | ✅ PASS | picomatch is P3 dev-only (H-081); non-blocking |
+| Docker availability | ⚠️ N/A | Docker not installed — using local process deployment (per task spec) |
+
+### Build Results
+
+| Component | Command | Result |
+|-----------|---------|--------|
+| Backend dependencies | `cd backend && npm install` | ✅ up to date, 443 packages |
+| Frontend dependencies | `cd frontend && npm install` | ✅ up to date, 243 packages |
+| Frontend production build | `cd frontend && npm run build` | ✅ 0 errors, 265ms |
+| Build output | `dist/index.html` (0.74 kB), `dist/assets/index-*.js` (363.66 kB gzip: 108.22 kB) | ✅ |
+| npm audit (backend) | 1 high (picomatch — dev only, P3) | ✅ 0 production vulnerabilities |
+| npm audit (frontend) | 1 high (picomatch — dev only, P3) | ✅ 0 production vulnerabilities |
+
+**Build Status: ✅ SUCCESS**
+
+### Staging Deployment
+
+**Environment:** Staging (local processes — Docker not available)
+
+| Step | Result | Notes |
+|------|--------|-------|
+| Database migrations | ✅ Already up to date | 5/5 Sprint 1 migrations applied; no Sprint 6 migrations |
+| Backend start | ✅ PID 39507, port 3000 | `NODE_ENV=development node src/server.js` |
+| Backend health check | ✅ HTTP 200 | `{"status":"ok","timestamp":"2026-03-26T01:32:15.796Z"}` |
+| Frontend preview start | ✅ PID 39804, port 4174 | Port 4173 held by unrelated project (triplanner) |
+| Frontend health check | ✅ HTTP 200 | `http://localhost:4174` serving `dist/index.html` |
+| Vite proxy verification | ✅ HTTP 200 | `curl http://localhost:4174/api/health` → backend 200 |
+
+**Note:** Port 4173 is occupied by a separate project (`triplanner`). Plant Guardians staging preview runs on port **4174**. CORS config in `backend/.env` already covers both `:5173` and `:4173` — port 4174 uses the Vite proxy so no direct CORS cross-origin requests occur from the preview.
+
+**Deployment Status: ✅ SUCCESS**
+
+### Services Running
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| Backend API | http://localhost:3000 | 39507 | ✅ Healthy |
+| Frontend (vite preview) | http://localhost:4174 | 39804 | ✅ Healthy |
+| Database migrations | — | — | ✅ 5/5 applied, up to date |
+
+### New Sprint 6 Features Deployed
+
+| Task | Description |
+|------|-------------|
+| T-033 | `DELETE /api/v1/auth/account` — authenticated, 204, cascade delete via ON DELETE CASCADE |
+| T-034 | Delete Account confirmation modal on Profile page |
+| T-031 | profile.test.js timeout fix (test-only change, no runtime impact) |
+| T-032 | Production infra files added to repo (docker-compose.prod.yml, nginx.prod.conf, deploy-runbook.md) — no staging impact |
+
+**Handoff:** H-084 → Monitor Agent for post-deploy health check
