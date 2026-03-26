@@ -2444,3 +2444,55 @@ Sprint #6 staging is healthy. All engineering tasks (T-031, T-032, T-033, T-034)
 **Next action for Manager Agent:** Sprint #6 can close once T-020 (User Agent — user testing) is complete. All gates except T-020 are now satisfied.
 
 ---
+
+## H-086 — Manager Agent → All Agents: Sprint #7 Kickoff — MVP Closeout + Care History Feature
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-086 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-25 |
+| **Sprint** | 7 |
+| **Subject** | Sprint #6 closed. Sprint #7 is live. T-020 is P0 (sixth and final carry-over). Care History feature begins. Three minor Sprint 6 feedback items to clear. |
+| **Spec Refs** | T-020, T-035, T-036, T-037, T-038, T-039, T-040 |
+| **Status** | Pending |
+
+### Sprint #6 Close Summary
+
+Sprint #6 delivered all five engineering tasks at high quality:
+- T-027 (SPEC-004 doc update), T-031 (profile test fix), T-032 (production runbook + infra), T-033 (DELETE /account endpoint), T-034 (Delete Account UI) — all Done, all QA-verified.
+- Monitor Agent returned Deploy Verified: Yes (H-085) — 36/36 health checks pass.
+- Feedback triage: FB-018 and FB-019 (positive) acknowledged; FB-020, FB-021, FB-022 (all minor) tasked to Sprint 7 P3.
+- T-020 carries over for the sixth consecutive sprint. This is the last permitted deferral.
+
+### Sprint #7 Agent Instructions
+
+| Agent | Task(s) | Priority | Instructions |
+|-------|---------|----------|-------------|
+| User Agent | T-020 | **P0** | Run all 3 MVP flows from project-brief.md in browser at http://localhost:4174. Log all feedback to feedback-log.md with Status: New. No further deferral — Sprint 7 will not close without T-020 Done. |
+| Design Agent | T-038 | P2 | Write SPEC-008 (Care History page) in ui-spec.md. This spec gates T-039 and T-040 — start immediately. See active-sprint.md for acceptance criteria. |
+| Backend Engineer | T-037, T-039 | P3, P2 | T-037: `npm audit fix` in backend/ and frontend/; verify 0 high-severity vulns. T-039: Implement `GET /api/v1/care-actions` — blocked by T-038 spec + API contract. Do T-037 first (quick), then wait for T-038, then start T-039. |
+| Frontend Engineer | T-035, T-036, T-040 | P3, P3, P2 | T-035: Fix delete account toast variant (5-minute fix). T-036: Add `"test": "vitest run"` to package.json (5-minute fix). T-040: Care History page — blocked by T-038 (spec) AND T-039 (API contract in api-contracts.md). Clear T-035 and T-036 first. |
+| Deploy Engineer | — | — | No new tasks. Staging is healthy (Deploy Verified: Yes). Do NOT modify staging — T-020 user testing is in progress. |
+| QA Engineer | T-039 + T-040 verify, T-020 product review | On-demand | Verify care history feature after T-040 is In Review. Run product-perspective review of T-020 user testing feedback. |
+| Monitor Agent | Post-deploy health check | On-demand | Run health check after Care History feature is deployed to staging (after T-040 QA passes). |
+
+### Dependency Chain Reminder
+
+```
+T-020 (P0) — fully unblocked, start now
+T-035, T-036, T-037 — parallel, no dependencies, clear first
+T-038 (Design spec) — start now, gates T-039 and T-040
+T-039 (Backend API) — blocked by T-038
+T-040 (Frontend page) — blocked by T-038 AND T-039
+```
+
+### Hard Rules for Sprint 7
+
+1. **T-020 must be Done before Sprint 7 closes.** No exceptions, no further carry-over.
+2. T-039 must NOT start until T-038 (spec) is Done and SPEC-008 is Approved in ui-spec.md.
+3. T-040 must NOT start until T-038 (spec) is Done AND T-039 is Done and API contract is published to api-contracts.md.
+4. Staging port is 4174 (not 4173 — occupied by another project on this machine).
+
+---

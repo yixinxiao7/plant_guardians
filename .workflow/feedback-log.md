@@ -481,7 +481,7 @@ The profile stats test creates a user, a plant, and a care action before queryin
 | **Date** | 2026-03-25 |
 | **Category** | Positive |
 | **Severity** | N/A |
-| **Status** | New |
+| **Status** | Acknowledged — Excellent destructive-action UX pattern; noted as internal design standard. |
 
 ### Description
 
@@ -499,7 +499,7 @@ The Delete Account feature (T-033 + T-034) implements a best-practice destructiv
 | **Date** | 2026-03-25 |
 | **Category** | Positive |
 | **Severity** | N/A |
-| **Status** | New |
+| **Status** | Acknowledged — Comprehensive production runbook significantly reduces deployment risk. Shared with team. |
 
 ### Description
 
@@ -517,7 +517,7 @@ The production deployment runbook (T-032) covers first-time server setup, two SS
 | **Date** | 2026-03-25 |
 | **Category** | UX Issue |
 | **Severity** | Cosmetic |
-| **Status** | New |
+| **Status** | Acknowledged — Cosmetic backlog; tasked → T-035 (Sprint 7 P3). Change toast variant from 'error' to 'info' on delete account success. |
 
 ### Description
 
@@ -546,7 +546,7 @@ In ProfilePage.jsx, the delete account success toast uses the 'error' variant: `
 | **Date** | 2026-03-25 |
 | **Category** | UX Issue |
 | **Severity** | Minor |
-| **Status** | New |
+| **Status** | Acknowledged — Minor DX issue; tasked → T-036 (Sprint 7 P3). Add `"test": "vitest run"` to frontend/package.json scripts. |
 
 ### Description
 
@@ -564,7 +564,7 @@ Frontend `package.json` does not have a `"test"` script entry. Running `npm test
 | **Date** | 2026-03-25 |
 | **Category** | Bug |
 | **Severity** | Minor |
-| **Status** | New |
+| **Status** | Acknowledged — Dev-only, no production impact; tasked → T-037 (Sprint 7 P3). Run npm audit fix in both backend and frontend. |
 
 ### Description
 

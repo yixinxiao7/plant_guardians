@@ -445,6 +445,91 @@ No `Deploy Verified: No` verdict was returned in Sprint #5. T-030 (Monitor Agent
 
 ---
 
+---
+
+### Sprint #6 — 2026-03-25 to 2026-03-26
+
+**Sprint Goal:** Declare MVP complete by closing the final user-testing gate (T-020), implement the Delete Account feature (T-033/T-034), prepare production deployment infrastructure (T-032), fix the profile test flakiness (T-031), and close the long-running SPEC-004 documentation debt (T-027).
+
+**Outcome:** Partial — All engineering tasks (T-027, T-031, T-032, T-033, T-034) delivered and verified. Deploy Verified: Yes (H-085, Monitor Agent). T-020 (user testing) was not completed and carries into Sprint #7 for the sixth consecutive sprint.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-027 | Design Agent: SPEC-004 updated to document redirect-to-detail behavior post-save. Status set to Approved (2026-03-25). Four-sprint carry-over closed. |
+| T-031 | Backend Engineer: profile.test.js intermittent 30s timeout fixed via `jest.setTimeout(60000)`. 3 consecutive runs: 48/48 each, zero timeouts. |
+| T-032 | Deploy Engineer: Production deployment infra created — `infra/docker-compose.prod.yml` (postgres+backend+nginx), `infra/nginx.prod.conf` (HTTP→HTTPS redirect, TLS 1.2/1.3, HSTS, API proxy), `.env.production.example`, `infra/deploy-prod.sh` (6-step pre-flight deploy script), `.workflow/deploy-runbook.md` (full runbook: first-time setup, SSL, pre-deploy checklist, rollback, troubleshooting). |
+| T-033 | Backend Engineer: `DELETE /api/v1/auth/account` endpoint implemented — authenticated, 204 on success, cascade delete via ON DELETE CASCADE (plants, care_schedules, care_actions, photos, refresh_tokens). 4 new tests (happy path + cascade verify, 401 × 2, isolation). 48/48 tests pass. API contract added to api-contracts.md. |
+| T-034 | Frontend Engineer: Delete Account UI on Profile page — confirmation modal with full a11y (role=dialog, aria-modal, focus trap, Escape key dismiss, backdrop does NOT dismiss). Error states: 401 → session expired + redirect, 5xx → retry message. Token cleanup and sessionStorage clear on success. 61/61 frontend tests pass (11 new tests). |
+
+---
+
+#### Tasks Carried Over to Sprint #7
+
+| Task ID | Description | Reason |
+|---------|-------------|--------|
+| T-020 | User testing: All 3 MVP flows (novice, AI advice, inventory management) | Sixth consecutive sprint carry-over. No blocking dependencies — staging Deploy Verified: Yes. This is unacceptable; Sprint 7 treats this as an absolute P0 with zero tolerance for further deferral. |
+
+---
+
+#### Verification Failures
+
+**No `Deploy Verified: No` verdict was returned in Sprint #6.** Monitor Agent returned **Deploy Verified: Yes** (H-085, 2026-03-26): all 36 health checks passed, T-033/T-034 endpoints verified operational, no regressions, security headers correct, CORS pass, Vite proxy confirmed.
+
+The only non-2xx response is `POST /ai/advice → 502 AI_SERVICE_UNAVAILABLE` — an expected, documented result of the placeholder Gemini key, not a regression.
+
+---
+
+#### Key Feedback Themes
+
+| Feedback ID | Category | Severity | Disposition |
+|-------------|----------|----------|-------------|
+| FB-018 | Positive (Delete Account best-practice UX pattern) | — | Acknowledged |
+| FB-019 | Positive (Production runbook comprehensive and actionable) | — | Acknowledged |
+| FB-020 | UX Issue (delete account success toast uses 'error' variant) | Cosmetic | Acknowledged → T-035 (Sprint 7 P3) |
+| FB-021 | UX Issue (missing `npm test` script in frontend package.json) | Minor | Acknowledged → T-036 (Sprint 7 P3) |
+| FB-022 | Bug (picomatch dev-only vulnerability) | Minor | Acknowledged → T-037 (Sprint 7 P3) |
+
+---
+
+#### What Went Well
+
+- **All five engineering tasks delivered at high quality** — T-031, T-032, T-033, T-034 all passed code review on first attempt; T-027 closed a four-sprint documentation debt.
+- **Delete Account is production-grade** — Full a11y compliance, focus trap, proper error differentiation (401 vs 5xx), token cleanup, 11 new targeted tests. FB-018 calls it a model pattern for destructive actions.
+- **Production deployment runbook is comprehensive** — FB-019 confirms it covers all critical scenarios. The pre-flight safety checks in deploy-prod.sh prevent the most common deployment mistakes.
+- **CI reliability restored** — T-031 (profile test fix) brings backend to 48/48 tests with zero flaky failures. Combined with T-029 (Sprint 5), backend test suite is now fully stable.
+- **Monitor Agent confirmed Deploy Verified: Yes** — Sprint 6 staging is healthy; zero regressions from five new engineering tasks.
+- **Feedback volume is shrinking** — Only 5 feedback items this sprint, all minor or positive. No P0 or P1 issues found by QA.
+
+---
+
+#### What to Improve
+
+- **T-020 must close in Sprint 7 — absolutely no further carry-over** — Six consecutive deferrals is a process failure. The orchestrator should enforce a hard gate: Sprint 8 cannot start until T-020 is Done.
+- **Gemini API key must be provisioned by the project owner** — Until a real key is configured, Flow 2 (AI advice) cannot be fully tested. This is the sole remaining MVP blocker and is not an engineering task.
+- **Minor feedback items accumulating** — FB-020, FB-021, FB-022 are all small, quick fixes. They should be batched and cleared in Sprint 7 in a single focused pass, not allowed to accumulate.
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Owner |
+|------|----------|-------|
+| Gemini API key is placeholder — AI advice always returns 502 | P1 | Project owner (provisioning) |
+| Delete account success toast uses 'error' variant (FB-020) | P3 Cosmetic | Frontend Engineer → T-035 |
+| Missing `npm test` script in frontend package.json (FB-021) | P3 | Frontend Engineer → T-036 |
+| picomatch dev-only vulnerability — npm audit fix available (FB-022) | P3 | Backend + Frontend Engineer → T-037 |
+| Database-level encryption not configured | P3 Advisory | Deploy Engineer (production phase) |
+
+---
+
+*Sprint #6 summary written by Manager Agent on 2026-03-25.*
+
+---
+
 ## Template
 
 ### Sprint #N — [Start Date] to [End Date]
