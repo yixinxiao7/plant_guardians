@@ -1643,3 +1643,40 @@ The endpoint is registered and ready. No new env vars needed.
 
 ---
 
+## H-098 — Backend Engineer → Frontend Engineer + QA: Sprint 7 Contract Phase — Verified
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-098 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer, QA Engineer |
+| **Date** | 2026-03-26 |
+| **Sprint** | 7 |
+| **Subject** | Sprint 7 API contract phase re-verified by orchestrator — all contracts current and complete |
+| **Spec Refs** | T-039, T-037, SPEC-008 |
+| **Status** | Complete |
+
+### Verification Summary
+
+The Backend Engineer contract phase was invoked by the Sprint 7 orchestrator on 2026-03-26. No changes to `api-contracts.md` were required — the existing Sprint 7 contracts are fully accurate and complete.
+
+**Contracts verified in `.workflow/api-contracts.md`:**
+
+| Endpoint | Group | Status |
+|----------|-------|--------|
+| `GET /api/v1/care-actions` | Sprint 7 → GROUP 7 — Care History (T-039) | ✅ Complete — no amendments needed |
+| All 15 prior endpoints (Sprints 1–6) | Groups 1–6 | ✅ Unchanged |
+
+**T-037 (npm audit fix):** No API contract impact. Dependency version updates only; no endpoint shape, validation rules, or response schemas changed.
+
+**No schema changes this sprint.** The `care_actions` table and all needed indexes (created Sprint 1) are sufficient for `GET /api/v1/care-actions`. No migration files needed.
+
+**Prior handoffs still authoritative:**
+- H-088 — Schema proposal (Auto-approved) — `.workflow/technical-context.md` Sprint 7 section
+- H-089 — Frontend Engineer integration notes for T-040
+- H-090 — QA Engineer test scenarios for T-039
+
+Both T-039 (backend endpoint) and T-037 (audit fix) are In Review. T-040 (frontend Care History page) is In Review. QA Engineer should proceed with H-090 test scenarios.
+
+---
+
