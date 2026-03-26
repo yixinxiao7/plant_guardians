@@ -1221,3 +1221,67 @@ All 14 endpoints documented in `.workflow/api-contracts.md` are:
 | SPEC-006 (AI Advice Modal) | `POST /ai/advice` (+ optional `POST /plants/:id/photo` for photo input) |
 | SPEC-007 (Profile) | `GET /profile`, `POST /auth/logout` |
 
+---
+
+## H-087 — Design Agent → Frontend Engineer: SPEC-008 Care History Page Approved — Ready to Build
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-087 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-25 |
+| **Sprint** | 7 |
+| **Subject** | SPEC-008 (Care History Page) is complete and approved. Frontend Engineer may begin implementation of T-040 once T-039 (Backend API) is also complete and its contract is published to api-contracts.md. |
+| **Spec Refs** | SPEC-008 / T-038 (spec task), T-040 (frontend task) |
+| **Status** | Pending |
+
+### What's Included
+
+SPEC-008 covers the `/history` route — the Care History page. It is now written and marked **Approved** in `ui-spec.md`.
+
+### Spec Summary
+
+| Section | Key Decisions |
+|---------|--------------|
+| **Route** | `/history` |
+| **Nav entry points** | Sidebar ("History" item, ClockCounterClockwise icon) + Profile page text link "View care history →" |
+| **Layout** | App shell; max-width 720px; page header + filter bar + care action list |
+| **Filter** | Single "Filter by plant" `<select>` dropdown — "All plants" default + one entry per owned plant (A–Z). Right-aligned on desktop, full-width on mobile. |
+| **List item anatomy** | Circular care-type icon (colored by type) + plant name + action label ("Watered / Fertilized / Repotted") + relative timestamp ("X days ago") |
+| **Care type colors** | Watering: blue (`#5B8FA8`/`#EBF4F7`); Fertilizing: sage (`#4A7C59`/`#E8F4EC`); Repotting: terracotta (`#A67C5B`/`#F4EDE8`) |
+| **Timestamp format** | Relative ("Just now", "X minutes/hours/days/weeks/months/years ago"); abbreviated on mobile; full date in `title` + `<time datetime="">` |
+| **Loading state** | 6 skeleton rows matching item anatomy; shimmer animation; filter disabled |
+| **Empty state** | Botanical illustration + "No care actions yet. Start by marking a plant as watered!" + "Go to my plants" primary CTA |
+| **Filtered empty state** | "No actions for this plant yet." + "Clear filter" ghost CTA |
+| **Error state** | WarningCircle icon + "Couldn't load your care history." + "Try again" secondary button |
+| **Pagination** | Load-more ghost button below list: "Load more (N remaining)"; appends results without scroll reset |
+
+### Hard Dependency Reminder
+
+**T-040 is blocked by both T-038 AND T-039.** Do not start the frontend implementation until:
+1. ✅ T-038 (this handoff) — SPEC-008 approved (complete)
+2. ⏳ T-039 — Backend `GET /api/v1/care-actions` endpoint implemented AND API contract published to `api-contracts.md`
+
+Only begin T-040 once both conditions are met.
+
+### Implementation Notes
+
+- **Filter dropdown population:** Fetch `GET /api/v1/plants` in parallel with the initial care-actions fetch on mount. Use the plants list to populate the filter dropdown, ensuring all plants appear even those with no care history.
+- **Compact timestamps on mobile:** Implement a responsive timestamp utility — full format on desktop (`"5 days ago"`), abbreviated on mobile (`"5d ago"`). Can be toggled via a CSS breakpoint or a JS window-width check.
+- **Design system consistency:** Use the shared Design System Conventions from `ui-spec.md` for all colors, spacing, typography, and border radii. The care-type color palette (blue/sage/terracotta) is new for this screen — see SPEC-008 for the exact values.
+- **Skeleton shimmer:** Reuse or extend the shimmer animation pattern already established in other loading states (Plant Detail, Inventory). Keep it consistent.
+- **Care type icons:** Phosphor `Drop` (watering), `Leaf` (fertilizing), `PottedPlant` (repotting) — all outlined weight, 20px, inside 44×44px colored circles.
+- **`aria-live` region for filter:** Announce the result count after a filter change so screen reader users know the list has updated.
+
+### API Endpoint Reference (from T-039)
+
+```
+GET /api/v1/care-actions
+  Query params: plant_id (optional), page (default 1), limit (default 20)
+  Response: { data: [{ id, plant_id, plant_name, care_type, performed_at }], pagination: { page, limit, total } }
+  Auth: Bearer token required
+```
+
+See `api-contracts.md` once T-039 publishes the full contract.
+

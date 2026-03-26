@@ -838,6 +838,234 @@ Triggered by clicking the "Delete Account" button on the Profile page. Uses the 
 
 ---
 
+### SPEC-008 — Care History Page
+
+**Status:** Approved — 2026-03-25 (T-038: Care History page spec, Sprint 7)
+**Related Tasks:** T-040 (Care History Frontend), T-039 (Care History API)
+
+#### Description
+
+The Care History page gives users a complete, chronological log of every care action they've performed across all their plants. This screen reinforces the habit-forming core of Plant Guardians — seeing a growing list of care actions builds a sense of accomplishment and motivates continued engagement. Think of it as the user's personal "plant diary."
+
+**User goal:** "I want to see everything I've done for my plants and how recently I've been caring for each one."
+
+#### Route
+
+`/history`
+
+#### Navigation Entry Points
+
+- **Primary:** Sidebar navigation — add a new "History" item between "My Plants" and "Profile". Icon: Phosphor `ClockCounterClockwise` (outlined), 20px. Label: "History". Same styling as other sidebar nav items.
+- **Secondary:** Profile page — add a text link "View care history →" (DM Sans, 13px, `color: #5C7A5C`) in the Account Actions section, positioned above the "Log Out" button row with a `margin-bottom: 16px` divider.
+
+Both entry points are required. Users should be able to reach the history page from the sidebar on any screen, and from their profile as a natural extension of reviewing their stats.
+
+#### Layout
+
+App shell (persistent sidebar + main content area), consistent with all other authenticated screens.
+
+**Main content:**
+- `max-width: 720px`, horizontally centered
+- `padding: 40px 32px` (desktop), `padding: 24px 16px` (mobile)
+
+**Page Header (top of main content):**
+- Page title: "Care History" — Playfair Display, 32px, `font-weight: 600`, `color: #2C2C2C`, `margin-bottom: 8px`
+- Subtitle: "A record of every care action you've taken for your plants." — DM Sans, 14px, `color: #6B6B5F`, `margin-bottom: 24px`
+
+**Filter Bar (immediately below header):**
+- A single "Filter by plant" dropdown control
+- Layout: `display: flex`, `align-items: center`, `gap: 8px`
+- Label: `<label>` "Filter by plant:" — DM Sans, 13px, `color: #6B6B5F`, `white-space: nowrap`
+- `<select>` dropdown:
+  - Default option: "All plants"
+  - Additional options: one per user-owned plant, sorted A–Z by plant name, displaying plant name only
+  - Style: `background: #FFFFFF`, `border: 1.5px solid #E0DDD6`, `border-radius: 8px`, `padding: 8px 32px 8px 12px` (right padding for chevron), `font-size: 14px`, `color: #2C2C2C`, `min-width: 200px`, `cursor: pointer`
+  - Focus state: `border-color: #5C7A5C`, `outline: 2px solid rgba(92,122,92,0.2)`, `outline-offset: 2px`
+- Position: right-aligned on desktop (filter bar sits on same row as a result count, separated by flexbox `justify-content: space-between`); full-width on mobile (stacked below subtitle)
+- On filter change: re-fetch list data with the selected `plant_id`. If "All plants" is selected, fetch without a filter.
+
+**Result Count (inline with filter bar, left side):**
+- When loaded and not in the loading/error/empty state: "X actions" — DM Sans, 13px, `color: #B0ADA5`
+- When a filter is active: "X actions for [Plant Name]"
+- Hidden during loading
+
+**Care Action List:**
+- `margin-top: 16px`
+- Vertical list of care action items, sorted most-recent-first
+- Between items: `border-top: 1px solid #E0DDD6` (divider)
+- No divider before the first item or after the last
+
+#### Care Action List Item Anatomy
+
+Each item is a flex row: `padding: 16px 0`, `display: flex`, `align-items: center`, `gap: 16px`.
+
+**1. Care Type Icon (left, fixed width):**
+- Circular container: `width: 44px`, `height: 44px`, `border-radius: 50%`, `flex-shrink: 0`, centered icon
+- Color coding by care type:
+
+  | Care Type | Phosphor Icon | Background | Icon Color |
+  |-----------|--------------|------------|------------|
+  | `watering` | `Drop` | `#EBF4F7` | `#5B8FA8` (calm blue) |
+  | `fertilizing` | `Leaf` | `#E8F4EC` | `#4A7C59` (sage green) |
+  | `repotting` | `PottedPlant` | `#F4EDE8` | `#A67C5B` (terracotta) |
+
+- Icon size: 20px, Phosphor outlined weight
+- Icon is decorative — `aria-hidden="true"` (care type text provides the label)
+
+**2. Plant Info (center, grows to fill remaining space):**
+- `flex: 1`, `min-width: 0` (allows text truncation)
+- Line 1 — Plant name: DM Sans, 15px, `font-weight: 500`, `color: #2C2C2C`. Single line, truncate with ellipsis: `overflow: hidden; text-overflow: ellipsis; white-space: nowrap`
+- Line 2 — Action label: DM Sans, 13px, `color: #6B6B5F`. Human-readable past tense:
+  - `watering` → "Watered"
+  - `fertilizing` → "Fertilized"
+  - `repotting` → "Repotted"
+- `margin-top: 2px` between the two lines
+
+**3. Relative Timestamp (right, fixed width):**
+- `flex-shrink: 0`, `text-align: right`
+- DM Sans, 13px, `color: #6B6B5F`
+- Format rules (from most recent to oldest):
+  - < 1 minute ago → "Just now"
+  - 1–59 minutes ago → "X minutes ago" (e.g., "12 minutes ago")
+  - 1–47 hours ago → "X hours ago" (e.g., "3 hours ago")
+  - 2–13 days ago → "X days ago" (e.g., "5 days ago")
+  - 2–7 weeks ago → "X weeks ago" (e.g., "2 weeks ago")
+  - 2–11 months ago → "X months ago" (e.g., "3 months ago")
+  - 1+ years ago → "X years ago" (e.g., "1 year ago")
+- `title` attribute: full human-readable datetime, e.g. `"March 20, 2026 at 2:14 PM"`
+- `aria-label`: "Performed on March 20, 2026 at 2:14 PM" (for screen readers)
+
+#### States
+
+**Loading State:**
+
+- Show 6 skeleton placeholder rows immediately on mount while data fetches
+- Each skeleton row mirrors the anatomy of a real list item:
+  - Left: circular shimmer `width: 44px`, `height: 44px`, `border-radius: 50%`
+  - Center, line 1: shimmer block `width: 35–50%` (randomized per row for natural feel), `height: 14px`, `border-radius: 4px`
+  - Center, line 2: shimmer block `width: 20–30%`, `height: 12px`, `border-radius: 4px`, `margin-top: 6px`
+  - Right: shimmer block `width: 72px`, `height: 12px`, `border-radius: 4px`
+- Shimmer animation: `background: linear-gradient(90deg, #F0EDE6 25%, #E8E4DC 50%, #F0EDE6 75%)`, `background-size: 200% 100%`, keyframe `shimmer` slides the gradient horizontally, `animation: shimmer 1.4s ease-in-out infinite`
+- Filter dropdown: rendered but `disabled`, `opacity: 0.5`
+- Result count: hidden
+- Wrapper element: `aria-busy="true"`, `aria-label="Loading care history"`
+
+**Empty State (zero care actions, "All plants" filter):**
+
+- Centered content block: `text-align: center`, `padding: 64px 24px`
+- Illustration: a small SVG or emoji-style botanical motif (e.g., a sprout with water drops), approx 100px × 100px, using brand palette (`#5C7A5C`, `#A67C5B`, `#E0DDD6`). Keep it light and encouraging, not alarming.
+- Heading: "No care actions yet." — Playfair Display, 22px, `font-weight: 600`, `color: #2C2C2C`, `margin-top: 24px`
+- Body: "Start by marking a plant as watered!" — DM Sans, 14px, `color: #6B6B5F`, `margin-top: 8px`, `line-height: 1.6`
+- CTA: "Go to my plants" — Primary button, `margin-top: 24px`, navigates to `/`
+
+**Filtered Empty State (filter active, no matching results):**
+
+- Same layout as empty state
+- No illustration needed (filter-specific context is sufficient)
+- Heading: "No actions for this plant yet." — Playfair Display, 20px, `color: #2C2C2C`
+- Body: "Try a different plant, or head to its page to mark a care action." — DM Sans, 14px, `color: #6B6B5F`
+- CTA: "Clear filter" — Ghost button, resets dropdown to "All plants" and re-fetches
+
+**Error State:**
+
+- Same centered layout as empty state
+- Icon: Phosphor `WarningCircle`, 48px, `color: #B85C38`
+- Heading: "Couldn't load your care history." — Playfair Display, 20px, `color: #2C2C2C`
+- Body: "Something went wrong. Please try again." — DM Sans, 14px, `color: #6B6B5F`
+- CTA: "Try again" — Secondary button, triggers a re-fetch of the data. `aria-label="Retry loading care history"`
+
+Trigger: any non-200 API response or network failure on the initial load or filter change.
+
+**Loaded / Populated State:**
+
+- Filter dropdown fully populated with plant options
+- Result count displayed
+- Care action list rendered, sorted most-recent-first
+- "Load more" button appears below the list if `pagination.total > pagination.limit * pagination.page` (more pages exist)
+
+#### Pagination / Load More
+
+- Initial fetch: page 1, limit 20
+- If the total exceeds the loaded count, show a "Load more" button below the list:
+  - Label: "Load more (N remaining)" where N = `pagination.total - currently loaded count`
+  - Style: Ghost button, centered, `margin-top: 24px`
+  - On click: fetch next page, **append** results to the existing list (no scroll reset, no full reload)
+  - While loading additional items: button shows a 16px inline spinner, `disabled`
+  - When all items are loaded: button disappears with no visible indication (or optionally "All actions loaded" in `color: #B0ADA5`, `font-size: 12px`, centered)
+- When a filter changes: reset to page 1, clear the list, re-fetch
+
+#### Responsive Behavior
+
+| Breakpoint | Layout |
+|-----------|--------|
+| Desktop (≥1024px) | Sidebar visible; max-width 720px centered; filter bar inline (result count left, dropdown right); full item anatomy |
+| Tablet (768–1023px) | Sidebar may collapse to icon rail; main content same; item anatomy unchanged |
+| Mobile (<768px) | No sidebar (hamburger or bottom nav per app shell pattern); 16px horizontal padding; filter bar full-width below subtitle; result count above filter; plant name truncates aggressively; timestamps may abbreviate to compact form, e.g., "2d ago", "1h ago", "Just now" |
+
+**Compact timestamp format (mobile only):**
+- < 1 min → "Just now"
+- < 60 min → "[N]m ago"
+- < 48 hr → "[N]h ago"
+- < 14 days → "[N]d ago"
+- < 8 weeks → "[N]w ago"
+- else → "[N]mo ago" / "[N]y ago"
+
+#### API Integration
+
+Endpoint: `GET /api/v1/care-actions` (see T-039 and `api-contracts.md`)
+
+| Query Param | Type | Description |
+|------------|------|-------------|
+| `plant_id` | UUID (optional) | Filter to a specific plant. Omit for all plants. |
+| `page` | integer (default 1) | Page number for load-more pagination |
+| `limit` | integer (default 20) | Items per page |
+
+**Response shape** (per T-039):
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "plant_id": "uuid",
+      "plant_name": "string",
+      "care_type": "watering | fertilizing | repotting",
+      "performed_at": "ISO 8601 datetime string"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 47
+  }
+}
+```
+
+**Filter dropdown population:** Populate the dropdown from `GET /api/v1/plants` (the existing plants-list endpoint), fetched in parallel with the initial care-actions request on mount. This ensures all plants appear in the dropdown even if they have no care history yet. Map plant `id` → `name` for the dropdown options.
+
+**Re-fetch triggers:**
+- On initial mount
+- On filter dropdown change
+- On "Load more" click (append mode, no state reset)
+- On "Try again" click after error
+
+#### Accessibility
+
+- **Page landmark:** `<main>` wraps the content area; `<h1>` for "Care History"
+- **Filter label:** `<label for="plant-filter">Filter by plant</label>` + `<select id="plant-filter">`. On filter change: announce results via `aria-live="polite"` region: "Showing [N] care actions" or "Showing [N] actions for [Plant Name]"
+- **List structure:** Semantic `<ul>` / `<li>` for the care action list
+- **Each list item `aria-label`:** Combined accessible label, e.g., "Watered Monstera, 5 days ago" — either via `aria-label` on the `<li>` or via the visible text content
+- **Icons:** `aria-hidden="true"` on all care-type icons (decorative; care type label provides the text)
+- **Timestamps:** `title="[Full date]"` for tooltip; inner `<time>` element with `datetime="[ISO string]"` for semantic markup and screen reader access
+- **Loading state:** `aria-busy="true"` on the list wrapper; `role="status"` on an `aria-live` region that announces "Loading care history..." while fetching
+- **Empty state CTA:** Standard button/link; no special ARIA needed beyond the label
+- **Error retry:** `aria-label="Retry loading care history"` on the retry button
+- **Load more:** `aria-label="Load [N] more care actions"`
+- **Keyboard:** All interactive elements reachable by Tab; dropdown operable via arrow keys (native `<select>` behavior); Load more operable via Enter/Space
+- **Color contrast:** All text meets WCAG AA (4.5:1 for body text, 3:1 for large text/icons)
+- **Focus management:** When filter changes, focus stays on the dropdown (no forced refocus); when load more appends items, focus stays on the Load more button (not moved to new items)
+
+---
+
 ## Design Notes for Frontend Engineer
 
 ### Animation Library Recommendation
