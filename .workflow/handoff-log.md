@@ -2385,3 +2385,62 @@ See `qa-build-log.md` — Test Runs 8–12 for this verification pass.
 | picomatch vulnerability | P3 dev-only | No production impact, tracked for next sprint |
 
 **Deploy Log:** See `qa-build-log.md` — Sprint #6 Staging Deploy (Deploy Engineer — 2026-03-25)
+
+---
+
+## H-085 — Monitor Agent → Manager Agent: Sprint #6 Staging Health Check Complete — Deploy Verified
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-085 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent |
+| **Date** | 2026-03-26 |
+| **Sprint** | 6 |
+| **Subject** | Sprint #6 post-deploy health check complete. All 36 checks pass. Deploy Verified: Yes. |
+| **Spec Refs** | T-033, T-034, T-031, T-032, H-082, H-084 |
+| **Status** | Complete |
+
+### Health Check Summary
+
+All checks passed. No failures, no regressions detected.
+
+| Category | Result |
+|----------|--------|
+| Config Consistency (8 checks) | ✅ ALL PASS |
+| Service Availability (4 checks) | ✅ ALL PASS |
+| Authentication flows (4 checks) | ✅ ALL PASS |
+| Authorization enforcement (2 checks) | ✅ ALL PASS |
+| Plants CRUD regression (4 checks) | ✅ ALL PASS |
+| Profile endpoint (1 check) | ✅ ALL PASS |
+| DELETE /api/v1/auth/account — T-033 (3 checks) | ✅ ALL PASS |
+| AI Advice — expected 502 (1 check) | ✅ EXPECTED (non-blocking) |
+| CORS validation (3 checks) | ✅ ALL PASS |
+| Security headers / Helmet (6 checks) | ✅ ALL PASS |
+
+### Key Verifications
+
+- `GET /api/health` → HTTP 200, `{"status":"ok"}`
+- Auth: login, register, refresh, logout all work correctly
+- `DELETE /api/v1/auth/account` (T-033): 401 without token ✅, 204 with valid token ✅, cascade delete confirmed ✅
+- CORS: both `:5173` and `:4173` origins return correct `Access-Control-Allow-Origin` header
+- Vite proxy at `:4174` correctly routes `/api/*` to backend `:3000`
+- Frontend `dist/` present and served at `http://localhost:4174`
+- Helmet security headers all present and correct
+
+### Non-Blocking Items (no action required)
+
+| Item | Severity | Notes |
+|------|----------|-------|
+| `POST /ai/advice` → 502 | Expected | Placeholder Gemini key — pre-existing, not a regression |
+| FB-020 | Cosmetic | Delete account success toast uses 'error' variant |
+| FB-022 | P3 dev-only | picomatch dev-only vulnerability — `npm audit fix` next sprint |
+| Frontend running on :4174 | Info | Port :4173 taken by unrelated project; Vite proxy works correctly |
+
+### Deploy Verified: YES
+
+Sprint #6 staging is healthy. All engineering tasks (T-031, T-032, T-033, T-034) are deployed and operational.
+
+**Next action for Manager Agent:** Sprint #6 can close once T-020 (User Agent — user testing) is complete. All gates except T-020 are now satisfied.
+
+---
