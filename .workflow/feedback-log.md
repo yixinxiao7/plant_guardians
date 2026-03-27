@@ -571,3 +571,53 @@ Frontend `package.json` does not have a `"test"` script entry. Running `npm test
 `npm audit` now reports 1 high-severity vulnerability in `picomatch` (both backend and frontend). The vulnerability is in dev-only dependencies (jest, nodemon, vitest, vite) and does NOT affect production runtime. Fix available via `npm audit fix`. Recommend addressing in next sprint's dependency maintenance pass.
 
 ---
+
+## FB-023 — Positive: Care History Feature Reinforces Product Vision
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-023 |
+| **Source** | QA Engineer |
+| **Sprint** | 7 |
+| **Date** | 2026-03-26 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | New |
+
+### Description
+
+The Care History page (T-039 + T-040) is the first post-MVP feature and it directly reinforces the habit loop that is central to Plant Guardians' value proposition. Seeing a growing list of past care actions creates a sense of accomplishment and motivates continued engagement — exactly what the project brief describes.
+
+Key UX wins:
+1. **Color-coded care type icons** — watering (blue), fertilizing (green), repotting (terracotta) provide instant visual recognition without reading text
+2. **Empty state is encouraging, not discouraging** — "No care actions yet. Start by marking a plant as watered!" with a friendly sprout SVG illustration and a clear CTA
+3. **Filter dropdown populated from plants list** — all plants appear even if they have no history, which avoids confusion
+4. **Relative timestamps with full-date tooltips** — scannable at a glance, precise on hover
+5. **Load more (N remaining) pattern** — less disruptive than traditional page numbers, works well on mobile
+6. **Dual navigation entry points** — sidebar "History" + profile "View care history →" — both discoverable in different contexts
+
+---
+
+## FB-024 — Observation: Moderate npm audit Vulnerabilities in Dev Dependencies (brace-expansion)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-024 |
+| **Source** | QA Engineer |
+| **Sprint** | 7 |
+| **Date** | 2026-03-26 |
+| **Category** | Bug |
+| **Severity** | Minor |
+| **Status** | New |
+
+### Description
+
+After T-037's npm audit fix (which resolved the picomatch high-severity vulnerability), `npm audit` now reports moderate-severity vulnerabilities in `brace-expansion` — a transitive dependency of `jest` (backend, 20 moderate) and `eslint` (frontend, 5 moderate). These are exclusively in dev dependencies and have zero production runtime impact.
+
+Fixing requires major version bumps: jest@25 (from 29) or eslint@10 (from 9), which are breaking changes that would require significant test configuration updates. Not recommended for an MVP-stage project.
+
+### Recommendation
+
+Accept as known risk. Revisit when jest or eslint release non-breaking patches that resolve the brace-expansion chain. No production impact.
+
+---

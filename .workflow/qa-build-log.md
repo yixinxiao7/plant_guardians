@@ -4,6 +4,252 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 7 — Comprehensive QA Verification (QA Engineer — 2026-03-26)
+
+**Date:** 2026-03-26
+**QA Engineer:** QA Agent
+**Sprint:** 7
+**Scope:** Full QA pass — unit tests, integration tests, config consistency, security scan, product-perspective review
+
+---
+
+### Test Run — Unit Tests
+
+| Suite | Framework | Result | Detail |
+|-------|-----------|--------|--------|
+| Backend (7 suites) | Jest --runInBand | ✅ 57/57 pass | auth (10), plants (18), careActions (6), ai (7), profile (2), account (4), careHistory (9), plus 1 console.error from expected Gemini 502 |
+| Frontend (19 files) | Vitest | ✅ 72/72 pass | All pages, components, hooks tested. 1.42s total |
+
+**Coverage Assessment (Sprint 7 new code):**
+
+| Task | Code | Happy Path | Error Path | Coverage Verdict |
+|------|------|-----------|------------|-----------------|
+| T-035 | ProfilePage toast variant | ✅ Toast uses 'info' | ✅ (existing error tests) | Pass |
+| T-036 | package.json test script | ✅ `npm test` runs 72/72 | N/A (infra) | Pass |
+| T-037 | npm audit fix | ✅ 0 high vulns | N/A (deps) | Pass |
+| T-039 | GET /care-actions (9 tests) | ✅ Happy path, pagination, filter | ✅ 401, 400 (page/limit/UUID), ownership isolation | Pass |
+| T-040 | CareHistoryPage (11 tests) | ✅ Populated, load more, filter, timestamps, navigation | ✅ Loading, empty, filtered empty, error, retry | Pass |
+
+---
+
+### Test Run — Integration Tests
+
+**API Contract Verification (T-039 — GET /api/v1/care-actions):**
+
+| Check | Expected (api-contracts.md) | Actual | Result |
+|-------|---------------------------|--------|--------|
+| Auth required | 401 UNAUTHORIZED | 401 UNAUTHORIZED | ✅ |
+| Response shape: data[] | Array of {id, plant_id, plant_name, care_type, performed_at} | Matches exactly | ✅ |
+| Response shape: pagination | {page, limit, total} | Matches exactly | ✅ |
+| Default page=1, limit=20 | page:1, limit:20 | Confirmed in test | ✅ |
+| plant_id filter | Returns only matching plant | Confirmed in test | ✅ |
+| Ownership isolation | Other user's plant_id → empty [] (not 404) | Confirmed in test | ✅ |
+| Invalid page (0) | 400 VALIDATION_ERROR | 400 VALIDATION_ERROR | ✅ |
+| Limit > 100 | 400 VALIDATION_ERROR | 400 VALIDATION_ERROR | ✅ |
+| Invalid UUID plant_id | 400 VALIDATION_ERROR | 400 VALIDATION_ERROR | ✅ |
+| Sorting | performed_at DESC | Confirmed in test | ✅ |
+| Empty result | 200 with data:[], total:0 | Confirmed in test | ✅ |
+| Parameterized queries | Knex query builder (no string concat) | Verified in CareAction.findPaginatedByUser() | ✅ |
+
+**Frontend → Backend Integration (T-040):**
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| API call path | ✅ | `careActions.list()` calls `/care-actions` with query params (page, limit, plant_id) |
+| Response handling | ✅ | useCareHistory hook extracts data[] and pagination correctly |
+| Filter dropdown | ✅ | Populated from `GET /plants` (separate call), sorted A-Z |
+| Load more | ✅ | Increments page, appends to existing data |
+| Error handling | ✅ | Rejected promise → error state with retry button |
+
+**UI State Verification (SPEC-008 Compliance — T-040):**
+
+| State | Implemented | SPEC-008 Match | Detail |
+|-------|------------|----------------|--------|
+| Loading | ✅ | ✅ | 6 skeleton rows, disabled filter, aria-busy="true", aria-label="Loading care history" |
+| Populated | ✅ | ✅ | Result count, filter bar, care action list with icons, labels, timestamps |
+| Empty (no filter) | ✅ | ✅ | SVG illustration, "No care actions yet.", "Start by marking a plant as watered!", "Go to my plants" CTA |
+| Filtered empty | ✅ | ✅ | "No actions for this plant yet.", "Clear filter" ghost button |
+| Error | ✅ | ✅ | WarningCircle icon, "Couldn't load your care history.", "Try again" with aria-label |
+| Load more | ✅ | ✅ | Ghost button, "(N remaining)" count, disappears when all loaded |
+
+**Care Type Icons & Colors (SPEC-008):**
+
+| Care Type | Icon | Background | Icon Color | Match |
+|-----------|------|-----------|------------|-------|
+| watering | Drop | #EBF4F7 | #5B8FA8 | ✅ |
+| fertilizing | Leaf | #E8F4EC | #4A7C59 | ✅ |
+| repotting | PottedPlant | #F4EDE8 | #A67C5B | ✅ |
+
+**Navigation Entry Points:**
+
+| Entry Point | Implemented | Detail |
+|-------------|------------|--------|
+| Sidebar "History" | ✅ | ClockCounterClockwise icon, /history route |
+| Profile "View care history →" | ✅ | Link in profile page |
+
+---
+
+### Test Run — Config Consistency Check
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Backend PORT | 3000 | `PORT=3000` in .env | ✅ |
+| Vite proxy target | http://localhost:3000 | `backendTarget = 'http://localhost:3000'` | ✅ |
+| SSL consistency | No SSL (dev) → http:// | Both use http:// | ✅ |
+| CORS_ORIGIN includes :5173 | Yes | `FRONTEND_URL=http://localhost:5173,http://localhost:4173` | ✅ |
+| Docker compose DB | Matches .env | postgres defaults match DATABASE_URL credentials | ✅ |
+
+**Config Consistency: PASS — No mismatches.**
+
+---
+
+### Test Run — Security Scan
+
+**Security Checklist Verification:**
+
+| # | Item | Applicable | Result | Detail |
+|---|------|-----------|--------|--------|
+| 1 | All API endpoints require auth | Yes | ✅ | `router.use(authenticate)` on careHistory.js; all other routes verified in prior sprints |
+| 2 | Role-based access control | No | N/A | Single-role app |
+| 3 | Auth tokens have expiration/refresh | Yes | ✅ | JWT_EXPIRES_IN=15m, REFRESH_TOKEN_EXPIRES_DAYS=7 |
+| 4 | Password hashing (bcrypt) | Yes | ✅ | bcrypt 6.0.0 confirmed |
+| 5 | Rate limiting on login | Yes | ✅ | AUTH_RATE_LIMIT_MAX=20 configured |
+| 6 | Input validation (client + server) | Yes | ✅ | page/limit/plant_id validated server-side; frontend uses controlled components |
+| 7 | Parameterized SQL queries | Yes | ✅ | Knex query builder used throughout — no string concatenation in CareAction.findPaginatedByUser() |
+| 8 | NoSQL injection | No | N/A | PostgreSQL only |
+| 9 | File upload validation | Yes | ✅ | Existing — type, size, content verified (Sprint 1) |
+| 10 | XSS prevention | Yes | ✅ | React default escaping; plant_name rendered via JSX (not dangerouslySetInnerHTML) |
+| 11 | CORS configured | Yes | ✅ | FRONTEND_URL allows only :5173 and :4173 |
+| 12 | Rate limiting on public endpoints | Yes | ✅ | RATE_LIMIT_MAX=100 configured |
+| 13 | No internal error leakage | Yes | ✅ | Error middleware returns {error: {message, code}} — no stack traces |
+| 14 | No sensitive data in URLs | Yes | ✅ | plant_id is UUID (non-sensitive); no tokens in query params |
+| 15 | Security headers | Partial | ⚠️ | Production nginx config has full headers (X-Content-Type-Options, X-Frame-Options, HSTS). Dev server does not — acceptable for staging. |
+| 16 | Sensitive data encrypted at rest | No | N/A | Out of scope per active-sprint.md |
+| 17 | Secrets in env vars (not code) | Yes | ✅ | JWT_SECRET, GEMINI_API_KEY, DATABASE_URL all in .env; no hardcoded secrets in source |
+| 18 | No PII in logs | Yes | ✅ | Only Gemini API error logged (err.message); no user data logged |
+| 19 | HTTPS enforced | Partial | ⚠️ | Production nginx config enforces HTTPS + TLS 1.2/1.3. Staging uses HTTP — acceptable per project phase. |
+| 20 | npm audit — 0 high-severity | Yes | ✅ | 0 high-severity vulnerabilities. 20 moderate (backend: brace-expansion in jest) + 5 moderate (frontend: brace-expansion in eslint) — dev-only deps, no production impact. |
+| 21 | Default credentials removed | Yes | ✅ | No default/sample credentials in committed code |
+| 22 | Error pages don't reveal server info | Yes | ✅ | JSON error responses only; no Express version exposure |
+
+**Security Scan: PASS — No P1 security issues. Two ⚠️ items (security headers, HTTPS) are staging-only and correctly addressed in production config (infra/nginx.prod.conf).**
+
+---
+
+### Product-Perspective Testing
+
+**Care History Feature (T-039 + T-040):**
+
+Tested from the perspective of a novice plant owner per project-brief.md:
+
+1. **New user with no care actions** → Empty state is encouraging ("Start by marking a plant as watered!") with a clear CTA to go to plants. ✅ Good UX.
+2. **User with multiple plants and actions** → List is sorted newest-first. Each item clearly shows plant name, care type (color-coded), and relative time. ✅ Scannable at a glance.
+3. **Filtering by plant** → Dropdown shows all plants alphabetically. Selecting one filters instantly. If no actions for that plant, shows "No actions for this plant yet." with "Clear filter" button. ✅ Intuitive.
+4. **Pagination** → "Load more (N remaining)" button appears when more than 20 actions. Appends without page reset. ✅ Smooth.
+5. **Error recovery** → On API failure, error state shows clearly with "Try again" button. ✅ Resilient.
+
+**Edge Cases Tested (via backend unit tests):**
+
+| Edge Case | Behavior | Result |
+|-----------|----------|--------|
+| Very large limit (101) | 400 VALIDATION_ERROR | ✅ |
+| Page=0 | 400 VALIDATION_ERROR | ✅ |
+| Malformed UUID | 400 VALIDATION_ERROR | ✅ |
+| Other user's plant_id | Empty array (no info leak) | ✅ |
+| No care actions at all | 200 with empty data[] | ✅ |
+
+**Observations logged to feedback-log.md:** FB-023 (Positive — feature reinforces product vision), FB-024 (Minor — moderate npm audit vulns in dev deps).
+
+---
+
+### Sprint 7 QA Summary
+
+| Category | Verdict |
+|----------|---------|
+| Unit Tests | ✅ PASS (57/57 backend, 72/72 frontend) |
+| Integration Tests | ✅ PASS (API contract verified, all UI states, frontend↔backend alignment) |
+| Config Consistency | ✅ PASS (PORT, proxy, CORS, SSL all consistent) |
+| Security Scan | ✅ PASS (no P1 issues; staging-only ⚠️ items addressed in prod config) |
+| Product Perspective | ✅ PASS (Care History delivers on product vision) |
+
+**All Sprint 7 engineering tasks verified. Ready for Monitor Agent post-deploy health check.**
+
+---
+
+## Sprint 7 — Staging Deployment (Deploy Engineer — 2026-03-26)
+
+**Date:** 2026-03-26
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 7
+**Task:** Sprint 7 Staging Deployment — backend restart to activate T-039 (GET /api/v1/care-actions)
+**Build Status:** ✅ Success — no rebuild required; backend restart only
+
+### Pre-Deploy Confirmation
+
+| Check | Result |
+|-------|--------|
+| QA confirmation (H-101) | ✅ All Sprint 7 tasks pass — T-035, T-036, T-037, T-039, T-040 |
+| Manager code review (H-100) | ✅ All Sprint 7 tasks approved — backend restart authorized |
+| Frontend dist current | ✅ No rebuild required — dist built with all Sprint 7 code |
+| Migrations required | ✅ None — T-039 uses existing `care_actions` table (Sprint 1 migration 5/5) |
+
+### Deploy Action
+
+| Action | Detail |
+|--------|--------|
+| Type | Backend process restart only |
+| Previous PID | 39507 (started pre-T-039 — route not loaded) |
+| New PID | 74651 |
+| Command | `kill 39507 && cd backend && node src/server.js &` |
+| Migrations run | None required (5/5 already current) |
+| Frontend rebuild | Not required (dist is current) |
+
+### Post-Deploy Health Verification
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Backend `GET /api/health` | ✅ Pass | `{"status":"ok","timestamp":"2026-03-27T02:08:03.046Z"}` |
+| `GET /api/v1/care-actions` (unauthenticated) | ✅ 401 | Route is live — auth correctly enforced |
+| `GET /api/v1/plants` (unauthenticated) | ✅ 401 | Existing routes unaffected |
+| `POST /api/v1/auth/register` (empty body) | ✅ 400 | Auth routes healthy |
+| `GET /api/v1/profile` (unauthenticated) | ✅ 401 | Profile route healthy |
+| Frontend `GET http://localhost:4174/` | ✅ 200 | Vite preview PID 39822 healthy |
+| Vite proxy: `GET /api/health` via :4174 | ✅ 200 | Proxy functional |
+| Vite proxy: `GET /api/v1/care-actions` via :4174 | ✅ 401 | Route accessible through proxy |
+
+### Post-Restart Test Results
+
+| Suite | Result |
+|-------|--------|
+| Backend tests (`npm test`) | ✅ 57/57 pass (7 suites, 12.9s) |
+| Frontend tests (`npm test`) | ✅ 72/72 pass (19 files, 1.5s) |
+
+### Environment State (Post-Deploy)
+
+| Item | Value |
+|------|-------|
+| Backend PID | 74651 (`node src/server.js`) |
+| Frontend PID | 39822 (Vite preview — unchanged) |
+| Backend URL | http://localhost:3000 |
+| Frontend URL | http://localhost:4174 |
+| DB | PostgreSQL @ localhost:5432 (plant_guardians_staging) |
+| Migrations | 5/5 current |
+| New routes live | `GET /api/v1/care-actions` ✅ |
+
+### Sprint 7 Feature Status
+
+| Task | Type | Deployed | Status |
+|------|------|----------|--------|
+| T-035 | Frontend: toast variant fix | ✅ In dist | Done |
+| T-036 | Frontend: npm test script | ✅ In dist | Done |
+| T-037 | npm audit fix (backend+frontend) | ✅ Applied | Done |
+| T-039 | Backend: GET /care-actions | ✅ Route live (PID 74651) | Done |
+| T-040 | Frontend: Care History page | ✅ In dist (route /history) | Done |
+
+**Deploy Verified:** Pending Monitor Agent health check
+
+---
+
 ## Sprint 7 — Pre-Deploy Readiness Verification (Deploy Engineer — 2026-03-26)
 
 **Date:** 2026-03-26
@@ -1291,5 +1537,307 @@ Verified on `GET /api/health` response:
 ### Deploy Verified: **YES**
 
 All 36 health checks pass. Sprint #6 staging deployment is confirmed healthy. New Sprint 6 features (T-033, T-034) are operational. No regressions detected in existing endpoints.
+
+---
+
+## Sprint #7 — QA Verification Pass (QA Engineer — 2026-03-26)
+
+**Date:** 2026-03-26
+**QA Engineer:** QA Agent
+**Sprint:** 7
+**Tasks Under Test:** T-035, T-036, T-037, T-039, T-040
+
+---
+
+### Test Run 10 — Unit Tests
+
+**Test Type:** Unit Test
+**Date:** 2026-03-26
+
+#### Backend Unit Tests
+
+| Metric | Value |
+|--------|-------|
+| Test Runner | Jest (--runInBand) |
+| Suites | 7 passed, 7 total |
+| Tests | 57 passed, 57 total |
+| Failures | 0 |
+| Duration | 13.1s |
+
+**Sprint 7 coverage — T-039 (Care History endpoint):**
+
+| Test | Type | Status |
+|------|------|--------|
+| Happy path — paginated care actions for authenticated user | Happy path | ✅ Pass |
+| 401 without auth token | Error path | ✅ Pass |
+| Empty array when user has no care actions | Edge case | ✅ Pass |
+| Filter by plant_id when provided | Happy path | ✅ Pass |
+| Paginate correctly (page 1 limit 2, page 2 limit 2) | Happy path | ✅ Pass |
+| 400 for invalid page parameter (page=0) | Error path | ✅ Pass |
+| 400 for limit exceeding 100 | Error path | ✅ Pass |
+| 400 for invalid plant_id UUID format | Error path | ✅ Pass |
+| Ownership isolation between users | Security | ✅ Pass |
+
+**Verdict:** 9 tests cover happy path, error paths, validation, pagination, and ownership isolation. Response shape matches `api-contracts.md` (id, plant_id, plant_name, care_type, performed_at + pagination object). All existing 48 backend tests continue to pass (no regressions). **PASS.**
+
+#### Frontend Unit Tests
+
+| Metric | Value |
+|--------|-------|
+| Test Runner | Vitest |
+| Files | 19 passed, 19 total |
+| Tests | 72 passed, 72 total |
+| Failures | 0 |
+| Duration | 1.54s |
+
+**Sprint 7 coverage — T-040 (Care History page):**
+
+| Test | Type | Status |
+|------|------|--------|
+| Loading skeleton renders initially | State | ✅ Pass |
+| Populated list renders when data loads | Happy path | ✅ Pass |
+| Empty state when no actions exist | State | ✅ Pass |
+| Error state on API failure | Error path | ✅ Pass |
+| "Load more" button when more pages exist | Happy path | ✅ Pass |
+| No "Load more" when all items loaded | Edge case | ✅ Pass |
+| Filter dropdown with plant options | Happy path | ✅ Pass |
+| Filtered empty state when filter returns no results | State | ✅ Pass |
+| Retry on error state "Try again" button | Interaction | ✅ Pass |
+| Relative timestamps with full date in title | Rendering | ✅ Pass |
+| Navigation to inventory on empty state CTA | Interaction | ✅ Pass |
+
+**Sprint 7 coverage — T-035 (Toast variant fix):**
+- Toast variant changed from `'error'` to `'info'` — verified in ProfilePage.jsx line 68. Test assertion updated. ✅ Pass.
+
+**Sprint 7 coverage — T-036 (npm test script):**
+- `npm test` successfully runs 72/72 vitest tests via `"test": "vitest run"` in package.json scripts. ✅ Pass.
+
+**Verdict:** 11 new CareHistoryPage tests cover all 4 states (loading, populated, empty, error), filtered empty state, filter dropdown, load more, retry, timestamps, and navigation. All 61 pre-existing frontend tests continue to pass. **PASS.**
+
+---
+
+### Test Run 11 — Integration Tests
+
+**Test Type:** Integration Test
+**Date:** 2026-03-26
+
+#### T-039 + T-040: Care History Feature Integration
+
+**API Contract Verification (GET /api/v1/care-actions):**
+
+| Check | Contract Spec | Implementation | Status |
+|-------|--------------|----------------|--------|
+| Auth required | Bearer token | `router.use(authenticate)` | ✅ Match |
+| Default page | 1 | `req.query.page \|\| '1'` → parseInt | ✅ Match |
+| Default limit | 20 | `req.query.limit \|\| '20'` → parseInt | ✅ Match |
+| page must be ≥ 1 | VALIDATION_ERROR (400) | `page < 1` → ValidationError | ✅ Match |
+| limit 1–100 | VALIDATION_ERROR (400) | `limit < 1 \|\| limit > 100` → ValidationError | ✅ Match |
+| plant_id must be valid UUID | VALIDATION_ERROR (400) | `isValidUUID(plantId)` check | ✅ Match |
+| Response shape | `{ data: [...], pagination: { page, limit, total } }` | Exact match | ✅ Match |
+| Data item fields | id, plant_id, plant_name, care_type, performed_at | Select from Knex query | ✅ Match |
+| Sort order | performed_at DESC | `.orderBy('ca.performed_at', 'desc')` | ✅ Match |
+| Ownership isolation | Empty array for other user's plant_id | JOIN on plants.user_id | ✅ Match |
+| Empty result | 200 with `{ data: [], pagination: { page:1, limit:20, total:0 } }` | Verified in test | ✅ Match |
+| 401 Unauthorized | `{ error: { code: "UNAUTHORIZED" } }` | Via authenticate middleware | ✅ Match |
+
+**Frontend ↔ Backend Contract Verification:**
+
+| Check | Status |
+|-------|--------|
+| `careActions.list()` calls `GET /care-actions` with correct query params (page, limit, plant_id) | ✅ Verified in api.js lines 202–209 |
+| `_returnFull: true` flag returns full `{ data, pagination }` object (not just data) | ✅ Verified |
+| `useCareHistory` hook passes page/limit/plant_id to API call | ✅ Verified |
+| Filter dropdown populated from `plants.list()` (separate GET /plants call) | ✅ Verified — per SPEC-008 |
+| Load more appends results (not replaces) | ✅ Verified in useCareHistory.js line 43 |
+| Filter change resets to page 1 and re-fetches | ✅ Verified in CareHistoryPage.jsx |
+
+**UI States vs SPEC-008:**
+
+| State | Required | Implemented | Status |
+|-------|----------|-------------|--------|
+| Loading skeleton (6 rows, aria-busy, disabled filter) | ✅ | ✅ | ✅ Match |
+| Empty state (no filter — illustration, heading, CTA) | ✅ | ✅ | ✅ Match |
+| Filtered empty state (heading, "Clear filter" CTA) | ✅ | ✅ | ✅ Match |
+| Error state (WarningCircle, heading, "Try again" with aria-label) | ✅ | ✅ | ✅ Match |
+| Populated state (filter bar, result count, action list, load more) | ✅ | ✅ | ✅ Match |
+
+**Navigation Entry Points (SPEC-008):**
+
+| Entry Point | Required | Implemented | Status |
+|-------------|----------|-------------|--------|
+| Sidebar "History" item with ClockCounterClockwise icon | ✅ | ✅ Sidebar.jsx | ✅ Match |
+| Profile page "View care history →" link | ✅ | ✅ ProfilePage.jsx | ✅ Match |
+
+**Care Type Display:**
+
+| Care Type | Icon | Label | Background | Status |
+|-----------|------|-------|------------|--------|
+| watering | Drop | Watered | #EBF4F7 | ✅ Match |
+| fertilizing | Leaf | Fertilized | #E8F4EC | ✅ Match |
+| repotting | PottedPlant | Repotted | #F4EDE8 | ✅ Match |
+
+**Accessibility:**
+
+| Check | Status |
+|-------|--------|
+| `<h1>` for page title | ✅ |
+| `<label htmlFor="plant-filter">` with matching `<select id="plant-filter">` | ✅ |
+| `role="list"` / `role="listitem"` for care action list | ✅ |
+| `aria-hidden="true"` on decorative icons | ✅ |
+| `title` attribute on timestamps for tooltip | ✅ |
+| `aria-label="Performed on ..."` on timestamps | ✅ |
+| `aria-busy="true"` + `aria-label="Loading care history"` on skeleton | ✅ |
+| `aria-label="Retry loading care history"` on retry button | ✅ |
+
+#### T-035: Toast Variant Fix Integration
+
+| Check | Status |
+|-------|--------|
+| `addToast('Your account has been deleted.', 'info')` in ProfilePage.jsx | ✅ Verified (line 68) |
+| Toast variant changed from 'error' to 'info' | ✅ Confirmed |
+| Test assertion updated | ✅ Confirmed |
+| No other toast calls affected | ✅ Verified |
+
+#### T-037: npm audit Fix
+
+| Check | Status | Detail |
+|-------|--------|--------|
+| Backend `npm audit` | ⚠️ 20 moderate | All in dev dependencies (jest → brace-expansion). No high-severity. No production impact. |
+| Frontend `npm audit` | ⚠️ 5 moderate | All in dev dependencies (eslint → brace-expansion). No high-severity. No production impact. |
+| Backend tests pass after fix | ✅ | 57/57 |
+| Frontend tests pass after fix | ✅ | 72/72 |
+
+**Note:** The remaining moderate vulnerabilities are in `brace-expansion` (transitive dep of jest and eslint). Fix requires major version bumps (`npm audit fix --force` → jest@25 or eslint@10) which are breaking changes. These are dev-only dependencies with no production runtime impact. The original picomatch high-severity vulnerability (FB-022) has been resolved. Acceptance criteria says "0 high-severity" — **PASS**.
+
+**Verdict:** All integration checks pass. **PASS.**
+
+---
+
+### Test Run 12 — Config Consistency Check
+
+**Test Type:** Config Consistency
+**Date:** 2026-03-26
+
+| Check | Expected | Actual | Status |
+|-------|----------|--------|--------|
+| Backend PORT | 3000 | `PORT=3000` in .env | ✅ Match |
+| Vite proxy target | http://localhost:3000 | `backendTarget = 'http://localhost:3000'` | ✅ Match |
+| Backend SSL | Not enabled (http) | No SSL config in .env | ✅ N/A |
+| Vite proxy protocol | http:// | `http://localhost:3000` | ✅ Correct |
+| CORS FRONTEND_URL includes :5173 | Required | `http://localhost:5173,http://localhost:4173` | ✅ Match |
+| Docker PG port | 5432 | `5432:5432` | ✅ Match |
+| DATABASE_URL port | 5432 | `localhost:5432` | ✅ Match |
+
+**Verdict:** No config mismatches. **PASS.**
+
+---
+
+### Test Run 13 — Security Scan
+
+**Test Type:** Security Scan
+**Date:** 2026-03-26
+
+#### Security Checklist Verification (Sprint 7 Tasks)
+
+**Authentication & Authorization:**
+
+| Item | Status | Detail |
+|------|--------|--------|
+| GET /care-actions requires auth | ✅ Pass | `router.use(authenticate)` — all routes protected |
+| Ownership isolation enforced | ✅ Pass | JOIN on `plants.user_id = req.user.id` — users can only see their own care actions |
+| Token expiration/refresh | ✅ Pass | Unchanged from Sprint 6 — verified |
+| Password hashing (bcrypt) | ✅ Pass | Unchanged — verified |
+
+**Input Validation & Injection Prevention:**
+
+| Item | Status | Detail |
+|------|--------|--------|
+| SQL queries use parameterized statements | ✅ Pass | Knex query builder with `.where()`, `.andWhere()` — no string concatenation |
+| User inputs validated server-side | ✅ Pass | page, limit, plant_id all validated before query |
+| XSS prevention (frontend) | ✅ Pass | React default escaping; no `dangerouslySetInnerHTML` or `innerHTML` in CareHistoryPage |
+| File uploads validated | ✅ Pass | Unchanged from Sprint 6 |
+
+**API Security:**
+
+| Item | Status | Detail |
+|------|--------|--------|
+| CORS configured correctly | ✅ Pass | `FRONTEND_URL=http://localhost:5173,http://localhost:4173` |
+| Rate limiting applied | ✅ Pass | Global rate limiter in app.js — unchanged |
+| Error responses safe (no stack traces) | ✅ Pass | Centralized error handler returns structured JSON only |
+| No sensitive data in URLs | ✅ Pass | plant_id is a UUID (non-sensitive); no tokens/passwords in query params |
+
+**Data Protection:**
+
+| Item | Status | Detail |
+|------|--------|--------|
+| No hardcoded secrets in code | ✅ Pass | careHistory.js, CareHistoryPage.jsx, useCareHistory.js — no secrets |
+| Credentials in .env only | ✅ Pass | JWT_SECRET, GEMINI_API_KEY, DATABASE_URL all in .env |
+| .env not committed | ✅ Pass | .gitignore includes .env |
+| Tokens in memory only (frontend) | ✅ Pass | api.js module-level variables — unchanged |
+
+**Infrastructure:**
+
+| Item | Status | Detail |
+|------|--------|--------|
+| npm audit — high severity | ✅ Pass | 0 high-severity vulnerabilities in both backend and frontend |
+| npm audit — moderate (dev-only) | ⚠️ Info | 20 backend + 5 frontend moderate in dev deps (brace-expansion). No production impact. |
+| Default credentials removed | ✅ Pass | No default creds in production config |
+
+**Verdict:** All applicable security checklist items pass. No P1 security issues. **PASS.**
+
+---
+
+### Test Run 14 — Product-Perspective Testing
+
+**Test Type:** Product-Perspective
+**Date:** 2026-03-26
+
+#### Care History Feature (T-039 + T-040) — User Experience Review
+
+**1. Core User Journey:**
+A user who has been tracking their plants can now navigate to `/history` (via sidebar or profile link) and see a chronological list of all their past care actions. Each action shows the plant name, care type (Watered/Fertilized/Repotted) with a color-coded icon, and a relative timestamp. Users can filter by specific plant. This directly reinforces the habit loop described in the project brief — seeing a growing list of care actions provides a sense of accomplishment.
+
+**2. Edge Cases Tested (via code review + test verification):**
+
+| Scenario | Behavior | Assessment |
+|----------|----------|------------|
+| New user with zero care actions | Empty state with encouraging CTA ("Go to my plants") | ✅ Excellent — encouraging, not discouraging |
+| User with many actions (>20) | Paginated with "Load more (N remaining)" | ✅ Good — load-more is less disruptive than page numbers |
+| Filter to plant with no actions | Filtered empty state with "Clear filter" CTA | ✅ Good — actionable |
+| Network error during load | Error state with "Try again" button | ✅ Good — clear and recoverable |
+| Very long plant name | CSS truncation with ellipsis | ✅ Good — handled in spec |
+| Filter then load more | Appends filtered results correctly | ✅ Good — tested in hook |
+
+**3. Positive Observations:**
+- The care type icons with color-coded circles (blue for watering, green for fertilizing, terracotta for repotting) create instant visual recognition
+- The SVG sprout illustration in the empty state is delightful and on-brand
+- Relative timestamps with full-date title tooltips balance scannability with precision
+- The filter dropdown is populated from the plants list endpoint, ensuring all plants appear even if they have no history yet
+
+**4. Minor Observation:**
+- The `careActions.list()` function in api.js correctly uses `URLSearchParams` for query building, which safely encodes special characters — no injection vector
+
+**Verdict:** Care History feature provides genuine user value and aligns with the product vision of reinforcing care habits. Implementation is thorough. **PASS.**
+
+---
+
+### Sprint 7 QA Summary
+
+| Task | Test Type | Result | Notes |
+|------|-----------|--------|-------|
+| T-035 | Unit + Integration | ✅ PASS | Toast variant corrected ('error' → 'info'). Test updated. |
+| T-036 | Unit + Integration | ✅ PASS | `npm test` works in frontend. 72/72 tests pass. |
+| T-037 | Unit + Security | ✅ PASS | 0 high-severity vulns. Moderate in dev deps only — acceptable. |
+| T-039 | Unit + Integration + Security | ✅ PASS | 9 backend tests. API contract match. Ownership isolation. Parameterized queries. |
+| T-040 | Unit + Integration + Security | ✅ PASS | 11 frontend tests. SPEC-008 compliance. All states. Accessibility. |
+| Config Consistency | Config | ✅ PASS | PORT, proxy, CORS all consistent. |
+| Security | Security Scan | ✅ PASS | All applicable checklist items pass. No P1 issues. |
+| Product Perspective | UX Review | ✅ PASS | Feature aligns with product vision. Edge cases handled. |
+
+**Overall Sprint 7 QA Verdict: ✅ ALL PASS**
+
+All 57/57 backend tests and 72/72 frontend tests pass. All integration checks pass. Security checklist verified. Config consistency confirmed. Product-perspective review positive.
+
+**Recommendation:** Move T-035, T-036, T-037, T-039, T-040 to Done. Handoff to Deploy Engineer for backend restart (T-039 endpoint not yet live on staging). After restart, Monitor Agent health check required.
 
 ---

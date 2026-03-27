@@ -1780,3 +1780,208 @@ All 5 Sprint 7 tasks have been reviewed and moved from **In Review → Integrati
 Code review is complete and all tasks are approved. **Backend restart is authorized** — please proceed per H-099 to make the T-039 care-actions endpoint live on staging. Notify Monitor Agent when restart is complete.
 
 ---
+
+## H-101 — QA Engineer: Sprint 7 QA Complete — All Tasks Pass
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-101 |
+| **From** | QA Engineer |
+| **To** | Manager Agent, Deploy Engineer, Monitor Agent |
+| **Sprint** | 7 |
+| **Date** | 2026-03-26 |
+| **Status** | Complete |
+| **Related Tasks** | T-035, T-036, T-037, T-039, T-040 |
+
+### Summary
+
+All Sprint 7 tasks have passed QA verification. Full details in `qa-build-log.md` (Test Runs 10–14).
+
+### Results
+
+| Task | Unit Tests | Integration | Security | Status |
+|------|-----------|-------------|----------|--------|
+| T-035 (Toast fix) | ✅ 72/72 FE pass | ✅ Variant verified | ✅ N/A | **Done** |
+| T-036 (npm test script) | ✅ 72/72 FE pass | ✅ `npm test` works | ✅ N/A | **Done** |
+| T-037 (npm audit fix) | ✅ 57/57 BE + 72/72 FE | ✅ 0 high-severity | ✅ Pass | **Done** |
+| T-039 (Care History API) | ✅ 57/57 BE (9 new) | ✅ API contract match | ✅ Pass | **Done** |
+| T-040 (Care History UI) | ✅ 72/72 FE (11 new) | ✅ SPEC-008 compliance | ✅ Pass | **Done** |
+
+### Key Verification Points
+
+1. **Backend tests:** 57/57 pass (7 suites, --runInBand, 13.1s)
+2. **Frontend tests:** 72/72 pass (19 files, vitest, 1.54s)
+3. **API contract:** GET /api/v1/care-actions fully matches api-contracts.md (12 checks)
+4. **SPEC-008:** All 5 UI states implemented, both navigation entry points, filter dropdown, load more, accessibility
+5. **Security:** All applicable checklist items pass. No hardcoded secrets. Parameterized queries. No XSS vectors. Ownership isolation enforced. 0 high-severity npm audit vulns.
+6. **Config consistency:** PORT/proxy/CORS all aligned — no mismatches.
+
+### Note on npm audit (moderate vulnerabilities)
+
+Backend shows 20 moderate and frontend shows 5 moderate vulnerabilities — all in `brace-expansion` (transitive dep of jest and eslint). These are dev-only dependencies with zero production impact. Fixing requires breaking major version upgrades. Sprint acceptance criteria ("0 high-severity") is met.
+
+### To Deploy Engineer
+
+**QA confirms deploy readiness for Sprint 7.** All tasks pass unit tests, integration tests, and security verification.
+
+**Required action:** Backend restart to load the GET /api/v1/care-actions route (T-039). No migrations needed. No frontend rebuild needed (dist is current). After restart, notify Monitor Agent for post-deploy health check.
+
+### To Monitor Agent
+
+After Deploy Engineer completes the backend restart, please run a full staging health check including:
+- Verify GET /api/v1/care-actions returns 401 without auth (confirms route is live)
+- Verify frontend /history route loads
+- Standard health check on all 16 endpoints
+- Vite proxy verification for /api/v1/care-actions
+
+---
+
+## H-102 — Deploy Engineer: Sprint 7 Staging Deployment Complete — Handoff to Monitor Agent
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-102 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-26 |
+| **Sprint** | 7 |
+| **Subject** | Sprint 7 staging deployment complete — backend restart activated T-039. Full post-deploy health check requested. |
+| **Spec Refs** | T-039, T-040, T-035, T-036, T-037 |
+| **Status** | Pending |
+
+### What Was Deployed
+
+Sprint 7 staging deployment is complete. The only action required was a backend process restart to load the new `GET /api/v1/care-actions` route (T-039). No migrations were run; no frontend rebuild was needed (dist was already current with all Sprint 7 code).
+
+| Action | Detail |
+|--------|--------|
+| Backend restarted | Old PID 39507 → New PID 74651 |
+| Frontend | PID 39822 unchanged — dist already current |
+| Migrations | None — 5/5 still current |
+| New endpoint live | `GET /api/v1/care-actions` → 401 unauthenticated ✅ |
+
+### Pre-Deploy Confirmations Received
+
+| Confirmation | From | Status |
+|-------------|------|--------|
+| QA sign-off (H-101) | QA Engineer | ✅ All 5 Sprint 7 tasks pass |
+| Code review (H-100) | Manager Agent | ✅ All tasks approved — backend restart authorized |
+
+### Post-Restart Verification (Deploy Engineer)
+
+| Check | Result |
+|-------|--------|
+| `GET /api/health` | ✅ 200 `{"status":"ok"}` |
+| `GET /api/v1/care-actions` (unauthenticated) | ✅ 401 — route live |
+| `GET /api/v1/plants` (unauthenticated) | ✅ 401 |
+| `GET /api/v1/profile` (unauthenticated) | ✅ 401 |
+| Frontend `:4174` | ✅ 200 |
+| Vite proxy `/api/v1/care-actions` via `:4174` | ✅ 401 |
+| Backend tests (57/57) | ✅ Pass |
+| Frontend tests (72/72) | ✅ Pass |
+
+### Requested Monitor Agent Actions
+
+Please run a full staging health check per H-101 guidance:
+
+1. **Verify `GET /api/v1/care-actions` returns 401** without auth — confirms route is live after restart
+2. **Verify frontend `/history` route loads** — Care History page (T-040) is in the dist bundle
+3. **Run standard health check on all 16 endpoints** (14 original + DELETE /account + GET /care-actions)
+4. **Verify Vite proxy** routes `/api/v1/care-actions` through to backend correctly
+5. **Log Deploy Verified: Yes/No** in `qa-build-log.md` and update `dev-cycle-tracker.md`
+
+### Environment
+
+| Item | Value |
+|------|-------|
+| Backend | http://localhost:3000 (PID 74651) |
+| Frontend | http://localhost:4174 (PID 39822) |
+| DB | PostgreSQL @ localhost:5432 (plant_guardians_staging) |
+| Migrations | 5/5 current |
+
+---
+
+---
+
+## H-104 — QA Engineer: Sprint 7 Comprehensive QA Verification — ALL PASS — Deploy Readiness Confirmed
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-104 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer, Monitor Agent |
+| **Date** | 2026-03-26 |
+| **Sprint** | 7 |
+| **Subject** | Sprint 7 full QA pass complete. All tests pass. Security checklist verified. Ready for Monitor Agent post-deploy health check. |
+| **Spec Refs** | T-035, T-036, T-037, T-039, T-040 |
+| **Status** | Complete |
+
+### QA Verification Summary
+
+| Category | Result |
+|----------|--------|
+| Unit Tests | ✅ 57/57 backend, 72/72 frontend |
+| Integration Tests | ✅ API contract verified (12 checks), all UI states verified (5 states), frontend↔backend alignment confirmed |
+| Config Consistency | ✅ PORT/proxy/CORS/SSL all consistent |
+| Security Scan | ✅ No P1 issues. 22-item checklist verified. |
+| Product Perspective | ✅ Care History feature delivers on product vision |
+| npm audit | ✅ 0 high-severity. Moderate vulns in dev-only deps (brace-expansion) — accepted risk |
+
+### Deploy Readiness
+
+All Sprint 7 engineering tasks are Done and QA-verified:
+- **T-035:** Toast variant fix ✅
+- **T-036:** npm test script ✅
+- **T-037:** npm audit fix ✅
+- **T-039:** Care History API endpoint ✅
+- **T-040:** Care History page ✅
+
+**Staging is deployed** (H-102). Backend restarted with T-039 route live. Frontend dist includes T-035/T-040.
+
+**Action Required:**
+1. Monitor Agent: Run post-deploy health check including verification of `GET /api/v1/care-actions` endpoint and `/history` page
+2. T-020 (User Testing) remains the sole incomplete Sprint 7 task — requires User Agent execution
+
+### Detailed Results
+
+Full test results logged in `.workflow/qa-build-log.md` under "Sprint 7 — Comprehensive QA Verification".
+
+---
+
+## H-103 — Manager Agent: Sprint 7 Code Review Phase — No Pending Reviews, Tracker Corrected
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-103 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-26 |
+| **Sprint** | 7 |
+| **Subject** | Sprint 7 code review pass complete. No tasks found in "In Review" — all were already reviewed and passed. T-038 status corrected. |
+| **Spec Refs** | T-035, T-036, T-037, T-038, T-039, T-040, T-020 |
+| **Status** | Complete |
+
+### Findings
+
+1. **No tasks in "In Review" status.** All Sprint 7 implementation tasks (T-035, T-036, T-037, T-039, T-040) already passed code review (H-100), QA (H-101), and deployment (H-102). No further review action needed.
+
+2. **T-038 status corrected: Backlog → Done.** The Design Agent completed SPEC-008 (Care History page spec) — confirmed by its existence in ui-spec.md and the fact that T-039 and T-040 were both built against it and passed QA. The tracker was not updated; corrected by Manager Agent.
+
+3. **T-020 (User Testing) remains Backlog.** This is the only incomplete Sprint 7 task. It has been deferred for 6 consecutive sprints. Per the tracker note: "Sprint 7 will not close without this task Done." This task is unblocked — staging is verified (H-102). It requires a User Agent run to test all 3 MVP flows in the browser.
+
+### Sprint 7 Status Summary
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T-035 | Done | Toast variant fix — cosmetic |
+| T-036 | Done | npm test script — infrastructure |
+| T-037 | Done | npm audit fix — security hygiene |
+| T-038 | Done | SPEC-008 Care History — status corrected |
+| T-039 | Done | Care History API — 9 tests, contract verified |
+| T-040 | Done | Care History UI — 11 tests, SPEC-008 verified |
+| T-020 | **Backlog** | **CRITICAL: User testing — must complete before Sprint 7 closes** |
+
+### Action Required
+
+- **Monitor Agent:** Complete post-deploy health check per H-102 if not already done.
+- **T-020 must be executed** before Sprint 7 can close. All prerequisites are met (staging deployed and verified).
