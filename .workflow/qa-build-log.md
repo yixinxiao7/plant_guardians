@@ -4,6 +4,80 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 7 — Staging Deployment (Deploy Engineer — 2026-03-26)
+
+**Date:** 2026-03-26
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 7
+
+### Pre-Deploy Checklist
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| QA sign-off in handoff-log.md | ✅ Pass | H-101 (QA Engineer) + H-104 (Comprehensive QA) — all Sprint 7 tasks confirmed pass |
+| All Sprint 7 tasks Done | ✅ Pass | T-035, T-036, T-037, T-038, T-039, T-040 — all Done in dev-cycle-tracker.md |
+| Migrations required (Sprint 7) | ✅ None | Sprint 7 confirmed no new migrations (technical-context.md Sprint 7 section) |
+| Existing migrations up-to-date | ✅ Pass | `npm run migrate` → "Already up to date" (5/5 migrations applied) |
+
+### Dependency Install
+
+| Package | Result | Detail |
+|---------|--------|--------|
+| Backend `npm install` | ✅ Pass | up to date, 443 packages, 0 high-severity vulnerabilities |
+| Frontend `npm install` | ✅ Pass | up to date, 243 packages, 0 high-severity vulnerabilities |
+| Moderate vulnerabilities | ⚠️ Info | 20 backend + 5 frontend — all in dev dependencies, no production impact (per T-037 QA sign-off) |
+
+### Build
+
+| Step | Result | Detail |
+|------|--------|--------|
+| `cd frontend && npm run build` | ✅ Pass | Vite v8.0.2, 4609 modules transformed, 0 errors, 0 warnings |
+| Output: `dist/index.html` | ✅ Pass | 0.74 kB (gzip: 0.41 kB) |
+| Output: `dist/assets/index-*.css` | ✅ Pass | 34.10 kB (gzip: 6.33 kB) |
+| Output: `dist/assets/index-*.js` | ✅ Pass | 376.48 kB (gzip: 111.06 kB) |
+| Build time | ✅ Pass | 288ms |
+
+**Build Status: ✅ SUCCESS**
+
+### Staging Deployment
+
+**Infrastructure Note:** Docker is not available in this environment. Staging runs as local processes (backend via Node.js, frontend via Vite preview). This is consistent with prior sprint deployments.
+
+| Service | Action | Result | Detail |
+|---------|--------|--------|--------|
+| PostgreSQL | Already running | ✅ Pass | DB connection verified via migration check |
+| Backend | Running (PID 74651) | ✅ Pass | `node src/server.js` on port 3000 |
+| Database Migrations | `npm run migrate` | ✅ Pass | Already up to date — 5/5 migrations applied, no new migrations for Sprint 7 |
+| Frontend Preview | Started (PID 76053) | ✅ Pass | `vite preview --port 5173` serving dist/ |
+
+**Note:** Port 4173 was occupied by an unrelated project process. Frontend preview started on port 5173 (consistent with Vite dev server convention and CORS config).
+
+### Post-Start Verification
+
+| Check | Result | Response |
+|-------|--------|----------|
+| `GET http://localhost:3000/api/health` | ✅ Pass | `{"status":"ok","timestamp":"2026-03-27T02:36:19.318Z"}` |
+| `GET http://localhost:3000/api/v1/care-actions` | ✅ Pass | 401 UNAUTHORIZED (correct — T-039 route is live, requires auth) |
+| `GET http://localhost:5173` (frontend) | ✅ Pass | HTTP 200 |
+| `GET http://localhost:5173/api/health` (Vite proxy) | ✅ Pass | HTTP 200 — proxy correctly forwarding to backend |
+
+**Deployment Status: ✅ SUCCESS**
+
+### Environment: Staging
+
+| Item | Value |
+|------|-------|
+| Environment | Staging (local) |
+| Backend URL | http://localhost:3000 |
+| Frontend URL | http://localhost:5173 |
+| API via Proxy | http://localhost:5173/api/* → http://localhost:3000/api/* |
+| Build Status | Success |
+| Migrations | Up to date (5/5) |
+| New Migrations (Sprint 7) | None |
+| Sprint | 7 |
+
+---
+
 ## Sprint 7 — Comprehensive QA Verification (QA Engineer — 2026-03-26)
 
 **Date:** 2026-03-26

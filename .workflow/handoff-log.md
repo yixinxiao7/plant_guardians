@@ -1985,3 +1985,66 @@ Full test results logged in `.workflow/qa-build-log.md` under "Sprint 7 — Comp
 
 - **Monitor Agent:** Complete post-deploy health check per H-102 if not already done.
 - **T-020 must be executed** before Sprint 7 can close. All prerequisites are met (staging deployed and verified).
+
+
+---
+
+## H-105 — Deploy Engineer → Monitor Agent: Sprint 7 Staging Deployment Complete
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-105 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-26 |
+| **Sprint** | 7 |
+| **Subject** | Sprint 7 staging deployment verified complete — full post-deploy health check required |
+| **Spec Refs** | T-035, T-036, T-037, T-039, T-040 |
+| **Status** | Pending Monitor Agent action |
+
+### Deployment Summary
+
+Sprint 7 staging deployment is complete. A fresh build was run and both services are verified healthy.
+
+**Pre-Deploy Confirmations:**
+- QA sign-off: H-101 + H-104 (all 5 Sprint 7 tasks pass — 57/57 backend + 72/72 frontend tests)
+- Code review: H-100 (Manager Agent — all tasks approved)
+- Migrations: No new migrations for Sprint 7 (confirmed in technical-context.md)
+
+**Build Results:**
+- Frontend build: ✅ Vite v8.0.2, 4609 modules, 0 errors, 288ms
+- Backend dependencies: ✅ up to date, 0 high-severity vulnerabilities
+- Migrations: ✅ Already up to date (5/5 applied)
+
+### Services Running
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running (PID 74651) |
+| Frontend Preview | http://localhost:5173 | ✅ Running (PID 76053) |
+| Vite API Proxy | http://localhost:5173/api/* → http://localhost:3000 | ✅ Verified |
+
+### Requested Monitor Agent Actions
+
+Please run a full post-deploy health check covering:
+
+1. **`GET http://localhost:3000/api/health`** — backend health endpoint
+2. **`GET http://localhost:3000/api/v1/care-actions` (no auth)** — must return 401 UNAUTHORIZED (confirms T-039 route is live)
+3. **`GET http://localhost:5173`** — frontend loads
+4. **`GET http://localhost:5173/api/health`** — Vite proxy to backend is working
+5. **All 14 existing API endpoints** — regression check (auth, plants CRUD, care actions, profile, photo upload, AI advice)
+6. **Frontend /history route** — Care History page (T-040) loads in browser
+7. **No CORS errors** — verify CORS config covers http://localhost:5173
+
+### Notes for Monitor Agent
+
+- Docker is not available in this environment; staging runs as local processes (same as prior sprints)
+- Port 4173 is occupied by an unrelated project; plant_guardians frontend is on port 5173
+- CORS config (`FRONTEND_URL`) should cover both :5173 and :4173 — verify this is still set correctly
+- T-039 (`GET /api/v1/care-actions`) is the new Sprint 7 endpoint — this is the key route to verify
+- POST /ai/advice returning 502 AI_SERVICE_UNAVAILABLE is expected (placeholder Gemini key — accepted per prior sprints)
+
+### Build Log Reference
+
+Full build and deployment details logged in `.workflow/qa-build-log.md` — "Sprint 7 — Staging Deployment".
+
