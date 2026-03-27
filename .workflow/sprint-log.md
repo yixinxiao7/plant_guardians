@@ -530,6 +530,88 @@ The only non-2xx response is `POST /ai/advice → 502 AI_SERVICE_UNAVAILABLE` �
 
 ---
 
+---
+
+### Sprint #7 — 2026-03-26 to 2026-03-26
+
+**Sprint Goal:** Close the MVP validation gate (T-020 — seventh and final carry-over with zero tolerance), clear the Sprint 6 minor feedback backlog (T-035, T-036, T-037), and deliver the first post-MVP feature: Care History — a paginated log of all past care actions per plant, reinforcing the habit loop central to the product vision.
+
+**Outcome:** Partial — All six engineering tasks delivered at high quality (T-035, T-036, T-037, T-038, T-039, T-040). 57/57 backend + 72/72 frontend tests pass. Care History feature fully deployed. T-020 (user testing) was not completed and carries into Sprint #8 for the seventh consecutive sprint.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-035 | Frontend: Fixed delete account success toast variant from 'error' → 'info'. 72/72 frontend tests pass. |
+| T-036 | Frontend: Added `"test": "vitest run"` to `frontend/package.json`. `npm test` now consistent with backend. |
+| T-037 | Backend + Frontend: `npm audit fix` — 0 high-severity vulnerabilities in both packages. 57/57 backend + 72/72 frontend tests pass. |
+| T-038 | Design: SPEC-008 (Care History page) written and marked Approved in `ui-spec.md`. Gated T-039 and T-040. |
+| T-039 | Backend: `GET /api/v1/care-actions` endpoint implemented — paginated, authenticated, plant_id filter, ownership isolation. 9 new tests (57/57 total). API contract published to `api-contracts.md`. |
+| T-040 | Frontend: `/history` page implemented per SPEC-008 — all 5 states (loading, populated, empty, filtered-empty, error), color-coded care type icons, relative timestamps, load-more pagination, dual nav entry points (sidebar + profile). 11 new tests (72/72 total). |
+
+---
+
+#### Tasks Carried Over to Sprint #8
+
+| Task ID | Description | Reason |
+|---------|-------------|--------|
+| T-020 | User testing: All 3 MVP flows (novice, AI advice, inventory management) | Seventh consecutive sprint carry-over. No blocking dependencies — staging is deployed and healthy. This is a process failure. Sprint 8 treats T-020 as an unconditional P0; Sprint 8 will not close without it. |
+
+---
+
+#### Verification Failures
+
+**No `Deploy Verified: No` verdict was returned in Sprint #7.** The Monitor Agent post-deploy health check for Sprint 7 was not completed before sprint close. The Deploy Engineer's Sprint 7 staging deployment shows "Deploy Verified: Pending Monitor Agent health check." This is a process gap — not a blocking failure — but the Monitor Agent must complete the Sprint 7 health check as the first action in Sprint 8.
+
+The two separate Sprint 7 staging deployments (one at :4174, one at :5173) both show backend and frontend running healthily with 57/57 and 72/72 tests passing. There are no observed failures. The health check must be formally completed and logged as `Deploy Verified: Yes` in Sprint 8.
+
+---
+
+#### Key Feedback Themes
+
+| Feedback ID | Category | Severity | Disposition |
+|-------------|----------|----------|-------------|
+| FB-023 | Positive (Care History reinforces product vision) | — | Acknowledged |
+| FB-024 | Bug (brace-expansion moderate dev-only vulns) | Minor | Acknowledged — dev-only, no production impact, no fix available without breaking major version bumps. Accept as known risk. |
+
+---
+
+#### What Went Well
+
+- **Full feature delivered** — Care History (T-038, T-039, T-040) was planned and completed within a single sprint at high quality. The design spec, backend endpoint, and frontend page all passed code review and QA on first attempt.
+- **Code quality is consistently high** — All six tasks passed code review on first attempt. 57/57 backend + 72/72 frontend tests with no regressions.
+- **Minor feedback backlog fully cleared** — T-035, T-036, T-037 were three quick-fix tasks that had accumulated from Sprint 6; all three shipped cleanly.
+- **Test coverage strong** — T-039 added 9 tests covering all edge cases (validation, auth, pagination, ownership isolation); T-040 added 11 tests covering all UI states.
+- **Care History UX is well-designed** — FB-023 notes color-coded icons, encouraging empty state, relative timestamps, and dual nav entry points as strong UX decisions.
+- **Security posture maintained** — Security checklist 22/22 pass; no new P1 issues introduced.
+
+---
+
+#### What to Improve
+
+- **T-020 must close in Sprint 8 — no exceptions** — Seven consecutive deferrals is a critical process failure. The orchestrator must enforce a hard gate on this task before Sprint 8 can close.
+- **Monitor Agent health check must complete before sprint close** — The Sprint 7 Deploy Verified status was still "Pending" when the sprint ended. Sprint 8 should start with an immediate Monitor health check.
+- **Gemini API key must be provisioned by the project owner** — AI advice (Flow 2) cannot be tested end-to-end until a real key is configured. This is the only remaining blocker for full MVP validation.
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Owner |
+|------|----------|-------|
+| Gemini API key is placeholder — AI advice always returns 502 | P1 | Project owner (provisioning) |
+| Monitor Agent Sprint 7 health check not yet complete (Deploy Verified: Pending) | P2 | Monitor Agent → Sprint 8 first action |
+| brace-expansion moderate vulnerabilities in dev-only deps (jest, eslint) | P3 Advisory | Accept as known risk; no fix available without breaking version bumps |
+| Database-level encryption not configured | P3 Advisory | Deploy Engineer (production phase) |
+
+---
+
+*Sprint #7 summary written by Manager Agent on 2026-03-26.*
+
+---
+
 ## Template
 
 ### Sprint #N — [Start Date] to [End Date]

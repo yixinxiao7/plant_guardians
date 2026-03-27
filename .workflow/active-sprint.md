@@ -4,54 +4,49 @@ The operational reference for the current development cycle. Refreshed at the st
 
 ---
 
-## Sprint #7 — 2026-03-26 to 2026-03-30
+## Sprint #8 — 2026-03-26 to 2026-03-30
 
-**Sprint Goal:** Finally close the MVP validation gate (T-020 — sixth and final carry-over, zero tolerance for further deferral), clear the minor Sprint 6 feedback backlog (three quick-fix tasks), and deliver the first post-MVP feature: Care History — a log of all past care actions per plant, giving users visibility into their track record and reinforcing the habit loop central to the product vision.
+**Sprint Goal:** Finally close the MVP validation gate (T-020 — seventh and absolutely final carry-over; no further exceptions), complete the pending Monitor Agent Sprint 7 health check, and deliver the second post-MVP feature: Care Due Dashboard — a proactive view of which plants need care today, are overdue, or are coming due within the next 7 days. This directly fulfills the core product brief promise of "painfully obvious reminders" for novice plant owners.
 
-**Context:** Sprint #6 delivered T-027 (SPEC-004 doc update), T-031 (profile test fix), T-032 (production deployment runbook + infra), T-033 (DELETE /account endpoint), and T-034 (Delete Account UI). Monitor Agent returned Deploy Verified: Yes (H-085). All Sprint 6 engineering work is complete. T-020 (user testing) remains the sole unclosed MVP gate and is the only P0 item for Sprint 7. The team pivots to Care History as the first post-MVP feature — a natural extension of the plant tracking product brief.
+**Context:** Sprint #7 delivered T-035 (toast fix), T-036 (npm test script), T-037 (npm audit fix), T-038 (SPEC-008), T-039 (GET /care-actions), and T-040 (Care History page). All 57/57 backend and 72/72 frontend tests pass. The Care History feature is deployed. The Monitor Agent Sprint 7 health check was not completed before sprint close (Deploy Verified: Pending — process gap, not a failure). T-020 (user testing) remains the sole unclosed MVP gate and is the only P0 item entering Sprint 8.
 
 ---
 
 ## In Scope
 
-### P0 — Final MVP Validation (Absolute Last Carry-Over — No Exceptions)
+### P0 — Final MVP Validation (Seventh and Absolutely Last Carry-Over — Hard Gate)
 
 - [ ] **T-020** — User Agent: User testing — all 3 MVP flows **(P0)**
-  - **Acceptance Criteria:** All three flows from `project-brief.md` tested end-to-end in a browser on staging (http://localhost:4174). Flow 1 (Novice: register → add plant → view inventory → mark care done → confetti animation). Flow 2 (AI advice: upload photo → get AI advice → accept → inventory populated — if Gemini key available; otherwise verify 502 error state UX and document gap). Flow 3 (Inventory management: edit care schedule → delete plant). All feedback logged to `feedback-log.md` with Status: New for each observation. No P0 blocking errors.
-  - **Dependencies:** None. Staging Deploy Verified: Yes (H-085). Fully unblocked.
-  - **Hard rule:** This task has been deferred six consecutive sprints. Sprint 7 will not close, and Sprint 8 cannot begin, until T-020 is Done. If a blocking issue is discovered during testing, it must be escalated to Manager Agent immediately rather than silently deferred.
+  - **Acceptance Criteria:** All three flows from `project-brief.md` tested end-to-end in a browser on staging. Flow 1 (Novice: register → add plant → view inventory → mark care done → confetti animation). Flow 2 (AI advice: upload photo → get AI advice → accept → inventory populated — if Gemini key available; otherwise verify 502 error state UX per T-026 and document gap). Flow 3 (Inventory management: edit care schedule → delete plant). All feedback logged to `feedback-log.md` with Status: New for each observation. No P0 blocking errors.
+  - **Dependencies:** None. Staging is deployed. T-039 endpoint live. T-040 Care History page live. Fully unblocked.
+  - **Hard rule:** This task has been deferred SEVEN consecutive sprints. Sprint 8 will not close, and Sprint 9 cannot begin, until T-020 is Done. If a blocking issue is discovered during testing, it must be escalated to Manager Agent immediately and fixed as a hotfix — not deferred again. The Care History page at /history should also be tested as part of this pass.
 
 ---
 
-### P3 — Sprint 6 Feedback Cleanup (Quick Fixes — Clear in One Pass)
+### P1 — Monitor Agent Sprint 7 Health Check Completion (Overdue — Must Close Immediately)
 
-- [ ] **T-035** — Frontend Engineer: Fix delete account success toast variant (FB-020) **(P3)**
-  - **Acceptance Criteria:** In `ProfilePage.jsx`, change `addToast('Your account has been deleted.', 'error')` to use `'info'` (or the closest neutral/confirmation variant available in the Toast system). All 61 existing frontend tests still pass. Add or update the relevant test to assert the correct toast variant.
-  - **Dependencies:** None.
-
-- [ ] **T-036** — Frontend Engineer: Add `"test"` script to `frontend/package.json` (FB-021) **(P3)**
-  - **Acceptance Criteria:** `frontend/package.json` scripts section includes `"test": "vitest run"`. Running `npm test` from the `frontend/` directory executes all Vitest tests and passes (61/61). Consistent with backend `npm test` behavior.
-  - **Dependencies:** None.
-
-- [ ] **T-037** — Backend Engineer: `npm audit fix` — resolve picomatch vulnerability (FB-022) **(P3)**
-  - **Acceptance Criteria:** Run `npm audit fix` in both `backend/` and `frontend/`. `npm audit` reports 0 high-severity vulnerabilities in both directories. All 48/48 backend tests and 61/61 frontend tests still pass after dependency updates.
-  - **Dependencies:** None.
+- [ ] **T-041** — Monitor Agent: Complete Sprint 7 post-deploy health check **(P1)**
+  - **Acceptance Criteria:** Full staging health check run covering all 16 API endpoints (14 original + DELETE /account + GET /care-actions). Specific checks: `GET /api/v1/care-actions` (unauthenticated) → 401; authenticated with plant_id filter → 200 with data array; frontend `/history` route loads; Vite proxy routes `/api/v1/care-actions` correctly. Result logged in `qa-build-log.md` as Deploy Verified: Yes (or No with issues listed). `dev-cycle-tracker.md` updated.
+  - **Dependencies:** None. Backend PID 74651 running on :3000. Frontend on :5173 (or :4174 per earlier deploy). Fully unblocked.
+  - **Note:** This closes the Sprint 7 process gap. Should be the first task executed in Sprint 8.
 
 ---
 
-### P2 — Care History Feature (First Post-MVP Enhancement)
+### P2 — Care Due Dashboard (Second Post-MVP Enhancement)
 
-- [ ] **T-038** — Design Agent: Write UI spec for Care History page — SPEC-008 **(P2)**
-  - **Acceptance Criteria:** `SPEC-008` added to `ui-spec.md` covering the Care History page (`/history`). Spec must include: purpose and user goal, layout description (header, filter, list view), care action list item anatomy (plant name, care type icon, relative date/time, "X days ago" format), filter by plant dropdown (all plants + individual), loading skeleton state, empty state ("No care actions yet. Start by marking a plant as watered!"), error state with retry. Navigation entry point specified (Profile page or dedicated nav item). Marked Approved with current date.
-  - **Dependencies:** None — this spec gates T-039 and T-040.
+The current app surfaces care status via colored badges on each plant card and the plant detail page. Sprint 8 adds a proactive **Care Due Dashboard** at `/due` — a single-page view sorted by urgency showing which plants need care today, which are overdue, and which are coming due in the next 7 days. This fulfills the project brief's core promise of "painfully obvious reminders."
 
-- [ ] **T-039** — Backend Engineer: Implement care history API endpoint **(P2)**
-  - **Acceptance Criteria:** `GET /api/v1/care-actions` endpoint (authenticated). Returns paginated list of all care actions for the authenticated user, sorted by `performed_at` DESC. Optional query param `plant_id` filters to a specific plant. Response shape: `{ data: [{ id, plant_id, plant_name, care_type, performed_at }], pagination: { page, limit, total } }`. API contract added to `api-contracts.md` before Frontend Engineer begins T-040. Unit tests: happy path (multiple actions), no actions (empty array), plant_id filter, pagination, 401 unauthenticated. All 48+ existing backend tests still pass.
-  - **Dependencies:** T-038 (spec must exist before backend implements and publishes contract).
+- [ ] **T-042** — Design Agent: Write UI spec for Care Due Dashboard — SPEC-009 **(P2)**
+  - **Acceptance Criteria:** `SPEC-009` added to `ui-spec.md` covering the Care Due Dashboard page (`/due`). Spec must include: purpose and user goal, three sections (Overdue, Due Today, Coming Up — next 7 days), plant card anatomy within each section (plant name, care type, days overdue/due date), empty state per section (e.g., "Nothing overdue!"), global empty state when all plants are on track ("All your plants are happy!"), loading skeleton, error state with retry, quick-action CTA on each item ("Mark as done" shortcut). Navigation entry point: sidebar item with badge showing count of overdue + due-today items. Marked Approved with current date.
+  - **Dependencies:** None — this spec gates T-043 and T-044.
 
-- [ ] **T-040** — Frontend Engineer: Implement Care History page **(P2)**
-  - **Acceptance Criteria:** `/history` route added. Page renders per SPEC-008: plant filter dropdown, sorted list of care actions with plant name + care type + relative timestamp. Loading skeleton, empty state, error state with retry all implemented. Navigation entry point added per spec. Unit tests added for the page and filter behavior. All 61+ existing frontend tests still pass.
-  - **Dependencies:** T-038 (spec), T-039 (API contract published to `api-contracts.md`).
+- [ ] **T-043** — Backend Engineer: Implement care due API endpoint **(P2)**
+  - **Acceptance Criteria:** `GET /api/v1/care-due` endpoint (authenticated). Calculates and returns all overdue + due-today + upcoming (next 7 days) care events for the authenticated user's plants. Response shape: `{ overdue: [{ plant_id, plant_name, care_type, days_overdue, last_done_at }], due_today: [{ plant_id, plant_name, care_type }], upcoming: [{ plant_id, plant_name, care_type, due_in_days, due_date }] }`. Logic: For each plant + care_schedule pair, calculate `next_due = last_done_at + frequency_days` (or `created_at + frequency_days` if never done). Categorize into overdue/due_today/upcoming accordingly. API contract added to `api-contracts.md` before Frontend Engineer begins T-044. Unit tests: happy path (mixed statuses), all plants on track (empty sections), never-done plant, 401 unauthenticated, no plants. All 57+ existing backend tests still pass.
+  - **Dependencies:** T-042 (spec must exist before backend implements and publishes contract).
+
+- [ ] **T-044** — Frontend Engineer: Implement Care Due Dashboard page **(P2)**
+  - **Acceptance Criteria:** `/due` route added. Page renders per SPEC-009: three urgency sections (Overdue, Due Today, Coming Up), plant+care items in each section, quick-action "Mark as done" shortcut (calls existing `POST /api/v1/care-actions`), loading skeleton, empty state per section, global all-clear empty state, error state with retry. Sidebar nav item updated with badge showing overdue + due-today count (badge disappears when count = 0). Unit tests added for page states, badge behavior, and mark-done shortcut. All 72+ existing frontend tests still pass.
+  - **Dependencies:** T-042 (spec), T-043 (API contract published to `api-contracts.md`).
 
 ---
 
@@ -61,11 +56,13 @@ The operational reference for the current development cycle. Refreshed at the st
 - Push notifications — B-002
 - Plant sharing / public profiles — B-003
 - Dark mode — B-005
-- Any new screens beyond SPEC-001–007 + SPEC-008 (Care History)
-- New API endpoints beyond approved 15 (14 + DELETE /account) + GET /care-actions
+- Care history chart / analytics — B-004 (dashboard is enough for Sprint 8; full analytics later)
+- Any new screens beyond SPEC-001–008 + SPEC-009 (Care Due Dashboard)
+- New API endpoints beyond approved 16 (14 + DELETE /account + GET /care-actions) + GET /care-due
 - Database-level encryption (production phase, after real infra is provisioned)
 - Real Gemini API key provisioning — project owner action, not an engineering task
 - Production deployment execution (runbook exists; execution awaits project owner SSL certs)
+- Email notification reminders (future sprint — infrastructure dependency)
 
 ---
 
@@ -73,64 +70,61 @@ The operational reference for the current development cycle. Refreshed at the st
 
 | Agent | Focus Area This Sprint | Key Tasks |
 |-------|----------------------|-----------|
-| User Agent | End-to-end user testing — all 3 MVP flows | T-020 (P0) |
-| Design Agent | Care History page UI spec | T-038 |
-| Backend Engineer | npm audit fix + care history API | T-037, T-039 |
-| Frontend Engineer | Toast fix + test script + care history page | T-035, T-036, T-040 |
-| Deploy Engineer | No new infra tasks — staging remains healthy | — |
-| Monitor Agent | Post-deploy health check after T-039/T-040 deployed | On-demand |
+| User Agent | End-to-end user testing — all 3 MVP flows + Care History | T-020 (P0) |
+| Monitor Agent | Complete Sprint 7 health check immediately + post-deploy for Sprint 8 | T-041 (P1), post-deploy after T-043/T-044 |
+| Design Agent | Care Due Dashboard UI spec | T-042 |
+| Backend Engineer | Care due API endpoint | T-043 |
+| Frontend Engineer | Care Due Dashboard page | T-044 |
+| Deploy Engineer | No new infra tasks — verify staging at sprint start | — |
 | Manager | Sprint coordination, code review | Ongoing |
-| QA Engineer | Verify care history feature end-to-end; product-perspective review of T-020 | On-demand |
+| QA Engineer | Verify Care Due Dashboard end-to-end; product-perspective review of T-020 | On-demand |
 
 ---
 
 ## Dependency Chain (Critical Path)
 
 ```
-T-020 (User testing — all 3 MVP flows)           ← P0, START IMMEDIATELY — fully unblocked
-T-035 (Frontend: toast variant fix)               ← P3, standalone — parallel with everything
-T-036 (Frontend: npm test script)                 ← P3, standalone — parallel with everything
-T-037 (Backend+Frontend: npm audit fix)           ← P3, standalone — parallel with everything
-T-038 (Design: Care History spec — SPEC-008)      ← P2, START IMMEDIATELY — gates T-039 and T-040
-T-039 (Backend: GET /care-actions endpoint)       ← Blocked By: T-038
-T-040 (Frontend: Care History page)               ← Blocked By: T-038 AND T-039
+T-020 (User testing — all 3 MVP flows + Care History)  ← P0, START IMMEDIATELY — fully unblocked
+T-041 (Monitor: Sprint 7 health check)                  ← P1, START IMMEDIATELY — no dependencies
+T-042 (Design: Care Due Dashboard spec — SPEC-009)      ← P2, START IMMEDIATELY — gates T-043 and T-044
+T-043 (Backend: GET /care-due endpoint)                 ← Blocked By: T-042
+T-044 (Frontend: Care Due Dashboard page)               ← Blocked By: T-042 AND T-043
 ```
 
-**Critical path:** T-020 is the sole P0 critical path item. T-038 → T-039 → T-040 is the secondary sequential chain for the Care History feature. T-035, T-036, T-037 are fully parallel with everything.
+**Critical path:** T-020 is the sole P0. T-041 is parallel quick-win (expected: < 1 turn). T-042 → T-043 → T-044 is the secondary sequential chain for the Care Due Dashboard.
 
 ---
 
 ## Definition of Done
 
-Sprint #7 is complete when:
+Sprint #8 is complete when:
 
-- [ ] T-020: User Agent has tested all 3 MVP flows in-browser and logged feedback — **MVP officially declared complete (no further deferral under any circumstances)**
-- [ ] T-035: Delete account success toast uses correct non-error variant; frontend tests pass
-- [ ] T-036: `npm test` works in frontend/; 61/61 tests pass via `npm test`
-- [ ] T-037: `npm audit` reports 0 high-severity vulnerabilities in backend and frontend
-- [ ] T-038: SPEC-008 (Care History) written and marked Approved in `ui-spec.md`
-- [ ] T-039: `GET /api/v1/care-actions` implemented, tested, API contract in `api-contracts.md`
-- [ ] T-040: `/history` page implemented, unit tested, accessible via navigation
-- [ ] No regressions: all backend + frontend tests continue to pass at or above Sprint 6 counts
-- [ ] QA has verified the Care History feature end-to-end (T-039 + T-040)
-- [ ] Monitor Agent has run a post-deploy health check after care history features deployed
+- [ ] T-020: User Agent has tested all 3 MVP flows + Care History page in-browser and logged feedback — **MVP officially declared complete (absolutely no further deferral)**
+- [ ] T-041: Monitor Agent has logged Deploy Verified: Yes (or filed issues) for Sprint 7 staging
+- [ ] T-042: SPEC-009 (Care Due Dashboard) written and marked Approved in `ui-spec.md`
+- [ ] T-043: `GET /api/v1/care-due` implemented, tested, API contract in `api-contracts.md`
+- [ ] T-044: `/due` page implemented, unit tested, accessible via sidebar with overdue badge
+- [ ] No regressions: all backend + frontend tests continue to pass at or above Sprint 7 counts (57/57 backend, 72/72 frontend)
+- [ ] QA has verified the Care Due Dashboard end-to-end (T-043 + T-044)
+- [ ] Monitor Agent has run a post-deploy health check after care-due features deployed
 
 ---
 
 ## Success Criteria
 
-- **MVP is formally declared complete** — User Agent has tested all 3 user flows end-to-end and logged observations
-- **Care History is live** — Users can view a log of their past care actions, filtered by plant
-- **CI is clean** — 0 npm audit vulnerabilities; `npm test` works in both backend and frontend
-- **Minor UX polish applied** — delete account success toast no longer shows alarming red styling
+- **MVP is formally declared complete** — User Agent has tested all 3 user flows + Care History end-to-end and logged observations
+- **Sprint 7 health check closed** — Deploy Verified: Yes confirmed for Sprint 7 staging
+- **Care Due Dashboard is live** — Users see at-a-glance which plants need care now; overdue badge in sidebar provides constant, non-intrusive reminder
+- **Mark as done shortcut** — Users can take action directly from the dashboard without navigating to each plant detail page
+- **CI is clean** — all tests pass; no new vulnerabilities
 
 ---
 
 ## Blockers
 
 - **Gemini API key** — T-020 Flow 2 AI testing requires a real key. If not provisioned by project owner, User Agent tests the 502 error UX (correctly handled per T-026) and documents the gap. This does NOT block T-020 completion — Flow 1 and Flow 3 remain fully testable.
-- **No other blockers.** All P0 and P2 tasks are unblocked at sprint start (T-039 and T-040 are blocked by T-038, which has no dependencies).
+- **No other blockers.** T-020 and T-041 are fully unblocked at sprint start. T-042 has no dependencies. T-043 and T-044 are blocked only by T-042, which has no external dependencies.
 
 ---
 
-*Sprint #7 plan written by Manager Agent on 2026-03-25.*
+*Sprint #8 plan written by Manager Agent on 2026-03-26.*

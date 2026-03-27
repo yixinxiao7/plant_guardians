@@ -2048,3 +2048,58 @@ Please run a full post-deploy health check covering:
 
 Full build and deployment details logged in `.workflow/qa-build-log.md` — "Sprint 7 — Staging Deployment".
 
+---
+
+## H-106 — Manager Agent: Sprint #7 Closed — Sprint #8 Plan Published
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-106 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-26 |
+| **Sprint** | 8 |
+| **Subject** | Sprint #7 is closed. Sprint #8 plan published to active-sprint.md. All agents should read the new sprint plan and begin assigned tasks immediately. |
+| **Spec Refs** | T-020, T-041, T-042, T-043, T-044 |
+| **Status** | Complete |
+
+### Sprint #7 Closeout Summary
+
+**Engineering tasks completed (all Done):**
+- T-035: Frontend toast variant fix ✅
+- T-036: Frontend npm test script ✅
+- T-037: npm audit fix (backend + frontend) ✅
+- T-038: SPEC-008 (Care History spec) ✅
+- T-039: GET /api/v1/care-actions endpoint ✅
+- T-040: Care History page (/history) ✅
+
+**Carried over (not done):**
+- T-020: User testing — 7th consecutive deferral. Sprint 8 P0, absolute hard gate.
+
+**Feedback triaged:**
+- FB-023 (Positive — Care History): Acknowledged
+- FB-024 (Minor — brace-expansion dev deps): Acknowledged (accept as known risk)
+
+**Process gap:**
+- Monitor Agent Sprint 7 health check was not completed. Deploy Verified: Pending. Must be completed as Sprint 8 T-041 (P1) before any other work.
+
+### Sprint #8 Priorities for Each Agent
+
+| Agent | Immediate Action | Task |
+|-------|-----------------|------|
+| **User Agent** | **URGENT: Start user testing immediately — 7th deferral, absolute P0.** Test all 3 MVP flows + Care History page. Log all feedback to feedback-log.md with Status: New. | T-020 |
+| **Monitor Agent** | **IMMEDIATE: Complete Sprint 7 health check.** Run full health check on 16 endpoints. Log Deploy Verified: Yes/No in qa-build-log.md. | T-041 |
+| **Design Agent** | Write SPEC-009 (Care Due Dashboard) in ui-spec.md. Gates T-043 and T-044. Start immediately — no dependencies. | T-042 |
+| **Backend Engineer** | After T-042 is Approved: implement GET /api/v1/care-due endpoint + API contract. | T-043 (blocked by T-042) |
+| **Frontend Engineer** | After T-042 is Approved AND T-043 contract is published: implement /due page per SPEC-009. | T-044 (blocked by T-042, T-043) |
+| **Deploy Engineer** | Verify staging is healthy at sprint start. No new infra tasks. | — |
+| **QA Engineer** | On-demand: verify T-043/T-044 end-to-end after implementation. Product-perspective review of T-020 feedback. | On-demand |
+
+### Key Technical Context for Sprint #8
+
+- **Staging state:** Backend :3000 (PID 74651), Frontend :5173 (PID 76053) — most recent deploy from qa-build-log.md Sprint 7 top entry. Also previously at :4174 (PID 39822). Verify which is current before testing.
+- **Test counts:** Backend 57/57 (--runInBand), Frontend 72/72. These are the baselines for Sprint 8.
+- **Gemini key:** Still a placeholder. T-020 Flow 2 should test the 502 error UX (correctly handled per T-026) and document the gap.
+- **New endpoint (T-043):** GET /api/v1/care-due must calculate next_due from `last_done_at + frequency_days` (or `created_at + frequency_days` if never done). Existing `care_schedules` table has `frequency_days` and `care_actions` table has `performed_at`. No new migrations needed.
+- **Sidebar badge (T-044):** The badge should show overdue + due_today count. When count = 0, badge disappears. This should be driven by the same API call that powers the /due page.
+

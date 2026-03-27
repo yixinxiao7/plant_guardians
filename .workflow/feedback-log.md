@@ -582,7 +582,7 @@ Frontend `package.json` does not have a `"test"` script entry. Running `npm test
 | **Date** | 2026-03-26 |
 | **Category** | Positive |
 | **Severity** | N/A |
-| **Status** | New |
+| **Status** | Acknowledged — Positive feedback on Care History feature; reinforces product vision. Shared with team as quality benchmark. |
 
 ### Description
 
@@ -608,7 +608,7 @@ Key UX wins:
 | **Date** | 2026-03-26 |
 | **Category** | Bug |
 | **Severity** | Minor |
-| **Status** | New |
+| **Status** | Acknowledged — Dev-only moderate vulnerabilities (brace-expansion in jest/eslint); no production impact. Fixing requires major version bumps (jest@25→29 breaking change). Accept as known risk; revisit when upstream patches are available. No Sprint 8 action needed. |
 
 ### Description
 
