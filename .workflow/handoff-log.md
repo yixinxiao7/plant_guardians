@@ -2535,3 +2535,80 @@ Key integration notes:
 - Sidebar badge fetches care-due data on AppShell mount; this is a separate API call from the CareDuePage fetch. If the backend is not yet deployed with the care-due endpoint, the badge silently fails (no error shown).
 - Focus management after mark-done (moving focus to next item) is not yet implemented — logged as a minor a11y improvement. All buttons remain keyboard-reachable via Tab order.
 
+---
+
+## H-117 — Manager Code Review: Sprint 8 Tasks T-043 + T-044 Pass — Handoff to QA Engineer
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-117 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-03-27 |
+| **Sprint** | 8 |
+| **Subject** | Code review passed for T-043 (Backend: GET /api/v1/care-due) and T-044 (Frontend: Care Due Dashboard). Both moved to Integration Check. QA Engineer should run integration testing. |
+| **Spec Refs** | T-043, T-044, SPEC-009, api-contracts.md GROUP 17 |
+| **Status** | Pending |
+
+### T-043 — Backend: GET /api/v1/care-due — REVIEW PASSED
+
+**Files reviewed:**
+- `backend/src/routes/careDue.js` — Route handler with frequency-to-days conversion, UTC date comparison, three-bucket categorization, contract-specified sorting
+- `backend/src/models/CareSchedule.js` — `findAllWithLastAction()` method: LEFT JOIN care_schedules → plants → care_actions, GROUP BY, MAX(performed_at)
+- `backend/src/app.js` — Route registered at `/api/v1/care-due`
+- `backend/tests/careDue.test.js` — 8 integration tests
+
+**Review findings:**
+| Check | Result |
+|-------|--------|
+| Auth enforced | ✅ `router.use(authenticate)` — all routes require Bearer token |
+| User isolation | ✅ Query filters by `p.user_id = userId` via Knex parameterization |
+| SQL injection | ✅ All queries use Knex query builder — no string concatenation |
+| Response shape vs API contract | ✅ Exact match: `{ data: { overdue: [...], due_today: [...], upcoming: [...] } }` |
+| Field shapes per category | ✅ overdue: plant_id, plant_name, care_type, days_overdue, last_done_at; due_today: plant_id, plant_name, care_type; upcoming: plant_id, plant_name, care_type, due_in_days, due_date |
+| Sorting | ✅ Matches contract: overdue by days_overdue DESC → plant_name ASC; due_today by plant_name ASC; upcoming by due_in_days ASC → plant_name ASC |
+| Frequency conversion | ✅ days/weeks/months all handled correctly |
+| Never-done plants | ✅ Falls back to plant.created_at as baseline |
+| Error handling | ✅ Delegates to centralized middleware via `next(err)` — no stack trace leakage |
+| Hardcoded secrets | ✅ None |
+| Tests | ✅ 8 tests: happy path, all-on-track, never-done, 401, no plants, user isolation, sort order, weekly frequency |
+
+**No issues found. No changes required.**
+
+### T-044 — Frontend: Care Due Dashboard — REVIEW PASSED
+
+**Files reviewed:**
+- `frontend/src/pages/CareDuePage.jsx` — Full page component with 5 states (loading, error, all-clear, per-section empty, populated)
+- `frontend/src/pages/CareDuePage.css` — Styles matching SPEC-009 design tokens
+- `frontend/src/hooks/useCareDue.js` — Custom hook with AbortController, optimistic removal, badge count
+- `frontend/src/utils/api.js` — `careDue.get()` API method
+- `frontend/src/components/Sidebar.jsx` — Badge display with BellSimple icon, 99+ cap
+- `frontend/src/components/AppShell.jsx` — Badge fetch on mount, Outlet context for badge updates
+- `frontend/src/App.jsx` — `/due` route registered
+- `frontend/src/__tests__/CareDuePage.test.jsx` — 23 tests
+
+**Review findings:**
+| Check | Result |
+|-------|--------|
+| SPEC-009 compliance | ✅ All 5 states implemented correctly. Colors, typography, spacing, card anatomy all match spec. |
+| Mark-done flow | ✅ POST /care-actions → optimistic removal → success toast → badge decrement. Error path: toast + button restored. |
+| Sidebar badge | ✅ BellSimple icon, overdue+due-today count, hidden at 0, "99+" at ≥100. Fetched on AppShell mount. |
+| Responsive | ✅ Desktop (≥1024), tablet (768–1023), mobile (<768) breakpoints. Mobile card stacking with full-width button. |
+| Accessibility | ✅ aria-labelledby sections, aria-busy loading, descriptive aria-labels on buttons, aria-live region, prefers-reduced-motion |
+| XSS | ✅ React default escaping — no dangerouslySetInnerHTML |
+| Hardcoded secrets | ✅ None |
+| API contract match | ✅ `careDue.get()` calls `/care-due`, response consumed correctly |
+| Tests | ✅ 23 tests: loading, error, retry, all-clear, navigation, populated, urgency text (6 variants), count pills, per-section empty, mark-done success/error/disabled, badge count, badge update, accessibility, tooltip |
+
+**No issues found. No changes required.**
+
+### What QA Should Verify
+
+1. **Integration test:** Frontend fetches from backend GET /api/v1/care-due and renders correctly
+2. **Mark-done integration:** Frontend POST /care-actions → backend → item removed from care-due response on re-fetch
+3. **Sidebar badge:** Badge count matches overdue + due_today; updates after mark-done
+4. **Security checklist:** Run standard checklist for both tasks
+5. **All tests pass:** 65/65 backend, 95/95 frontend (verify both)
+6. **SPEC-009 visual verification:** All states, responsive breakpoints, accessibility
+
+
