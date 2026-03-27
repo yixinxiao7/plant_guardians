@@ -209,6 +209,13 @@ export const careActions = {
   },
 };
 
+// Care due dashboard
+export const careDue = {
+  get() {
+    return request('/care-due');
+  },
+};
+
 // AI advice
 export const ai = {
   getAdvice(data) {

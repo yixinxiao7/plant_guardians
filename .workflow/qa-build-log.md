@@ -4,6 +4,71 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 8 — Staging Start-of-Sprint Verification (Deploy Engineer — 2026-03-27)
+
+**Date:** 2026-03-27
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 8
+
+### Context
+
+No new infra tasks are assigned to Deploy Engineer in Sprint 8 (active-sprint.md: "No new infra tasks — verify staging at sprint start"). Sprint 7 staging environment was the last full deploy. Backend process (PID 74651) was not running at sprint start — restarted cleanly.
+
+### Pre-Sprint Checklist
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| PostgreSQL availability | ✅ Pass | `pg_isready` → accepting connections on localhost:5432 |
+| Backend migrations | ✅ Pass | `npm run migrate` → "Already up to date" (5/5 migrations, no Sprint 7 or 8 migrations pending) |
+| Backend unit tests | ✅ Pass | 57/57 tests pass (--runInBand) |
+| Frontend unit tests | ✅ Pass | 72/72 tests pass |
+| Frontend build | ✅ Pass | Vite v8.0.2, 4609 modules, 0 errors, 0 warnings, built in 275ms |
+| npm audit (backend) | ✅ Pass | 0 high-severity vulnerabilities (moderate only in dev deps) |
+
+### Service Startup
+
+| Service | Action | PID | Port | Result |
+|---------|--------|-----|------|--------|
+| PostgreSQL | Already running | — | 5432 | ✅ |
+| Backend | Restarted (was down) | 88377 | 3000 | ✅ |
+| Frontend Preview | Already running | 76071 | 5173 | ✅ |
+
+**Backend restart note:** Previous PID 74651 (from Sprint 7) was no longer running. Restarted with `node src/server.js`. DB connectivity confirmed before server accepted connections (startup race fix from Sprint 1 H-017 is in place).
+
+### Health Checks
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| `GET http://localhost:3000/api/health` | 200 `{"status":"ok"}` | 200 `{"status":"ok","timestamp":"2026-03-27T23:06:01.970Z"}` | ✅ |
+| `GET http://localhost:5173/` (frontend) | 200 HTML | 200 | ✅ |
+| `GET http://localhost:5173/api/health` (Vite proxy) | 200 `{"status":"ok"}` | 200 `{"status":"ok"}` | ✅ |
+| `GET /api/v1/plants` (no auth) | 401 UNAUTHORIZED | 401 | ✅ |
+| `GET /api/v1/care-actions` (no auth) | 401 UNAUTHORIZED | 401 | ✅ |
+| `GET /api/v1/care-due` (no auth) | 404 (not yet implemented) | 404 | ℹ️ T-043 In Progress |
+
+**Sprint 8 Staging Status: ✅ HEALTHY — Ready for T-043/T-044 deployment**
+
+### Environment: Staging
+
+| Item | Value |
+|------|-------|
+| Environment | Staging (local) |
+| Backend URL | http://localhost:3000 |
+| Frontend URL | http://localhost:5173 |
+| API via Proxy | http://localhost:5173/api/* → http://localhost:3000/api/* |
+| Migrations | Up to date (5/5) — no new migrations for Sprint 7 or Sprint 8 |
+| Sprint | 8 |
+
+### Pending Deployment (Sprint 8)
+
+Once T-043 (GET /api/v1/care-due) and T-044 (Care Due Dashboard) complete QA, a Sprint 8 staging re-deployment will be executed:
+1. Restart backend to pick up new care-due route registration
+2. Rebuild frontend (new /due page + sidebar badge)
+3. Run health checks (Monitor Agent T-041 + new Sprint 8 check)
+4. Log Deploy Verified: Yes/No
+
+---
+
 ## Sprint 7 — Staging Deployment (Deploy Engineer — 2026-03-26)
 
 **Date:** 2026-03-26

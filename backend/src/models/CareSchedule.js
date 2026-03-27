@@ -70,6 +70,32 @@ const CareSchedule = {
   },
 
   /**
+   * Find all care schedules for a user with the most recent care action per (plant, care_type).
+   * Used by the Care Due Dashboard (T-043).
+   * Returns rows with: plant_id, plant_name, care_type, frequency_value, frequency_unit,
+   *   plant_created_at, last_done_at (MAX performed_at or null).
+   */
+  async findAllWithLastAction(userId) {
+    return db('care_schedules as cs')
+      .join('plants as p', 'cs.plant_id', 'p.id')
+      .leftJoin('care_actions as ca', function () {
+        this.on('ca.plant_id', '=', 'cs.plant_id')
+          .andOn('ca.care_type', '=', 'cs.care_type');
+      })
+      .where('p.user_id', userId)
+      .groupBy('cs.plant_id', 'p.name', 'cs.care_type', 'cs.frequency_value', 'cs.frequency_unit', 'p.created_at')
+      .select(
+        'cs.plant_id',
+        'p.name as plant_name',
+        'cs.care_type',
+        'cs.frequency_value',
+        'cs.frequency_unit',
+        'p.created_at as plant_created_at',
+        db.raw('MAX(ca.performed_at) as last_done_at')
+      );
+  },
+
+  /**
    * Update the last_done_at for a schedule.
    */
   async updateLastDoneAt(scheduleId, lastDoneAt) {

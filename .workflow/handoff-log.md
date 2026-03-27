@@ -2322,3 +2322,216 @@ The `GET /api/v1/care-due` contract is in `api-contracts.md` → Sprint 8 Contra
 - Sidebar badge count = overdue.length + due_today.length — verify it decrements after mark-done, disappears at 0
 - Error state on /due page when backend returns 500 — verify "Try again" triggers re-fetch
 
+---
+
+## H-111 — Deploy Engineer → All Agents: Sprint 8 Staging Verified — Ready for T-043/T-044
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-111 |
+| **From** | Deploy Engineer |
+| **To** | Backend Engineer, Frontend Engineer, QA Engineer, Monitor Agent |
+| **Date** | 2026-03-27 |
+| **Sprint** | 8 |
+| **Subject** | Sprint 8 staging environment verified healthy at sprint start. Backend restarted. All tests pass. Ready for T-043/T-044 deployment. |
+| **Spec Refs** | T-043, T-044 |
+| **Status** | Pending |
+
+### Staging State (as of 2026-03-27T23:06Z)
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| PostgreSQL | localhost:5432 | — | ✅ Running |
+| Backend API | http://localhost:3000 | 88377 | ✅ Running (restarted) |
+| Frontend Preview | http://localhost:5173 | 76071 | ✅ Running |
+
+### Verification Results
+
+| Check | Result |
+|-------|--------|
+| Backend unit tests | ✅ 57/57 pass |
+| Frontend unit tests | ✅ 72/72 pass |
+| Frontend build | ✅ 0 errors |
+| DB migrations | ✅ Up to date (5/5) |
+| `GET /api/health` | ✅ 200 ok |
+| Vite proxy (`/api/health` via :5173) | ✅ 200 ok |
+| Auth enforcement (unauthenticated requests) | ✅ 401 on all protected endpoints |
+| `GET /api/v1/care-due` | ℹ️ 404 — T-043 not yet implemented |
+
+### Notes for Each Agent
+
+**Backend Engineer (T-043):** Staging is ready to receive the `GET /api/v1/care-due` route. After implementing, restart the backend process (`kill 88377 && node src/server.js`) — no migrations needed (per H-108). Notify Deploy Engineer via handoff when T-043 is ready for deployment.
+
+**Frontend Engineer (T-044):** Once T-043 contract is live on staging, build the `/due` page per SPEC-009. The current build baseline is 376.48 kB JS / 34.10 kB CSS (dist/). Run `npm run build` and verify 0 errors before handing off to Deploy.
+
+**QA Engineer:** Baseline test counts entering Sprint 8: 57/57 backend, 72/72 frontend. After T-043 and T-044 are implemented, trigger QA verification. Include regression check against these counts.
+
+**Monitor Agent:** T-041 (Sprint 7 health check) is the immediate priority. Staging is healthy — all 16 endpoints (excluding `/care-due` which is Sprint 8) should be reachable. After T-043/T-044 deploy, a second health check covering the new `/care-due` endpoint and `/due` frontend route is required.
+
+### Deploy Engineer Readiness for Sprint 8 Deployment
+
+When both T-043 and T-044 have QA sign-off in this handoff log, Deploy Engineer will:
+1. Kill/restart backend (PID 88377) to pick up new route
+2. Rebuild frontend (`npm run build`) with new `/due` page
+3. Kill/restart frontend preview with new build
+4. Run post-start health checks (including `GET /api/v1/care-due` → 401, `GET http://localhost:5173/due` → 200)
+5. Log Sprint 8 deployment in `qa-build-log.md`
+6. Log handoff to Monitor Agent for post-deploy health check
+
+## H-112 — Backend Engineer: T-043 Care Due Endpoint Implemented — Ready for QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-112 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-27 |
+| **Sprint** | 8 |
+| **Subject** | T-043 GET /api/v1/care-due implemented and ready for QA verification |
+| **Spec Refs** | T-043 |
+| **Status** | Pending |
+
+### What Was Implemented
+
+- **Route:** `backend/src/routes/careDue.js` — `GET /api/v1/care-due` (authenticated via Bearer token)
+- **Model:** `CareSchedule.findAllWithLastAction(userId)` added to `backend/src/models/CareSchedule.js` — aggregating query with LEFT JOIN to get most recent care action per (plant, care_type)
+- **Registration:** Route registered at `/api/v1/care-due` in `backend/src/app.js`
+- **No new migrations** — all data from existing Sprint 1 tables (care_schedules, care_actions, plants)
+
+### What to Test
+
+1. **Happy path:** Authenticated user with plants in overdue, due_today, and upcoming states — verify correct categorization and response shape per api-contracts.md
+2. **All on track:** User whose plants are all well-maintained (no items due within 7 days) — expect empty arrays
+3. **Never-done plant:** Plant with schedules but no care actions — uses `plant.created_at` as baseline; `last_done_at` should be `null` in overdue items
+4. **401 Unauthorized:** No auth header → 401 UNAUTHORIZED
+5. **No plants:** Authenticated user with zero plants → empty arrays (200)
+6. **User isolation:** User A's care-due data not visible to User B
+7. **Sorting:** Overdue sorted by `days_overdue` DESC then `plant_name` ASC; due_today by `plant_name` ASC; upcoming by `due_in_days` ASC then `plant_name` ASC
+8. **Frequency unit conversion:** Weekly/monthly frequencies converted correctly (1 week = 7 days, 1 month = 30 days)
+9. **API contract match:** Response shape matches api-contracts.md GROUP 17 exactly
+
+### Test Results
+
+- 8 new tests in `backend/tests/careDue.test.js`
+- 65/65 total backend tests pass (57 existing + 8 new)
+- Security self-check: auth enforced, parameterized Knex queries, no SQL injection, no hardcoded secrets, error handling via centralized middleware
+
+## H-113 — Backend Engineer: T-043 API Ready — Handoff to Frontend Engineer
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-113 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-27 |
+| **Sprint** | 8 |
+| **Subject** | GET /api/v1/care-due endpoint implemented — ready for frontend integration per API contract (GROUP 17) |
+| **Spec Refs** | T-043, T-044 |
+| **Status** | Pending |
+
+### Details
+
+The `GET /api/v1/care-due` endpoint is implemented and passes all 8 unit tests. The response shape matches the API contract in `api-contracts.md` (GROUP 17) exactly. Frontend can begin building the `/due` page (T-044).
+
+Key integration notes:
+- Endpoint: `GET /api/v1/care-due` (auth required)
+- Response: `{ data: { overdue: [...], due_today: [...], upcoming: [...] } }`
+- Empty state returns `{ data: { overdue: [], due_today: [], upcoming: [] } }` with 200 status
+- Sidebar badge count = `overdue.length + due_today.length`
+
+## H-114 — Backend Engineer: T-043 Complete — Deploy Engineer Notification
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-114 |
+| **From** | Backend Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-27 |
+| **Sprint** | 8 |
+| **Subject** | T-043 implemented — no migrations needed, backend restart required to pick up new route |
+| **Spec Refs** | T-043 |
+| **Status** | Pending |
+
+### Deploy Notes
+
+- **No new migrations** — existing Sprint 1 schema suffices
+- **New route file:** `backend/src/routes/careDue.js` registered in `app.js`
+- **Backend restart required** to pick up the new route (kill existing process, `node src/server.js`)
+- After restart, verify: `GET /api/v1/care-due` without auth → 401; with auth → 200 with care-due data
+
+## H-115 — Frontend Engineer: Acknowledge GET /api/v1/care-due Contract (H-109)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-115 |
+| **From** | Frontend Engineer |
+| **To** | Backend Engineer |
+| **Date** | 2026-03-27 |
+| **Sprint** | 8 |
+| **Subject** | Acknowledged API contract for GET /api/v1/care-due (published in H-109). Frontend implementation (T-044) built against this contract. |
+| **Spec Refs** | T-044, H-109 |
+| **Status** | Acknowledged |
+
+### Notes
+
+- Contract reviewed: response shape (`data.overdue`, `data.due_today`, `data.upcoming`), field types, sorting rules, error codes (401, 500) all understood.
+- `careDue.get()` added to `frontend/src/utils/api.js` — calls `GET /api/v1/care-due` with auth header.
+- "Mark as done" action reuses existing `POST /api/v1/care-actions` endpoint (careActions.markDone).
+- Optimistic UI removal after mark-done; no re-fetch of care-due list.
+
+## H-116 — Frontend Engineer → QA Engineer: T-044 Ready for QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-116 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-27 |
+| **Sprint** | 8 |
+| **Subject** | T-044 Care Due Dashboard implementation complete — ready for QA |
+| **Spec Refs** | T-044, SPEC-009 |
+| **Status** | Pending |
+
+### What Was Built
+
+- **New page:** `CareDuePage.jsx` + `CareDuePage.css` at route `/due`
+- **New hook:** `useCareDue.js` — fetches care-due data, handles mark-done with optimistic removal
+- **New API method:** `careDue.get()` in `api.js`
+- **Sidebar update:** "Care Due" nav item with BellSimple icon added between "My Plants" and "History". Badge shows overdue + due-today count (hides at 0, shows "99+" at ≥100).
+- **AppShell update:** Fetches badge count on mount, passes to Sidebar via prop. CareDuePage receives `onBadgeUpdate` callback via Outlet context.
+- **Sidebar rename:** "Inventory" → "My Plants" per SPEC-009 nav labeling
+
+### States Implemented (per SPEC-009)
+
+1. **Loading:** 2 skeleton sections with shimmer animation, `aria-busy="true"`, live region
+2. **Error:** WarningCircle icon, heading, body text, "Try again" button with `aria-label`
+3. **Global all-clear:** Happy plant SVG illustration, heading, body, "View my plants" CTA → navigates to `/`
+4. **Per-section empty:** Dashed border container with encouraging text per section
+5. **Populated:** Three urgency sections (Overdue, Due Today, Coming Up) with item cards
+6. **Mark as done:** Spinner in button while in-flight, success toast with 🌿, error toast, fade-out animation, badge count update
+
+### What to Test
+
+- Verify all 5 states render correctly per SPEC-009
+- Test mark-done flow: click → spinner → item removed → toast → badge decremented
+- Test mark-done error: toast shown, button restored
+- Verify sidebar badge count updates correctly
+- Badge hides at 0, shows "99+" at ≥100
+- Urgency text: "X days overdue", "Never done", "Due today", "Due tomorrow", "Due in X days"
+- Tooltip on upcoming items shows formatted due date
+- Responsive: mobile card stacking at <768px
+- Accessibility: section landmarks, aria-labelledby, aria-labels on buttons, aria-busy on loading
+- Route `/due` loads the page correctly
+- `prefers-reduced-motion` disables animations
+
+### Test Results
+
+- **95/95 frontend tests pass** (23 new tests: 19 for CareDuePage, 3 for Sidebar badge, 1 for AppShell)
+- **Build: 0 errors** (vite build succeeds)
+- Previous 72 tests all still pass
+
+### Known Limitations
+
+- Sidebar badge fetches care-due data on AppShell mount; this is a separate API call from the CareDuePage fetch. If the backend is not yet deployed with the care-due endpoint, the badge silently fails (no error shown).
+- Focus management after mark-done (moving focus to next item) is not yet implemented — logged as a minor a11y improvement. All buttons remain keyboard-reachable via Tab order.
+

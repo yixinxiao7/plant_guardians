@@ -9,6 +9,13 @@ vi.mock('@phosphor-icons/react', () => ({
   SignOut: (props) => <span data-testid="icon-signout" {...props} />,
   X: (props) => <span data-testid="icon-x" {...props} />,
   ClockCounterClockwise: (props) => <span data-testid="icon-clock" {...props} />,
+  BellSimple: (props) => <span data-testid="icon-bell" {...props} />,
+}));
+
+vi.mock('../utils/api.js', () => ({
+  careDue: {
+    get: vi.fn().mockResolvedValue({ overdue: [], due_today: [], upcoming: [] }),
+  },
 }));
 
 vi.mock('../hooks/useAuth.jsx', () => ({
