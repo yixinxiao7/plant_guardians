@@ -2169,3 +2169,156 @@ All colors, typography, spacing, and component patterns are defined in the Desig
 - Card border radius: 12px, shadow: `0 2px 8px rgba(44,44,44,0.06)`
 - Shimmer animation: same as SPEC-008 (see that spec for the CSS keyframe)
 
+---
+
+## H-108 — Backend Engineer → Manager: Sprint 8 Schema Proposal (T-043 — Auto-Approved)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-108 |
+| **From** | Backend Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-03-27 |
+| **Sprint** | 8 |
+| **Subject** | Sprint 8 schema assessment for T-043 (GET /api/v1/care-due): No new migrations required |
+| **Spec Refs** | T-043, SPEC-009 |
+| **Status** | Auto-approved (automated sprint) — Manager Agent will review in closeout phase |
+
+### Proposal
+
+The `GET /api/v1/care-due` endpoint requires **no schema changes**. All data needed is already present in the Sprint 1 schema:
+
+- `plants.created_at` — baseline date for never-done care schedules
+- `care_schedules.frequency_days` — the repetition interval per care type
+- `care_actions.performed_at` — used to derive `last_done_at` via `MAX()` per `(plant_id, care_type)`
+
+No new tables, columns, or indexes are needed. The due-date calculation happens entirely in the application layer.
+
+**No migration files will be created for Sprint 8.**
+
+---
+
+## H-109 — Backend Engineer → Frontend Engineer: GET /api/v1/care-due Contract Published
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-109 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-27 |
+| **Sprint** | 8 |
+| **Subject** | API contract for GET /api/v1/care-due is published — T-044 (Care Due Dashboard) may begin |
+| **Spec Refs** | T-043, T-044, SPEC-009 |
+| **Status** | Pending |
+
+### What Is Ready
+
+The `GET /api/v1/care-due` API contract is fully documented in `api-contracts.md` under **Sprint 8 Contracts → GROUP 17**. T-043 (implementation) will follow in the next phase. The contract is final and should be treated as stable.
+
+### Contract Summary
+
+**Endpoint:** `GET /api/v1/care-due`
+**Auth:** Bearer token required (401 if missing or invalid)
+**Query params:** None
+**Request body:** None
+
+**Success response (200):**
+```json
+{
+  "data": {
+    "overdue": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "days_overdue": 3,
+        "last_done_at": "ISO 8601 | null"
+      }
+    ],
+    "due_today": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting"
+      }
+    ],
+    "upcoming": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "due_in_days": 3,
+        "due_date": "2026-03-30"
+      }
+    ]
+  }
+}
+```
+
+**Key notes for T-044 implementation:**
+- `last_done_at` is `null` for never-done overdue items — display "Never done" as the urgency detail
+- All three arrays are always present in the response (may be empty `[]`)
+- Empty response (all arrays empty) → render the global all-clear state ("All your plants are happy!")
+- Server sorts: overdue by `days_overdue` DESC, due_today by `plant_name` ASC, upcoming by `due_in_days` ASC (ties broken by `plant_name` ASC) — no client-side sort needed
+- The "Mark as done" shortcut uses the **existing** `POST /api/v1/care-actions` endpoint — no new endpoint needed for that action
+- Sidebar badge count = `overdue.length + due_today.length` — fetch on app shell mount, store in React context
+
+**Error cases:**
+- `401 UNAUTHORIZED` — redirect to login or show session-expired state (same as other authenticated endpoints)
+- `500 INTERNAL_ERROR` — show the error state with "Try again" retry
+
+### Prerequisite: Await T-043 Implementation
+
+The contract is published and stable, but the backend implementation (T-043) must be complete before integration testing. Build against the contract — you can mock the response for unit tests while awaiting the real endpoint.
+
+---
+
+## H-110 — Backend Engineer → QA Engineer: Sprint 8 API Contract for Testing Reference
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-110 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-27 |
+| **Sprint** | 8 |
+| **Subject** | Sprint 8 API contract (GET /api/v1/care-due) published — reference for T-043 and T-044 QA |
+| **Spec Refs** | T-043, T-044, SPEC-009 |
+| **Status** | Pending |
+
+### Contract Reference for QA
+
+The `GET /api/v1/care-due` contract is in `api-contracts.md` → Sprint 8 Contracts → GROUP 17.
+
+### Test Cases to Verify Against the Contract
+
+**Happy path — mixed statuses:**
+- Authenticated request → 200 with all three arrays populated
+- Overdue array sorted by `days_overdue` DESC
+- Due Today array sorted by `plant_name` ASC
+- Upcoming array sorted by `due_in_days` ASC
+
+**Happy path — all plants on track:**
+- 200 with `overdue: [], due_today: [], upcoming: []`
+- Frontend must show global all-clear state (not an error)
+
+**Happy path — never-done plant:**
+- Plant with care schedule but zero care_actions entries → appears in overdue with `last_done_at: null`
+- `days_overdue` calculated from `plant.created_at + frequency_days`
+
+**Happy path — no plants:**
+- User with zero plants → 200 with all three arrays empty
+
+**Auth enforcement:**
+- Request with no Authorization header → `401 UNAUTHORIZED`
+- Request with expired/malformed token → `401 UNAUTHORIZED`
+
+**Regression baseline:**
+- All 57/57 existing backend tests must still pass after T-043 implementation
+- All 72/72 existing frontend tests must still pass after T-044 implementation
+
+**Integration (T-043 + T-044 together):**
+- Mark as done shortcut on the /due page calls `POST /api/v1/care-actions` — verify item removes from UI after success (no full re-fetch)
+- Sidebar badge count = overdue.length + due_today.length — verify it decrements after mark-done, disappears at 0
+- Error state on /due page when backend returns 500 — verify "Try again" triggers re-fetch
+

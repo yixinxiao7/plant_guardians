@@ -1394,3 +1394,240 @@ No new environment variables are required for T-039.
 ---
 
 *Sprint 7 contract written by Backend Engineer — 2026-03-25. One new endpoint: GET /api/v1/care-actions. No schema changes. All 15 prior endpoints unchanged.*
+
+---
+
+## Sprint 8 Contracts — 2026-03-27
+
+---
+
+Sprint 8 introduces **one new API endpoint**: `GET /api/v1/care-due` (T-043). No other endpoints are added or changed. No schema migrations are required — all data needed for care-due calculations is already available in the existing `care_schedules` and `care_actions` tables from Sprint 1.
+
+---
+
+### GROUP 17 — Care Due Dashboard (T-043)
+
+---
+
+#### GET /api/v1/care-due
+
+**Auth:** Required — Bearer token in `Authorization: Bearer <access_token>` header
+
+**Description:** Returns all care events for the authenticated user's plants, categorised into three urgency buckets: overdue (past due), due today, and upcoming (within the next 7 days). The frontend uses this response to render the Care Due Dashboard (`/due`) and to populate the sidebar badge count (overdue + due_today items).
+
+**Calculation Logic:**
+- For each `(plant, care_schedule)` pair owned by the authenticated user, compute:
+  ```
+  next_due = last_done_at + frequency_days
+             (or plant.created_at + frequency_days if the care type has never been logged)
+  ```
+- Compare `next_due` against today's server date (UTC, date-only comparison):
+  - `next_due < today` → **overdue** — `days_overdue = today - next_due` (in days, integer ≥ 1)
+  - `next_due = today` → **due_today**
+  - `next_due > today` AND `next_due ≤ today + 7 days` → **upcoming** — `due_in_days = next_due - today` (integer 1–7)
+  - `next_due > today + 7 days` → **not returned** (on track, outside the 7-day window)
+- `last_done_at` is the most recent `performed_at` from `care_actions` for the given `(plant_id, care_type)` pair. If no record exists, `last_done_at` is `null` and `plant.created_at` is used as the baseline.
+
+**Query Parameters:** None — all data is scoped to the authenticated user.
+
+**Request Body:** None (GET request).
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "overdue": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "days_overdue": 3,
+        "last_done_at": "2026-03-24T08:00:00.000Z"
+      }
+    ],
+    "due_today": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting"
+      }
+    ],
+    "upcoming": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "due_in_days": 3,
+        "due_date": "2026-03-30"
+      }
+    ]
+  }
+}
+```
+
+**Field Details:**
+
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| `plant_id` | UUID string | No | The plant's UUID |
+| `plant_name` | string | No | The plant's name (from `plants.name`) |
+| `care_type` | enum string | No | One of: `watering`, `fertilizing`, `repotting` |
+| `days_overdue` | integer ≥ 1 | No (overdue only) | How many days past due. Minimum 1. |
+| `last_done_at` | ISO 8601 UTC string | **Yes** | Timestamp of most recent care action for this type. `null` if care has never been logged (never-done plant). Present in `overdue` items only. |
+| `due_in_days` | integer 1–7 | No (upcoming only) | Days until next due. 1 = tomorrow, 7 = one week away. |
+| `due_date` | ISO 8601 date string | No (upcoming only) | Calendar date when care is next due, e.g. `"2026-03-30"` (UTC date, no time component). |
+
+**Empty response (all plants on track — no overdue, due today, or upcoming in 7 days):**
+```json
+{
+  "data": {
+    "overdue": [],
+    "due_today": [],
+    "upcoming": []
+  }
+}
+```
+This is a valid 200 response — the frontend renders the global all-clear state.
+
+**Response when user has no plants:**
+```json
+{
+  "data": {
+    "overdue": [],
+    "due_today": [],
+    "upcoming": []
+  }
+}
+```
+Same empty shape — no special status code.
+
+**Sorting (server-side, applied before response):**
+- `overdue`: sorted by `days_overdue` DESC, then `plant_name` ASC for ties
+- `due_today`: sorted by `plant_name` ASC
+- `upcoming`: sorted by `due_in_days` ASC, then `plant_name` ASC for ties
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 401 | `UNAUTHORIZED` | No `Authorization` header, token is malformed, expired, or refers to a deleted user |
+| 500 | `INTERNAL_ERROR` | Unexpected server error (DB failure, etc.) |
+
+**Example error (401):**
+```json
+{
+  "error": {
+    "message": "Unauthorized.",
+    "code": "UNAUTHORIZED"
+  }
+}
+```
+
+**Example error (500):**
+```json
+{
+  "error": {
+    "message": "An unexpected error occurred.",
+    "code": "INTERNAL_ERROR"
+  }
+}
+```
+
+**Example curl:**
+```bash
+curl -X GET http://localhost:3000/api/v1/care-due \
+  -H "Authorization: Bearer <access_token>"
+```
+
+**Example happy-path response (mixed statuses):**
+```json
+{
+  "data": {
+    "overdue": [
+      {
+        "plant_id": "a1b2c3d4-...",
+        "plant_name": "Monstera",
+        "care_type": "watering",
+        "days_overdue": 5,
+        "last_done_at": "2026-03-22T09:00:00.000Z"
+      },
+      {
+        "plant_id": "e5f6g7h8-...",
+        "plant_name": "Pothos",
+        "care_type": "fertilizing",
+        "days_overdue": 2,
+        "last_done_at": null
+      }
+    ],
+    "due_today": [
+      {
+        "plant_id": "a1b2c3d4-...",
+        "plant_name": "Monstera",
+        "care_type": "fertilizing"
+      }
+    ],
+    "upcoming": [
+      {
+        "plant_id": "i9j0k1l2-...",
+        "plant_name": "Snake Plant",
+        "care_type": "watering",
+        "due_in_days": 3,
+        "due_date": "2026-03-30"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Schema Notes — Sprint 8
+
+**No new migrations required.**
+
+The `GET /api/v1/care-due` endpoint requires **no schema changes**. All data is derivable from existing tables:
+
+- `plants` (Sprint 1, migration 3): provides `id`, `name`, `user_id`, `created_at` (baseline date for never-done plants)
+- `care_schedules` (Sprint 1, migration 4): provides `plant_id`, `care_type`, `frequency_days`
+- `care_actions` (Sprint 1, migration 5): provides `plant_id`, `care_type`, `performed_at` (used as `last_done_at`)
+
+**No migration files will be created for Sprint 8 (T-043).**
+
+---
+
+### Query Design (for implementation reference)
+
+The core computation requires a `LEFT JOIN` from `care_schedules` to the most recent `care_action` per `(plant_id, care_type)`:
+
+```sql
+-- Step 1: Get most recent care action per (plant_id, care_type) for this user
+SELECT
+  cs.plant_id,
+  p.name AS plant_name,
+  cs.care_type,
+  cs.frequency_days,
+  p.created_at AS plant_created_at,
+  MAX(ca.performed_at) AS last_done_at
+FROM care_schedules cs
+JOIN plants p ON cs.plant_id = p.id
+LEFT JOIN care_actions ca ON ca.plant_id = cs.plant_id
+  AND ca.care_type = cs.care_type
+WHERE p.user_id = :userId
+GROUP BY cs.plant_id, p.name, cs.care_type, cs.frequency_days, p.created_at
+
+-- Step 2 (application layer): compute next_due from last_done_at (or plant_created_at)
+-- and categorise each row into overdue / due_today / upcoming / on_track
+```
+
+All queries use parameterized values via Knex — no string concatenation of user input.
+
+---
+
+### Environment Configuration — Sprint 8
+
+No new environment variables are required for T-043.
+
+---
+
+*Sprint 8 contract written by Backend Engineer — 2026-03-27. One new endpoint: GET /api/v1/care-due. No schema changes. All 16 prior endpoints unchanged.*

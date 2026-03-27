@@ -179,6 +179,48 @@ CREATE INDEX idx_care_actions_performed_at ON care_actions (plant_id, performed_
 
 ---
 
+## Sprint 8 — Schema & Migration Notes (T-043)
+
+**Proposed by:** Backend Engineer — 2026-03-27
+**Status: Auto-approved (automated sprint)** — Manager Agent will review in closeout phase.
+
+### No New Migrations Required
+
+The `GET /api/v1/care-due` endpoint (T-043) requires **no schema changes**. All data needed to compute care-due status is already present in the existing Sprint 1 schema:
+
+- **`plants`** (`20260323_03_create_plants.js`): `id`, `name`, `user_id`, `created_at` — provides ownership scoping and the baseline date for plants whose care has never been logged
+- **`care_schedules`** (`20260323_04_create_care_schedules.js`): `plant_id`, `care_type`, `frequency_days` — provides the schedule definition (`next_due = last_done_at + frequency_days`)
+- **`care_actions`** (`20260323_05_create_care_actions.js`): `plant_id`, `care_type`, `performed_at` — provides `last_done_at` via `MAX(performed_at)` grouped by `(plant_id, care_type)`
+
+The categorization logic (overdue / due_today / upcoming) is computed entirely in the application layer using the above columns. No new columns, indexes, or tables are needed.
+
+**No migration files will be created for Sprint 8.**
+
+### Query Design (for implementation reference)
+
+The computation is a single aggregating query (care_schedules LEFT JOIN care_actions) followed by application-layer date arithmetic:
+
+```sql
+SELECT
+  cs.plant_id,
+  p.name AS plant_name,
+  cs.care_type,
+  cs.frequency_days,
+  p.created_at AS plant_created_at,
+  MAX(ca.performed_at) AS last_done_at
+FROM care_schedules cs
+JOIN plants p ON cs.plant_id = p.id
+LEFT JOIN care_actions ca
+  ON ca.plant_id = cs.plant_id
+  AND ca.care_type = cs.care_type
+WHERE p.user_id = :userId
+GROUP BY cs.plant_id, p.name, cs.care_type, cs.frequency_days, p.created_at;
+```
+
+Application layer then computes `next_due = (last_done_at ?? plant_created_at) + frequency_days` and categorises each row. All queries use parameterized Knex values — no string concatenation.
+
+---
+
 ## Sprint 7 — Schema & Migration Notes (T-039)
 
 **Proposed by:** Backend Engineer — 2026-03-25
