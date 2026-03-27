@@ -1066,6 +1066,251 @@ Endpoint: `GET /api/v1/care-actions` (see T-039 and `api-contracts.md`)
 
 ---
 
+### SPEC-009 — Care Due Dashboard
+
+**Status:** Approved — 2026-03-27
+**Related Tasks:** T-042 (this spec), T-044 (Frontend implementation)
+
+#### Description
+
+The Care Due Dashboard is a proactive, urgency-sorted view at `/due` that gives plant owners an at-a-glance answer to the question: "What does my garden need from me right now?" It replaces the need to scroll through the entire inventory to discover overdue care — instead, all actionable items surface in one focused place, sorted by urgency into three clearly labeled sections.
+
+**User goal:** "I want to know immediately which plants need care today, which ones I've already let slip, and which ones are coming up in the next week — without opening each plant one by one."
+
+This screen directly fulfills the project brief's core promise of "painfully obvious reminders" for novice plant owners. The design leans into urgency signals (color, iconography, section headings) while remaining calm and uncluttered in the Japandi style.
+
+#### Route
+
+`/due`
+
+#### Navigation Entry Point
+
+- **Sidebar:** Add a new "Care Due" nav item to the persistent sidebar, positioned **between "My Plants" and "History"**.
+  - Icon: Phosphor `BellSimple` (outlined), 20px
+  - Label: "Care Due"
+  - **Badge:** A pill badge to the right of the label showing the total count of overdue + due-today items. Badge style: `background: #B85C38`, `color: #FFFFFF`, `font-size: 11px`, `font-weight: 600`, `padding: 2px 7px`, `border-radius: 24px`, `min-width: 18px`, `text-align: center`
+  - When the overdue + due-today count = 0, the badge **disappears entirely** (no "0" badge shown)
+  - When the count ≥ 100, display "99+" in the badge
+  - The badge count is derived from the same `GET /api/v1/care-due` response that powers the page; fetch it on app shell mount (or on navigation to /due) so it's visible from any screen
+  - Active state (current page): left border `3px solid #5C7A5C`, background `#F0EDE6`, text `#2C2C2C`
+  - Inactive: no border, background transparent, text `#6B6B5F`
+
+#### Layout
+
+App shell (persistent sidebar + main content area), consistent with all authenticated screens.
+
+**Main content area:**
+- `max-width: 800px`, horizontally centered
+- `padding: 40px 32px` (desktop), `padding: 24px 16px` (mobile)
+
+**Page Header:**
+- Page title: "Care Due" — Playfair Display, 32px, `font-weight: 600`, `color: #2C2C2C`, `margin-bottom: 8px`
+- Subtitle: "Plants that need your attention, sorted by urgency." — DM Sans, 14px, `color: #6B6B5F`, `margin-bottom: 32px`
+
+**Three Urgency Sections (rendered in this order, top to bottom):**
+
+1. **Overdue** — Plants whose care is past due (next_due date is in the past)
+2. **Due Today** — Plants whose care is due today
+3. **Coming Up** — Plants whose care is due within the next 7 days (not today)
+
+Each section is only rendered if it has items. If a section is empty, it is **replaced by its per-section empty state** (see States section below). If all three sections are empty, the entire page shows the **global all-clear state** instead of any sections.
+
+**Section Anatomy:**
+
+Each section contains:
+1. **Section Header Row** — `display: flex`, `align-items: center`, `gap: 10px`, `margin-bottom: 16px`
+   - Section icon (16px, Phosphor outlined): `WarningCircle` for Overdue (color: `#B85C38`), `Clock` for Due Today (color: `#C4921F`), `CalendarBlank` for Coming Up (color: `#5C7A5C`)
+   - Section title — DM Sans, 13px, `font-weight: 600`, `text-transform: uppercase`, `letter-spacing: 0.08em`
+     - Overdue: `color: #B85C38`
+     - Due Today: `color: #C4921F`
+     - Coming Up: `color: #5C7A5C`
+   - Count pill — same pill component as status badges: pill `background: #FAEAE4` (overdue), `#FDF4E3` (due today), `#E8F4EC` (coming up), text color matches section color, `font-size: 11px`, `font-weight: 600`, `padding: 2px 8px`, `border-radius: 24px`
+2. **Item List** — vertical stack of care-due item cards
+3. **Section divider** — `margin-bottom: 32px` below each section's last card before the next section header. No horizontal rule needed.
+
+#### Care-Due Item Card Anatomy
+
+Each care-due item is a card: `background: #FFFFFF`, `border: 1px solid #E0DDD6`, `border-radius: 12px`, `padding: 16px 20px`, `margin-bottom: 10px`, `box-shadow: 0 2px 8px rgba(44,44,44,0.06)`, `display: flex`, `align-items: center`, `gap: 16px`.
+
+**Layout (left to right):**
+
+**1. Care Type Icon (left, fixed width, flex-shrink: 0):**
+- Circular container: `width: 44px`, `height: 44px`, `border-radius: 50%`, centered icon
+- Same color coding as SPEC-008:
+
+  | Care Type | Phosphor Icon | Background | Icon Color |
+  |-----------|--------------|------------|------------|
+  | `watering` | `Drop` | `#EBF4F7` | `#5B8FA8` |
+  | `fertilizing` | `Leaf` | `#E8F4EC` | `#4A7C59` |
+  | `repotting` | `PottedPlant` | `#F4EDE8` | `#A67C5B` |
+
+- Icon size: 20px, outlined weight
+- `aria-hidden="true"` (decorative; accessible label provided by card text)
+
+**2. Plant + Care Info (center, flex: 1, min-width: 0):**
+- Line 1 — Plant name: DM Sans, 15px, `font-weight: 500`, `color: #2C2C2C`. Single line, truncate with ellipsis.
+- Line 2 — Care type label: DM Sans, 13px, `color: #6B6B5F`, `margin-top: 2px`
+  - `watering` → "Watering"
+  - `fertilizing` → "Fertilizing"
+  - `repotting` → "Repotting"
+- Line 3 — Urgency detail: DM Sans, 12px, `font-weight: 500`, `margin-top: 4px`
+  - **Overdue items:** `color: #B85C38` — e.g., "3 days overdue" (use `days_overdue` from API). If `days_overdue === 1`: "1 day overdue". If `last_done_at` is null (never done): "Never done"
+  - **Due Today items:** `color: #C4921F` — "Due today"
+  - **Coming Up items:** `color: #5C7A5C` — e.g., "Due in 3 days" (use `due_in_days`). If `due_in_days === 1`: "Due tomorrow". Show `due_date` as tooltip on the urgency text via `title="Due [Month D, YYYY]"` (e.g., `title="Due April 3, 2026"`).
+
+**3. "Mark as done" Button (right, flex-shrink: 0):**
+- Style: Secondary button variant, `font-size: 13px`, `padding: 8px 16px`, `border-radius: 8px`
+- Label: "Mark as done"
+- On click: calls `POST /api/v1/care-actions` with `{ plant_id, care_type }`. On success:
+  1. Show a brief success toast: "[Plant name] [care type] marked as done! 🌿" (info/success variant)
+  2. Remove the item from the current section with a smooth fade-out: `opacity: 0`, `height: 0`, `margin: 0`, `padding: 0` transition over `0.3s ease`. After transition completes, remove from DOM.
+  3. Update the section's count pill
+  4. If the section becomes empty, fade-in the per-section empty state
+  5. If all sections are now empty, transition to the global all-clear state
+  6. Decrement the sidebar badge count. If count reaches 0, hide the badge.
+- While the API call is in-flight: button shows an inline 14px spinner, is `disabled`, and its text hides (spinner only). The card does not change.
+- On API error: button returns to normal state; show an error toast: "Couldn't mark as done. Please try again." (error variant)
+- `aria-label`: "Mark [Plant Name] [care type] as done" (e.g., "Mark Monstera watering as done")
+
+**Hover state on card:** `box-shadow: 0 4px 16px rgba(44,44,44,0.10)`, `border-color: #C8C4BC`, transition `0.2s ease`. The card itself is not a link or button — only the "Mark as done" button is interactive.
+
+#### States
+
+**Loading State:**
+
+Shown on initial page mount while `GET /api/v1/care-due` is fetching.
+
+- Display 2 skeleton section blocks. Each block:
+  - Section header row: shimmer bar `width: 120px`, `height: 14px`, `border-radius: 4px`
+  - 2–3 skeleton item cards below it. Each skeleton card:
+    - Left: circular shimmer `44px × 44px`
+    - Center: two shimmer lines — line 1 `width: 40–60%`, `height: 14px`; line 2 `width: 25–35%`, `height: 12px`, `margin-top: 6px`; line 3 `width: 80px`, `height: 11px`, `margin-top: 6px`
+    - Right: shimmer block `width: 110px`, `height: 34px`, `border-radius: 8px`
+  - Card style: `background: #F0EDE6`, `border: 1px solid #E0DDD6`, `border-radius: 12px`, `padding: 16px 20px`, `margin-bottom: 10px`
+- Shimmer animation: same as SPEC-008 — `background: linear-gradient(90deg, #F0EDE6 25%, #E8E4DC 50%, #F0EDE6 75%)`, `background-size: 200% 100%`, keyframe `shimmer` 1.4s ease-in-out infinite
+- Page header (title + subtitle) renders normally above the skeletons
+- Wrapper: `aria-busy="true"`, `aria-label="Loading care due items"`
+
+**Per-Section Empty States:**
+
+Shown inline within a section when that section has no items (but other sections may still have items). These are compact — not full-page.
+
+- Container: `background: #F7F4EF`, `border: 1px dashed #E0DDD6`, `border-radius: 12px`, `padding: 20px 24px`, `text-align: center`, `margin-bottom: 10px`
+- Text: DM Sans, 14px, `color: #B0ADA5`
+  - Overdue section empty: "Nothing overdue — great work! 🌱"
+  - Due Today section empty: "Nothing due today."
+  - Coming Up section empty: "No upcoming care in the next 7 days."
+- No icon or CTA needed — the encouraging text is sufficient
+
+**Global All-Clear State (all three sections empty):**
+
+Shown when the API returns all-empty sections: `overdue: []`, `due_today: []`, `upcoming: []`. Replaces the three section blocks entirely.
+
+- Centered content block: `text-align: center`, `padding: 80px 24px`, `max-width: 480px`, margin auto
+- Illustration: a simple SVG showing a plant with a small sparkle or checkmark motif, approx 120px × 120px, using `#5C7A5C` and `#A67C5B`. Keep it lighthearted — a "happy plant" feeling.
+- Heading: "All your plants are happy!" — Playfair Display, 26px, `font-weight: 600`, `color: #2C2C2C`, `margin-top: 28px`
+- Body: "You're all caught up. Check back later or explore your plant inventory." — DM Sans, 15px, `color: #6B6B5F`, `margin-top: 10px`, `line-height: 1.6`
+- CTA: "View my plants" — Primary button, `margin-top: 28px`, navigates to `/`
+- The page header (title + subtitle) still renders above this block so users know they're on the Care Due page
+
+**Error State:**
+
+Shown when `GET /api/v1/care-due` fails (any non-200 response or network failure).
+
+- Replaces all section content
+- Centered block: `text-align: center`, `padding: 80px 24px`
+- Icon: Phosphor `WarningCircle`, 48px, `color: #B85C38`
+- Heading: "Couldn't load your care schedule." — Playfair Display, 22px, `color: #2C2C2C`, `margin-top: 20px`
+- Body: "Something went wrong. Please try again." — DM Sans, 14px, `color: #6B6B5F`, `margin-top: 8px`
+- CTA: "Try again" — Secondary button, `margin-top: 24px`, triggers a re-fetch. `aria-label="Retry loading care due items"`
+
+#### Responsive Behavior
+
+| Breakpoint | Layout |
+|-----------|--------|
+| Desktop (≥1024px) | Sidebar 240px visible; main content max-width 800px centered; item cards full-width; "Mark as done" button right-aligned inline with plant info |
+| Tablet (768–1023px) | Sidebar may collapse to icon rail (same pattern as other pages); main content adapts; item card layout unchanged; "Mark as done" button may compress to icon-only if needed (keep label at 768px+) |
+| Mobile (<768px) | No sidebar (hamburger or bottom nav); 16px horizontal padding; item card stacks: icon + plant info on top row, "Mark as done" button full-width below, `margin-top: 12px`. Urgency detail line stays visible. Plant name truncates aggressively (1 line, ellipsis). Section header count pill may hide on very narrow widths (320px). |
+
+**Mobile card stack layout (< 768px):**
+```
+[Icon] [Plant name / Care type / Urgency detail]
+[Mark as done button — full width]
+```
+`display: flex`, `flex-wrap: wrap`. The "Mark as done" button: `flex-basis: 100%`, `margin-top: 12px`.
+
+#### API Integration
+
+Endpoint: `GET /api/v1/care-due` (see T-043 and `api-contracts.md`)
+
+- Authenticated — send Bearer token in Authorization header
+- No query parameters (all data scoped to the authenticated user)
+
+**Response shape** (per T-043 API contract):
+```json
+{
+  "overdue": [
+    {
+      "plant_id": "uuid",
+      "plant_name": "string",
+      "care_type": "watering | fertilizing | repotting",
+      "days_overdue": 3,
+      "last_done_at": "ISO 8601 datetime string | null"
+    }
+  ],
+  "due_today": [
+    {
+      "plant_id": "uuid",
+      "plant_name": "string",
+      "care_type": "watering | fertilizing | repotting"
+    }
+  ],
+  "upcoming": [
+    {
+      "plant_id": "uuid",
+      "plant_name": "string",
+      "care_type": "watering | fertilizing | repotting",
+      "due_in_days": 3,
+      "due_date": "ISO 8601 date string"
+    }
+  ]
+}
+```
+
+**"Mark as done" action:** `POST /api/v1/care-actions` — existing endpoint (same one used on Plant Detail page). Request body: `{ "plant_id": "uuid", "care_type": "watering | fertilizing | repotting" }`. On success (201): update local UI state as described above. Do NOT re-fetch the full care-due list after each mark-done — use optimistic local removal for responsiveness.
+
+**Fetch timing:**
+- On initial mount of the `/due` page
+- On "Try again" click after error
+- After successful "Mark as done" action: **do not re-fetch** — remove item from local state only. The next full page mount or refresh will show the current server state.
+- The sidebar badge count should be fetched/updated separately: on app shell mount (so the badge is always visible, not only when on /due). A lightweight approach: cache the care-due response in a shared context/store; update it on /due mount and after each mark-done.
+
+#### Sorting Rules Within Sections
+
+- **Overdue:** Sort by `days_overdue` descending (most overdue first). Ties broken by `plant_name` ascending A–Z.
+- **Due Today:** Sort by `plant_name` ascending A–Z. No urgency ordering needed since all are equally urgent.
+- **Coming Up:** Sort by `due_in_days` ascending (soonest first). Ties broken by `plant_name` ascending A–Z.
+
+#### Accessibility
+
+- **Page landmark:** `<main>` wraps the content area; `<h1>` for "Care Due"
+- **Section structure:** Each urgency section is a `<section>` element with `aria-labelledby` pointing to its section heading `<h2>`
+  - Section headings: `<h2>` for "Overdue", "Due Today", "Coming Up" (visually styled as the section header rows described above; use `class` for visual styling, not `aria-label`)
+- **Item list:** Semantic `<ul>` / `<li>` for each section's item list. Each `<li>` contains the card.
+- **"Mark as done" button accessible label:** `aria-label="Mark [Plant Name] [care type] as done"` — e.g., `aria-label="Mark Monstera watering as done"`. This provides full context for screen reader users who may tab through buttons without reading surrounding text.
+- **Care type icons:** `aria-hidden="true"` (decorative; the care type label in Line 2 provides the text)
+- **Loading state:** `aria-busy="true"` on the main content wrapper. An `aria-live="polite"` region announces "Loading care due items..." while fetching, then "Care due items loaded." on completion.
+- **Empty / all-clear states:** Standard static content; no special ARIA needed. Ensure heading hierarchy is maintained (`<h2>` for headings within these states if needed, or styled `<p>` with heading appearance).
+- **Error state:** Retry button with `aria-label="Retry loading care due items"`.
+- **Badge in sidebar:** `aria-label="[N] plants overdue or due today"` on the badge element. Update dynamically. When badge disappears, update parent nav item `aria-label` to remove the count.
+- **Mark-done in-flight state:** `aria-busy="true"` on the button while API call is pending. `aria-live="polite"` region announces "[Plant name] [care type] marked as done." on success, or "Could not mark as done. Please try again." on error.
+- **Focus management:** After successful mark-done, if the item is removed and there is a next item in the same section, move focus to the "Mark as done" button of that next item. If the section becomes empty, move focus to the next section's first "Mark as done" button. If all sections are empty, move focus to the "View my plants" button in the all-clear state.
+- **Keyboard:** All interactive elements reachable by Tab in logical DOM order (section by section, top to bottom). "Mark as done" button activatable via Enter/Space.
+- **Color contrast:** All text meets WCAG AA. Status colors (`#B85C38`, `#C4921F`, `#4A7C59`) are paired with white/light backgrounds for sufficient contrast on 12px+ text at font-weight 500+.
+- **Reduced motion:** The card fade-out animation after mark-done should respect `prefers-reduced-motion`: if reduced motion is preferred, skip the animated removal and instantly hide/remove the card. The loading shimmer animation should also be disabled under `prefers-reduced-motion`.
+
+---
+
 ## Design Notes for Frontend Engineer
 
 ### Animation Library Recommendation

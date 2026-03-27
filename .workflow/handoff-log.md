@@ -2103,3 +2103,69 @@ Full build and deployment details logged in `.workflow/qa-build-log.md` — "Spr
 - **New endpoint (T-043):** GET /api/v1/care-due must calculate next_due from `last_done_at + frequency_days` (or `created_at + frequency_days` if never done). Existing `care_schedules` table has `frequency_days` and `care_actions` table has `performed_at`. No new migrations needed.
 - **Sidebar badge (T-044):** The badge should show overdue + due_today count. When count = 0, badge disappears. This should be driven by the same API call that powers the /due page.
 
+---
+
+## H-107 — Design Agent → Frontend Engineer: SPEC-009 Care Due Dashboard Approved — Ready to Build
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-107 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-27 |
+| **Sprint** | 8 |
+| **Subject** | SPEC-009 (Care Due Dashboard) is complete and approved. Frontend Engineer may begin T-044 once the T-043 API contract is published to api-contracts.md. |
+| **Spec Refs** | SPEC-009 |
+| **Status** | Pending |
+
+### Specs Included
+
+| Spec ID | Screen Name | Route | Priority |
+|---------|------------|-------|---------|
+| SPEC-009 | Care Due Dashboard | `/due` | P2 — second post-MVP enhancement |
+
+### What Is Specified
+
+SPEC-009 is a comprehensive spec for the `/due` Care Due Dashboard page. Key items:
+
+1. **Three urgency sections:** Overdue → Due Today → Coming Up (next 7 days), rendered top-to-bottom in that order. Each section only renders if it has items.
+2. **Plant card anatomy:** Per-item card with care type icon (color-coded: Drop/blue for watering, Leaf/green for fertilizing, PottedPlant/terracotta for repotting), plant name, care type label, urgency detail line (color-coded: red for overdue, amber for due today, green for upcoming), and a "Mark as done" inline action button.
+3. **Urgency detail copy:**
+   - Overdue: "N days overdue" / "Never done" (if `last_done_at` is null)
+   - Due Today: "Due today"
+   - Coming Up: "Due in N days" / "Due tomorrow"
+4. **"Mark as done" shortcut:** Calls `POST /api/v1/care-actions`. On success, item fades out (0.3s transition) and is removed from DOM. Sidebar badge decrements. No full-page re-fetch needed — use local state.
+5. **Per-section empty states:** Small dashed-border placeholder card per section with an encouraging message ("Nothing overdue — great work! 🌱", etc.)
+6. **Global all-clear state:** When all three sections are empty — full-page centered illustration + "All your plants are happy!" heading + "View my plants" CTA.
+7. **Loading skeleton:** 2 skeleton section blocks with shimmer animation (same spec as SPEC-008).
+8. **Error state:** WarningCircle icon + "Couldn't load your care schedule." + "Try again" retry button.
+9. **Sidebar badge:** `BellSimple` icon, badge pill with overdue + due-today count in red (`#B85C38`). Badge disappears when count = 0, shows "99+" when count ≥ 100. Positioned between "My Plants" and "History" in the sidebar nav.
+10. **Responsive behavior:** Full inline card layout on desktop/tablet; stacked card layout on mobile (plant info top row, full-width "Mark as done" button below).
+11. **Sorting:** Overdue sorted by days_overdue desc; Due Today by plant_name A–Z; Coming Up by due_in_days asc.
+12. **Accessibility:** Full WCAG AA coverage — section landmarks, aria-labelledby, mark-done aria-label pattern, live region announcements, focus management after item removal, reduced motion support.
+
+### Dependencies and Build Order
+
+- **DO NOT begin T-044 until T-043 is complete and its API contract is published to `api-contracts.md`.** T-042 (this spec) gates T-043, and T-043 gates T-044.
+- Once the Backend Engineer publishes the `GET /api/v1/care-due` contract, proceed immediately.
+- The "Mark as done" action (`POST /api/v1/care-actions`) is an **existing endpoint** — no backend work needed for that action.
+
+### Key Implementation Notes
+
+- **Sidebar badge state:** The sidebar badge count needs to be available from any screen, not just when on `/due`. Recommended approach: fetch `GET /api/v1/care-due` on app shell mount and store the overdue + due_today count in a shared React context. Update context after each successful mark-done action. This avoids polling and keeps the badge accurate.
+- **Optimistic removal:** After mark-done succeeds, remove the item from local state immediately — do not re-fetch the full care-due list. The fade-out transition (0.3s) should happen before DOM removal.
+- **Section count pill:** Update the section's count pill whenever an item is removed from that section. If count reaches 0, replace the section content with the per-section empty state.
+- **All-clear transition:** When the last item in the last non-empty section is marked as done, fade out the section content (or simply re-render) and display the global all-clear state.
+- **Never-done items:** The API returns `last_done_at: null` for plants where care has never been logged. Display "Never done" as the urgency detail for overdue items with null `last_done_at`.
+- **`due_date` tooltip:** For Coming Up items, set `title="Due [Month D, YYYY]"` on the urgency detail text element (e.g., `title="Due April 3, 2026"`).
+- **Test coverage required:** Unit tests for all page states (loading, overdue-only, due-today-only, coming-up-only, mixed, all-clear, error), badge behavior (appears/disappears, 99+ cap), mark-done shortcut (success/error/in-flight), and per-section empty state transitions. All 72+ existing frontend tests must continue to pass.
+
+### Design System References
+
+All colors, typography, spacing, and component patterns are defined in the Design System Conventions table at the top of `ui-spec.md`. Key values for this spec:
+- Status Red: `#B85C38` (overdue)
+- Status Yellow: `#C4921F` (due today)
+- Status Green: `#4A7C59` (coming up / on track)
+- Card border radius: 12px, shadow: `0 2px 8px rgba(44,44,44,0.06)`
+- Shimmer animation: same as SPEC-008 (see that spec for the CSS keyframe)
+
