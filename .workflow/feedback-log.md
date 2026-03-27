@@ -621,3 +621,115 @@ Fixing requires major version bumps: jest@25 (from 29) or eslint@10 (from 9), wh
 Accept as known risk. Revisit when jest or eslint release non-breaking patches that resolve the brace-expansion chain. No production impact.
 
 ---
+
+## FB-025 — CORS blocks register/login when frontend runs on port 5174
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-025 |
+| **Source** | Project Owner |
+| **Sprint** | 8 |
+| **Date** | 2026-03-27 |
+| **Category** | Bug |
+| **Severity** | Major |
+| **Status** | New |
+
+### Description
+
+When the Vite dev server starts on port 5174 (because 5173 is already occupied), the backend CORS middleware rejects all requests with `Error: CORS policy: origin http://localhost:5174 not allowed`. `backend/.env` only lists ports 5173 and 4173 in `FRONTEND_URL`. Any attempt to register or log in from the browser fails immediately.
+
+**Fix:** Add `http://localhost:5174` to `FRONTEND_URL` in `backend/.env`.
+
+---
+
+## FB-026 — "Add fertilizing/repotting schedule" buttons do nothing
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-026 |
+| **Source** | Project Owner |
+| **Sprint** | 8 |
+| **Date** | 2026-03-27 |
+| **Category** | Bug |
+| **Severity** | Major |
+| **Status** | New |
+
+### Description
+
+On the Add Plant (and likely Edit Plant) page, clicking "Add fertilizing schedule" and "Add repotting schedule" has no effect — the form does not expand.
+
+`CareScheduleForm` manages its collapsed/expanded state internally via `localExpanded`. However, `AddPlantPage` passes `expanded={fertilizingExpanded}` and `expanded={repottingExpanded}` as controlled props. Per the component logic, when `controlledExpanded` is defined (even as `false`), it takes precedence over `localExpanded`. The "Add" button calls `setLocalExpanded(true)` but this is ignored. No `onExpand` callback exists to update the parent's state.
+
+All downstream logic is fully implemented — state, validation, and API payload construction for both care types are complete. Only the expand trigger is broken.
+
+**Fix:** Pass an `onExpand` callback prop (e.g. `onExpand={() => setFertilizingExpanded(true)}`) from `AddPlantPage` and `EditPlantPage` into `CareScheduleForm`, and call it in the "Add" button's `onClick` handler instead of (or in addition to) `setLocalExpanded`.
+
+---
+
+## FB-027 — Save button stays greyed out when only last-watered date is changed
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-027 |
+| **Source** | Project Owner |
+| **Sprint** | 8 |
+| **Date** | 2026-03-27 |
+| **Category** | Bug |
+| **Severity** | Major |
+| **Status** | New |
+
+### Description
+
+On the Edit Plant page, changing only the "Last watered" date field does not enable the Save Changes button — it remains greyed out (`disabled={!isDirty}`).
+
+Root cause: the `isDirty` memo in `EditPlantPage.jsx` (lines 80–109) compares watering/fertilizing/repotting frequency values and units against the original plant data, but never compares the `last_done_at` / `lastDoneAt` fields. So updating a date field alone leaves `isDirty = false`.
+
+**Fix:** Add comparisons for `wateringLastDone`, `fertilizingLastDone`, and `repottingLastDone` against the original `last_done_at` values from `plant.care_schedules` inside the `isDirty` memo. The memo's dependency array will also need these three state variables added.
+
+---
+
+## FB-028 — Gemini 429 rate limit errors; add model fallback chain
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-028 |
+| **Source** | Project Owner |
+| **Sprint** | 8 |
+| **Date** | 2026-03-27 |
+| **Category** | Bug |
+| **Severity** | Major |
+| **Status** | New |
+
+### Description
+
+The AI advice endpoint hits Gemini 429 (rate limit / RPM exceeded) errors during normal use. When a 429 is returned the backend currently treats it as a generic `ExternalServiceError` and returns a 502 to the frontend, showing "service offline" to the user.
+
+**Requested fix:** Implement a model fallback chain in `backend/src/routes/ai.js`. On a 429 response from Gemini, retry the same prompt with the next model in the chain before giving up:
+
+1. **Default:** `gemini-2.0-flash`
+2. **Fallback 1:** `gemini-2.5-flash` (on 429 from default)
+3. **Fallback 2:** `gemini-2.5-flash-lite` (on 429 from fallback 1)
+4. **Fallback 3:** `gemini-2.5-pro` (on 429 from fallback 2)
+5. **Give up:** if all four models return 429, throw `ExternalServiceError` as today
+
+Detection: check the caught error for a 429 status (e.g. `err.status === 429` or `err.message` includes `429`) before deciding whether to fall back or re-throw.
+
+---
+
+## FB-029 — Positive: AI advice flow verified end-to-end by project owner
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-029 |
+| **Source** | Project Owner |
+| **Sprint** | 8 |
+| **Date** | 2026-03-27 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | New |
+
+### Description
+
+Project owner tested the AI advice flow end-to-end in a browser. Gemini integration is confirmed working (model: gemini-2.5-flash). All 4 modal states verified: loading, success (advice returned), accept/reject actions, and 502 error state. This partially satisfies the AI flow component of T-020 (Flow 2).
+
+---
