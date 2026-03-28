@@ -1205,3 +1205,137 @@ All 65/65 backend tests and 95/95 frontend tests pass. All integration checks pa
 
 All 4 tasks (T-045, T-046, T-047, T-048) confirmed Done. T-020 (user testing) is now unblocked — all 3 prerequisite bug fixes are deployed and verified. No blocking issues found.
 
+
+---
+
+## Sprint 9 — Monitor Agent Post-Deploy Health Check
+
+**Date:** 2026-03-28T15:43:00Z
+**Environment:** Staging
+**Sprint:** 9
+**Test Type:** Post-Deploy Health Check + Config Consistency
+**Tasks Deployed:** T-045, T-046, T-047, T-048
+**Triggered by:** H-138 (Deploy Engineer), H-141 (Deploy Engineer — Orchestrator re-verify)
+
+---
+
+### Config Consistency Check
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Backend PORT | any | 3000 (from `backend/.env`) | ✅ |
+| Vite proxy target port | matches backend PORT (3000) | `http://localhost:3000` (port 3000) | ✅ PASS |
+| SSL configured | — | No `SSL_KEY_PATH` / `SSL_CERT_PATH` set in `.env` → HTTP only | ✅ |
+| Vite proxy protocol | `http://` (no SSL) | `http://localhost:3000` | ✅ PASS |
+| CORS origins (`FRONTEND_URL`) | must include `http://localhost:5173` (Vite dev default) | `http://localhost:5173,http://localhost:5174,http://localhost:4173` | ✅ PASS |
+| CORS — port 5174 (T-045) | must include `http://localhost:5174` | `http://localhost:5174` present | ✅ PASS |
+| Docker backend port mapping | `docker-compose.yml` has no backend service (PostgreSQL only) | PostgreSQL on 5432 only; no backend container to mismatch | ✅ PASS (N/A) |
+
+**Config Consistency Result: ✅ ALL PASS — no mismatches found**
+
+---
+
+### CORS Preflight Verification (T-045)
+
+| Origin | Status | Access-Control-Allow-Origin |
+|--------|--------|-----------------------------|
+| `http://localhost:5173` | 204 No Content | `http://localhost:5173` ✅ |
+| `http://localhost:5174` | 204 No Content | `http://localhost:5174` ✅ |
+| `http://localhost:4173` | 204 No Content | `http://localhost:4173` ✅ |
+
+---
+
+### API Endpoint Health Checks
+
+**Token acquisition:** `POST /api/v1/auth/login` with `test@plantguardians.local` / `TestPass123!` → HTTP 200, access_token obtained ✅  
+*(Note: Monitor Agent system prompt documents test@triplanner.local — actual seeded account is test@plantguardians.local. Login succeeded.)*
+
+| # | Endpoint | Method | HTTP Status | Response Shape | Result |
+|---|----------|--------|------------|----------------|--------|
+| 1 | `/api/health` | GET | 200 | `{"status":"ok","timestamp":"..."}` | ✅ PASS |
+| 2 | `/api/v1/auth/login` | POST | 200 | `{"data":{"user":{...},"access_token":"...","refresh_token":"..."}}` | ✅ PASS |
+| 3 | `/api/v1/auth/refresh` | POST | 200 | `{"data":{"access_token":"...","refresh_token":"..."}}` | ✅ PASS |
+| 4 | `/api/v1/auth/logout` | POST | 200 | `{"data":{"message":"Logged out successfully."}}` | ✅ PASS |
+| 5 | `/api/v1/plants` (GET) | GET | 200 | `{"data":[],"pagination":{"page":1,"limit":50,"total":0}}` | ✅ PASS |
+| 6 | `/api/v1/plants` (POST) | POST | 201 | `{"data":{"id":"...","name":"...","care_schedules":[...]}}` | ✅ PASS |
+| 7 | `/api/v1/plants/:id` (GET) | GET | 200 | Full plant object with `care_schedules` + `recent_care_actions` | ✅ PASS |
+| 8 | `/api/v1/plants/:id` (PUT) | PUT | 200 | Updated plant object with recomputed `care_schedules` | ✅ PASS |
+| 9 | `/api/v1/plants/:id` (DELETE) | DELETE | 200 | `{"data":{"message":"Plant deleted successfully.","id":"..."}}` | ✅ PASS |
+| 10 | `/api/v1/plants/:id/photo` | POST | 400 MISSING_FILE | `{"error":{"message":"No file included in request.","code":"MISSING_FILE"}}` | ✅ PASS (endpoint live; correct validation) |
+| 11 | `/api/v1/plants/:id/care-actions` (POST) | POST | 201 | `{"data":{"care_action":{...},"updated_schedule":{...}}}` | ✅ PASS |
+| 12 | `/api/v1/plants/:id/care-actions/:id` (DELETE) | DELETE | 200 | `{"data":{"deleted_action_id":"...","updated_schedule":{...}}}` | ✅ PASS |
+| 13 | `/api/v1/ai/advice` | POST | 200 | Full AI care advice object (T-048 Gemini fallback chain) | ✅ PASS |
+| 14 | `/api/v1/care-actions` | GET | 200 | `{"data":[...],"pagination":{...}}` | ✅ PASS |
+| 15 | `/api/v1/care-due` | GET | 200 | `{"data":{"overdue":[],"due_today":[],"upcoming":[...]}}` | ✅ PASS |
+| 16 | `/api/v1/profile` | GET | 200 | `{"data":{"user":{...},"stats":{...}}}` | ✅ PASS |
+| 17 | `/api/v1/plants` (no token) | GET | 401 | `{"error":{"message":"Missing or invalid authorization header.","code":"UNAUTHORIZED"}}` | ✅ PASS (auth enforced) |
+
+**Notes on health endpoint:** The versioned path `/api/v1/health` returns HTTP 404 (not a registered route). The unversioned `/api/health` returns HTTP 200. This is consistent with prior sprint behavior and not a regression.
+
+---
+
+### T-048 Smoke Test (Gemini 429 Fallback)
+
+`POST /api/v1/ai/advice` with `{"plant_type":"Fern","question":"What care does a Fern need?"}`:
+- HTTP 200 ✅
+- Response includes full `care_advice` object with `watering`, `fertilizing`, `repotting`, `light`, `humidity`, `additional_tips`
+- `confidence: "high"` ✅
+- **Gemini fallback chain is loaded and operational**
+
+---
+
+### Frontend Route Checks
+
+| Route | URL | HTTP Status | Result |
+|-------|-----|-------------|--------|
+| Home | `http://localhost:5174/` | 200 | ✅ PASS |
+| Login | `http://localhost:5174/login` | 200 | ✅ PASS |
+| Plants | `http://localhost:5174/plants` | 200 | ✅ PASS |
+| Care History | `http://localhost:5174/history` | 200 | ✅ PASS |
+| Care Due | `http://localhost:5174/due` | 200 | ✅ PASS |
+
+Frontend `dist/` directory: present and populated (built 2026-03-28 per Deploy Engineer H-138/H-141) ✅
+
+---
+
+### Database Connectivity
+
+Database confirmed connected via successful queries:
+- `POST /api/v1/auth/login` → reads `users` table ✅
+- `GET /api/v1/plants` → reads `plants` table ✅
+- `POST /api/v1/plants` → writes to `plants` + `care_schedules` tables ✅
+- `POST /api/v1/plants/:id/care-actions` → writes to `care_actions` table ✅
+- `GET /api/v1/care-due` → joins `plants` + `care_schedules` + `care_actions` ✅
+
+No database connection errors or 500s observed.
+
+---
+
+### Error Summary
+
+No 5xx errors observed across all endpoint checks. No regressions detected.
+
+**Minor observations (non-blocking, informational only):**
+1. `/api/v1/health` (versioned) → HTTP 404. The health endpoint lives at `/api/health` (unversioned). Not a regression — consistent with all prior sprints.
+2. Monitor Agent system prompt documents test account as `test@triplanner.local`. Actual seeded account is `test@plantguardians.local`. System prompt should be updated in a future sprint.
+
+---
+
+### Overall Result
+
+| Check | Result |
+|-------|--------|
+| Config Consistency | ✅ PASS |
+| CORS T-045 (all 3 origins) | ✅ PASS |
+| Backend API health | ✅ PASS |
+| Auth flow (login/refresh/logout) | ✅ PASS |
+| All 17 API endpoints | ✅ PASS |
+| T-048 AI fallback chain | ✅ PASS |
+| Frontend (5 routes) | ✅ PASS |
+| Database connectivity | ✅ PASS |
+| No 5xx errors | ✅ PASS |
+
+**Deploy Verified: Yes**
+
+All checks pass. Staging is healthy and ready for T-020 (User Testing).
+

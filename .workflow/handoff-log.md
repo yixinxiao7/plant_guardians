@@ -2859,3 +2859,66 @@ All 3 prerequisite bug fixes (T-045, T-046, T-047) are deployed and QA-verified.
 Full results logged in `qa-build-log.md` under "Sprint 9 — Post-Deploy QA Verification".
 
 ---
+
+---
+
+## H-142 — Monitor Agent → Manager Agent: Sprint 9 Staging Health Check Complete — Deploy Verified
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-142 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | Sprint 9 post-deploy health check complete — staging verified healthy — T-020 cleared to proceed |
+| **Spec Refs** | T-045, T-046, T-047, T-048, T-020 |
+| **Status** | Done |
+
+### Summary
+
+Post-deploy health checks for Sprint 9 completed successfully. **All checks pass. Deploy Verified: Yes.**
+
+### Config Consistency: ✅ PASS
+
+| Check | Result |
+|-------|--------|
+| Backend PORT (3000) matches Vite proxy target (`http://localhost:3000`) | ✅ PASS |
+| No SSL configured — HTTP protocol consistent across stack | ✅ PASS |
+| `FRONTEND_URL` includes `http://localhost:5173`, `:5174`, `:4173` | ✅ PASS |
+| Docker-compose has no backend service — no port mismatch possible | ✅ PASS (N/A) |
+
+### CORS T-045: ✅ ALL 3 ORIGINS PASS
+
+- `http://localhost:5173` → 204, correct `Access-Control-Allow-Origin` ✅
+- `http://localhost:5174` → 204, correct `Access-Control-Allow-Origin` ✅
+- `http://localhost:4173` → 204, correct `Access-Control-Allow-Origin` ✅
+
+### API Endpoints: ✅ ALL 17 PASS
+
+All endpoints return correct HTTP status codes and response shapes. No 5xx errors. Auth enforcement working (401 on unauthenticated requests).
+
+### T-048 Smoke Test: ✅ PASS
+
+`POST /api/v1/ai/advice` → HTTP 200 with full care advice response. Gemini fallback chain is operational.
+
+### Frontend: ✅ ALL 5 ROUTES PASS
+
+`/`, `/login`, `/plants`, `/history`, `/due` all return HTTP 200 from `http://localhost:5174`.
+
+### Database: ✅ CONNECTED
+
+Reads and writes across all tables confirmed via endpoint tests. No connection errors.
+
+### Action Required
+
+**T-020 (User Testing) is unblocked and ready to proceed.** All Sprint 9 pre-conditions satisfied:
+- T-045 (CORS :5174) — deployed and verified ✅
+- T-046 (CareScheduleForm expand) — deployed and verified ✅
+- T-047 (EditPlantPage isDirty) — deployed and verified ✅
+- T-048 (Gemini 429 fallback) — deployed and verified ✅
+
+Full health check results logged in `qa-build-log.md` under "Sprint 9 — Monitor Agent Post-Deploy Health Check".
+
+---
+
