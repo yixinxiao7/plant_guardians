@@ -4,6 +4,56 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 9 — T-045 CORS Fix — Deploy Engineer (2026-03-28)
+
+**Date:** 2026-03-28
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 9
+**Task:** T-045 — Fix CORS to allow port 5174 (FB-025)
+
+### Change Summary
+
+| Item | Before | After |
+|------|--------|-------|
+| `backend/.env` `FRONTEND_URL` | `http://localhost:5173,http://localhost:5174,http://localhost:4173` | No change needed — port 5174 was already present |
+| `backend/.env.example` `FRONTEND_URL` | `http://localhost:5173` (single port) | `http://localhost:5173,http://localhost:5174,http://localhost:4173` (all three) |
+| `backend/src/app.js` CORS middleware | Parses comma-separated origins via `.split(',').map(o => o.trim())` | No change needed — already correct |
+
+**Primary action:** Updated `.env.example` to document all allowed origins. Confirmed `.env` already included `:5174`. No middleware changes required.
+
+### CORS Preflight Verification
+
+```
+curl -i -X OPTIONS http://localhost:3000/api/v1/auth/login \
+  -H "Origin: http://localhost:5174" \
+  -H "Access-Control-Request-Method: POST"
+
+HTTP/1.1 204 No Content
+Access-Control-Allow-Origin: http://localhost:5174
+Access-Control-Allow-Credentials: true
+Access-Control-Allow-Methods: GET,HEAD,PUT,PATCH,POST,DELETE
+```
+
+**Result: ✅ PASS** — Port 5174 is accepted; browser requests will no longer be rejected.
+
+### Test Results
+
+| Suite | Tests | Result |
+|-------|-------|--------|
+| Backend (`npm test`) | 65/65 | ✅ PASS |
+
+### Build Status
+
+| Field | Value |
+|-------|-------|
+| Environment | Staging (already running — server restart not required; CORS config is read at startup) |
+| Build Status | Success |
+| Regressions | None |
+
+**Note:** Backend server is already running with the correct config. No restart needed since `.env` was already correct — the `.env.example` documentation update is the only file change.
+
+---
+
 ## Sprint 8 — QA Re-Verification (QA Engineer — 2026-03-28)
 
 **Date:** 2026-03-28

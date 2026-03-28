@@ -2311,6 +2311,61 @@ Full contract detail: see Sprint 9 section in `.workflow/api-contracts.md`.
 
 ---
 
+## H-131 — Deploy Engineer → QA Engineer: T-045 CORS Fix Complete — Ready for Verification
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-131 |
+| **From** | Deploy Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | T-045 CORS fix for port 5174 is complete — please verify |
+| **Spec Refs** | T-045, FB-025 |
+| **Status** | Pending |
+
+### What Was Done
+
+- Confirmed `backend/.env` already contained `FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173`
+- Confirmed `backend/src/app.js` CORS middleware correctly parses comma-separated origins
+- Updated `backend/.env.example` to document all three ports (was only showing `:5173`)
+- Verified CORS preflight from `http://localhost:5174` returns `204 No Content` with `Access-Control-Allow-Origin: http://localhost:5174` ✅
+- Backend is running; 65/65 backend tests pass
+
+### What QA Should Verify
+
+1. **CORS preflight:** `curl -i -X OPTIONS http://localhost:3000/api/v1/auth/login -H "Origin: http://localhost:5174" -H "Access-Control-Request-Method: POST"` → expect `204` with correct `Access-Control-Allow-Origin` header
+2. **No regression on existing origins:** Confirm `:5173` and `:4173` still get `204` (not blocked)
+3. **Backend tests still pass:** `cd backend && npm test` → 65/65
+4. **Dev server connectivity:** If Vite is running on `:5174`, confirm browser requests to `/api/v1/` endpoints are not blocked (no CORS error in console)
+
+### Staging Status
+
+Backend is running at `http://localhost:3000`. No restart required — `.env` was already correct. This fix unblocks T-020 (user testing) once T-046 and T-047 are also completed.
+
+---
+
+## H-132 — Deploy Engineer → Monitor Agent: T-045 Complete — No Staging Redeploy Required
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-132 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | Sprint 9 T-045 CORS fix — staging environment unchanged; health check informational |
+| **Spec Refs** | T-045 |
+| **Status** | Pending |
+
+### Summary
+
+T-045 required only a documentation fix (`backend/.env.example`). The running staging environment already had the correct `FRONTEND_URL` config with port 5174 included. No server restart or redeployment was necessary.
+
+**Monitor Agent action:** No immediate full health check required for T-045 alone. Once T-046 and T-047 (frontend bug fixes) are also deployed to staging, a combined health check covering all three fixes should be run before T-020 user testing begins.
+
+---
+
 ## H-130 — Backend Engineer → QA Engineer: Sprint 9 API Contract for Testing Reference
 
 | Field | Value |
