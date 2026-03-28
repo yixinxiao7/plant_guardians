@@ -2528,3 +2528,66 @@ Full contract detail: see Sprint 9 section in `.workflow/api-contracts.md`.
 10. Security: auth enforced via middleware, no hardcoded secrets, no SQL (N/A)
 
 ---
+
+## H-135 — Manager Code Review: All Sprint 9 Tasks Pass — Handoff to QA Engineer
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-135 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | Code review passed for T-045, T-046, T-047, T-048 — all moved to Integration Check |
+| **Spec Refs** | T-045, T-046, T-047, T-048, FB-025, FB-026, FB-027, FB-028 |
+| **Status** | Pending |
+
+### Review Summary
+
+All 4 Sprint 9 "In Review" tasks passed code review and are now in **Integration Check** status.
+
+#### T-045 — Fix CORS to allow port 5174 (Deploy Engineer)
+- **Verdict:** PASS
+- Config-only change: added `http://localhost:5174` to `FRONTEND_URL` in `.env`
+- `.env.example` updated with documentation for all 3 ports (:5173, :5174, :4173)
+- CORS parsing logic in `app.js` was already correct (comma-separated split)
+- No dedicated unit test needed — configuration change only
+- 65/65 backend tests pass
+
+#### T-046 — Fix CareScheduleForm expand button (Frontend Engineer)
+- **Verdict:** PASS
+- Clean `onExpand` callback prop added to CareScheduleForm
+- `handleExpand()` correctly triggers both `setLocalExpanded(true)` and `onExpand()` callback
+- Both AddPlantPage and EditPlantPage correctly pass `onExpand` for fertilizing and repotting
+- 3 new tests: controlled expand (fertilizing + repotting), uncontrolled fallback
+- 101/101 frontend tests pass, build clean
+
+#### T-047 — Fix EditPlantPage isDirty memo (Frontend Engineer)
+- **Verdict:** PASS
+- `normalizeLastDone` helper correctly strips time portion for date-only comparison
+- All 3 care types (watering, fertilizing, repotting) `last_done_at` compared in `isDirty`
+- All 3 state variables added to useMemo dependency array
+- 3 new tests: Save enables on watering date change, fertilizing date change, stays disabled when unchanged
+- 101/101 frontend tests pass, build clean
+
+#### T-048 — Gemini 429 model fallback chain (Backend Engineer)
+- **Verdict:** PASS
+- Well-structured fallback: `MODEL_FALLBACK_CHAIN` array, `isRateLimitError()` helper, `generateWithFallback()` loop
+- 429 detection covers both `err.status === 429` and message string containing '429'
+- Non-429 errors throw immediately (no unnecessary retries)
+- Auth enforced via `router.use(authenticate)` — no bypass
+- Error messages to client are generic — no internal details leaked
+- 4 new tests cover all branches
+- 69/69 backend tests pass, no new migrations
+
+### What QA Should Verify
+
+1. Run full backend test suite: `cd backend && npm test` — expect 69/69 pass
+2. Run full frontend test suite: `cd frontend && npm test` — expect 101/101 pass
+3. T-045: Verify CORS config consistency — `.env` FRONTEND_URL includes :5174, `.env.example` matches
+4. T-046: Integration test — clicking "Add fertilizing/repotting schedule" on Add Plant and Edit Plant pages actually expands the form
+5. T-047: Integration test — changing only a last_done_at date on Edit Plant enables the Save button
+6. T-048: Verify API contract shape unchanged for `POST /api/v1/ai/advice`
+7. Security checklist for all 4 tasks
+
+---
