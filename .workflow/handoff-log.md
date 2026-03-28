@@ -2407,3 +2407,124 @@ The implementation lives in `backend/src/routes/ai.js`. QA should verify:
 Full contract detail: see Sprint 9 section in `.workflow/api-contracts.md`.
 
 ---
+
+## H-133 — Frontend Engineer → QA Engineer: T-046 and T-047 Complete — Ready for QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-133 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | Two frontend bug fixes implemented: CareScheduleForm expand button (T-046) and EditPlantPage isDirty last_done_at (T-047) |
+| **Spec Refs** | T-046, T-047, FB-026, FB-027 |
+| **Status** | Pending |
+
+### T-046: CareScheduleForm expand button fix (FB-026)
+
+**Problem:** Clicking "Add fertilizing/repotting schedule" on Add Plant and Edit Plant pages did nothing when the component was in controlled mode (parent passes `expanded` prop). The toggle button only called `setLocalExpanded(true)` internally, but the parent's state (`fertilizingExpanded`/`repottingExpanded`) was never updated.
+
+**Fix:**
+- Added `onExpand` callback prop to `CareScheduleForm`
+- Toggle button now calls both `setLocalExpanded(true)` and `onExpand()` (if provided)
+- `AddPlantPage` passes `onExpand={() => setFertilizingExpanded(true)}` and `onExpand={() => setRepottingExpanded(true)}`
+- `EditPlantPage` passes the same `onExpand` callbacks
+
+**Files changed:**
+- `frontend/src/components/CareScheduleForm.jsx`
+- `frontend/src/pages/AddPlantPage.jsx`
+- `frontend/src/pages/EditPlantPage.jsx`
+- `frontend/src/__tests__/CareScheduleForm.test.jsx`
+
+**Tests added:** 3 new tests — controlled expand (fertilizing), controlled expand (repotting), uncontrolled expand fallback.
+
+### T-047: EditPlantPage isDirty last_done_at fix (FB-027)
+
+**Problem:** Changing only the "Last watered/fertilized/repotted" date field on Edit Plant did not enable the Save Changes button. The `isDirty` useMemo did not compare `wateringLastDone`, `fertilizingLastDone`, or `repottingLastDone` against the original values, and these variables were missing from the dependency array.
+
+**Fix:**
+- Added `normalizeLastDone` helper to strip ISO time portion for date-only comparison
+- Extended `isDirty` useMemo to compare each `*LastDone` state against `normalizeLastDone(orig.last_done_at)`
+- Added `wateringLastDone`, `fertilizingLastDone`, `repottingLastDone` to the dependency array
+
+**Files changed:**
+- `frontend/src/pages/EditPlantPage.jsx`
+- `frontend/src/__tests__/EditPlantPage.test.jsx`
+
+**Tests added:** 3 new tests — Save enables on watering date change, Save enables on fertilizing date change, Save disabled when dates unchanged.
+
+### Test Results
+
+- **101/101 frontend tests pass** (was 95, +6 new)
+- **Build: 0 errors**
+- No backend changes
+
+### What QA Should Verify
+
+**T-046:**
+1. On Add Plant page, click "Add fertilizing schedule" → form section expands
+2. On Add Plant page, click "Add repotting schedule" → form section expands
+3. On Edit Plant page (for a plant without fertilizing/repotting), click "Add fertilizing schedule" → form section expands
+4. Same for repotting
+5. Verify expanded sections can be collapsed via "Remove" button
+6. Verify form submission works with newly expanded schedules
+
+**T-047:**
+1. On Edit Plant page, change only the "Last watered" date → Save Changes button becomes enabled
+2. Change only "Last fertilized" date → Save Changes button becomes enabled
+3. Change only "Last repotted" date → Save Changes button becomes enabled
+4. Revert date back to original → Save Changes button becomes disabled again
+5. Submit with only date changes → saves successfully, redirects to plant detail
+
+### Known Limitations
+
+- None
+
+---
+
+## H-134 — T-048 Gemini 429 Model Fallback Chain → QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-134 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | T-048 implemented — Gemini 429 model fallback chain ready for QA |
+| **Spec Refs** | T-048, FB-028 |
+| **Status** | Pending |
+
+### What Changed
+
+**File:** `backend/src/routes/ai.js`
+
+- Added `MODEL_FALLBACK_CHAIN` constant: `['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro']`
+- Added `isRateLimitError(err)` helper: detects 429 via `err.status === 429` or message containing `'429'`
+- Added `generateWithFallback(genAI, prompt)` function: tries each model in sequence; on 429, falls to next model; on non-429 error, throws immediately; if all 4 return 429, the last 429 error propagates and is caught as ExternalServiceError (502)
+- The route handler now calls `generateWithFallback()` instead of directly calling a single model
+
+**File:** `backend/tests/ai.test.js`
+
+- Updated mock structure to support per-model mock functions
+- 4 new tests:
+  1. **429 on first model → fallback succeeds on second model** — verifies fallback works and returns 200
+  2. **All 4 models return 429 → 502 AI_SERVICE_UNAVAILABLE** — verifies all models are tried
+  3. **Non-429 error → immediate 502 without fallback** — verifies no unnecessary retries
+  4. **429 detected via error message string** — verifies detection when `err.status` is not set
+
+### What to Test
+
+1. **69/69 backend tests pass** (65 existing + 4 new)
+2. All prior AI endpoint behaviors unchanged (400, 401, 422, 502 for non-configured key)
+3. Happy-path still returns 200 with valid care advice
+4. Fallback chain order: gemini-2.0-flash → gemini-2.5-flash → gemini-2.5-flash-lite → gemini-2.5-pro
+5. 429 on model 1 → model 2 succeeds → 200
+6. All 4 models 429 → 502 AI_SERVICE_UNAVAILABLE
+7. Non-429 error → immediate 502, no fallback attempt
+8. API contract shape unchanged — `POST /api/v1/ai/advice` request/response identical to Sprint 1 contract
+9. No new migrations, no env var changes
+10. Security: auth enforced via middleware, no hardcoded secrets, no SQL (N/A)
+
+---

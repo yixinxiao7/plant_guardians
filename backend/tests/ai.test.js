@@ -1,25 +1,32 @@
 /**
- * Tests for AI Advice endpoint (T-011, T-025)
- * Uses mock for Gemini SDK to test happy-path without real API key.
+ * Tests for AI Advice endpoint (T-011, T-025, T-048)
+ * Uses mock for Gemini SDK to test happy-path and 429 fallback chain.
  */
 const {
   app, request, setupDatabase, teardownDatabase, cleanTables, createTestUser,
 } = require('./setup');
 
-// Mock the @google/generative-ai module for happy-path testing
+// Mock the @google/generative-ai module for happy-path and fallback testing
+const mockGenerateContentByModel = {};
 jest.mock('@google/generative-ai', () => {
-  const mockGenerateContent = jest.fn();
   return {
     GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-      getGenerativeModel: jest.fn().mockReturnValue({
-        generateContent: mockGenerateContent,
-      }),
+      getGenerativeModel: jest.fn().mockImplementation(({ model }) => ({
+        generateContent: (...args) => {
+          if (mockGenerateContentByModel[model]) {
+            return mockGenerateContentByModel[model](...args);
+          }
+          // Default: use the legacy mock (for backward compat)
+          return mockGenerateContentByModel.__default(...args);
+        },
+      })),
     })),
-    __mockGenerateContent: mockGenerateContent,
   };
 });
 
-const { __mockGenerateContent } = require('@google/generative-ai');
+// Legacy-compatible alias
+const __mockGenerateContent = jest.fn();
+mockGenerateContentByModel.__default = __mockGenerateContent;
 
 beforeAll(async () => {
   await setupDatabase();
@@ -32,6 +39,10 @@ afterAll(async () => {
 beforeEach(async () => {
   await cleanTables();
   __mockGenerateContent.mockReset();
+  // Clear all per-model mocks
+  Object.keys(mockGenerateContentByModel).forEach((key) => {
+    if (key !== '__default') delete mockGenerateContentByModel[key];
+  });
 });
 
 describe('POST /api/v1/ai/advice', () => {
@@ -101,7 +112,8 @@ describe('POST /api/v1/ai/advice', () => {
       },
     };
 
-    __mockGenerateContent.mockResolvedValue({
+    // First model in chain (gemini-2.0-flash) succeeds
+    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockResolvedValue({
       response: {
         text: () => JSON.stringify(mockAdvice),
       },
@@ -130,7 +142,7 @@ describe('POST /api/v1/ai/advice', () => {
     const originalKey = process.env.GEMINI_API_KEY;
     process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
 
-    __mockGenerateContent.mockResolvedValue({
+    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockResolvedValue({
       response: {
         text: () => 'Sorry, I cannot identify this plant from the image provided.',
       },
@@ -147,12 +159,12 @@ describe('POST /api/v1/ai/advice', () => {
     process.env.GEMINI_API_KEY = originalKey;
   });
 
-  it('should return 502 when Gemini API throws an error', async () => {
+  it('should return 502 when Gemini API throws a non-429 error', async () => {
     const { accessToken } = await createTestUser();
     const originalKey = process.env.GEMINI_API_KEY;
     process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
 
-    __mockGenerateContent.mockRejectedValue(new Error('API quota exceeded'));
+    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockRejectedValue(new Error('API quota exceeded'));
 
     const res = await request(app)
       .post('/api/v1/ai/advice')
@@ -175,5 +187,141 @@ describe('POST /api/v1/ai/advice', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  // --- T-048: 429 model fallback chain tests ---
+
+  it('should fall back to next model on 429 and succeed (T-048)', async () => {
+    const { accessToken } = await createTestUser();
+    const originalKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
+
+    const mockAdvice = {
+      identified_plant_type: 'Monstera',
+      confidence: 'high',
+      care_advice: {
+        watering: { frequency_value: 7, frequency_unit: 'days', notes: null },
+        fertilizing: { frequency_value: 2, frequency_unit: 'weeks', notes: null },
+        repotting: { frequency_value: 12, frequency_unit: 'months', notes: null },
+        light: 'Bright indirect',
+        humidity: 'High',
+        additional_tips: null,
+      },
+    };
+
+    // First model returns 429, second model succeeds
+    const err429 = new Error('Resource has been exhausted (e.g. check quota). 429');
+    err429.status = 429;
+    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockRejectedValue(err429);
+    mockGenerateContentByModel['gemini-2.5-flash'] = jest.fn().mockResolvedValue({
+      response: { text: () => JSON.stringify(mockAdvice) },
+    });
+
+    const res = await request(app)
+      .post('/api/v1/ai/advice')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ plant_type: 'Monstera' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.identified_plant_type).toBe('Monstera');
+    expect(mockGenerateContentByModel['gemini-2.0-flash']).toHaveBeenCalledTimes(1);
+    expect(mockGenerateContentByModel['gemini-2.5-flash']).toHaveBeenCalledTimes(1);
+
+    process.env.GEMINI_API_KEY = originalKey;
+  });
+
+  it('should return 502 when all models in fallback chain return 429 (T-048)', async () => {
+    const { accessToken } = await createTestUser();
+    const originalKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
+
+    const make429 = () => {
+      const err = new Error('Resource has been exhausted. 429');
+      err.status = 429;
+      return err;
+    };
+
+    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockRejectedValue(make429());
+    mockGenerateContentByModel['gemini-2.5-flash'] = jest.fn().mockRejectedValue(make429());
+    mockGenerateContentByModel['gemini-2.5-flash-lite'] = jest.fn().mockRejectedValue(make429());
+    mockGenerateContentByModel['gemini-2.5-pro'] = jest.fn().mockRejectedValue(make429());
+
+    const res = await request(app)
+      .post('/api/v1/ai/advice')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ plant_type: 'Fern' });
+
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('AI_SERVICE_UNAVAILABLE');
+
+    // All 4 models should have been tried
+    expect(mockGenerateContentByModel['gemini-2.0-flash']).toHaveBeenCalledTimes(1);
+    expect(mockGenerateContentByModel['gemini-2.5-flash']).toHaveBeenCalledTimes(1);
+    expect(mockGenerateContentByModel['gemini-2.5-flash-lite']).toHaveBeenCalledTimes(1);
+    expect(mockGenerateContentByModel['gemini-2.5-pro']).toHaveBeenCalledTimes(1);
+
+    process.env.GEMINI_API_KEY = originalKey;
+  });
+
+  it('should throw immediately on non-429 error without trying next model (T-048)', async () => {
+    const { accessToken } = await createTestUser();
+    const originalKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
+
+    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockRejectedValue(
+      new Error('Internal server error')
+    );
+    mockGenerateContentByModel['gemini-2.5-flash'] = jest.fn();
+
+    const res = await request(app)
+      .post('/api/v1/ai/advice')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ plant_type: 'Cactus' });
+
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('AI_SERVICE_UNAVAILABLE');
+
+    // Only first model should have been tried
+    expect(mockGenerateContentByModel['gemini-2.0-flash']).toHaveBeenCalledTimes(1);
+    expect(mockGenerateContentByModel['gemini-2.5-flash']).not.toHaveBeenCalled();
+
+    process.env.GEMINI_API_KEY = originalKey;
+  });
+
+  it('should detect 429 from error message string (T-048)', async () => {
+    const { accessToken } = await createTestUser();
+    const originalKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
+
+    const mockAdvice = {
+      identified_plant_type: 'Snake Plant',
+      confidence: 'high',
+      care_advice: {
+        watering: { frequency_value: 14, frequency_unit: 'days', notes: null },
+        fertilizing: { frequency_value: 1, frequency_unit: 'months', notes: null },
+        repotting: { frequency_value: 24, frequency_unit: 'months', notes: null },
+        light: 'Low to bright indirect',
+        humidity: 'Low',
+        additional_tips: null,
+      },
+    };
+
+    // 429 detected via message string (no .status property)
+    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockRejectedValue(
+      new Error('429 Too Many Requests')
+    );
+    mockGenerateContentByModel['gemini-2.5-flash'] = jest.fn().mockResolvedValue({
+      response: { text: () => JSON.stringify(mockAdvice) },
+    });
+
+    const res = await request(app)
+      .post('/api/v1/ai/advice')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ plant_type: 'Snake Plant' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.identified_plant_type).toBe('Snake Plant');
+
+    process.env.GEMINI_API_KEY = originalKey;
   });
 });

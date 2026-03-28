@@ -76,6 +76,9 @@ export default function EditPlantPage() {
     }
   }, [plant, initialized]);
 
+  // Helper to normalize last_done_at for comparison
+  const normalizeLastDone = (val) => (val ? val.split('T')[0] : '');
+
   // Dirty state detection
   const isDirty = useMemo(() => {
     if (!plant || !initialized) return false;
@@ -88,6 +91,7 @@ export default function EditPlantPage() {
     if (origWater) {
       if (watering.value !== String(origWater.frequency_value)) return true;
       if (watering.unit !== origWater.frequency_unit) return true;
+      if (wateringLastDone !== normalizeLastDone(origWater.last_done_at)) return true;
     } else if (watering.value) return true;
     // Check fertilizing
     const origFert = plant.care_schedules?.find(s => s.care_type === 'fertilizing');
@@ -96,6 +100,7 @@ export default function EditPlantPage() {
     if (origFert && fertilizingExpanded) {
       if (fertilizing.value !== String(origFert.frequency_value)) return true;
       if (fertilizing.unit !== origFert.frequency_unit) return true;
+      if (fertilizingLastDone !== normalizeLastDone(origFert.last_done_at)) return true;
     }
     // Check repotting
     const origRepot = plant.care_schedules?.find(s => s.care_type === 'repotting');
@@ -104,9 +109,10 @@ export default function EditPlantPage() {
     if (origRepot && repottingExpanded) {
       if (repotting.value !== String(origRepot.frequency_value)) return true;
       if (repotting.unit !== origRepot.frequency_unit) return true;
+      if (repottingLastDone !== normalizeLastDone(origRepot.last_done_at)) return true;
     }
     return false;
-  }, [plant, initialized, name, type, notes, photo, watering, fertilizing, fertilizingExpanded, repotting, repottingExpanded]);
+  }, [plant, initialized, name, type, notes, photo, watering, fertilizing, fertilizingExpanded, repotting, repottingExpanded, wateringLastDone, fertilizingLastDone, repottingLastDone]);
 
   const validate = () => {
     const errs = {};
@@ -295,8 +301,8 @@ export default function EditPlantPage() {
         <section className="plant-form-section">
           <h2 className="plant-form-section-title">Care Schedule</h2>
           <CareScheduleForm careType="watering" label="Watering" required expanded frequency={watering} onFrequencyChange={setWatering} lastDoneAt={wateringLastDone} onLastDoneChange={setWateringLastDone} errors={{ value: errors.wateringValue }} aiFilledFields={aiFilledFields.includes('watering') ? ['value', 'unit'] : []} />
-          <CareScheduleForm careType="fertilizing" label="Fertilizing" expanded={fertilizingExpanded} frequency={fertilizing} onFrequencyChange={(f) => { setFertilizing(f); if (!fertilizingExpanded) setFertilizingExpanded(true); }} lastDoneAt={fertilizingLastDone} onLastDoneChange={setFertilizingLastDone} errors={{ value: errors.fertilizingValue }} aiFilledFields={aiFilledFields.includes('fertilizing') ? ['value', 'unit'] : []} />
-          <CareScheduleForm careType="repotting" label="Repotting" expanded={repottingExpanded} frequency={repotting} onFrequencyChange={(f) => { setRepotting(f); if (!repottingExpanded) setRepottingExpanded(true); }} lastDoneAt={repottingLastDone} onLastDoneChange={setRepottingLastDone} errors={{ value: errors.repottingValue }} aiFilledFields={aiFilledFields.includes('repotting') ? ['value', 'unit'] : []} />
+          <CareScheduleForm careType="fertilizing" label="Fertilizing" expanded={fertilizingExpanded} onExpand={() => setFertilizingExpanded(true)} frequency={fertilizing} onFrequencyChange={(f) => { setFertilizing(f); if (!fertilizingExpanded) setFertilizingExpanded(true); }} lastDoneAt={fertilizingLastDone} onLastDoneChange={setFertilizingLastDone} errors={{ value: errors.fertilizingValue }} aiFilledFields={aiFilledFields.includes('fertilizing') ? ['value', 'unit'] : []} />
+          <CareScheduleForm careType="repotting" label="Repotting" expanded={repottingExpanded} onExpand={() => setRepottingExpanded(true)} frequency={repotting} onFrequencyChange={(f) => { setRepotting(f); if (!repottingExpanded) setRepottingExpanded(true); }} lastDoneAt={repottingLastDone} onLastDoneChange={setRepottingLastDone} errors={{ value: errors.repottingValue }} aiFilledFields={aiFilledFields.includes('repotting') ? ['value', 'unit'] : []} />
         </section>
 
         <div className="plant-form-actions">

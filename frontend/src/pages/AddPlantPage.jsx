@@ -274,6 +274,7 @@ export default function AddPlantPage() {
             careType="fertilizing"
             label="Fertilizing"
             expanded={fertilizingExpanded}
+            onExpand={() => setFertilizingExpanded(true)}
             frequency={fertilizing}
             onFrequencyChange={(f) => { setFertilizing(f); if (!fertilizingExpanded) setFertilizingExpanded(true); }}
             lastDoneAt={fertilizingLastDone}
@@ -286,6 +287,7 @@ export default function AddPlantPage() {
             careType="repotting"
             label="Repotting"
             expanded={repottingExpanded}
+            onExpand={() => setRepottingExpanded(true)}
             frequency={repotting}
             onFrequencyChange={(f) => { setRepotting(f); if (!repottingExpanded) setRepottingExpanded(true); }}
             lastDoneAt={repottingLastDone}

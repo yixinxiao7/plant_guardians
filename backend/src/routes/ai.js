@@ -6,6 +6,26 @@ const { ValidationError, ExternalServiceError, UnprocessableError } = require('.
 router.use(authenticate);
 
 /**
+ * Model fallback chain for 429 rate-limit responses (T-048).
+ * If a model returns 429, the next model in the chain is tried.
+ */
+const MODEL_FALLBACK_CHAIN = [
+  'gemini-2.0-flash',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-pro',
+];
+
+/**
+ * Detect whether an error is a 429 rate-limit error.
+ */
+function isRateLimitError(err) {
+  if (err && err.status === 429) return true;
+  if (err && typeof err.message === 'string' && err.message.includes('429')) return true;
+  return false;
+}
+
+/**
  * Build a prompt for Gemini based on the input.
  */
 function buildPrompt(plantType, photoUrl) {
@@ -63,6 +83,30 @@ function parseGeminiResponse(text) {
   }
 }
 
+/**
+ * Try generating content with the model fallback chain (T-048).
+ * On 429, falls through to the next model. Non-429 errors throw immediately.
+ * If all models return 429, throws ExternalServiceError.
+ */
+async function generateWithFallback(genAI, prompt) {
+  for (let i = 0; i < MODEL_FALLBACK_CHAIN.length; i++) {
+    const modelName = MODEL_FALLBACK_CHAIN[i];
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const response = await model.generateContent(prompt);
+      return response.response.text();
+    } catch (err) {
+      if (isRateLimitError(err) && i < MODEL_FALLBACK_CHAIN.length - 1) {
+        // 429 — try next model in the chain
+        console.warn(`Gemini model ${modelName} returned 429, falling back to next model.`);
+        continue;
+      }
+      // Non-429 error or last model in chain — rethrow
+      throw err;
+    }
+  }
+}
+
 // POST /api/v1/ai/advice
 router.post('/advice', async (req, res, next) => {
   try {
@@ -88,11 +132,9 @@ router.post('/advice', async (req, res, next) => {
     try {
       const { GoogleGenerativeAI } = require('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       const prompt = buildPrompt(plant_type, photo_url);
-      const response = await model.generateContent(prompt);
-      const text = response.response.text();
+      const text = await generateWithFallback(genAI, prompt);
       result = parseGeminiResponse(text);
     } catch (err) {
       console.error('Gemini API error:', err.message);
@@ -116,3 +158,8 @@ router.post('/advice', async (req, res, next) => {
 });
 
 module.exports = router;
+
+// Exported for testing
+module.exports.MODEL_FALLBACK_CHAIN = MODEL_FALLBACK_CHAIN;
+module.exports.isRateLimitError = isRateLimitError;
+module.exports.generateWithFallback = generateWithFallback;

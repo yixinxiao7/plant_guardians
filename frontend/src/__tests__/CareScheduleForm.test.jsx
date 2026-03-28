@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import CareScheduleForm from '../components/CareScheduleForm.jsx';
 
 vi.mock('@phosphor-icons/react', () => ({
@@ -47,5 +47,58 @@ describe('CareScheduleForm', () => {
     expect(screen.getByText('Watering')).toBeInTheDocument();
     expect(screen.getByLabelText('Watering frequency number')).toBeInTheDocument();
     expect(screen.getByLabelText('Watering frequency unit')).toBeInTheDocument();
+  });
+
+  // T-046: onExpand callback tests
+  it('calls onExpand when clicking the expand toggle in controlled mode', () => {
+    const onExpand = vi.fn();
+    render(
+      <CareScheduleForm
+        careType="fertilizing"
+        label="Fertilizing"
+        expanded={false}
+        onExpand={onExpand}
+        frequency={{ value: '', unit: 'months' }}
+        onFrequencyChange={() => {}}
+        onLastDoneChange={() => {}}
+      />
+    );
+    fireEvent.click(screen.getByText('Add fertilizing schedule'));
+    expect(onExpand).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onExpand for repotting toggle in controlled mode', () => {
+    const onExpand = vi.fn();
+    render(
+      <CareScheduleForm
+        careType="repotting"
+        label="Repotting"
+        expanded={false}
+        onExpand={onExpand}
+        frequency={{ value: '', unit: 'months' }}
+        onFrequencyChange={() => {}}
+        onLastDoneChange={() => {}}
+      />
+    );
+    fireEvent.click(screen.getByText('Add repotting schedule'));
+    expect(onExpand).toHaveBeenCalledTimes(1);
+  });
+
+  it('expands via local state when no onExpand is provided (uncontrolled)', () => {
+    render(
+      <CareScheduleForm
+        careType="fertilizing"
+        label="Fertilizing"
+        frequency={{ value: '', unit: 'months' }}
+        onFrequencyChange={() => {}}
+        onLastDoneChange={() => {}}
+      />
+    );
+    // Starts collapsed
+    expect(screen.getByText('Add fertilizing schedule')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Add fertilizing schedule'));
+    // Now expanded — should show the label header and fields
+    expect(screen.getByText('Fertilizing')).toBeInTheDocument();
+    expect(screen.getByLabelText('Fertilizing frequency number')).toBeInTheDocument();
   });
 });
