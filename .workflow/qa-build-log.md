@@ -57,6 +57,91 @@ All 14 security checklist items re-confirmed:
 
 ---
 
+## Sprint 8 — Staging Deployment (Deploy Engineer — 2026-03-28)
+
+**Date:** 2026-03-28T03:40Z
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 8
+**Environment:** Staging (local)
+
+---
+
+### Pre-Deploy Verification
+
+| Check | Result |
+|-------|--------|
+| QA sign-off (H-118) | ✅ Confirmed — T-043 and T-044 passed all tests |
+| Pending migrations | ✅ None — Sprint 8 has no schema changes (confirmed technical-context.md) |
+| All Sprint 8 tasks Done | ✅ T-042, T-043, T-044 all Done |
+| Blocking issues | None |
+
+---
+
+### Dependency Installation
+
+| Package | Command | Result |
+|---------|---------|--------|
+| Backend | `cd backend && npm install` | ✅ Installed (audit warnings: known, non-blocking) |
+| Frontend | `cd frontend && npm install` | ✅ Installed (audit warnings: known, non-blocking) |
+
+---
+
+### Build Results
+
+| Component | Command | Output | Status |
+|-----------|---------|--------|--------|
+| Frontend | `vite build` | 4612 modules transformed; 0 errors; index-ClDMpHeS.js 390.23 kB / index-BNRL_D3i.css 39.06 kB | ✅ SUCCESS |
+| Backend | (Node.js — no build step) | — | ✅ N/A |
+
+**Build Status: SUCCESS**
+
+---
+
+### Test Results (Pre-Deploy Confirmation)
+
+| Suite | Tests | Result |
+|-------|-------|--------|
+| Backend (`npm test`) | 65/65 | ✅ PASS |
+| Frontend (`npm test`) | 95/95 | ✅ PASS |
+
+---
+
+### Database Migrations
+
+| Step | Result |
+|------|--------|
+| `cd backend && npm run migrate` | ✅ Already up to date (all 5 Sprint 1 migrations applied) |
+| New Sprint 8 migrations | None required |
+
+---
+
+### Staging Deployment — Service Startup
+
+| Service | Method | Port | PID | Status |
+|---------|--------|------|-----|--------|
+| PostgreSQL | Local (existing) | 5432 | — | ✅ Running |
+| Backend (Express) | `node src/server.js` | 3000 | 2490 | ✅ Running |
+| Frontend (Vite preview) | `vite preview --port 5174` | 5174 | 2563 | ✅ Running |
+
+**Note:** Docker not available on this machine. Staging uses local processes. Port :4173 was occupied by an unrelated project (triplanner), so frontend preview started on :5174.
+
+---
+
+### Post-Start Health Verification
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Backend health | `GET http://localhost:3000/api/health` | ✅ `{"status":"ok","timestamp":"2026-03-28T03:40:13.168Z"}` |
+| GET /care-due — unauthed | `GET http://localhost:3000/api/v1/care-due` (no token) | ✅ 401 UNAUTHORIZED (expected) |
+| Frontend root | `GET http://localhost:5174/` | ✅ 200 OK |
+| Frontend /due route | `GET http://localhost:5174/due` | ✅ 200 OK (SPA) |
+
+**Environment: Staging**
+**Build Status: Success**
+**Deploy Status: Success**
+
+---
+
 ## Sprint 8 — Comprehensive QA Verification (QA Engineer — 2026-03-27)
 
 **Date:** 2026-03-27

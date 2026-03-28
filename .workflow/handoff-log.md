@@ -3044,3 +3044,86 @@ All pre-deploy criteria confirmed:
 
 ---
 
+## H-127 — Deploy Engineer → Monitor Agent: Sprint 8 Staging Re-Deployed — Full Health Check Required
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-127 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-28 |
+| **Sprint** | 8 |
+| **Subject** | Sprint 8 staging fully re-deployed (2026-03-28T03:40Z). All services restarted with clean PIDs. Backend :3000, Frontend :5174. Full 17-endpoint health check required. |
+| **Spec Refs** | T-041, T-043, T-044, SPEC-009 |
+| **Status** | Pending Monitor Agent action |
+
+### Deployment Summary
+
+Sprint 8 staging has been freshly deployed on 2026-03-28. All stale processes from previous runs were killed and services restarted clean.
+
+**Pre-Deploy Confirmations:**
+- QA sign-off: H-118 (QA Engineer) + H-126 (QA Engineer re-verification 2026-03-28) — all pass
+- Code review: H-117 (Manager Agent — T-043 + T-044 approved)
+- Migrations: No new migrations for Sprint 8 (already up to date — 5/5 Sprint 1 migrations)
+
+**Build Results:**
+- Frontend build: ✅ Vite v8.0.2, 4612 modules, 0 errors, 263ms. Output: index-ClDMpHeS.js 390.23 kB / index-BNRL_D3i.css 39.06 kB
+- Backend tests: ✅ 65/65 pass (--runInBand)
+- Frontend tests: ✅ 95/95 pass
+- Migrations: ✅ Already up to date
+
+### Services Running
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| PostgreSQL | localhost:5432 | — | ✅ Running |
+| Backend API | http://localhost:3000 | 2490 | ✅ Running (fresh start 2026-03-28T03:40Z) |
+| Frontend Preview | http://localhost:5174 | 2563 | ✅ Running (rebuilt Sprint 8 dist, fresh start 2026-03-28T03:40Z) |
+
+**Note:** Port :4173 was occupied by an unrelated project (triplanner/vite preview PID 2454). Frontend preview started on :5174. Backend Vite proxy config targets `http://localhost:3000` — unaffected by frontend port change.
+
+### Post-Start Health Verification (Pre-checked by Deploy Engineer)
+
+| Check | Result |
+|-------|--------|
+| `GET http://localhost:3000/api/health` → 200 | ✅ `{"status":"ok","timestamp":"2026-03-28T03:40:13.168Z"}` |
+| `GET http://localhost:3000/api/v1/care-due` (no auth) → 401 | ✅ `{"error":{"message":"Invalid or expired access token.","code":"UNAUTHORIZED"}}` |
+| `GET http://localhost:5174/` → 200 | ✅ HTML served |
+| `GET http://localhost:5174/due` → 200 | ✅ SPA route live |
+
+### Requested Monitor Agent Actions (T-041)
+
+This handoff satisfies both **T-041** (Sprint 7 health check backlog item) and the Sprint 8 post-deploy requirement. Please run a full health check covering:
+
+1. **All 17 API endpoints** (16 original + new `GET /api/v1/care-due`):
+   - `GET /api/health` → 200
+   - `POST /api/v1/auth/register` → 201/409
+   - `POST /api/v1/auth/login` → 200
+   - `POST /api/v1/auth/refresh` → 200/401
+   - `POST /api/v1/auth/logout` → 204
+   - `DELETE /api/v1/auth/account` → 204/401
+   - `GET /api/v1/plants` → 401 (no auth)
+   - `POST /api/v1/plants` → 401 (no auth)
+   - `GET /api/v1/plants/:id` → 401 (no auth)
+   - `PUT /api/v1/plants/:id` → 401 (no auth)
+   - `DELETE /api/v1/plants/:id` → 401 (no auth)
+   - `POST /api/v1/plants/:id/photo` → 401 (no auth)
+   - `POST /api/v1/plants/:id/ai-advice` → 401 (no auth)
+   - `POST /api/v1/care-actions` → 401 (no auth)
+   - `DELETE /api/v1/care-actions/:id` → 401 (no auth)
+   - `GET /api/v1/care-actions` → 401 (no auth)
+   - `GET /api/v1/care-due` → 401 (no auth) **[Sprint 8 NEW]**
+   - `GET /api/v1/profile` → 401 (no auth)
+
+2. **Frontend routes** (served from http://localhost:5174):
+   - `GET /` → 200
+   - `GET /login` → 200
+   - `GET /due` → 200 **[Sprint 8 NEW]**
+   - `GET /history` → 200
+   - `GET /plants` → 200
+
+3. **Log results** in `qa-build-log.md` — set Deploy Verified: Yes/No
+4. **Mark T-041 Done** in dev-cycle-tracker.md if health check passes
+
+---
+
