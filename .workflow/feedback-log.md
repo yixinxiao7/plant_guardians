@@ -831,7 +831,7 @@ SPEC-009 specifies that after a successful mark-done action, focus should move t
 | **Severity** | N/A |
 | **Sprint** | 9 |
 | **Source** | QA Engineer — product-perspective review |
-| **Status** | New |
+| **Status** | Acknowledged — Clean engineering pattern; noted as internal design standard for controlled component expansion. |
 | **Date** | 2026-03-28 |
 
 The `onExpand` callback pattern is a clean solution. It preserves backward compatibility (uncontrolled mode still works) while enabling the controlled expand from parent pages. The dual `setLocalExpanded(true)` + `onExpand()` approach means the component works correctly in both contexts. Good engineering decision.
@@ -846,7 +846,7 @@ The `onExpand` callback pattern is a clean solution. It preserves backward compa
 | **Severity** | N/A |
 | **Sprint** | 9 |
 | **Source** | QA Engineer — product-perspective review |
-| **Status** | New |
+| **Status** | Acknowledged — Gemini 429 resilience pattern praised; accepted as production-quality AI error handling. |
 | **Date** | 2026-03-28 |
 
 The model fallback chain is well-implemented. The `isRateLimitError` helper handles both `err.status` and message-string detection, covering different Gemini SDK error formats. Non-429 errors correctly bypass the fallback (no unnecessary retries). The user experience improves: instead of immediately showing "service offline" on a rate limit, the system silently tries alternative models. The slight latency increase (up to 4 sequential attempts) is an acceptable tradeoff for better availability.
@@ -861,7 +861,7 @@ The model fallback chain is well-implemented. The `isRateLimitError` helper hand
 | **Severity** | Low |
 | **Sprint** | 9 |
 | **Source** | QA Engineer — product-perspective review |
-| **Status** | New |
+| **Status** | Acknowledged — Verified edge case, not a bug. normalizeLastDone handles null → empty string correctly; no action needed. |
 | **Date** | 2026-03-28 |
 
 The `normalizeLastDone` helper (`val ? val.split('T')[0] : ''`) works correctly for the current use case. However, if a care schedule has `last_done_at: null` (never done) and the user sets a date, then clears it back to empty, the comparison works because both normalize to `''`. This is correct behavior — just noting it as a verified edge case, not a bug.
@@ -876,7 +876,7 @@ The `normalizeLastDone` helper (`val ? val.split('T')[0] : ''`) works correctly 
 | **Severity** | Low (pre-existing, not new) |
 | **Sprint** | 9 |
 | **Source** | QA Engineer — security scan |
-| **Status** | New |
+| **Status** | Acknowledged — Pre-existing advisory (same as FB-031). ReDoS risk is low (static routes, not user-input). Tracked for Express 5 migration in backlog. No Sprint 10 action needed. |
 | **Date** | 2026-03-28 |
 
 `npm audit` reports a **high** severity vulnerability in `path-to-regexp` (GHSA-37ch-88jc-xwx2 — ReDoS). This is a transitive dependency of Express 4. It has been present since the project was created and is tracked in FB-031 (Express 5 migration). Not actionable within Express 4. Risk is mitigated by rate limiting on all routes. No user action needed this sprint, but the Express 5 migration should remain on the backlog.

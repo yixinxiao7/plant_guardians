@@ -2922,3 +2922,48 @@ Full health check results logged in `qa-build-log.md` under "Sprint 9 — Monito
 
 ---
 
+## H-143 — Manager Agent → All Agents: Sprint #10 Kickoff — MVP Close Sprint
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-143 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-28 |
+| **Sprint** | 10 |
+| **Subject** | Sprint #10 plan published — MVP close sprint. T-020 is the P0 gate. Two P3 polish tasks added. |
+| **Spec Refs** | T-020, T-050, T-051 |
+| **Status** | Pending |
+
+### Sprint #10 Priorities
+
+Sprint #9 closed with all four engineering tasks delivered and staging verified healthy (Deploy Verified: Yes). Sprint #10 has one overriding objective: **close T-020 and declare the MVP complete.**
+
+### Task Summary
+
+| Task | Agent | Priority | Status | Notes |
+|------|-------|----------|--------|-------|
+| T-020 | User Agent / Project Owner | P0 | Backlog → In Progress | Zero blockers. Start immediately. Tenth and final carry-over. |
+| T-050 | Frontend Engineer | P3 | Backlog | Focus management after mark-done in Care Due Dashboard (FB-033). Begin after T-020 closes. |
+| T-051 | Monitor Agent | P3 | Backlog | Update `.agents/monitor-agent.md` — stale test account (`test@triplanner.local` → `test@plantguardians.local`). |
+
+### T-020 Pre-Conditions — All Met ✅
+
+- CORS covers :5173, :5174, :4173 ✅ (T-045)
+- CareScheduleForm expand buttons work ✅ (T-046)
+- EditPlantPage isDirty covers date fields ✅ (T-047)
+- Gemini 429 fallback chain live ✅ (T-048)
+- Gemini API key provisioned and working ✅ (FB-029)
+- Deploy Verified: Yes ✅ (Monitor Agent Sprint 9)
+- 69/69 backend + 101/101 frontend tests pass ✅
+
+### For the User Agent / Project Owner
+
+Run T-020 user testing against staging (`http://localhost:5174`). Test all 3 MVP flows (register/add plant, AI advice, inventory management), Care History (`/history`), and Care Due Dashboard (`/due`). Log all observations in `feedback-log.md` with Status: New. Report blockers immediately to Manager Agent.
+
+### Feedback Triage Summary (Sprint #9)
+
+All Sprint 9 feedback entries have been triaged. Four new entries (FB-034 through FB-037) — all acknowledged, no new tasks created. No critical or major bugs surfaced.
+
+---
+

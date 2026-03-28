@@ -692,6 +692,84 @@ The two separate Sprint 7 staging deployments (one at :4174, one at :5173) both 
 
 ---
 
+### Sprint #9 — 2026-03-27 to 2026-03-28
+
+**Sprint Goal:** Fix the three Major blocking bugs discovered by the project owner during real-world testing (CORS port 5174, CareScheduleForm expand buttons, EditPlantPage isDirty date check), implement the Gemini 429 model fallback chain for AI resilience, and — with all blockers resolved — complete T-020 user testing to formally declare the MVP done.
+
+**Outcome:** Partial — All four engineering tasks (T-045, T-046, T-047, T-048) delivered, reviewed, QA-passed, and deployed. Monitor Agent confirmed Deploy Verified: Yes across all 17 API endpoints and 5 frontend routes. T-020 (user testing) was not executed — it was technically unblocked by end of sprint but no User Agent or project-owner testing session occurred before sprint close. T-020 carries into Sprint #10 for the tenth consecutive sprint. This time, staging is clean, all bugs are fixed, Gemini is live, and there are zero remaining blockers.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-045 | Deploy Engineer: CORS fixed — `http://localhost:5174` confirmed in `backend/.env` (pre-existing); `.env.example` updated to document all three origins (:5173, :5174, :4173). CORS preflight returns 204 + correct header for all origins. 69/69 backend tests pass. |
+| T-046 | Frontend Engineer: CareScheduleForm `onExpand` callback prop added. Both `AddPlantPage` and `EditPlantPage` now pass `onExpand` so clicking "Add fertilizing/repotting schedule" correctly expands the form. 3 new tests (controlled expand × 2 care types, uncontrolled fallback). 101/101 frontend tests pass. |
+| T-047 | Frontend Engineer: EditPlantPage `isDirty` memo extended to compare `wateringLastDone`, `fertilizingLastDone`, `repottingLastDone` against original `last_done_at`. `normalizeLastDone` helper strips time for comparison. Save button now enables when only a date field is changed. 3 new tests. 101/101 frontend tests pass. |
+| T-048 | Backend Engineer: Gemini 429 model fallback chain implemented in `ai.js` — `MODEL_FALLBACK_CHAIN` (gemini-2.0-flash → gemini-2.5-flash → gemini-2.5-flash-lite → gemini-2.5-pro), `isRateLimitError()` helper (covers `.status === 429` and message string). 4 new tests. 69/69 backend tests pass. Monitor Agent smoke test confirmed AI endpoint returns 200 with real Gemini call. |
+
+---
+
+#### Tasks Carried Over to Sprint #10
+
+| Task ID | Description | Reason |
+|---------|-------------|--------|
+| T-020 | User testing: All 3 MVP flows + Care History + Care Due Dashboard | Tenth consecutive carry-over. Staging is fully clean — 69/69 backend + 101/101 frontend tests, Deploy Verified: Yes, all blocking bugs resolved, Gemini live. No further blockers. Must close in Sprint #10 without exception. |
+
+---
+
+#### Verification Failures
+
+**No `Deploy Verified: No` verdict was returned in Sprint #9.** The Monitor Agent post-deploy health check (2026-03-28T15:43Z) returned **Deploy Verified: Yes** — all 17 API endpoints pass, all 5 frontend routes pass, config consistency verified, CORS all 3 origins confirmed, T-048 Gemini fallback chain smoke-tested (HTTP 200 with full care advice returned). No 5xx errors observed. No regressions.
+
+---
+
+#### Key Feedback Themes
+
+| Feedback ID | Category | Severity | Disposition |
+|-------------|----------|----------|-------------|
+| FB-034 | Positive (CareScheduleForm onExpand pattern is clean) | N/A | Acknowledged |
+| FB-035 | Positive (Gemini 429 fallback chain is a good resilience pattern) | N/A | Acknowledged |
+| FB-036 | UX Issue (normalizeLastDone edge case — verified correct, not a bug) | Low | Acknowledged — verified edge case, no action needed |
+| FB-037 | Bug (path-to-regexp high-severity — pre-existing, same as FB-031) | Low | Acknowledged — pre-existing advisory; tracked for Express 5 migration in backlog |
+
+---
+
+#### What Went Well
+
+- All four Sprint 9 engineering tasks completed, reviewed, QA-passed, and deployed in a single day
+- Monitor Agent health check confirmed clean staging with Gemini actually returning live AI advice (not mock)
+- T-046 fix is backward-compatible — uncontrolled `CareScheduleForm` still works as before
+- T-047's `normalizeLastDone` helper is a clean pattern that correctly handles null/empty edge cases (FB-036 confirms this)
+- 69/69 backend + 101/101 frontend tests — highest test counts in the project's history
+- CORS now covers all three dev ports (:5173, :5174, :4173) comprehensively
+
+---
+
+#### What to Improve
+
+- T-020 has now carried over 9 consecutive sprints. Sprint 10 will treat this as an **absolute close** — there are zero remaining blockers, staging is verified, and the Gemini key is live. If no User Agent is available, the project owner must run the testing session directly.
+- Form component controlled/uncontrolled state contracts should be documented at design time (T-046 bug was a contract violation that was avoidable with clearer prop documentation).
+- `isDirty` scope in form pages should cover ALL user-editable fields at implementation time — date pickers are editable fields (T-047 was preventable).
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Owner |
+|------|----------|-------|
+| Express 4 path-to-regexp ReDoS (FB-031/FB-037) | P3 Advisory | Backlog — track for Express 5 migration |
+| Monitor Agent system prompt references stale test account (`test@triplanner.local` should be `test@plantguardians.local`) | P3 | Monitor Agent — update in Sprint 10 |
+| Focus management after mark-done in Care Due Dashboard (FB-033) | P3 | Frontend Engineer — Sprint 10 backlog |
+| Database-level encryption not configured | P3 Advisory | Deploy Engineer (production phase) |
+
+---
+
+*Sprint #9 summary written by Manager Agent on 2026-03-28.*
+
+---
+
 ## Template
 
 ### Sprint #N — [Start Date] to [End Date]
