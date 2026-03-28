@@ -2223,3 +2223,58 @@ Deploy Verified: Yes
 **Note:** Health endpoint is mounted at `/api/health` (not `/api/v1/health`) — consistent with prior sprints.
 
 See qa-build-log.md for full details.
+
+---
+
+## H-128 — Design Agent: Sprint #9 Status — No New Specs Required
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-128 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer / Manager Agent |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | Sprint #9 design audit complete — all 9 specs Approved and current, no new specs required this sprint |
+| **Spec Refs** | SPEC-001, SPEC-002, SPEC-003, SPEC-004, SPEC-005, SPEC-006, SPEC-007, SPEC-008, SPEC-009 |
+| **Status** | Informational — no Frontend Engineer action required |
+
+### Summary
+
+Sprint #9 contains no frontend screen work requiring a new UI spec. The sprint scope is limited to:
+
+- **T-045** (Deploy Engineer) — CORS port 5174 fix: environment config change, no UI impact
+- **T-046** (Frontend Engineer) — CareScheduleForm `onExpand` callback: targeted prop wiring, fully covered by existing SPEC-003 and SPEC-004
+- **T-047** (Frontend Engineer) — EditPlantPage `isDirty` memo fix: internal logic correction, no visual change, fully covered by SPEC-004
+- **T-048** (Backend Engineer) — Gemini 429 fallback chain: backend only, error-state behavior for AI modal already covered by SPEC-006
+- **T-020** (User Agent) — End-to-end user testing: no design deliverables required
+
+### Existing Spec Audit
+
+All 9 approved specs were audited and are current as of 2026-03-28:
+
+| Spec | Screen | Status | Last Updated |
+|------|--------|--------|-------------|
+| SPEC-001 | Login & Sign Up | ✅ Approved | Sprint 1 |
+| SPEC-002 | Home / Plant Inventory | ✅ Approved | Sprint 1 |
+| SPEC-003 | Add Plant | ✅ Approved | Sprint 1 |
+| SPEC-004 | Edit Plant | ✅ Approved | Sprint 6 (T-027: redirect-to-detail behavior added) |
+| SPEC-005 | Plant Detail | ✅ Approved | Sprint 1 |
+| SPEC-006 | AI Advice Modal | ✅ Approved | Sprint 1 |
+| SPEC-007 | Profile Page | ✅ Approved | Sprint 6 (T-034: Delete Account modal added) |
+| SPEC-008 | Care History Page | ✅ Approved | Sprint 7 (T-038) |
+| SPEC-009 | Care Due Dashboard | ✅ Approved | Sprint 8 (T-042) |
+
+### Notes for T-046 (CareScheduleForm Expand Fix)
+
+No spec update required. The expand behavior for fertilizing and repotting care schedules is already specified in SPEC-003 (Add Plant, section: CareScheduleForm Component States) and SPEC-004 (Edit Plant, which inherits SPEC-003 structure). The bug is a missing callback prop — the intended UX is already documented. The Frontend Engineer should implement per existing specs.
+
+### Notes for T-046/T-047 — Accessibility Reminder
+
+While fixing T-046 and T-047, please ensure:
+- Expanded CareScheduleForm sections receive focus on expand (keyboard navigation)
+- The Save Changes button state change (enabled/disabled) is announced via `aria-disabled` update, not just visual styling
+
+These are existing SPEC requirements, noted here for the bug-fix context.
+
+---
