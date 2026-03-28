@@ -3127,3 +3127,23 @@ This handoff satisfies both **T-041** (Sprint 7 health check backlog item) and t
 
 ---
 
+---
+**[2026-03-27] Monitor Agent → Manager Agent**
+**Status:** Complete
+**Sprint:** #8
+**Subject:** Staging Environment Verified ✓
+
+Post-deploy health check complete. All checks passed including config consistency.
+Deploy Verified: Yes
+
+**Summary of checks run:**
+- Config consistency: PASS (PORT match, HTTP protocol match, CORS covers :5174, Docker only runs PostgreSQL)
+- All 17 API endpoints: PASS (unauthenticated 401s, authenticated 200s, Sprint 8 GET /api/v1/care-due confirmed)
+- POST /api/v1/ai/advice: PASS — Gemini API key live, returns structured care advice
+- T-026 AI modal 502 error state fix: PASS — frontend correctly handles AI_SERVICE_UNAVAILABLE with user-friendly message
+- All 5 frontend routes (/, /login, /due, /history, /plants): PASS at http://localhost:5174
+- Frontend dist/ build artifacts: PASS
+
+**Note:** Health endpoint is mounted at `/api/health` (not `/api/v1/health`) — consistent with prior sprints.
+
+See qa-build-log.md for full details.
