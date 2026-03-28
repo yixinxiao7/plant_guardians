@@ -632,7 +632,7 @@ Accept as known risk. Revisit when jest or eslint release non-breaking patches t
 | **Date** | 2026-03-27 |
 | **Category** | Bug |
 | **Severity** | Major |
-| **Status** | New |
+| **Status** | Tasked → T-045 (Sprint 9) — Add http://localhost:5174 to FRONTEND_URL in backend/.env |
 
 ### Description
 
@@ -652,7 +652,7 @@ When the Vite dev server starts on port 5174 (because 5173 is already occupied),
 | **Date** | 2026-03-27 |
 | **Category** | Bug |
 | **Severity** | Major |
-| **Status** | New |
+| **Status** | Tasked → T-046 (Sprint 9) — Fix CareScheduleForm expand button by adding onExpand callback prop |
 
 ### Description
 
@@ -676,7 +676,7 @@ All downstream logic is fully implemented — state, validation, and API payload
 | **Date** | 2026-03-27 |
 | **Category** | Bug |
 | **Severity** | Major |
-| **Status** | New |
+| **Status** | Tasked → T-047 (Sprint 9) — Add last_done_at comparisons to isDirty memo in EditPlantPage |
 
 ### Description
 
@@ -698,7 +698,7 @@ Root cause: the `isDirty` memo in `EditPlantPage.jsx` (lines 80–109) compares 
 | **Date** | 2026-03-27 |
 | **Category** | Bug |
 | **Severity** | Major |
-| **Status** | New |
+| **Status** | Tasked → T-048 (Sprint 9) — Implement Gemini 429 model fallback chain in backend/src/routes/ai.js |
 
 ### Description
 
@@ -726,7 +726,7 @@ Detection: check the caught error for a 429 status (e.g. `err.status === 429` or
 | **Date** | 2026-03-27 |
 | **Category** | Positive |
 | **Severity** | N/A |
-| **Status** | New |
+| **Status** | Acknowledged — AI flow confirmed working by project owner with real Gemini key. Gemini integration is production-ready (model: gemini-2.5-flash). |
 
 ### Description
 
@@ -744,7 +744,7 @@ Project owner tested the AI advice flow end-to-end in a browser. Gemini integrat
 | **Date** | 2026-03-27 |
 | **Category** | Positive |
 | **Severity** | N/A |
-| **Status** | New |
+| **Status** | Acknowledged — Excellent UX on Care Due Dashboard; design decisions shared as team benchmark. |
 
 ### Description
 
@@ -768,7 +768,7 @@ The Care Due Dashboard directly addresses the project brief's core promise of "p
 | **Date** | 2026-03-27 |
 | **Category** | UX Issue |
 | **Severity** | P3 |
-| **Status** | New |
+| **Status** | Acknowledged — Low-risk advisory; tracked for Express 5 migration in a future sprint. No blocking action required. |
 
 ### Description
 
@@ -786,7 +786,7 @@ The Care Due Dashboard directly addresses the project brief's core promise of "p
 | **Date** | 2026-03-27 |
 | **Category** | Positive |
 | **Severity** | N/A |
-| **Status** | New |
+| **Status** | Acknowledged — Care Due Dashboard fully delivers on "painfully obvious reminders" product promise. Shared with team. |
 
 ### Description
 
@@ -811,7 +811,7 @@ The Care Due Dashboard at `/due` is an excellent implementation of the project b
 | **Date** | 2026-03-27 |
 | **Category** | UX Issue |
 | **Severity** | Minor |
-| **Status** | New |
+| **Status** | Acknowledged — Minor a11y polish item; added to backlog for a future sprint. Does not block any current work. |
 
 ### Description
 

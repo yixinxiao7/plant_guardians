@@ -612,6 +612,86 @@ The two separate Sprint 7 staging deployments (one at :4174, one at :5173) both 
 
 ---
 
+### Sprint #8 — 2026-03-26 to 2026-03-27
+
+**Sprint Goal:** Close the Sprint 7 Monitor health check gap (T-041), deliver the Care Due Dashboard feature (T-042, T-043, T-044), and complete user testing of all 3 MVP flows (T-020 — P0 hard gate, eighth attempt).
+
+**Outcome:** Partial — All four engineering tasks delivered and verified (Deploy Verified: Yes). T-020 (user testing — P0 hard gate) was not completed by a User Agent; however, the project owner tested the app directly and filed substantive real-world feedback (FB-025 through FB-029), which is more valuable than simulated testing. Three Major bugs were discovered through owner testing (CORS port 5174, expand buttons, isDirty check), confirming the value of real testing. These bugs carry into Sprint 9 as P0/P1 fixes.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-041 | Monitor Agent: Complete Sprint 7 post-deploy health check — Deploy Verified: Yes, all 17 endpoints pass |
+| T-042 | Design Agent: SPEC-009 (Care Due Dashboard) written and marked Approved in ui-spec.md |
+| T-043 | Backend Engineer: GET /api/v1/care-due endpoint — 8 new tests, 65/65 backend tests pass |
+| T-044 | Frontend Engineer: Care Due Dashboard page (/due) — 23 new tests, 95/95 frontend tests pass |
+
+---
+
+#### Tasks Carried Over to Sprint #9
+
+| Task ID | Reason |
+|---------|--------|
+| T-020 | User testing — P0 hard gate; not completed by User Agent. Project owner conducted real-world testing instead and discovered 3 Major blocking bugs (FB-025, FB-026, FB-027). T-020 will be completed after Sprint 9 bug fixes are deployed. **Ninth consecutive carry-over.** |
+
+---
+
+#### Verification Failures
+
+**No `Deploy Verified: No` verdict was returned in Sprint #8.** The Monitor Agent comprehensive health check returned **Deploy Verified: Yes** — all 17 API endpoints pass, all 5 frontend routes pass, config consistency verified. The Sprint 8 staging deploy (port :5174 due to :4173 conflict) is healthy.
+
+**Note:** One earlier Deploy Verified entry shows "Pending Monitor Agent health check (H-121)" — this refers to the initial Deploy Engineer pre-check that preceded the full Monitor Agent verification. The definitive verdict is **Deploy Verified: Yes** from the Monitor Agent Sprint #8 Post-Deploy Health Check (qa-build-log.md).
+
+---
+
+#### Key Feedback Themes
+
+- **Three Major blocking bugs discovered via real project-owner testing** (FB-025, FB-026, FB-027): CORS port mismatch on :5174, fertilizing/repotting expand buttons broken, Edit Plant isDirty check misses date fields. These are targeted, well-described bugs with specific fix instructions.
+- **Gemini 429 rate limit handling needed** (FB-028): Real-world AI usage exposed rate limit errors that surface as misleading "service offline" messages. Fallback chain to 4 model tiers requested.
+- **AI flow confirmed working end-to-end by project owner** (FB-029): Gemini integration functional with real key (gemini-2.5-flash). Flow 2 partially validated.
+- **Care Due Dashboard praised by QA** (FB-030, FB-032): Design decisions (urgency text, mark-done shortcut, sidebar badge, all-clear state) specifically called out as excellent UX for the target novice audience.
+- **Minor a11y gap noted** (FB-033): Focus management after mark-done not implemented; minor polish item for future sprint.
+
+---
+
+#### What Went Well
+
+- Care Due Dashboard delivered on time, fully tested, fully deployed — 23 new frontend tests, 8 new backend tests
+- Monitor Agent Sprint 7 health check gap closed immediately (T-041 done as first Sprint 8 task)
+- Project owner used the app with a real Gemini key — this is the first time real end-to-end testing occurred; feedback is actionable and specific
+- All 17 API endpoints pass health check; all 95 frontend + 65 backend tests pass
+- SPEC-009 (Care Due Dashboard spec) written and implemented to spec in a single sprint cycle
+
+---
+
+#### What to Improve
+
+- T-020 has now carried over 8 consecutive sprints. Sprint 9 will flip the strategy: fix blocking bugs first (T-045, T-046, T-047), then re-run T-020 against a clean staging environment. This eliminates the "can't test because it's broken" trap.
+- CORS port coverage should be comprehensive from the start — any new port used for staging should be added to FRONTEND_URL (FB-025 is the second CORS bug in the project).
+- Form state management (isDirty) should cover all editable fields including date pickers at implementation time, not discovered via QA.
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Owner |
+|------|----------|-------|
+| Express 4 path-to-regexp ReDoS (FB-031) — track for Express 5 migration | P3 Advisory | Backend Engineer |
+| CareScheduleForm controlled vs uncontrolled expand state (FB-026) — design flaw | P1 | Frontend Engineer (T-046) |
+| EditPlantPage isDirty memo missing date field comparisons (FB-027) | P1 | Frontend Engineer (T-047) |
+| CORS FRONTEND_URL does not enumerate all dev ports (FB-025) | P1 | Deploy Engineer (T-045) |
+| Gemini 429 rate limit falls through as 502 "service offline" (FB-028) | P2 | Backend Engineer (T-048) |
+| Focus management after mark-done in Care Due Dashboard (FB-033) | P3 | Frontend Engineer (backlog) |
+
+---
+
+*Sprint #8 summary written by Manager Agent on 2026-03-27.*
+
+---
+
 ## Template
 
 ### Sprint #N — [Start Date] to [End Date]
