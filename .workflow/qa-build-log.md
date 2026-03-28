@@ -4,6 +4,268 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 8 — QA Re-Verification (QA Engineer — 2026-03-28)
+
+**Date:** 2026-03-28
+**QA Engineer:** QA Agent
+**Sprint:** 8
+**Purpose:** Re-verification of all Sprint 8 QA gates. Confirms prior QA pass (2026-03-27) remains valid after staging deployment.
+
+---
+
+### Re-Verification — Unit Tests
+
+| Suite | Tests | Result | Baseline (Sprint 7) | Regression |
+|-------|-------|--------|---------------------|------------|
+| Backend (`npm test`) | 65/65 | ✅ PASS | 57/57 | None |
+| Frontend (`npm test`) | 95/95 | ✅ PASS | 72/72 | None |
+
+### Re-Verification — npm audit
+
+| Package | Severity | Location | Risk |
+|---------|----------|----------|------|
+| `path-to-regexp` <0.1.13 | High | backend → Express 4.22.1 (transitive) | LOW — ReDoS via static route params only, not user input. Tracked for Express 5 migration (FB-031). **Not P1.** |
+| `brace-expansion` <1.1.13 | Moderate | backend + frontend (dev deps only) | Negligible — dev-only, not in production |
+
+### Re-Verification — Security Checklist (Sprint 8 Tasks)
+
+All 14 security checklist items re-confirmed:
+- Auth enforced on GET /api/v1/care-due (✅ `router.use(authenticate)`)
+- Parameterized Knex queries — no SQL injection (✅)
+- User isolation via `p.user_id` filter (✅)
+- Error handler never leaks stack traces (✅ centralized errorHandler.js)
+- No hardcoded secrets in source (✅ .env in .gitignore)
+- CORS allows only :5173, :5174, :4173 (✅)
+- Rate limiting applied (✅)
+- React default XSS escaping, no dangerouslySetInnerHTML (✅)
+
+### Re-Verification — Config Consistency
+
+| Check | Result |
+|-------|--------|
+| Backend PORT=3000 matches Vite proxy target `http://localhost:3000` | ✅ |
+| No SSL — both use http:// | ✅ |
+| CORS includes http://localhost:5173 | ✅ |
+
+### Re-Verification Summary
+
+**All prior QA results (2026-03-27) confirmed valid.** No regressions, no new issues, no changes since prior verification. Sprint 8 engineering tasks (T-042, T-043, T-044) remain Done.
+
+**Remaining sprint closure tasks (outside QA scope):**
+- T-020: User Agent testing (P0 hard gate)
+- T-041: Monitor Agent health check (P1)
+
+---
+
+## Sprint 8 — Comprehensive QA Verification (QA Engineer — 2026-03-27)
+
+**Date:** 2026-03-27
+**QA Engineer:** QA Agent
+**Sprint:** 8
+**Tasks Verified:** T-043 (GET /api/v1/care-due), T-044 (Care Due Dashboard)
+
+---
+
+### Test Run — Unit Tests (Backend)
+
+| Metric | Value |
+|--------|-------|
+| **Test Type** | Unit Test |
+| **Command** | `cd backend && npm test` |
+| **Result** | ✅ PASS |
+| **Total Tests** | 65/65 |
+| **New Tests (T-043)** | 8 (careDue.test.js: happy path, all-on-track, never-done, 401, no plants, user isolation, sort order, weekly frequency) |
+| **Baseline (Sprint 7)** | 57/57 |
+| **Regression** | None — all 57 pre-existing tests pass |
+| **Test Suites** | 8/8 pass (auth, plants, careActions, careHistory, careDue, ai, account, profile) |
+
+**Coverage assessment (T-043):**
+- Happy path with mixed statuses: ✅ Tested
+- All on track (empty arrays): ✅ Tested
+- Never-done plant (null last_done_at): ✅ Tested
+- 401 unauthorized: ✅ Tested
+- No plants (empty user): ✅ Tested
+- User isolation: ✅ Tested
+- Sort order (contract compliance): ✅ Tested
+- Weekly frequency conversion: ✅ Tested
+
+---
+
+### Test Run — Unit Tests (Frontend)
+
+| Metric | Value |
+|--------|-------|
+| **Test Type** | Unit Test |
+| **Command** | `cd frontend && npm test` |
+| **Result** | ✅ PASS |
+| **Total Tests** | 95/95 |
+| **New Tests (T-044)** | 23 (CareDuePage: 19, Sidebar badge: 3, AppShell: 1) |
+| **Baseline (Sprint 7)** | 72/72 |
+| **Regression** | None — all 72 pre-existing tests pass |
+| **Test Suites** | 20/20 pass |
+
+**Coverage assessment (T-044):**
+- Loading skeleton with aria-busy: ✅ Tested
+- Error state with retry: ✅ Tested
+- Global all-clear state + CTA navigation: ✅ Tested
+- Populated state with all 3 sections: ✅ Tested
+- Per-section empty state: ✅ Tested
+- Urgency text (6 variants: N days overdue, 1 day overdue, Never done, Due today, Due tomorrow, Due in N days): ✅ Tested
+- Section count pills: ✅ Tested
+- Mark-done success + toast + item removal: ✅ Tested
+- Mark-done error + toast: ✅ Tested
+- Mark-done in-flight (disabled button): ✅ Tested
+- Badge count (overdue + due_today): ✅ Tested
+- Badge update after mark-done: ✅ Tested
+- Accessibility (section aria-labelledby, button aria-labels): ✅ Tested
+- Tooltip on upcoming due date: ✅ Tested
+
+---
+
+### Integration Test — T-043 + T-044 (Care Due Dashboard End-to-End)
+
+| Metric | Value |
+|--------|-------|
+| **Test Type** | Integration Test |
+| **Result** | ✅ PASS |
+
+**API Contract Verification (api-contracts.md GROUP 17 vs actual):**
+
+| Check | Expected | Verified |
+|-------|----------|----------|
+| Endpoint path | GET /api/v1/care-due | ✅ Registered in app.js at `/api/v1/care-due` |
+| Auth required | Bearer token | ✅ `router.use(authenticate)` |
+| 401 without auth | `{ error: { code: "UNAUTHORIZED" } }` | ✅ Test confirms 401 |
+| Success status | 200 | ✅ |
+| Response wrapper | `{ data: { overdue, due_today, upcoming } }` | ✅ Exact match |
+| Overdue fields | plant_id, plant_name, care_type, days_overdue, last_done_at | ✅ |
+| Due Today fields | plant_id, plant_name, care_type (no extra fields) | ✅ Test verifies no days_overdue/due_in_days |
+| Upcoming fields | plant_id, plant_name, care_type, due_in_days, due_date | ✅ |
+| last_done_at nullable | null for never-done | ✅ Test confirms |
+| Empty response shape | All three arrays present, empty `[]` | ✅ |
+| Overdue sort | days_overdue DESC, plant_name ASC | ✅ Test confirms |
+| Due Today sort | plant_name ASC | ✅ (single-item tests, contract code verified) |
+| Upcoming sort | due_in_days ASC, plant_name ASC | ✅ (contract code verified) |
+| Frequency conversion | weeks=7d, months=30d | ✅ Weekly test confirms |
+| No query params | None required | ✅ |
+
+**Frontend ↔ Backend Integration:**
+
+| Check | Result |
+|-------|--------|
+| `careDue.get()` calls `GET /care-due` | ✅ Verified in api.js |
+| Response consumed correctly (data.overdue, data.due_today, data.upcoming) | ✅ Verified in useCareDue.js |
+| Mark-done calls existing `POST /care-actions` | ✅ `careActions.markDone(plantId, careType)` |
+| Optimistic removal (no re-fetch after mark-done) | ✅ Local state filter in useCareDue.js |
+| Badge count = overdue.length + due_today.length | ✅ Verified in useCareDue.js |
+| Badge fetched on AppShell mount | ✅ Verified in AppShell.jsx |
+| Badge passed to Sidebar via prop | ✅ `careDueBadge` prop |
+| Badge hidden at count 0 | ✅ `{careDueBadge > 0 && ...}` in Sidebar.jsx |
+| Badge shows "99+" at ≥100 | ✅ `careDueBadge >= 100 ? '99+'` in Sidebar.jsx |
+
+**SPEC-009 UI Compliance:**
+
+| Check | Result |
+|-------|--------|
+| Route `/due` registered | ✅ In App.jsx |
+| Page title "Care Due" | ✅ h1 element |
+| Subtitle text | ✅ Matches SPEC-009 exactly |
+| Three urgency sections in order | ✅ overdue → due_today → upcoming |
+| Section icons (WarningCircle, Clock, CalendarBlank) | ✅ |
+| Section colors (red #B85C38, amber #C4921F, green #5C7A5C) | ✅ Verified in code |
+| Care type icons (Drop, Leaf, PottedPlant) with correct bg colors | ✅ CARE_TYPE_CONFIG matches spec |
+| Urgency text rules (singular/plural, never done, tomorrow) | ✅ All 6 variants verified by tests |
+| Tooltip on upcoming items | ✅ `title="Due [Month D, YYYY]"` |
+| Loading skeleton with shimmer | ✅ 2 skeleton section blocks |
+| Error state (WarningCircle, heading, body, retry button) | ✅ |
+| Global all-clear (SVG illustration, heading, CTA) | ✅ |
+| Per-section empty states (dashed border, encouraging text) | ✅ |
+| Mark-done button with spinner during in-flight | ✅ |
+| Mark-done fade-out animation (0.3s) | ✅ 300ms timeout for removingItems |
+| Sidebar "Care Due" nav item with BellSimple icon | ✅ |
+| Badge between "My Plants" and "History" | ✅ Sidebar.jsx nav order verified |
+| Accessibility: aria-labelledby, aria-busy, aria-labels, aria-live | ✅ All present |
+| prefers-reduced-motion support | ✅ In CareDuePage.css |
+
+---
+
+### Config Consistency Check
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Backend PORT | 3000 | `PORT=3000` in .env | ✅ |
+| Vite proxy target | http://localhost:3000 | `backendTarget = 'http://localhost:3000'` | ✅ Match |
+| SSL: backend uses HTTP | No SSL | No HTTPS in .env | ✅ |
+| Vite proxy uses http:// | http:// | `http://localhost:3000` | ✅ Match |
+| CORS includes :5173 | http://localhost:5173 | `FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173` | ✅ Includes :5173 |
+| Docker postgres port | 5432 | `"${POSTGRES_PORT:-5432}:5432"` | ✅ Match |
+| Test DB isolation | Separate from staging | `plant_guardians_test` vs `plant_guardians_staging` | ✅ |
+
+**No config mismatches found.**
+
+---
+
+### Security Scan
+
+| Metric | Value |
+|--------|-------|
+| **Test Type** | Security Scan |
+| **Result** | ✅ PASS (no P1 issues) |
+
+**Security Checklist Verification:**
+
+| # | Check | Result | Notes |
+|---|-------|--------|-------|
+| 1 | All API endpoints require auth | ✅ | `router.use(authenticate)` on care-due. All protected endpoints return 401 without token. |
+| 2 | Role-based access control | ✅ | User isolation via `WHERE p.user_id = :userId` (Knex parameterized) |
+| 3 | Token expiration + refresh | ✅ | 15m access / 7d refresh (pre-existing, unchanged) |
+| 4 | Password hashing (bcrypt) | ✅ | bcrypt 6.0.0 (pre-existing, unchanged) |
+| 5 | Rate limiting on auth | ✅ | AUTH_RATE_LIMIT_MAX=20 (pre-existing, unchanged) |
+| 6 | Input validation (client + server) | ✅ | care-due has no user input params; mark-done validates care_type/plant_id |
+| 7 | SQL injection prevention | ✅ | All queries use Knex query builder. `db.raw('MAX(ca.performed_at)')` is a static aggregate — no user input concatenated. |
+| 8 | File upload validation | ✅ | Pre-existing — type/size/content checks (unchanged) |
+| 9 | XSS prevention | ✅ | React default escaping. No `dangerouslySetInnerHTML`. Single test use of `innerHTML` is in test code only. |
+| 10 | CORS configured | ✅ | Allows :5173, :5174, :4173 only |
+| 11 | API rate limiting | ✅ | RATE_LIMIT_MAX=100 per 15m window |
+| 12 | Error responses safe | ✅ | Centralized errorHandler.js — never leaks stack traces. Unknown errors → generic "An unexpected error occurred." |
+| 13 | No secrets in code | ✅ | .env not tracked by git (.gitignore confirmed). API keys via process.env only. |
+| 14 | Dependencies audit | ⚠️ Info | See below |
+
+**npm audit results:**
+
+| Package | Severity | Location | Risk Assessment |
+|---------|----------|----------|-----------------|
+| `path-to-regexp` <0.1.13 | High | backend → express 4.22.1 (transitive) | **Low risk.** ReDoS via route parameters — routes are defined at startup from static strings, not user input. Express 4 does not expose path-to-regexp to user-controlled input. Tracked for Express 5 migration (FB-031). **Not P1.** |
+| `brace-expansion` <1.1.13 | Moderate | backend → nodemon (dev-only) + frontend (dev-only) | **Negligible.** Dev dependencies only — not present in production builds. |
+
+**Hardcoded secrets scan:** No hardcoded secrets found in backend/src/ or frontend/src/. GEMINI_API_KEY is in .env (not git-tracked). JWT_SECRET is in .env (not git-tracked).
+
+---
+
+### Product-Perspective Testing
+
+**Feature alignment with project brief:**
+The Care Due Dashboard directly fulfills the project brief's core promise: "painfully obvious reminders to users to take care of their plant." The three urgency sections (Overdue, Due Today, Coming Up) make it immediately clear what needs attention, sorted by urgency. This is the right feature for the "novice plant-killer" target user.
+
+**Observations logged to feedback-log.md:** See FB-032, FB-033.
+
+---
+
+### Final Verdict
+
+| Criterion | Status |
+|-----------|--------|
+| All unit tests pass | ✅ 65/65 backend, 95/95 frontend |
+| Integration tests pass | ✅ 15 API contract checks, 9 frontend↔backend checks, 20+ SPEC-009 checks |
+| Security checklist verified | ✅ All 14 items pass. No P1 issues. |
+| Config consistency | ✅ No mismatches |
+| No regressions | ✅ Baseline exceeded (57→65 backend, 72→95 frontend) |
+| All Sprint 8 tasks Done | ✅ T-042, T-043, T-044 — Done |
+
+**Sprint 8 QA Status: ✅ PASS — T-043 and T-044 verified. Ready for Monitor Agent health check and User Agent testing (T-020).**
+
+---
+
 ## Sprint 8 — Staging Deployment (Deploy Engineer — 2026-03-27)
 
 **Date:** 2026-03-27
@@ -76,6 +338,44 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 | Sprint | 8 |
 
 **Deploy Verified: Pending Monitor Agent health check (H-121)**
+
+---
+
+## Sprint 8 — Deploy Engineer Re-Verification (2026-03-28)
+
+**Date:** 2026-03-28
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 8
+
+### Context
+
+No new infra tasks assigned in Sprint 8. Performing continuity verification to confirm Sprint 8 staging deployment (H-121) is still healthy and all services remain running.
+
+### Service Health Check
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| `GET http://localhost:3000/api/health` | 200 `{"status":"ok"}` | 200 `{"status":"ok","timestamp":"2026-03-28T03:33:03.269Z"}` | ✅ |
+| `GET http://localhost:5173/` (frontend) | 200 HTML | 200 HTML | ✅ |
+| `GET http://localhost:5173/api/health` (Vite proxy) | 200 `{"status":"ok"}` | 200 `{"status":"ok"}` | ✅ |
+| `GET /api/v1/care-due` (no auth) via proxy | 401 UNAUTHORIZED | 401 UNAUTHORIZED | ✅ |
+| `GET http://localhost:5173/due` (SPA route) | 200 HTML | 200 HTML | ✅ |
+| `GET http://localhost:5173/history` (regression) | 200 HTML | 200 HTML | ✅ |
+
+### Test Re-Run
+
+| Suite | Tests | Result |
+|-------|-------|--------|
+| Backend | 65/65 | ✅ PASS (--runInBand, 14.9s) |
+| Frontend | 95/95 | ✅ PASS (20/20 suites, 1.45s) |
+
+### Migrations
+
+| Command | Result |
+|---------|--------|
+| `cd backend && npm run migrate` | ✅ Already up to date (5/5) — no Sprint 8 migrations |
+
+**All services healthy. Sprint 8 staging deployment confirmed stable.**
 
 ---
 

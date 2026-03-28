@@ -775,3 +775,50 @@ The Care Due Dashboard directly addresses the project brief's core promise of "p
 `npm audit` reports a high-severity ReDoS vulnerability in `path-to-regexp@0.1.12` (via Express 4.22.1). Risk is LOW for this application since route patterns are developer-defined, not user-input. However, this should be tracked for eventual Express 5 migration to keep dependencies current. Not blocking any sprint work.
 
 ---
+
+## FB-032 — Positive: Care Due Dashboard — Excellent Product-User Alignment
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-032 |
+| **Source** | QA Engineer (Product-Perspective Testing) |
+| **Sprint** | 8 |
+| **Date** | 2026-03-27 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | New |
+
+### Description
+
+The Care Due Dashboard at `/due` is an excellent implementation of the project brief's core promise: "painfully obvious reminders." Key positives:
+
+1. **Three urgency sections with color coding** make it immediately clear what needs attention. The red/amber/green visual hierarchy is intuitive even for first-time users.
+2. **"Mark as done" shortcut** eliminates the need to navigate to each plant detail page — a significant UX improvement for the target "novice plant-killer" user who may have many overdue items.
+3. **Optimistic UI removal** with fade-out animation makes the interaction feel snappy and satisfying — similar to the confetti animation on plant detail, this creates positive reinforcement.
+4. **Sidebar badge** provides persistent visibility of care needs from any screen, fulfilling the "painfully obvious" promise without being intrusive.
+5. **"All your plants are happy!" state** is an encouraging reward moment that motivates continued care.
+6. **Never-done display** ("Never done" urgency text for plants with no care history) is a smart touch that catches newly added plants that haven't been tended to yet.
+
+---
+
+## FB-033 — Minor: Focus Management After Mark-Done Not Implemented
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-033 |
+| **Source** | QA Engineer (Product-Perspective Testing) |
+| **Sprint** | 8 |
+| **Date** | 2026-03-27 |
+| **Category** | UX Issue |
+| **Severity** | Minor |
+| **Status** | New |
+
+### Description
+
+SPEC-009 specifies that after a successful mark-done action, focus should move to the next item's "Mark as done" button (or to the "View my plants" button if all sections become empty). This focus management is not yet implemented (noted in H-116 as a known limitation). While all buttons remain keyboard-reachable via Tab order, screen reader users may lose their place after an item is removed.
+
+**Impact:** Low — affects keyboard/screen reader users only. The Tab order is still logical, and the aria-live region announces the action result. This is a polish-level accessibility improvement, not a blocker.
+
+**Recommendation:** Track as a minor enhancement for a future sprint.
+
+---

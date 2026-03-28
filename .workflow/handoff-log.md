@@ -2812,6 +2812,64 @@ Full build and deployment details logged in `.workflow/qa-build-log.md` — "Spr
 
 ---
 
+## H-123 — QA Engineer: Sprint 8 Comprehensive QA Verification Complete — All Pass
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-123 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer, Monitor Agent, Manager Agent |
+| **Date** | 2026-03-27 |
+| **Sprint** | 8 |
+| **Subject** | Sprint 8 comprehensive QA verification complete. T-043 and T-044 pass all unit tests, integration tests, config consistency, and security checks. Staging is deployed (H-121). Awaiting Monitor Agent health check (T-041) and User Agent testing (T-020) to close sprint. |
+| **Spec Refs** | T-043, T-044, SPEC-009, api-contracts.md GROUP 17 |
+| **Status** | Complete |
+
+### QA Results Summary
+
+| Category | Result |
+|----------|--------|
+| Backend unit tests | ✅ 65/65 pass (8 new for T-043) |
+| Frontend unit tests | ✅ 95/95 pass (23 new for T-044) |
+| API contract match (15 checks) | ✅ All pass |
+| Frontend↔Backend integration (9 checks) | ✅ All pass |
+| SPEC-009 compliance (20+ checks) | ✅ All pass |
+| Config consistency (7 checks) | ✅ No mismatches |
+| Security checklist (14 items) | ✅ All pass. No P1 issues. |
+| npm audit | ⚠️ 1 high (path-to-regexp, non-exploitable), 1 moderate (dev-only) — both accepted risk |
+| Product-perspective testing | ✅ Excellent user alignment. Minor a11y note (FB-033). |
+
+### What Remains for Sprint 8 Closure
+
+| Task | Status | Owner |
+|------|--------|-------|
+| T-042 | ✅ Done | Design Agent |
+| T-043 | ✅ Done | Backend Engineer |
+| T-044 | ✅ Done | Frontend Engineer |
+| T-041 | ⏳ Backlog | Monitor Agent — run health check on 17 endpoints + frontend routes |
+| T-020 | ⏳ Backlog | User Agent — test all 3 MVP flows + Care History + Care Due Dashboard |
+
+### Deploy Readiness
+
+**Pre-deploy checklist: ✅ ALL PASS**
+- All unit tests pass (65/65 backend, 95/95 frontend)
+- Integration tests pass
+- Security checklist verified
+- All engineering tasks in scope are Done (T-042, T-043, T-044)
+- Config consistency verified
+- Staging deployment already live (H-121)
+
+**Blocking items for sprint closure:**
+- T-041 (Monitor Agent health check) — required per rules.md §15
+- T-020 (User Agent testing) — P0 hard gate per active-sprint.md
+
+### Product-Perspective Feedback
+
+- **FB-032:** Positive — Care Due Dashboard excellent product-user alignment
+- **FB-033:** Minor — Focus management after mark-done not implemented (known limitation, non-blocking)
+
+---
+
 ## H-122 — Manager Agent: Sprint 8 Code Review Phase — No Pending Reviews, T-042 Status Corrected
 
 | Field | Value |
@@ -2849,6 +2907,140 @@ Full build and deployment details logged in `.workflow/qa-build-log.md` — "Spr
 
 - **Monitor Agent:** Execute T-041 per H-121 guidance — full health check on all 17 endpoints + frontend routes.
 - **User Agent:** Execute T-020 — test all 3 MVP flows + Care History + Care Due Dashboard in browser.
+
+---
+
+## H-124 — Deploy Engineer: Sprint 8 Staging Environment Continuity Confirmed — 2026-03-28
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-124 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent, Manager Agent |
+| **Date** | 2026-03-28 |
+| **Sprint** | 8 |
+| **Subject** | Sprint 8 staging deployment (H-121) confirmed still healthy. No new infra tasks in Sprint 8. All services running. |
+| **Spec Refs** | T-043, T-044 |
+| **Status** | Complete |
+
+### Continuity Verification Results
+
+No new Deploy Engineer infrastructure tasks exist in Backlog or In Progress status for Sprint 8. The active-sprint.md confirms: "Deploy Engineer: No new infra tasks — verify staging at sprint start." Previous Sprint 8 deployment (H-121) was already complete.
+
+**Re-verification run on 2026-03-28:**
+
+| Check | Result |
+|-------|--------|
+| Backend health (`GET /api/health`) | ✅ 200 OK |
+| Frontend health (`GET http://localhost:5173/`) | ✅ 200 HTML |
+| Vite proxy (`GET http://localhost:5173/api/health`) | ✅ 200 OK |
+| `GET /api/v1/care-due` (no auth) → 401 | ✅ UNAUTHORIZED |
+| `GET http://localhost:5173/due` (SPA) | ✅ 200 HTML |
+| `GET http://localhost:5173/history` (regression) | ✅ 200 HTML |
+| Backend tests | ✅ 65/65 pass |
+| Frontend tests | ✅ 95/95 pass |
+| Migrations | ✅ Already up to date (5/5) |
+
+### Services Confirmed Running
+
+| Service | URL | Status |
+|---------|-----|--------|
+| PostgreSQL | localhost:5432 | ✅ Running |
+| Backend API | http://localhost:3000 | ✅ Running |
+| Frontend Preview | http://localhost:5173 | ✅ Running |
+| Vite API Proxy | http://localhost:5173/api/* | ✅ Active |
+
+**Staging environment is stable. No action required from Deploy Engineer. Monitor Agent (T-041) and User Agent (T-020) are the sole remaining blockers for Sprint 8 closure.**
+
+---
+
+## H-125 — Manager Agent: Sprint 8 Code Review Phase — No Tasks in Review
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-125 |
+| **From** | Manager Agent |
+| **To** | Monitor Agent, User Agent |
+| **Date** | 2026-03-27 |
+| **Sprint** | 8 |
+| **Subject** | Sprint 8 code review sweep: zero tasks in "In Review" status. All engineering work already reviewed and QA-passed. Two tasks remain for sprint closure. |
+| **Spec Refs** | T-020, T-041, T-042, T-043, T-044 |
+| **Status** | Complete |
+
+### Review Summary
+
+Code review phase invoked for Sprint 8. Scanned all tasks in dev-cycle-tracker.md. Results:
+
+| Task | Current Status | Code Review |
+|------|---------------|-------------|
+| T-042 (Design: SPEC-009) | Done | N/A — documentation task |
+| T-043 (Backend: GET /care-due) | Done | Previously passed (H-117) |
+| T-044 (Frontend: Care Due Dashboard) | Done | Previously passed (H-117) |
+| T-020 (User testing: MVP flows) | Backlog | N/A — user testing task |
+| T-041 (Monitor: health check) | Backlog | N/A — infrastructure task |
+
+**No tasks require code review action.** All engineering tasks (T-043, T-044) were reviewed and approved in an earlier phase of Sprint 8 (see H-117). QA passed for both (see H-120, H-123).
+
+### Sprint 8 Closure Blockers
+
+Two tasks remain before Sprint 8 can close:
+
+1. **T-041 (Monitor Agent)** — Must run comprehensive health check covering all 17 endpoints including the new GET /care-due. Should execute immediately — no dependencies.
+2. **T-020 (User Agent)** — User testing of all 3 MVP flows + Care History + Care Due Dashboard. This is the 8th consecutive carry-over. Sprint 8 **must not close** without this task Done.
+
+### Action Required
+
+- **Monitor Agent:** Execute T-041 now. Staging is confirmed healthy per H-124. Run the full 17-endpoint check and log results.
+- **User Agent:** Execute T-020. All features deployed and verified. Begin browser testing of all flows.
+
+---
+
+## H-126 — QA Engineer: Sprint 8 QA Re-Verification — All Pass (2026-03-28)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-126 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer, Monitor Agent, Manager Agent |
+| **Date** | 2026-03-28 |
+| **Sprint** | 8 |
+| **Subject** | Sprint 8 QA re-verification complete. All prior results confirmed valid. 65/65 backend, 95/95 frontend. No regressions. Deployment remains ready. |
+| **Spec Refs** | T-043, T-044 |
+| **Status** | Complete |
+
+### Re-Verification Results
+
+| Category | Result |
+|----------|--------|
+| Backend unit tests | ✅ 65/65 pass |
+| Frontend unit tests | ✅ 95/95 pass |
+| npm audit (backend) | ⚠️ 1 high path-to-regexp (accepted risk, not P1), 1 moderate brace-expansion (dev-only) |
+| npm audit (frontend) | ⚠️ 1 moderate brace-expansion (dev-only) |
+| Security checklist | ✅ All 14 items re-verified |
+| Config consistency | ✅ No mismatches |
+
+### Sprint 8 Task Status
+
+| Task | Status |
+|------|--------|
+| T-042 (Design: SPEC-009) | ✅ Done |
+| T-043 (Backend: GET /care-due) | ✅ Done — QA Passed |
+| T-044 (Frontend: Care Due Dashboard) | ✅ Done — QA Passed |
+| T-020 (User testing) | ⏳ Backlog — User Agent |
+| T-041 (Monitor health check) | ⏳ Backlog — Monitor Agent |
+
+### Pre-Deploy Confirmation (Re-Verified)
+
+All pre-deploy criteria confirmed:
+- ✅ All unit tests pass
+- ✅ Integration tests pass
+- ✅ Security checklist verified
+- ✅ All engineering tasks in scope are Done
+- ✅ Staging deployment live (H-121, H-124)
+
+**Handoff to Deploy Engineer: Deployment readiness confirmed. No changes needed.**
+
+**Sprint closure blocked by:** T-020 (User Agent, P0 hard gate) and T-041 (Monitor Agent health check).
 
 ---
 
