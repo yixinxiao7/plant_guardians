@@ -733,3 +733,45 @@ Detection: check the caught error for a 429 status (e.g. `err.status === 429` or
 Project owner tested the AI advice flow end-to-end in a browser. Gemini integration is confirmed working (model: gemini-2.5-flash). All 4 modal states verified: loading, success (advice returned), accept/reject actions, and 502 error state. This partially satisfies the AI flow component of T-020 (Flow 2).
 
 ---
+
+## FB-030 — Care Due Dashboard: Excellent User-Centric Design
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-030 |
+| **Source** | QA Engineer (Product-Perspective Review) |
+| **Sprint** | 8 |
+| **Date** | 2026-03-27 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | New |
+
+### Description
+
+The Care Due Dashboard directly addresses the project brief's core promise of "painfully obvious reminders." Several design decisions stand out as particularly effective for the target audience (plant novices):
+
+1. **"Never done" text for unwatered plants** — instead of showing "0 days overdue" or a confusing calculation, it clearly communicates that care has never been performed. This is especially helpful for new users who just added a plant.
+2. **"Due tomorrow" instead of "Due in 1 days"** — natural language that avoids robotic phrasing.
+3. **Mark-done shortcut from the dashboard** — eliminates the multi-step journey (dashboard → plant detail → mark done → back). Ideal for daily routines.
+4. **Sidebar badge** — provides constant, non-intrusive awareness from any page. The 99+ cap prevents absurd numbers for neglected inventories.
+5. **All-clear state** ("All your plants are happy!") — positive reinforcement that makes the user feel accomplished. Great UX for the target audience.
+
+---
+
+## FB-031 — Advisory: Express 4 path-to-regexp Dependency — Track for Future Upgrade
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-031 |
+| **Source** | QA Engineer (Security Scan) |
+| **Sprint** | 8 |
+| **Date** | 2026-03-27 |
+| **Category** | UX Issue |
+| **Severity** | P3 |
+| **Status** | New |
+
+### Description
+
+`npm audit` reports a high-severity ReDoS vulnerability in `path-to-regexp@0.1.12` (via Express 4.22.1). Risk is LOW for this application since route patterns are developer-defined, not user-input. However, this should be tracked for eventual Express 5 migration to keep dependencies current. Not blocking any sprint work.
+
+---
