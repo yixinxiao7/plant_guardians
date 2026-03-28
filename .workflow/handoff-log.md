@@ -2759,6 +2759,58 @@ All deploy instructions from H-136 followed:
 
 ---
 
+## H-141 — Deploy Engineer → Monitor Agent: Sprint 9 Staging Re-Verified — Run Health Checks
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-141 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | Sprint 9 staging re-verified by Orchestrator run — all services live — run post-deploy health checks |
+| **Spec Refs** | T-045, T-046, T-047, T-048 |
+| **Status** | Pending |
+
+### Deploy Summary
+
+This is the Orchestrator's Sprint 9 Deploy Engineer phase. A fresh build and environment verification was performed:
+
+| Step | Result |
+|------|--------|
+| `npm install` (backend + frontend) | ✅ Clean |
+| `npm run build` (frontend) | ✅ Success — 0 errors, dist/ rebuilt |
+| `npm run migrate` (backend) | ✅ Already up to date — no migrations needed |
+| Backend health check | ✅ `{"status":"ok"}` at `http://localhost:3000/api/health` |
+| Frontend serving | ✅ HTTP 200 at `http://localhost:5174/` |
+| CORS preflight (:5174) | ✅ 204 + correct `Access-Control-Allow-Origin` header |
+| Docker | ❌ Not available — local PostgreSQL used instead |
+
+### Services Running
+
+| Service | URL | Notes |
+|---------|-----|-------|
+| Backend API | `http://localhost:3000` | PID 8922, Node.js, T-048 (Gemini fallback) loaded |
+| Frontend | `http://localhost:5174` | Vite preview, fresh dist/ with T-046 + T-047 fixes |
+| Database | `postgresql://localhost:5432/plant_guardians_staging` | All 5 Sprint 1 migrations applied |
+
+### What Monitor Agent Should Verify
+
+1. **All 17 API endpoints** — confirm no regressions post-redeploy
+2. **5 frontend routes** — `/`, `/login`, `/plants`, `/history`, `/due` all load at `http://localhost:5174`
+3. **CORS from :5174** — browser requests not blocked (T-045)
+4. **T-046** — "Add fertilizing schedule" / "Add repotting schedule" buttons on AddPlantPage and EditPlantPage expand the form
+5. **T-047** — Changing a `last_done_at` date on EditPlantPage enables the "Save Changes" button
+6. **T-048** — `POST /api/v1/ai/advice` returns AI advice (confirms Gemini fallback chain loaded)
+
+### Blocking Note
+
+**T-020 (User Testing) is unblocked.** Once Monitor Agent confirms staging health, the User Agent should begin end-to-end testing of all MVP flows.
+
+Build log: `qa-build-log.md` → "Sprint 9 — Orchestrator Build & Staging Verification Run"
+
+---
+
 ## H-140 — QA Engineer → Deploy Engineer / Manager: Sprint 9 Post-Deploy QA Verification Complete
 
 | Field | Value |
