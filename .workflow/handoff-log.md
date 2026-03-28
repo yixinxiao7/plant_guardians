@@ -2540,7 +2540,7 @@ Full contract detail: see Sprint 9 section in `.workflow/api-contracts.md`.
 | **Sprint** | 9 |
 | **Subject** | Code review passed for T-045, T-046, T-047, T-048 — all moved to Integration Check |
 | **Spec Refs** | T-045, T-046, T-047, T-048, FB-025, FB-026, FB-027, FB-028 |
-| **Status** | Pending |
+| **Status** | Done |
 
 ### Review Summary
 
@@ -2589,5 +2589,221 @@ All 4 Sprint 9 "In Review" tasks passed code review and are now in **Integration
 5. T-047: Integration test — changing only a last_done_at date on Edit Plant enables the Save button
 6. T-048: Verify API contract shape unchanged for `POST /api/v1/ai/advice`
 7. Security checklist for all 4 tasks
+
+---
+
+## H-136 — QA Engineer → Deploy Engineer: Sprint 9 QA Complete — Ready for Staging Deploy
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-136 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | All 4 Sprint 9 tasks pass QA — ready for staging deployment |
+| **Spec Refs** | T-045, T-046, T-047, T-048 |
+| **Status** | Pending |
+
+### QA Verification Summary
+
+All Sprint 9 tasks have passed comprehensive QA testing and are cleared for staging deployment.
+
+**Unit Tests:**
+- Backend: 69/69 ✅ (65 existing + 4 new for T-048)
+- Frontend: 101/101 ✅ (95 existing + 6 new for T-046/T-047)
+
+**Integration Tests:** All checks pass for T-045 (CORS), T-046 (expand), T-047 (isDirty), T-048 (fallback chain).
+
+**Config Consistency:** No mismatches. Backend PORT matches Vite proxy target. CORS includes all 3 frontend origins. SSL not enabled (http throughout — consistent).
+
+**Security:**
+- Security checklist: All applicable items verified ✅
+- npm audit: 2 pre-existing vulnerabilities (path-to-regexp high, brace-expansion moderate) — both known, neither new to Sprint 9
+- No hardcoded secrets in source
+- No SQL injection vectors
+- No XSS vulnerabilities
+- No P1 security issues
+
+**Tasks moved to Done:** T-045, T-046, T-047, T-048
+
+### Deploy Instructions
+
+1. Rebuild frontend: `cd frontend && npm run build` (T-046 and T-047 changed frontend source)
+2. Restart backend if needed (T-048 changed backend source — `backend/src/routes/ai.js`)
+3. No new migrations required
+4. No new environment variables required
+5. After deploy, Monitor Agent should run health check covering all 17 endpoints + 5 frontend routes
+
+### Blocking Note
+
+T-020 (user testing) is blocked until staging is redeployed with T-046/T-047 frontend fixes built into `dist/`. Please prioritize the frontend rebuild and staging restart.
+
+---
+
+## H-137 — QA Engineer → Manager Agent: Sprint 9 QA Phase Complete
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-137 |
+| **From** | QA Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | Sprint 9 QA complete — T-045, T-046, T-047, T-048 all Done; T-020 unblocked pending staging redeploy |
+| **Spec Refs** | T-045, T-046, T-047, T-048, T-020 |
+| **Status** | Pending |
+
+### Summary
+
+All 4 engineering tasks in Sprint 9 have passed QA:
+- **T-045** (CORS fix): Config verified, all 3 origins allowed ✅
+- **T-046** (CareScheduleForm expand): `onExpand` callback wired in both AddPlantPage and EditPlantPage ✅
+- **T-047** (EditPlantPage isDirty): All 3 `last_done_at` fields compared, Save button enables correctly ✅
+- **T-048** (Gemini 429 fallback): Full chain verified, non-429 errors throw immediately ✅
+
+All tasks moved to **Done** in dev-cycle-tracker.md. Handoff H-136 sent to Deploy Engineer for staging rebuild.
+
+**T-020 Status:** Unblocked once staging is redeployed with the frontend fixes. The 3 blocking bugs (T-045, T-046, T-047) are now resolved. User Agent can begin testing after Deploy Engineer confirms staging is updated.
+
+**Test counts:** 69/69 backend, 101/101 frontend — above Sprint 8 baselines (65/65, 95/95). No regressions.
+
+---
+
+## H-138 — Deploy Engineer → Monitor Agent: Sprint 9 Staging Deploy Complete — Run Health Checks
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-138 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | Sprint 9 staging deploy complete — T-045/T-046/T-047/T-048 all live — run post-deploy health checks |
+| **Spec Refs** | T-045, T-046, T-047, T-048 |
+| **Status** | Pending |
+
+### Deploy Summary
+
+All Sprint 9 tasks have been deployed to staging:
+
+| Task | Change | Deploy Action |
+|------|--------|---------------|
+| T-045 | CORS allows :5173, :5174, :4173 | Already live in `backend/.env` — config was already correct; confirmed via CORS preflight |
+| T-046 | CareScheduleForm `onExpand` callback — fixes expand buttons on Add/Edit Plant pages | Frontend rebuilt — dist/ updated 2026-03-28 11:29 |
+| T-047 | EditPlantPage `isDirty` memo — adds `last_done_at` comparisons for all 3 care types | Frontend rebuilt — dist/ updated 2026-03-28 11:29 |
+| T-048 | Gemini 429 model fallback chain in `backend/src/routes/ai.js` | Backend process restarted — old process (PID 2490, started 2026-03-27 23:40) killed; new process loaded T-048 code |
+
+### Staging Environment
+
+| Component | URL | Status |
+|-----------|-----|--------|
+| Backend API | `http://localhost:3000` | ✅ Running — `GET /api/health` → 200 |
+| Frontend | `http://localhost:5174` | ✅ Running — `vite preview` serving updated dist/ |
+
+### Pre-Deploy Test Results
+
+| Suite | Count | Result |
+|-------|-------|--------|
+| Backend (`npm test`) | 69/69 | ✅ PASS |
+| Frontend (`npx vitest run`) | 101/101 | ✅ PASS |
+
+### CORS Verification (Post-Restart)
+
+| Origin | Preflight Result |
+|--------|-----------------|
+| `http://localhost:5173` | ✅ 204 + correct `Access-Control-Allow-Origin` |
+| `http://localhost:5174` | ✅ 204 + `Access-Control-Allow-Origin: http://localhost:5174` |
+| `http://localhost:4173` | ✅ 204 + correct `Access-Control-Allow-Origin` |
+
+### Requested Health Checks
+
+Please verify all 17 API endpoints + 5 frontend routes, with focus on:
+
+1. **All 17 API endpoints** — confirm no new 500s post-restart
+2. **Frontend routes** — `/`, `/plants`, `/plants/add`, `/history`, `/due` all load without errors
+3. **CORS from :5174** — browser requests from Vite dev server on :5174 are not blocked (T-045)
+4. **T-048 smoke test** — `POST /api/v1/ai/advice` with a valid plant image returns AI advice (confirms fallback chain loaded correctly)
+5. **T-046/T-047 functional check** — AddPlantPage "Add fertilizing schedule" button expands the form; EditPlantPage date change enables "Save Changes"
+
+### Blocking Note
+
+**T-020 (User Testing) is unblocked** — all 3 blocking bugs (T-045, T-046, T-047) are deployed to staging. Once Monitor Agent confirms staging health, User Agent should begin T-020 immediately.
+
+---
+
+## H-139 — Deploy Engineer → QA Engineer: H-136 Acknowledged — Staging Deploy Complete
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-139 |
+| **From** | Deploy Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | H-136 acknowledged — staging deployed successfully |
+| **Spec Refs** | T-045, T-046, T-047, T-048 |
+| **Status** | Complete |
+
+### Actions Taken on H-136
+
+All deploy instructions from H-136 followed:
+
+1. ✅ Frontend rebuilt: `cd frontend && npm run build` — 0 errors, dist/ updated 2026-03-28 11:29
+2. ✅ Backend restarted: T-048 changed `ai.js`; old process (PID 2490, started 2026-03-27 23:40, pre-T-048) killed; new process started with T-048 code loaded and responding
+3. ✅ No migrations (none required per H-136)
+4. ✅ No new environment variables (none required per H-136)
+5. ✅ Monitor Agent handoff logged (H-138)
+
+**Staging is live with all Sprint 9 changes. T-020 is unblocked.**
+
+---
+
+## H-140 — QA Engineer → Deploy Engineer / Manager: Sprint 9 Post-Deploy QA Verification Complete
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-140 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer / Manager Agent |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | Post-deploy QA verification complete — all Sprint 9 tasks confirmed passing on staging |
+| **Spec Refs** | T-045, T-046, T-047, T-048 |
+| **Status** | Done |
+
+### Verification Summary
+
+Full post-deploy QA run executed after staging deploy (H-138). Results:
+
+1. **Unit Tests:** 69/69 backend ✅, 101/101 frontend ✅ — no regressions
+2. **Integration Tests:** All 4 tasks verified against API contracts and UI specs ✅
+3. **Config Consistency:** Backend PORT, Vite proxy target, CORS origins, Docker ports all aligned ✅
+4. **Security Scan:** All checklist items pass. No P1 issues. No new vulnerabilities. Pre-existing path-to-regexp (FB-031) tracked.
+5. **Product Perspective:** All bug fixes (expand buttons, isDirty dates, CORS) behave correctly from user's POV ✅
+
+### Task Status
+
+| Task | Status | QA Verdict |
+|------|--------|-----------|
+| T-045 (CORS) | Done | ✅ PASS |
+| T-046 (Expand) | Done | ✅ PASS |
+| T-047 (isDirty) | Done | ✅ PASS |
+| T-048 (429 fallback) | Done | ✅ PASS |
+
+### T-020 Status
+
+All 3 prerequisite bug fixes (T-045, T-046, T-047) are deployed and QA-verified. **T-020 (user testing) is fully unblocked.** The User Agent or project owner may proceed with end-to-end testing of all 3 MVP flows + Care History + Care Due Dashboard.
+
+### Deploy Readiness
+
+**Staging is confirmed ready.** All pre-deploy criteria met:
+- ✅ All unit tests pass
+- ✅ Integration tests pass
+- ✅ Security checklist verified
+- ✅ All Sprint 9 tasks are Done
+- ✅ No blocking issues
+
+Full results logged in `qa-build-log.md` under "Sprint 9 — Post-Deploy QA Verification".
 
 ---

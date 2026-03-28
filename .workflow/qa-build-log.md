@@ -4,6 +4,83 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 9 — Staging Deploy — Deploy Engineer (2026-03-28)
+
+**Date:** 2026-03-28
+**Deploy Engineer:** Deploy Agent
+**Sprint:** 9
+**Tasks Deployed:** T-045, T-046, T-047, T-048
+
+### Pre-Deploy Checklist
+
+| Check | Result |
+|-------|--------|
+| QA confirmation in handoff log (H-136) | ✅ QA cleared all 4 tasks |
+| Backend tests pass | ✅ 69/69 |
+| Frontend tests pass | ✅ 101/101 |
+| No new migrations required | ✅ Confirmed (H-136) |
+| No new environment variables required | ✅ Confirmed (H-136) |
+
+### Build
+
+| Step | Command | Result |
+|------|---------|--------|
+| Frontend build | `cd frontend && npm run build` | ✅ Success — 0 errors, 4 output files |
+| Backend (no build step) | N/A — Node.js runs source directly | ✅ N/A |
+
+**Frontend build output:**
+```
+dist/index.html                            0.74 kB │ gzip: 0.41 kB
+dist/assets/index-BNRL_D3i.css           39.06 kB │ gzip: 7.09 kB
+dist/assets/confetti.module-No8_urVw.js  10.57 kB │ gzip: 4.20 kB
+dist/assets/index-CDhAg80y.js           390.44 kB │ gzip: 114.09 kB
+✓ built in 177ms
+```
+
+### Deployment Actions
+
+| Action | Reason | Result |
+|--------|--------|--------|
+| Frontend rebuild (`npm run build`) | T-046 and T-047 changed frontend source — dist must reflect new JS | ✅ Done — dist rebuilt at 11:29 on 2026-03-28 |
+| Backend process restart (PID 2490 → new process) | T-048 changed `backend/src/routes/ai.js`; old process started 2026-03-27 23:40:07 (pre-T-048); restart required to load fallback chain code | ✅ Done — backend restarted, responding on port 3000 |
+| Database migrations | Not required — no schema changes in Sprint 9 | ✅ Skipped (N/A) |
+
+### Post-Deploy Verification
+
+| Check | Result |
+|-------|--------|
+| Backend health: `GET /api/health` → 200 | ✅ `{"status":"ok","timestamp":"2026-03-28T15:31:33.100Z"}` |
+| Frontend serving on :5174 → 200 | ✅ `vite preview` serving updated dist/ |
+| CORS preflight :5174 → 204 + `Access-Control-Allow-Origin: http://localhost:5174` | ✅ Confirmed |
+| CORS preflight :5173 → 204 | ✅ Confirmed |
+| CORS preflight :4173 → 204 | ✅ Confirmed |
+| T-048 code loaded in backend process | ✅ `MODEL_FALLBACK_CHAIN`, `isRateLimitError`, `generateWithFallback` confirmed in `ai.js` and loaded by restarted process |
+
+### Test Results (Pre-Deploy Gate)
+
+| Suite | Tests | Result |
+|-------|-------|--------|
+| Backend (`npm test`) | 69/69 | ✅ PASS |
+| Frontend (`npx vitest run`) | 101/101 | ✅ PASS |
+
+### Environment
+
+| Field | Value |
+|-------|-------|
+| Environment | Staging (local — `http://localhost:3000` backend, `http://localhost:5174` frontend) |
+| Build Status | **Success** |
+| Backend Restart | Yes — T-048 required process restart |
+| Frontend Rebuild | Yes — T-046 + T-047 required new dist/ |
+| Migrations Run | None (no schema changes) |
+| Regressions | None |
+
+### Handoff
+
+→ Monitor Agent: please run post-deploy health checks on all 17 API endpoints + 5 frontend routes (H-138).
+→ T-020 (User Testing) is now unblocked — all 3 blocking bugs deployed to staging.
+
+---
+
 ## Sprint 9 — T-045 CORS Fix — Deploy Engineer (2026-03-28)
 
 **Date:** 2026-03-28
@@ -667,4 +744,395 @@ All 65/65 backend tests and 95/95 frontend tests pass. All integration checks pa
 ### Summary
 **Deploy Verified:** Yes
 **Error Summary:** No failures. All 17 API endpoint checks pass, all 5 frontend routes pass, config consistency fully verified. Sprint 8 new endpoint `GET /api/v1/care-due` and new frontend route `/due` both operational. T-026 AI modal error state fix confirmed working in production build.
+
+---
+
+## Sprint #9 — QA Verification (2026-03-28)
+
+**QA Engineer:** QA Agent
+**Sprint:** 9
+**Date:** 2026-03-28
+**Tasks in Scope:** T-045, T-046, T-047, T-048
+
+---
+
+### Test Run 1 — Unit Tests (Backend)
+
+**Test Type:** Unit Test
+**Command:** `cd backend && npm test`
+**Result:** ✅ **69/69 PASS** (8 test suites)
+
+| Suite | Tests | Status |
+|-------|-------|--------|
+| plants.test.js | 18 | ✅ PASS |
+| ai.test.js | 11 (7 existing + 4 new T-048) | ✅ PASS |
+| careHistory.test.js | 9 | ✅ PASS |
+| auth.test.js | 11 | ✅ PASS |
+| careDue.test.js | 8 | ✅ PASS |
+| careActions.test.js | 6 | ✅ PASS |
+| account.test.js | 4 | ✅ PASS |
+| profile.test.js | 2 | ✅ PASS |
+
+**T-048 New Tests (4):**
+1. ✅ 429 on first model → fallback succeeds on second model (200)
+2. ✅ All 4 models return 429 → 502 AI_SERVICE_UNAVAILABLE
+3. ✅ Non-429 error → immediate 502 without fallback (gemini-2.5-flash NOT called)
+4. ✅ 429 detected via error message string (no `.status` property)
+
+**Coverage Check:** T-048 has 4 tests covering happy-path fallback, all-fail, non-429 immediate throw, and message-based 429 detection. Meets requirement of ≥1 happy-path + ≥1 error-path. ✅
+
+**Regression:** No failures. Count up from 65 (Sprint 8) to 69 (+4 new). ✅
+
+---
+
+### Test Run 2 — Unit Tests (Frontend)
+
+**Test Type:** Unit Test
+**Command:** `cd frontend && npm test`
+**Result:** ✅ **101/101 PASS** (20 test suites)
+
+**T-046 New Tests (3):**
+1. ✅ `CareScheduleForm` calls `onExpand` when clicking toggle in controlled mode (fertilizing)
+2. ✅ `CareScheduleForm` calls `onExpand` for repotting toggle in controlled mode
+3. ✅ Expands via local state when no `onExpand` is provided (uncontrolled fallback)
+
+**T-047 New Tests (3):**
+1. ✅ Save button enables when watering `last_done_at` is changed
+2. ✅ Save button enables when fertilizing `last_done_at` is changed
+3. ✅ Save button stays disabled when `last_done_at` matches original
+
+**Coverage Check:** T-046 has 3 tests (2 happy-path controlled expand, 1 fallback). T-047 has 3 tests (2 happy-path enable, 1 error-path stays disabled). Both meet ≥1 happy + ≥1 error. ✅
+
+**Regression:** No failures. Count up from 95 (Sprint 8) to 101 (+6 new). ✅
+
+---
+
+### Test Run 3 — Integration Tests
+
+**Test Type:** Integration Test
+
+#### T-045: CORS Fix for Port 5174
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| `backend/.env` FRONTEND_URL includes `:5174` | ✅ PASS | `http://localhost:5173,http://localhost:5174,http://localhost:4173` |
+| `app.js` CORS parsing splits comma-separated origins | ✅ PASS | `.split(',').map(o => o.trim())` with origin callback |
+| `.env.example` updated to document all 3 ports | ✅ PASS | Matches `.env` pattern |
+| No regression on `:5173` or `:4173` origins | ✅ PASS | All origins in allowedOrigins array |
+
+#### T-046: CareScheduleForm Expand Button
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| `CareScheduleForm` accepts `onExpand` prop | ✅ PASS | Destructured in component props |
+| `handleExpand()` calls both `setLocalExpanded(true)` and `onExpand()` | ✅ PASS | Line 23-26 of CareScheduleForm.jsx |
+| `AddPlantPage` passes `onExpand` for fertilizing | ✅ PASS | `onExpand={() => setFertilizingExpanded(true)}` at line 277 |
+| `AddPlantPage` passes `onExpand` for repotting | ✅ PASS | `onExpand={() => setRepottingExpanded(true)}` at line 290 |
+| `EditPlantPage` passes `onExpand` for fertilizing | ✅ PASS | `onExpand={() => setFertilizingExpanded(true)}` at line 304 |
+| `EditPlantPage` passes `onExpand` for repotting | ✅ PASS | `onExpand={() => setRepottingExpanded(true)}` at line 305 |
+
+#### T-047: EditPlantPage isDirty Last Done At
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| `normalizeLastDone` helper strips time portion | ✅ PASS | `val.split('T')[0]` — line 80 |
+| `isDirty` compares `wateringLastDone` vs original | ✅ PASS | Line 94 |
+| `isDirty` compares `fertilizingLastDone` vs original | ✅ PASS | Line 103 |
+| `isDirty` compares `repottingLastDone` vs original | ✅ PASS | Line 112 |
+| `wateringLastDone` in dependency array | ✅ PASS | Verified in source |
+| `fertilizingLastDone` in dependency array | ✅ PASS | Verified in source |
+| `repottingLastDone` in dependency array | ✅ PASS | Verified in source |
+| Save button disabled when `!isDirty` | ✅ PASS | Line 310 |
+
+#### T-048: Gemini 429 Model Fallback Chain
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| `MODEL_FALLBACK_CHAIN` order correct | ✅ PASS | `gemini-2.0-flash` → `gemini-2.5-flash` → `gemini-2.5-flash-lite` → `gemini-2.5-pro` |
+| `isRateLimitError` checks `err.status === 429` | ✅ PASS | Line 23 |
+| `isRateLimitError` checks `err.message.includes('429')` | ✅ PASS | Line 24 |
+| `generateWithFallback` loops through chain | ✅ PASS | Lines 91-108 |
+| Non-429 errors throw immediately (no continue) | ✅ PASS | Line 105 |
+| Last model in chain throws (no continue) | ✅ PASS | `i < MODEL_FALLBACK_CHAIN.length - 1` guard |
+| Route handler calls `generateWithFallback` | ✅ PASS | Line 137 |
+| Auth enforced via `router.use(authenticate)` | ✅ PASS | Line 6 |
+| Error handler catches and wraps as `ExternalServiceError` | ✅ PASS | Lines 140-144 |
+| API contract shape unchanged (200, 400, 401, 422, 502) | ✅ PASS | Verified against api-contracts.md Sprint 9 |
+
+#### Frontend ↔ Backend API Contract Verification
+
+| Endpoint | Frontend Call | Contract Match | Status |
+|----------|-------------|----------------|--------|
+| POST /api/v1/ai/advice | `ai.getAdvice()` in AIAdviceModal.jsx | Request/response shape unchanged | ✅ PASS |
+| All 17 endpoints | No changes in Sprint 9 | Contracts frozen | ✅ PASS |
+
+**Integration Test Result:** ✅ **ALL PASS** — All 4 Sprint 9 tasks verified.
+
+---
+
+### Test Run 4 — Config Consistency Check
+
+**Test Type:** Config Consistency
+
+| Check | Expected | Actual | Status |
+|-------|----------|--------|--------|
+| Backend PORT in `.env` | 3000 | 3000 | ✅ PASS |
+| Vite proxy target | `http://localhost:3000` | `http://localhost:3000` | ✅ PASS |
+| PORT ↔ proxy target match | Match | Match | ✅ PASS |
+| Backend SSL | Not enabled (http) | http in proxy target | ✅ PASS |
+| CORS_ORIGIN includes `http://localhost:5173` | Yes | Yes (comma-separated list) | ✅ PASS |
+| CORS_ORIGIN includes `http://localhost:5174` | Yes | Yes | ✅ PASS |
+| CORS_ORIGIN includes `http://localhost:4173` | Yes | Yes | ✅ PASS |
+| `.env.example` FRONTEND_URL matches `.env` pattern | Match | Match (all 3 ports documented) | ✅ PASS |
+| Docker Compose postgres port | 5432 | 5432 (matches DATABASE_URL) | ✅ PASS |
+
+**Config Consistency Result:** ✅ **ALL PASS** — No mismatches detected.
+
+---
+
+### Test Run 5 — Security Scan
+
+**Test Type:** Security Scan
+**Date:** 2026-03-28
+
+#### npm audit
+
+**Command:** `cd backend && npm audit`
+**Result:** ⚠️ 2 vulnerabilities (1 moderate, 1 high)
+
+| Package | Severity | Advisory | Notes |
+|---------|----------|----------|-------|
+| brace-expansion (<1.1.13) | Moderate | GHSA-f886-m6hf-6m8v — Zero-step sequence causes process hang | Transitive dep (nodemon). Dev-only. Not exploitable in production. |
+| path-to-regexp (<0.1.13) | High | GHSA-37ch-88jc-xwx2 — ReDoS via multiple route parameters | Express 4 transitive dep. Known issue — Express 5 migration tracked as FB-031. Not new to Sprint 9. |
+
+**Assessment:** Both vulnerabilities are **pre-existing** (present since Sprint 3+). Neither is introduced by Sprint 9 changes. `brace-expansion` is a dev-only dependency (nodemon). `path-to-regexp` is a known Express 4 issue tracked in FB-031 (Express 5 migration — out of scope). **No new vulnerabilities introduced by Sprint 9.**
+
+#### Security Checklist Verification
+
+**Authentication & Authorization:**
+- [x] All API endpoints require auth — `router.use(authenticate)` on all route files. Health endpoint excluded (intentional). ✅
+- [x] Auth tokens use JWT with 15-min expiry + 7-day refresh. ✅
+- [x] Password hashing uses bcrypt. ✅
+- [x] Failed login attempts are rate-limited (`authLimiter` at 20/15min). ✅
+
+**Input Validation & Injection Prevention:**
+- [x] All user inputs validated server-side (plant_type max 200 chars, required fields checked). ✅
+- [x] SQL queries use Knex parameterized queries — no string concatenation. ✅
+- [x] HTML output sanitized — React auto-escapes. No dangerouslySetInnerHTML. ✅
+- [x] File uploads validated for type, size, and content. ✅
+
+**API Security:**
+- [x] CORS configured for expected origins only (3 origins). ✅
+- [x] Rate limiting applied to all endpoints. ✅
+- [x] API responses do not leak internal error details. Error handler returns generic messages. ✅
+- [x] No sensitive data in URL query parameters. ✅
+- [x] Helmet middleware sets security headers. ✅
+
+**Data Protection:**
+- [x] DB credentials in environment variables, not in code. ✅
+- [x] `.env` is gitignored — not tracked by git. ✅
+- [x] `.env.example` contains only placeholder values. ✅
+- [x] Logs do not contain PII or tokens (console.error only logs error messages, not request bodies). ✅
+
+**Infrastructure:**
+- [x] Dependencies checked — 2 pre-existing vulnerabilities, no new ones. ✅
+- [x] Default credentials removed — JWT_SECRET in `.env` is a 128-char hex string. ✅
+- [x] Error pages do not reveal server technology or version info. ✅
+
+**Sprint 9-Specific Security Checks:**
+- [x] T-045: No secrets in `.env.example`. CORS only allows specified origins. ✅
+- [x] T-046: No security-relevant changes (UI expand callback only). ✅
+- [x] T-047: No security-relevant changes (isDirty memo logic only). ✅
+- [x] T-048: Auth enforced on AI endpoint. Error messages to client are generic. Model names not leaked to client. No hardcoded API keys in source. ✅
+- [x] No hardcoded secrets found in codebase (grep for API key patterns returned no results outside .env). ✅
+- [x] No SQL injection vectors — Knex parameterized queries throughout. ✅
+- [x] No XSS vulnerabilities — React auto-escaping, no dangerouslySetInnerHTML. ✅
+
+**Security Scan Result:** ✅ **PASS** — No new security issues. Pre-existing npm audit vulnerabilities are tracked and not actionable this sprint.
+
+---
+
+### Sprint #9 QA Summary
+
+| Task | Unit Tests | Integration | Config | Security | Overall |
+|------|-----------|-------------|--------|----------|---------|
+| T-045 (CORS fix) | N/A (config change) | ✅ PASS | ✅ PASS | ✅ PASS | ✅ **PASS** |
+| T-046 (CareScheduleForm expand) | ✅ 3 new tests | ✅ PASS | N/A | ✅ PASS | ✅ **PASS** |
+| T-047 (EditPlantPage isDirty) | ✅ 3 new tests | ✅ PASS | N/A | ✅ PASS | ✅ **PASS** |
+| T-048 (Gemini 429 fallback) | ✅ 4 new tests | ✅ PASS | N/A | ✅ PASS | ✅ **PASS** |
+
+**Backend Tests:** 69/69 ✅ (was 65, +4 new)
+**Frontend Tests:** 101/101 ✅ (was 95, +6 new)
+**Security:** No P1 issues. No new vulnerabilities.
+**Config Consistency:** All checks pass.
+
+**Verdict:** All 4 Sprint 9 tasks pass QA. Ready for deploy.
+
+---
+
+## Sprint 9 — Post-Deploy QA Verification — QA Engineer (2026-03-28)
+
+**Date:** 2026-03-28
+**QA Engineer:** QA Agent
+**Sprint:** 9
+**Purpose:** Full post-deploy verification after staging deploy (H-138). Confirms all Sprint 9 fixes hold, tests pass, security is clean, and T-020 is unblocked.
+
+---
+
+### Unit Test Results (Test Type: Unit Test)
+
+**Backend: 69/69 ✅**
+- 8 test suites, all passing
+- T-048 tests (4 new): 429→fallback success ✅, all-429→502 ✅, non-429 immediate throw ✅, 429 via message string ✅
+- All prior tests (auth, plants, careActions, careHistory, careDue, profile, account, ai) unchanged and passing
+
+**Frontend: 101/101 ✅**
+- 20 test suites, all passing
+- T-046 tests (3 new): controlled expand fertilizing ✅, controlled expand repotting ✅, uncontrolled fallback ✅
+- T-047 tests (3 new): Save enables on watering date change ✅, fertilizing date change ✅, disabled when unchanged ✅
+- All prior tests unchanged and passing
+
+**Test Coverage Assessment:**
+| Task | Happy-Path Tests | Error-Path Tests | Verdict |
+|------|-----------------|-----------------|---------|
+| T-045 (CORS) | Config-only, verified by curl (204 preflight) | N/A — no code change | ✅ PASS |
+| T-046 (Expand) | 2 controlled expand tests | 1 uncontrolled fallback test | ✅ PASS |
+| T-047 (isDirty) | 2 date-change-enables-save tests | 1 unchanged-stays-disabled test | ✅ PASS |
+| T-048 (429 fallback) | 1 fallback-success + 1 message-string detection | 1 all-429→502 + 1 non-429-no-fallback | ✅ PASS |
+
+---
+
+### Integration Test Results (Test Type: Integration Test)
+
+**T-045 — CORS Port 5174 Fix:**
+- ✅ `backend/.env` FRONTEND_URL = `http://localhost:5173,http://localhost:5174,http://localhost:4173` (all 3 origins)
+- ✅ `app.js` CORS parsing: `.split(',').map(o => o.trim())` correctly handles comma-separated origins
+- ✅ No-origin requests (curl, health checks) permitted via `if (!origin)` guard
+- ✅ Unauthorized origins correctly rejected with CORS error
+
+**T-046 — CareScheduleForm Expand Button:**
+- ✅ `CareScheduleForm.jsx`: `onExpand` callback prop added; `handleExpand()` calls both `setLocalExpanded(true)` and `onExpand()`
+- ✅ `AddPlantPage.jsx`: passes `onExpand={() => setFertilizingExpanded(true)}` and `onExpand={() => setRepottingExpanded(true)}`
+- ✅ `EditPlantPage.jsx`: passes identical `onExpand` callbacks for both care types
+- ✅ Collapse (Remove button) correctly resets local state and clears form values
+
+**T-047 — EditPlantPage isDirty last_done_at:**
+- ✅ `normalizeLastDone()` helper strips ISO time portion for date-only comparison
+- ✅ `isDirty` useMemo compares `wateringLastDone` vs `normalizeLastDone(origWater.last_done_at)`
+- ✅ Same for `fertilizingLastDone` and `repottingLastDone`
+- ✅ All 3 state variables in dependency array: `wateringLastDone, fertilizingLastDone, repottingLastDone`
+- ✅ Save Changes button is `disabled={!isDirty || saving}` — correctly gated
+
+**T-048 — Gemini 429 Model Fallback Chain:**
+- ✅ `MODEL_FALLBACK_CHAIN` = `['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro']`
+- ✅ `isRateLimitError()` checks both `err.status === 429` and `err.message.includes('429')`
+- ✅ `generateWithFallback()` iterates chain; on 429 + not last model → `continue`; on non-429 or last model → `throw`
+- ✅ Outer catch wraps all Gemini errors in `ExternalServiceError` (502) — no internal details leaked
+- ✅ API contract shape unchanged: `POST /api/v1/ai/advice` request/response identical to Sprint 1
+- ✅ Auth enforced via `router.use(authenticate)` — all endpoints on this router require JWT
+
+**Frontend→Backend API Contract Match:**
+- ✅ Frontend `api.js` calls match documented contract paths and methods
+- ✅ No new endpoints or contract changes in Sprint 9 (confirmed via H-129)
+- ✅ Error handling in frontend hooks correctly maps 400/401/422/502 responses
+
+---
+
+### Config Consistency Check (Test Type: Config Consistency)
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Backend PORT | 3000 | `PORT=3000` in `.env` | ✅ Match |
+| Vite proxy target | `http://localhost:3000` | `backendTarget = 'http://localhost:3000'` | ✅ Match |
+| Backend SSL | Not enabled (http) | Proxy uses `http://` | ✅ Consistent |
+| CORS_ORIGIN includes :5173 | Yes | `http://localhost:5173` in FRONTEND_URL | ✅ Present |
+| CORS_ORIGIN includes :5174 | Yes (T-045 fix) | `http://localhost:5174` in FRONTEND_URL | ✅ Present |
+| CORS_ORIGIN includes :4173 | Yes (preview) | `http://localhost:4173` in FRONTEND_URL | ✅ Present |
+| Docker postgres port | 5432 | `"${POSTGRES_PORT:-5432}:5432"` | ✅ Match |
+| DATABASE_URL port | 5432 | `localhost:5432` in `.env` | ✅ Match |
+| .env.example documents all 3 CORS origins | Yes | Updated by T-045 | ✅ Present |
+
+**Config Consistency Verdict:** All checks pass. No mismatches.
+
+---
+
+### Security Verification (Test Type: Security Scan)
+
+**Authentication & Authorization:**
+- [x] All API endpoints require authentication — `router.use(authenticate)` on all route files; auth routes exempt (register/login)
+- [x] JWT token verification uses `process.env.JWT_SECRET` — not hardcoded
+- [x] Password hashing uses bcrypt with 10 salt rounds (User.js)
+- [x] Failed login rate-limited via `authLimiter` (20/15min)
+
+**Input Validation & Injection Prevention:**
+- [x] SQL queries use parameterized Knex.js query builder — no raw string concatenation found
+- [x] User inputs validated server-side (plant name, care types, frequency values, page/limit, UUIDs)
+- [x] File uploads validated for type and size (multer middleware)
+- [x] HTML output sanitized by React's default JSX escaping — no `dangerouslySetInnerHTML` found
+
+**API Security:**
+- [x] CORS configured with explicit origin whitelist (not `*`)
+- [x] Rate limiting on all endpoints (general: 100/15min, auth: 20/15min)
+- [x] Error responses use structured JSON — no stack traces leaked (errorHandler.js line 30: unknown errors return generic message)
+- [x] Helmet.js applies security headers (X-Content-Type-Options, X-Frame-Options, etc.)
+
+**Data Protection:**
+- [x] JWT_SECRET in `.env`, not in code
+- [x] GEMINI_API_KEY in `.env`, not in code
+- [x] `.env` in `.gitignore`, not tracked by git
+- [x] `.env.example` uses placeholder values (`your-super-secret-jwt-key-change-in-production`, `your-gemini-api-key`)
+
+**npm audit:**
+- Backend: 1 high (path-to-regexp ReDoS — Express 4 transitive, pre-existing FB-031), 1 moderate (brace-expansion — dev dep)
+- Frontend: 1 moderate (brace-expansion — dev dep)
+- **No new vulnerabilities introduced in Sprint 9**
+- **No P1 security issues**
+
+**Security Verdict:** ✅ PASS — all checklist items verified. Pre-existing path-to-regexp vulnerability tracked in FB-031 (Express 5 migration backlog), mitigated by rate limiting.
+
+---
+
+### Product-Perspective Testing (Test Type: Product Perspective)
+
+**T-046 — CareScheduleForm Expand (User Perspective):**
+- ✅ On Add Plant page: "Add fertilizing schedule" button visible; clicking it expands the fertilizing form fields
+- ✅ On Add Plant page: "Add repotting schedule" button visible; clicking it expands the repotting form fields
+- ✅ On Edit Plant page: same behavior for plants without existing fertilizing/repotting schedules
+- ✅ Remove button collapses and clears the section — good UX, no orphaned data
+- ✅ AI Accept flow correctly sets `expanded` for fertilizing/repotting — seamless integration
+
+**T-047 — EditPlantPage isDirty (User Perspective):**
+- ✅ Changing only "Last watered" date → Save Changes button enables (user can save date-only change)
+- ✅ Changing only "Last fertilized" date → Save button enables
+- ✅ Changing only "Last repotted" date → Save button enables
+- ✅ Reverting date back → Save button correctly disables (no false positives)
+- ✅ Submitting date-only changes → saves and redirects to plant detail page
+
+**T-048 — Gemini 429 Fallback (User Perspective):**
+- ✅ From user's perspective, this is invisible — AI advice still works, just with potentially different underlying model
+- ✅ If all models are rate-limited, user sees the same 502 "AI service unavailable" error they would have before
+- ✅ No change to AI advice modal UX — response shape identical
+
+**Edge Cases Considered:**
+- Empty plant name → validation catches it (client + server)
+- Very long plant type (>200 chars) → server returns 400
+- Special characters in plant name → React escapes properly, server stores correctly
+- Rapid repeated AI advice requests → rate limiter protects backend
+- Date in the future for "Last watered" → frontend `max` attribute prevents it; backend validates `performed_at` for care actions
+
+---
+
+### Summary
+
+| Check | Result |
+|-------|--------|
+| Unit Tests | ✅ 69/69 backend, 101/101 frontend |
+| Integration Tests | ✅ All 4 tasks verified against contracts and specs |
+| Config Consistency | ✅ All port/CORS/proxy settings aligned |
+| Security Scan | ✅ No P1 issues, no new vulnerabilities |
+| Product Perspective | ✅ All bug fixes behave correctly from user's perspective |
+
+**Overall Sprint 9 QA Verdict: ✅ ALL PASS**
+
+All 4 tasks (T-045, T-046, T-047, T-048) confirmed Done. T-020 (user testing) is now unblocked — all 3 prerequisite bug fixes are deployed and verified. No blocking issues found.
 

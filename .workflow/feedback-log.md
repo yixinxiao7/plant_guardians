@@ -822,3 +822,63 @@ SPEC-009 specifies that after a successful mark-done action, focus should move t
 **Recommendation:** Track as a minor enhancement for a future sprint.
 
 ---
+
+## FB-034 — Sprint 9 QA: CareScheduleForm Expand Fix Works Cleanly (T-046)
+
+| Field | Value |
+|-------|-------|
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Sprint** | 9 |
+| **Source** | QA Engineer — product-perspective review |
+| **Status** | New |
+| **Date** | 2026-03-28 |
+
+The `onExpand` callback pattern is a clean solution. It preserves backward compatibility (uncontrolled mode still works) while enabling the controlled expand from parent pages. The dual `setLocalExpanded(true)` + `onExpand()` approach means the component works correctly in both contexts. Good engineering decision.
+
+---
+
+## FB-035 — Sprint 9 QA: Gemini 429 Fallback Chain — Good Resilience Pattern (T-048)
+
+| Field | Value |
+|-------|-------|
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Sprint** | 9 |
+| **Source** | QA Engineer — product-perspective review |
+| **Status** | New |
+| **Date** | 2026-03-28 |
+
+The model fallback chain is well-implemented. The `isRateLimitError` helper handles both `err.status` and message-string detection, covering different Gemini SDK error formats. Non-429 errors correctly bypass the fallback (no unnecessary retries). The user experience improves: instead of immediately showing "service offline" on a rate limit, the system silently tries alternative models. The slight latency increase (up to 4 sequential attempts) is an acceptable tradeoff for better availability.
+
+---
+
+## FB-036 — Sprint 9 QA: normalizeLastDone Edge Case — Empty String Comparison
+
+| Field | Value |
+|-------|-------|
+| **Category** | UX Issue |
+| **Severity** | Low |
+| **Sprint** | 9 |
+| **Source** | QA Engineer — product-perspective review |
+| **Status** | New |
+| **Date** | 2026-03-28 |
+
+The `normalizeLastDone` helper (`val ? val.split('T')[0] : ''`) works correctly for the current use case. However, if a care schedule has `last_done_at: null` (never done) and the user sets a date, then clears it back to empty, the comparison works because both normalize to `''`. This is correct behavior — just noting it as a verified edge case, not a bug.
+
+---
+
+## FB-037 — Sprint 9 QA: npm audit — path-to-regexp High Severity Still Open
+
+| Field | Value |
+|-------|-------|
+| **Category** | Bug |
+| **Severity** | Low (pre-existing, not new) |
+| **Sprint** | 9 |
+| **Source** | QA Engineer — security scan |
+| **Status** | New |
+| **Date** | 2026-03-28 |
+
+`npm audit` reports a **high** severity vulnerability in `path-to-regexp` (GHSA-37ch-88jc-xwx2 — ReDoS). This is a transitive dependency of Express 4. It has been present since the project was created and is tracked in FB-031 (Express 5 migration). Not actionable within Express 4. Risk is mitigated by rate limiting on all routes. No user action needed this sprint, but the Express 5 migration should remain on the backlog.
+
+---
