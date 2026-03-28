@@ -2278,3 +2278,77 @@ While fixing T-046 and T-047, please ensure:
 These are existing SPEC requirements, noted here for the bug-fix context.
 
 ---
+
+## H-129 — Backend Engineer → Frontend Engineer: Sprint 9 API Contracts — No Integration Changes Required
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-129 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | Sprint 9 API contract phase complete — zero contract changes, no frontend integration work needed |
+| **Spec Refs** | T-048 |
+| **Status** | Informational — no action required |
+
+### Summary
+
+Sprint 9 has **one backend task (T-048)**: implement a Gemini 429 model fallback chain inside `POST /api/v1/ai/advice`. This is a pure internal behavior change.
+
+**What is NOT changing:**
+- Request body shape for `POST /api/v1/ai/advice`
+- Success (200) response shape
+- All error codes and response shapes (400, 401, 422, 502)
+- All 16 other endpoints — completely untouched
+
+**What IS changing (backend-internal only):**
+- On a 429 rate-limit error, the backend now silently retries through up to 4 Gemini models before surfacing a 502. The frontend sees the same 502 `AI_SERVICE_UNAVAILABLE` response it always has — just potentially with a longer delay before it arrives.
+
+**Frontend action required:** None. Your T-046 and T-047 fixes have no interaction with the AI endpoint. No api.js changes needed.
+
+Full contract detail: see Sprint 9 section in `.workflow/api-contracts.md`.
+
+---
+
+## H-130 — Backend Engineer → QA Engineer: Sprint 9 API Contract for Testing Reference
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-130 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-28 |
+| **Sprint** | 9 |
+| **Subject** | Sprint 9 backend contract — behavioral-only update to POST /api/v1/ai/advice; test reference for T-048 |
+| **Spec Refs** | T-048 |
+| **Status** | Pending |
+
+### Summary
+
+Sprint 9 has one backend task (T-048): Gemini 429 model fallback chain. No new endpoints, no schema changes.
+
+### What to Test (T-048)
+
+The implementation lives in `backend/src/routes/ai.js`. QA should verify:
+
+**Fallback chain behavior (unit tests expected from backend engineer):**
+1. **429 on model 1 → succeeds on model 2:** When `gemini-2.0-flash` returns a 429, the code retries with `gemini-2.5-flash` and returns the successful response (200).
+2. **429 on models 1–2 → succeeds on model 3:** Retry chain continues to `gemini-2.5-flash-lite`.
+3. **429 on models 1–3 → succeeds on model 4:** Retry chain continues to `gemini-2.5-pro`.
+4. **429 on all 4 models → 502:** All models exhausted → `ExternalServiceError` → `{ "error": { "message": "...", "code": "AI_SERVICE_UNAVAILABLE" } }`.
+5. **Non-429 error on model 1 → immediate 502 (no fallback):** A network error or 500 from Gemini must NOT trigger a retry.
+
+**Contract shape verification:**
+- `POST /api/v1/ai/advice` request/response shapes must be identical to the Sprint 1 contract.
+- All prior error codes (400, 401, 422, 502) must still behave as documented.
+
+**Regression check:**
+- All 65/65 backend tests must still pass after T-048 is implemented.
+- Non-AI endpoints must be unaffected.
+
+**No real-key 429 testing required** — mock-based unit tests are sufficient per sprint plan (real key testing is informational only, as noted in active-sprint.md).
+
+Full contract detail: see Sprint 9 section in `.workflow/api-contracts.md`.
+
+---

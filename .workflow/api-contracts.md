@@ -1631,3 +1631,127 @@ No new environment variables are required for T-043.
 ---
 
 *Sprint 8 contract written by Backend Engineer — 2026-03-27. One new endpoint: GET /api/v1/care-due. No schema changes. All 16 prior endpoints unchanged.*
+
+---
+
+## Sprint 9 Contracts
+
+---
+
+### T-048 — Gemini 429 Model Fallback Chain (Behavioral Update to POST /api/v1/ai/advice)
+
+**Task:** T-048
+**Type:** Internal behavior change — no contract shape changes
+**Status:** Contracted (2026-03-28)
+
+---
+
+#### Summary
+
+Sprint 9 introduces **no new endpoints** and **no schema changes**. The single backend task (T-048) modifies the internal error-handling behavior of the existing `POST /api/v1/ai/advice` endpoint. The request body, success response shape, and all error response codes/shapes remain **identical** to the Sprint 1 contract.
+
+Frontend engineers and QA: **no integration changes required.** The external-facing contract is frozen.
+
+---
+
+#### POST /api/v1/ai/advice — Behavioral Update
+
+**Auth:** Bearer token (unchanged)
+
+**Request Body:** Unchanged from Sprint 1.
+
+```json
+{
+  "plant_type": "string | null",   // optional; max 200 chars
+  "photo_url":  "string | null"    // optional; must be a URL string
+}
+```
+
+At least one of `plant_type` or `photo_url` must be provided.
+
+**Success Response — 200 OK:** Unchanged from Sprint 1.
+
+```json
+{
+  "data": {
+    "identified_plant_type": "string | null",
+    "confidence": "high | medium | low | null",
+    "care_advice": {
+      "watering": {
+        "frequency_value": 7,
+        "frequency_unit": "days",
+        "notes": "string | null"
+      },
+      "fertilizing": {
+        "frequency_value": 2,
+        "frequency_unit": "weeks",
+        "notes": "string | null"
+      },
+      "repotting": {
+        "frequency_value": 12,
+        "frequency_unit": "months",
+        "notes": "string | null"
+      },
+      "light": "string | null",
+      "humidity": "string | null",
+      "additional_tips": "string | null"
+    }
+  }
+}
+```
+
+**Error Responses:** Unchanged from Sprint 1.
+
+| Status | Code | Trigger |
+|--------|------|---------|
+| 400 | `VALIDATION_ERROR` | Neither `plant_type` nor `photo_url` provided; `plant_type` exceeds 200 chars |
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 422 | `PLANT_NOT_IDENTIFIABLE` | Gemini returned a response that could not be parsed into the expected care-advice structure |
+| 502 | `AI_SERVICE_UNAVAILABLE` | Gemini API key not configured; OR all fallback models returned 429 rate-limit errors |
+
+---
+
+#### Behavioral Change: 429 Fallback Chain (Internal Only)
+
+This is an **internal implementation detail**. It changes when the 502 is surfaced, not what the frontend receives when it is.
+
+**Previous behavior (Sprint 1–8):**
+Any Gemini API error (including 429 rate limit) immediately throws `ExternalServiceError` → `502 AI_SERVICE_UNAVAILABLE`.
+
+**New behavior (Sprint 9 — T-048):**
+On a 429 rate-limit response (`err.status === 429` or `err.message` contains `'429'`), the backend silently retries through a model chain before returning 502:
+
+```
+Attempt 1: gemini-2.0-flash      (primary model)
+    ↓ if 429 →
+Attempt 2: gemini-2.5-flash
+    ↓ if 429 →
+Attempt 3: gemini-2.5-flash-lite
+    ↓ if 429 →
+Attempt 4: gemini-2.5-pro
+    ↓ if 429 →
+502 AI_SERVICE_UNAVAILABLE       (all models exhausted)
+```
+
+**Rules:**
+- Non-429 errors at any step are re-thrown immediately — no fallback occurs.
+- If any model in the chain succeeds, the 200 success response is returned normally.
+- If all four models return 429, `ExternalServiceError` is thrown → `502 AI_SERVICE_UNAVAILABLE` with the same error body as before.
+
+**Frontend impact:** None. The frontend already handles 502 per SPEC-006 (shows "Our AI service is temporarily offline" with only a "Close" button). The only observable difference is that a rate-limited request may take longer (up to 4 sequential model attempts) before the 502 is returned — this is intentional resilience behavior.
+
+---
+
+#### Schema Changes — Sprint 9
+
+None. No new tables, columns, or migrations required for T-048.
+
+---
+
+#### Environment Variables — Sprint 9
+
+No new environment variables required. `GEMINI_API_KEY` (existing) is used by all four fallback models.
+
+---
+
+*Sprint 9 contract written by Backend Engineer — 2026-03-28. Zero new endpoints. No schema changes. Behavioral-only update to POST /api/v1/ai/advice (429 fallback chain). All 17 prior endpoints and their shapes unchanged.*
