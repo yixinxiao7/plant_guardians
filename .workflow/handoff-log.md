@@ -1969,3 +1969,59 @@ Full test results logged in `.workflow/qa-build-log.md` under "Sprint 7 — Comp
 
 3. **T-020 (User Testing) remains Backlog.** This is the only incomplete Sprint 7 task. It has been deferred for 6 consecutive sprints. Per the tracker note: "Sprint 7 will not close without this task Done." This task is unblocked — staging is verified (H-102). It requires a User Agent run to test all 3 MVP flows in the browser.
 
+---
+
+## H-105 — Design Agent → Frontend Engineer: SPEC-009 Focus Management Amendment Approved — T-050 Ready to Build
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-105 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | SPEC-009 Care Due Dashboard — Focus Management After Mark-Done amendment is complete and approved. Frontend Engineer may implement T-050 after T-020 is confirmed Done. |
+| **Spec Refs** | SPEC-009 Amendment (Sprint #10 — T-050) in `ui-spec.md` |
+| **Status** | Pending |
+
+### Context
+
+T-050 is a P3 polish task that closes a known accessibility gap in the Care Due Dashboard (`/due` page). The original SPEC-009 described the desired focus behavior in a single sentence under the Accessibility section. This was noted as a known limitation and skipped in prior sprints (see FB-033). Sprint #10 resolves it.
+
+A full implementation amendment has been added to `ui-spec.md` immediately following the original SPEC-009 Accessibility section, under the heading **"SPEC-009 Amendment — Focus Management After Mark-Done (Sprint #10 — T-050)"**.
+
+### What to Build
+
+Implement focus management in `frontend/src/pages/CareDuePage.jsx` so that after a successful "Mark as done" action removes a care-due item:
+
+1. **Next sibling exists in same section** → focus its "Mark as done" button
+2. **Section is now empty; a later section has items** → focus first item in next non-empty section (Overdue → Due Today → Coming Up order)
+3. **No later section has items; an earlier section has items** → focus first item in topmost non-empty section
+4. **All sections empty (all-clear reached)** → focus the "View my plants" button
+
+### Key Implementation Details
+
+- Use a `ref` map keyed by `${plant_id}__${care_type}` to track button DOM nodes
+- Move focus **after** the card's 300ms fade-out transition completes (use `transitionend` listener, with `setTimeout(fn, 300)` as fallback)
+- If `prefers-reduced-motion: reduce` is active (instant removal), move focus **synchronously** — no delay
+- `viewMyPlantsButtonRef` must be added to the all-clear CTA button
+
+### Test Requirements
+
+Add 6 new test cases covering each focus-destination scenario and the reduced-motion case. See the full test table in the SPEC-009 Amendment. **All existing 101 frontend tests must continue to pass.**
+
+### Dependency Note
+
+⚠️ **Do not begin T-050 until T-020 (User Testing) is confirmed Done.** Per `active-sprint.md`, T-050 begins only after the MVP is officially declared complete. The focus management amendment is ready and approved — hold implementation until T-020 closes.
+
+### Files to Touch
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/CareDuePage.jsx` | Add ref map, `getNextFocusTarget` helper, focus call in mark-done handler |
+| Relevant test file(s) | Add 6 new focus-management test cases |
+
+### No New API Calls
+
+T-050 is a pure frontend accessibility fix. No new backend endpoints or API contracts are required. The existing `POST /api/v1/care-actions` mark-done flow is unchanged.
+

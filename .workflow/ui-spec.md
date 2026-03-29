@@ -1304,10 +1304,151 @@ Endpoint: `GET /api/v1/care-due` (see T-043 and `api-contracts.md`)
 - **Error state:** Retry button with `aria-label="Retry loading care due items"`.
 - **Badge in sidebar:** `aria-label="[N] plants overdue or due today"` on the badge element. Update dynamically. When badge disappears, update parent nav item `aria-label` to remove the count.
 - **Mark-done in-flight state:** `aria-busy="true"` on the button while API call is pending. `aria-live="polite"` region announces "[Plant name] [care type] marked as done." on success, or "Could not mark as done. Please try again." on error.
-- **Focus management:** After successful mark-done, if the item is removed and there is a next item in the same section, move focus to the "Mark as done" button of that next item. If the section becomes empty, move focus to the next section's first "Mark as done" button. If all sections are empty, move focus to the "View my plants" button in the all-clear state.
+- **Focus management:** After successful mark-done, if the item is removed and there is a next item in the same section, move focus to the "Mark as done" button of that next item. If the section becomes empty, move focus to the next section's first "Mark as done" button. If all sections are empty, move focus to the "View my plants" button in the all-clear state. *(See Sprint #10 Focus Management Amendment below for full implementation spec.)*
 - **Keyboard:** All interactive elements reachable by Tab in logical DOM order (section by section, top to bottom). "Mark as done" button activatable via Enter/Space.
 - **Color contrast:** All text meets WCAG AA. Status colors (`#B85C38`, `#C4921F`, `#4A7C59`) are paired with white/light backgrounds for sufficient contrast on 12px+ text at font-weight 500+.
 - **Reduced motion:** The card fade-out animation after mark-done should respect `prefers-reduced-motion`: if reduced motion is preferred, skip the animated removal and instantly hide/remove the card. The loading shimmer animation should also be disabled under `prefers-reduced-motion`.
+
+---
+
+#### SPEC-009 Amendment — Focus Management After Mark-Done (Sprint #10 — T-050)
+
+**Status:** Approved — 2026-03-29
+**Related Task:** T-050
+**Fix location:** `frontend/src/pages/CareDuePage.jsx`
+
+This amendment expands the one-sentence focus management rule from the Accessibility section above into a complete implementation specification. The behavior was defined in the original SPEC-009 but was deferred as a known limitation (noted in H-116). Sprint #10 closes that gap.
+
+---
+
+##### Why This Matters
+
+When a keyboard or screen reader user activates "Mark as done" and the item is removed from the DOM, focus is dropped to `<body>`. The user loses their place in the list entirely and must Tab back through the entire page to find where they were. This is disorienting — especially when completing several care actions in a row. The fix is to programmatically move focus to the logical next target after each removal.
+
+---
+
+##### Focus Destination Decision Tree
+
+After a mark-done action succeeds and the card begins its removal sequence, apply this decision tree **in order**:
+
+1. **Next sibling item in the same section exists?**
+   → Move focus to its "Mark as done" button.
+
+2. **No sibling remains in the same section — but a later section (lower on page) has items?**
+   → Move focus to the first "Mark as done" button in the next non-empty section below.
+   → Sections are ordered: Overdue → Due Today → Coming Up. Skip any that are now empty.
+
+3. **No later section has items — but an earlier section (above) still has items?**
+   → Move focus to the first "Mark as done" button in the topmost non-empty section.
+   *(This handles the edge case where the user was in "Due Today" or "Coming Up" and those sections are now empty but "Overdue" still has items.)*
+
+4. **All sections are now empty (all-clear state reached)?**
+   → Move focus to the **"View my plants"** primary button rendered in the all-clear state.
+
+---
+
+##### Timing — When to Move Focus
+
+Focus must be moved **after the item is fully removed from the DOM**, not during the fade-out transition. Moving focus during the animation would cause a screen reader to announce an element that visually appears to be disappearing, which is confusing.
+
+**Standard motion (prefers-reduced-motion: no preference):**
+- The card animates out over `300ms` (`opacity: 0`, `height → 0`, `margin → 0`, `padding → 0`).
+- Wait for the CSS transition to complete before calling `.focus()`.
+- Implementation: use a `transitionend` listener on the card element, or a `setTimeout(fn, 300)` fallback (use the timeout as the fallback only — `transitionend` is preferred to avoid timing drift).
+
+**Reduced motion (prefers-reduced-motion: reduce):**
+- Per the existing spec, the card is instantly removed (no animation).
+- In this case, move focus **synchronously** — no delay needed.
+- Detect with `window.matchMedia('(prefers-reduced-motion: reduce)').matches`.
+
+---
+
+##### React Implementation Guidance
+
+Use **refs** to maintain references to the "Mark as done" buttons across re-renders.
+
+Recommended pattern:
+```jsx
+// Maintain a ref map: item key → button DOM node
+const markDoneButtonRefs = useRef({});  // { [itemKey]: buttonElement }
+
+// When registering each button:
+<button
+  ref={(el) => { markDoneButtonRefs.current[itemKey] = el; }}
+  aria-label={`Mark ${plant.name} ${careType} as done`}
+  onClick={() => handleMarkDone(plant.plant_id, careType, itemKey)}
+>
+  Mark as done
+</button>
+
+// In handleMarkDone, after API success:
+const focusTarget = getNextFocusTarget(itemKey, sections);
+// Remove item from local state
+// After transition:
+if (focusTarget) {
+  focusTarget.focus();
+} else {
+  // All-clear: the "View my plants" button
+  viewMyPlantsButtonRef.current?.focus();
+}
+```
+
+**`getNextFocusTarget(currentItemKey, currentSections)` logic:**
+- Determine which section the current item belongs to (Overdue / Due Today / Coming Up).
+- Find the index of the current item within that section's list.
+- Check if `index + 1` exists in the same section's **post-removal** list (the list after this item is removed). If yes → return ref for that item's button.
+- If no sibling: iterate through sections in order (Overdue → Due Today → Coming Up), skipping the current section and any empties. Return first item's button ref from first non-empty section found.
+- If all sections empty: return `null` (caller falls through to "View my plants" button).
+
+**The all-clear button ref:**
+```jsx
+const viewMyPlantsButtonRef = useRef(null);
+// On the all-clear CTA:
+<button ref={viewMyPlantsButtonRef} ...>View my plants</button>
+```
+
+---
+
+##### Item Key Convention
+
+Each item needs a stable key for the ref map. Use a composite key:
+```
+`${plant_id}__${care_type}`
+```
+Example: `"abc-123-uuid__watering"`
+
+This key must be consistent between the ref registration and the mark-done handler call.
+
+---
+
+##### Edge Cases
+
+| Scenario | Expected Focus Target |
+|----------|-----------------------|
+| Middle item removed; sibling below exists in same section | Next sibling's "Mark as done" button |
+| Last item in section removed; Due Today still has items | First "Due Today" item's "Mark as done" button |
+| Last Overdue item removed; only Coming Up has items | First "Coming Up" item's "Mark as done" button |
+| Only one item ever existed, now all-clear | "View my plants" button |
+| User marks done very fast (button clicks overlap) | Disable button during in-flight API call (already specced); focus logic runs after each individual success, so no collision |
+| Focus target has been unmounted before focus fires (rare race) | Gracefully no-op; do not throw; log a warning in dev mode |
+| `prefers-reduced-motion: reduce` + instant DOM removal | Call `.focus()` synchronously after state update (no setTimeout) |
+
+---
+
+##### Test Coverage Requirements (T-050)
+
+The Frontend Engineer must add tests covering the following scenarios. All **existing 101 frontend tests must continue to pass**. New tests are additions only.
+
+| Test # | Scenario | Expected Result |
+|--------|----------|----------------|
+| 1 | Mark done on middle item in Overdue section | Focus moves to next Overdue item's "Mark as done" button |
+| 2 | Mark done on last item in Overdue section (Due Today has items) | Focus moves to first Due Today item's "Mark as done" button |
+| 3 | Mark done on last item in Overdue (Due Today empty, Coming Up has items) | Focus moves to first Coming Up item's "Mark as done" button |
+| 4 | Mark done on last item in Due Today (Coming Up has items) | Focus moves to first Coming Up item's "Mark as done" button |
+| 5 | Mark done on last remaining item across all sections | Focus moves to "View my plants" button |
+| 6 | `prefers-reduced-motion: reduce` — mark done | Focus moves synchronously (no setTimeout delay) |
+
+Use `@testing-library/user-event` for click simulation. Assert `document.activeElement` after the relevant state update / timer flush to confirm focus destination.
 
 ---
 
