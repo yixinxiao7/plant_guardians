@@ -2025,3 +2025,79 @@ Add 6 new test cases covering each focus-destination scenario and the reduced-mo
 
 T-050 is a pure frontend accessibility fix. No new backend endpoints or API contracts are required. The existing `POST /api/v1/care-actions` mark-done flow is unchanged.
 
+---
+
+## H-106 — Backend Engineer → Frontend Engineer: Sprint #10 — No New API Contracts
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-106 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | No new API contracts for Sprint #10. All existing contracts from prior sprints remain valid and unchanged. |
+| **Spec Refs** | N/A |
+| **Status** | Complete |
+
+### Context
+
+The Backend Engineer has no assigned tasks in Sprint #10. Per `active-sprint.md`:
+
+- Backend Engineer assignment: **No tasks this sprint**
+- Out of scope: *"Any new API endpoints or screens beyond current set"*
+
+All Sprint #10 work (T-020 user testing, T-050 focus management, T-051 Monitor Agent system prompt) requires no new or modified backend endpoints.
+
+### Current Contract Status
+
+All previously published API contracts remain in effect with no changes:
+
+| Contract Location | Status |
+|-------------------|--------|
+| `api-contracts.md` → Sprint 1 (Auth, Plants CRUD, Photo Upload, AI Advice, Care Actions, Profile Stats) | **Unchanged — valid** |
+| `api-contracts.md` → Sprint 7 (GET /api/v1/care-actions) | **Unchanged — valid** |
+| `api-contracts.md` → Sprint 8 (GET /api/v1/care-due) | **Unchanged — valid** |
+
+### T-050 Integration Note
+
+T-050 (focus management in CareDuePage) uses only the existing `POST /api/v1/care-actions` endpoint already documented in Sprint 1 contracts. No new API integration work is required for the frontend.
+
+---
+
+## H-107 — Backend Engineer → QA Engineer: Sprint #10 — No New API Contracts for Testing Reference
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-107 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | No new API contracts in Sprint #10. QA reference: all previously verified contracts remain unchanged. T-050 uses existing POST /care-actions. |
+| **Spec Refs** | N/A |
+| **Status** | Complete |
+
+### Context
+
+The Backend Engineer has no assigned tasks in Sprint #10. No new endpoints, no schema migrations, no API contract changes.
+
+### QA Scope This Sprint
+
+Sprint #10 QA work is on-demand per `active-sprint.md`:
+
+| Task | Type | API Involvement |
+|------|------|----------------|
+| T-020 | User testing (User Agent) | All existing endpoints — no changes |
+| T-050 | Frontend: focus management in CareDuePage | Uses existing `POST /api/v1/care-actions` only — no new calls |
+| T-051 | Monitor Agent: stale account reference fix | No API involvement |
+
+### Backend Health Baseline
+
+As of Sprint #9 (Monitor Agent Deploy Verified: Yes):
+- 69/69 backend tests pass
+- All 17 endpoints verified healthy on staging
+- No new backend changes in Sprint #10 — baseline should remain unchanged
+
+If QA runs regression checks on the backend during T-020 user testing, the Sprint 9 baseline (69/69) is the expected target.
+
