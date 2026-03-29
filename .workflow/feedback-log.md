@@ -893,7 +893,7 @@ The `normalizeLastDone` helper (`val ? val.split('T')[0] : ''`) works correctly 
 | **Date** | 2026-03-28 |
 | **Category** | UX Issue |
 | **Severity** | Major |
-| **Status** | New |
+| **Status** | Tasked → T-052 (Sprint 11) |
 
 ### Description
 
@@ -915,7 +915,7 @@ On the Plant Inventory page, each plant card shows care status badges (e.g. "1 d
 | **Date** | 2026-03-28 |
 | **Category** | UX Issue |
 | **Severity** | Major |
-| **Status** | New |
+| **Status** | Tasked → T-053 (Sprint 11) |
 
 ### Description
 
@@ -941,7 +941,7 @@ This is the industry-standard pattern for secure session persistence and resolve
 | **Date** | 2026-03-29 |
 | **Category** | Bug |
 | **Severity** | Major |
-| **Status** | New |
+| **Status** | Tasked → T-054 (Sprint 11) |
 
 ### Description
 
@@ -965,7 +965,7 @@ Root cause: the `isDirty` memo in `EditPlantPage.jsx` (line 88) only returns `tr
 | **Date** | 2026-03-29 |
 | **Category** | Positive |
 | **Severity** | N/A |
-| **Status** | Noted |
+| **Status** | Acknowledged — Focus management after mark-done verified working correctly; excellent accessibility implementation. |
 
 ### Description
 
@@ -983,7 +983,7 @@ The Care Due Dashboard (`/due`) is a standout feature. The three-section urgency
 | **Date** | 2026-03-29 |
 | **Category** | Positive |
 | **Severity** | N/A |
-| **Status** | Noted |
+| **Status** | Acknowledged — Gemini 429 fallback chain validated as production-quality AI resilience pattern. |
 
 ### Description
 
@@ -1003,7 +1003,7 @@ The 4-model Gemini fallback chain (T-048) makes the AI advice feature much more 
 | **Date** | 2026-03-29 |
 | **Category** | Monitor Alert |
 | **Severity** | Major |
-| **Status** | New |
+| **Status** | Tasked → T-055 (Sprint 11) — Add http://localhost:4175 to FRONTEND_URL; implement durable fixed-port vite preview config to prevent future port drift |
 
 ### Description
 

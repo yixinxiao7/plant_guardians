@@ -770,6 +770,87 @@ The two separate Sprint 7 staging deployments (one at :4174, one at :5173) both 
 
 ---
 
+### Sprint #10 — 2026-03-28 to 2026-03-29
+
+**Sprint Goal:** Formally declare the MVP complete by closing T-020 (user testing — all 3 flows + Care History + Care Due Dashboard). Secondary polish: implement focus management after mark-done in Care Due Dashboard (T-050) and fix stale test account reference in Monitor Agent system prompt (T-051).
+
+**Outcome:** Partial — T-050 (focus management) delivered, reviewed, QA-passed, and deployed. T-020 (user testing) was not executed — staging was blocked again by a recurring CORS port mismatch (staging frontend landed on port 4175, which is not in `FRONTEND_URL`). Monitor Agent returned **Deploy Verified: No**. T-020 carries into Sprint #11 for the eleventh consecutive sprint. T-051 was not started (remains Backlog). Three new feedback items from the project owner (FB-038, FB-039, FB-040) and one Monitor Alert (FB-043) are tasked into Sprint #11.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-050 | Frontend Engineer: Care Due Dashboard focus management implemented. After mark-done removes an item, focus moves to next "Mark as done" button (next sibling → next section → earlier section → "View my plants" all-clear CTA). `getNextFocusTarget` pure function with clean separation. `transitionend` listener with 350ms fallback for standard motion; synchronous focus for reduced motion. `Button.jsx` wrapped with `forwardRef`. 6 new tests cover all focus scenarios. 107/107 frontend tests pass. Code review passed. QA passed. Staging deployed (port 4175). |
+
+---
+
+#### Tasks Carried Over to Sprint #11
+
+| Task ID | Description | Reason |
+|---------|-------------|--------|
+| T-020 | User testing: All 3 MVP flows + Care History + Care Due Dashboard | **Eleventh consecutive carry-over.** Blocked by CORS mismatch: staging frontend landed on port 4175, which is not in `backend/.env` `FRONTEND_URL`. Monitor Agent returned Deploy Verified: No. Fix is T-055 (Sprint 11 P0). Once T-055 is applied, T-020 is fully unblocked. |
+| T-051 | Monitor Agent: Update system prompt — stale test account reference | Not started this sprint. Remains P3 Backlog. |
+
+---
+
+#### Verification Failures
+
+The Sprint #10 Monitor Agent post-deploy health check (2026-03-29T21:05Z) returned **Deploy Verified: No** due to:
+
+1. **CORS mismatch — port 4175 missing from FRONTEND_URL** — `vite preview` landed on port 4175 (ports 4173/4174 occupied from prior sessions). `backend/.env` `FRONTEND_URL` only covers `:5173, :5174, :4173`. Browser API calls from staging frontend at `http://localhost:4175` → HTTP 500 (CORS error). Logged as FB-043, tasked as T-055 (Sprint 11 P0). Fixes: add `,http://localhost:4175` to `FRONTEND_URL` AND configure a fixed `vite preview` port to prevent future port drift.
+
+**All 17 API endpoints passed** (direct curl, no Origin header) and the frontend is accessible at http://localhost:4175. The CORS failure affects browser-based testing only; all backend functionality is sound.
+
+---
+
+#### Key Feedback Themes
+
+| Feedback ID | Category | Severity | Disposition |
+|-------------|----------|----------|-------------|
+| FB-038 | UX Issue — Plant card badges missing care type label/icon | Major | Tasked → T-052 (Sprint 11 P2) |
+| FB-039 | UX Issue — Users forced to log in on every page refresh (no session persistence) | Major | Tasked → T-053 (Sprint 11 P1) |
+| FB-040 | Bug — Photo removal doesn't enable Save button in EditPlantPage | Major | Tasked → T-054 (Sprint 11 P2) |
+| FB-041 | Positive — Care Due Dashboard focus management works excellently (T-050) | N/A | Acknowledged |
+| FB-042 | Positive — Gemini fallback chain provides resilient AI advice experience | N/A | Acknowledged |
+| FB-043 | Monitor Alert — CORS mismatch, staging frontend port 4175 not in FRONTEND_URL | Major | Tasked → T-055 (Sprint 11 P0) |
+
+---
+
+#### What Went Well
+
+- T-050 focus management is a comprehensive, production-grade accessibility implementation — all 4 focus decision tree branches, reduced-motion handling, and 6 covering tests
+- `Button.jsx` correctly wrapped with `forwardRef` — clean component API improvement
+- QA product-perspective testing praised T-050 as a standout feature (FB-041)
+- 107/107 frontend tests pass — new high watermark
+- Monitor Agent correctly identified the CORS issue before it became a user-reported problem
+
+---
+
+#### What to Improve
+
+- **Recurring CORS port drift must be permanently resolved.** This is the second sprint in a row (Sprint 9: port 5174, Sprint 10: port 4175) where the `vite preview` port has incremented and broken staging. T-055 must include a durable fix (fixed `--port` flag in `vite preview` script) so this cannot happen again.
+- T-020 has now carried over **10 consecutive sprints**. Sprint 11 will treat CORS fix (T-055) as a P0 gate that must be resolved before anything else. T-020 is then the immediate next action.
+- T-051 (Monitor Agent system prompt) was not started in Sprint 10 despite having no dependencies. Must be actioned in Sprint 11 — it's a 5-minute documentation fix.
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Owner |
+|------|----------|-------|
+| Recurring CORS port drift — `vite preview` port increments each sprint | P1 | Deploy Engineer — Sprint 11 T-055 must include durable fixed-port fix |
+| Auth session persistence — page refresh forces re-login (FB-039) | P1 | Backend + Frontend Engineer — Sprint 11 T-053 |
+| Express 4 path-to-regexp ReDoS (FB-031/FB-037) | P3 Advisory | Backlog — track for Express 5 migration |
+| Monitor Agent stale test account reference (T-051) | P3 | Monitor Agent — Sprint 11 |
+
+---
+
+*Sprint #10 summary written by Manager Agent on 2026-03-29.*
+
+---
+
 ## Template
 
 ### Sprint #N — [Start Date] to [End Date]
