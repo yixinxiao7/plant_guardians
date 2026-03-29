@@ -2250,3 +2250,170 @@ Rollback playbook (`rollback-playbook.md`) remains current. No changes needed th
 
 Verify all 6 scenarios from the SPEC-009 Amendment test table (see H-110 "What to Test" for the full list). Run `npm test` in frontend/ — all 107 tests must pass. Check that no existing CareDuePage behavior has regressed (mark-done toast, badge update, loading/error/all-clear states).
 
+---
+
+## H-112 — QA Engineer → Deploy Engineer: Sprint #10 — T-050 QA Passed — Deploy Readiness
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-112 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | T-050 (Focus management after mark-done) passed all QA checks. Sprint #10 engineering work is deploy-ready. |
+| **Spec Refs** | T-050, SPEC-009 Amendment, qa-build-log.md Sprint 10 entry |
+| **Status** | Pending |
+
+### QA Results Summary
+
+| Check | Result |
+|-------|--------|
+| Frontend unit tests | ✅ 107/107 pass (6 new T-050 tests + 101 existing) |
+| Backend unit tests | ✅ 69/69 pass (regression — no backend changes) |
+| Integration test (T-050) | ✅ PASS — pure frontend a11y fix, no new API surface |
+| Config consistency | ✅ PASS — PORT, proxy, CORS all aligned |
+| Security checklist | ✅ PASS — no new issues; 2 pre-existing dep vulns (known since Sprint 9) |
+
+### Deploy Notes
+
+- T-050 changes are frontend-only: `CareDuePage.jsx`, `Button.jsx`, `CareDuePage.test.jsx`
+- No new migrations, no backend changes, no new env vars
+- If staging re-deploy is needed for T-050, only the frontend build (`npm run build`) needs to be re-run
+- T-051 (Monitor Agent system prompt fix) is a documentation change — no deploy impact
+
+### Blocking Items
+
+None. All Sprint #10 engineering tasks that require QA are verified.
+
+---
+
+## H-113 — QA Engineer → Manager Agent: Sprint #10 — T-050 Moved to Done
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-113 |
+| **From** | QA Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | T-050 passed all QA gates (unit tests, integration, security). Moved from Integration Check → Done in dev-cycle-tracker.md. |
+| **Spec Refs** | T-050, qa-build-log.md Sprint 10 entry |
+| **Status** | Complete |
+
+### Summary
+
+- **107/107 frontend tests pass** (6 new + 101 existing — no regressions)
+- **69/69 backend tests pass** (regression baseline — no changes)
+- All 6 SPEC-009 Amendment focus management scenarios verified
+- Integration check: pure frontend change, no new API calls, existing contract intact
+- Security: no new issues
+- Config consistency: no mismatches
+- T-050 moved to **Done** in `dev-cycle-tracker.md`
+
+### Remaining Sprint 10 Items
+
+| Task | Status | QA Notes |
+|------|--------|----------|
+| T-020 (User testing) | Pending — User Agent / Project Owner | Not a QA-gated task; QA confirms all technical prerequisites met |
+| T-051 (Monitor Agent prompt fix) | Backlog | Documentation-only change; no code QA needed |
+
+
+
+## H-114 — Manager Agent → All Agents: Sprint #10 — Code Review Phase — No Tasks In Review
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-114 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | Code review phase invoked — no tasks found in "In Review" status. All engineering work already reviewed and closed. |
+| **Status** | Complete |
+
+### Review Phase Summary
+
+Manager Agent ran the code review phase for Sprint #10. Result: **no tasks require review.**
+
+| Task | Current Status | Notes |
+|------|---------------|-------|
+| T-020 | Backlog | User testing task — not a code review item. Awaiting User Agent / Project Owner. |
+| T-050 | Done | Code review passed earlier today (H-111). QA passed (H-113). Already Done. |
+| T-051 | Backlog | Documentation-only change (Monitor Agent prompt). Not yet started. No code to review. |
+
+### Next Steps
+
+- **T-020** remains the critical path. Sprint #10 cannot close until user testing is complete.
+- **T-051** can proceed independently — Monitor Agent should pick this up.
+- No code review blockers exist.
+
+---
+
+## H-115 — QA Engineer → Deploy Engineer: Sprint #10 — Regression Verification Confirms Deploy Readiness
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-115 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | Sprint #10 regression pass confirms all engineering changes remain deploy-ready. No new issues found. |
+| **Status** | Complete |
+
+### Regression Results
+
+| Check | Result |
+|-------|--------|
+| Backend unit tests | ✅ 69/69 pass (no regressions) |
+| Frontend unit tests | ✅ 107/107 pass (no regressions) |
+| Config consistency | ✅ PORT, proxy, CORS all aligned |
+| Security scan | ✅ No new issues (2 pre-existing dep vulns known since Sprint 9) |
+| Product-perspective testing | ✅ No new bugs — 3 existing issues (FB-038, FB-039, FB-040) are post-MVP backlog items |
+
+### Deploy Notes
+
+- T-050 (focus management) is the only code change in Sprint 10 — frontend-only
+- No backend changes, no new migrations, no new env vars
+- Staging re-deploy only requires frontend rebuild if needed
+- All code is deploy-ready. No blockers.
+
+---
+
+## H-116 — QA Engineer → Manager Agent: Sprint #10 — QA Second Pass Complete
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-116 |
+| **From** | QA Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | QA regression and product-perspective testing complete for Sprint #10. All engineering tasks verified. T-051 still in Backlog — Monitor Agent has not started. |
+| **Status** | Complete |
+
+### Summary
+
+- **T-050:** Done ✅ — QA passed (first pass H-112/H-113, regression confirmed this pass)
+- **T-051:** Backlog — Monitor Agent documentation task. `.agents/monitor-agent.md` still has 4 references to `test@triplanner.local` that should be `test@plantguardians.local`. Not a QA blocker but should be completed before next health check.
+- **T-020:** Backlog — Awaiting User Agent / Project Owner. All technical prerequisites met. QA confirms the codebase is stable and ready for user testing.
+
+### Product-Perspective Observations
+
+Three existing feedback items (FB-038, FB-039, FB-040) confirmed during product testing. No new bugs discovered. Several positive observations logged (robust AI error handling, excellent Care Due Dashboard UX, good keyboard accessibility).
+
+### Sprint 10 Completion Status
+
+| Criteria | Status |
+|----------|--------|
+| All unit tests pass | ✅ 69/69 backend, 107/107 frontend |
+| Integration tests pass | ✅ T-050 verified |
+| Security checklist verified | ✅ No new issues |
+| T-050 Done | ✅ |
+| T-051 Done | ❌ Backlog (Monitor Agent) |
+| T-020 Done | ❌ Backlog (User Agent) |
+
+**Sprint 10 cannot close until T-020 is complete.** All QA-gated engineering work is finished.
+
+---

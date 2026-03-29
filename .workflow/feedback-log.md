@@ -954,3 +954,39 @@ Root cause: the `isDirty` memo in `EditPlantPage.jsx` (line 88) only returns `tr
 **Fix location:** `frontend/src/pages/EditPlantPage.jsx`, `isDirty` useMemo (around line 83–115).
 
 ---
+
+## FB-041 — Care Due Dashboard focus management works excellently after T-050
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-041 |
+| **Source** | QA Engineer — product-perspective testing |
+| **Sprint** | 10 |
+| **Date** | 2026-03-29 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | Noted |
+
+### Description
+
+The Care Due Dashboard (`/due`) is a standout feature. The three-section urgency layout (Overdue → Due Today → Coming Up) makes it immediately clear what needs attention. The T-050 focus management fix ensures keyboard/screen-reader users can efficiently work through their care tasks — focus correctly moves to the next actionable button after each mark-done, including the edge case of reaching all-clear state. The reduced-motion path is properly handled. This is excellent accessibility work.
+
+---
+
+## FB-042 — Gemini fallback chain provides resilient AI advice experience
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-042 |
+| **Source** | QA Engineer — product-perspective testing |
+| **Sprint** | 10 |
+| **Date** | 2026-03-29 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | Noted |
+
+### Description
+
+The 4-model Gemini fallback chain (T-048) makes the AI advice feature much more resilient. In test runs, 429 rate-limit errors correctly cascade through `gemini-2.0-flash → gemini-2.5-flash → gemini-2.5-flash-lite → gemini-2.5-pro` before failing gracefully with a user-friendly error. The error message ("AI service returned an error or timed out") is appropriately vague — no internal details leaked. This is the right pattern for external API dependencies.
+
+---

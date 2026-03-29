@@ -500,3 +500,234 @@ No 5xx errors observed across all endpoint checks. No regressions detected.
 
 All checks pass. Staging is healthy and ready for T-020 (User Testing).
 
+---
+
+## Sprint 10 — QA Verification — T-050 Focus Management (2026-03-29)
+
+**Date:** 2026-03-29
+**QA Engineer:** QA Agent (Orchestrator Sprint #10 run)
+**Sprint:** 10
+**Tasks In Scope:** T-050 (Focus management after mark-done in Care Due Dashboard)
+
+---
+
+### Test Type: Unit Test — Frontend (T-050)
+
+| Check | Result |
+|-------|--------|
+| `cd frontend && npm test -- --run` | ✅ **107/107 tests pass** (20 test files) |
+| 6 new T-050 focus management tests present | ✅ All 6 scenarios covered |
+| Focus: next sibling in same section | ✅ PASS |
+| Focus: last in section → first in next section | ✅ PASS |
+| Focus: skip empty sections | ✅ PASS |
+| Focus: cross-section (Due Today → Coming Up) | ✅ PASS |
+| Focus: all-clear → "View my plants" button | ✅ PASS |
+| Focus: reduced motion → synchronous (no delay) | ✅ PASS |
+| Existing 101 tests (pre-T-050) still pass | ✅ No regressions |
+| Build: 0 errors | ✅ Confirmed |
+
+**Verdict: PASS**
+
+---
+
+### Test Type: Unit Test — Backend (Regression)
+
+| Check | Result |
+|-------|--------|
+| `cd backend && npm test` | ✅ **69/69 tests pass** (8 test suites) |
+| No backend changes in Sprint 10 | ✅ Confirmed — baseline matches Sprint 9 |
+
+**Verdict: PASS**
+
+---
+
+### Test Type: Integration Test — T-050
+
+**Scope:** Verify T-050 frontend changes integrate correctly with existing backend API.
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| T-050 uses existing `POST /api/v1/care-actions` | ✅ Verified | No new API calls added; `useCareDue.markDone()` calls `careActions.markDone(plantId, careType)` — unchanged from Sprint 8 |
+| API contract match (care-due response shape) | ✅ Verified | `useCareDue` hook expects `{ overdue, due_today, upcoming }` arrays — matches `api-contracts.md` Sprint 8 contract |
+| Optimistic removal after mark-done | ✅ Verified | `setData` filters the marked item from all three arrays; post-removal data passed to `getNextFocusTarget` |
+| Focus decision tree uses correct data keys | ✅ Verified | `plant_id`, `care_type` from API response used as ref map keys (`${plant_id}__${care_type}`) |
+| No new frontend-to-backend API surface | ✅ Verified | Pure frontend accessibility enhancement — no API changes |
+| All UI states handled (loading, error, all-clear, populated) | ✅ Verified | CareDuePage.jsx renders all 4 states; focus management only activates in populated state after mark-done |
+| Button.jsx forwardRef compatibility | ✅ Verified | `ref` passed correctly to all-clear "View my plants" button |
+| SPEC-009 Amendment compliance | ✅ Verified | All 4 focus decision tree branches match the spec exactly |
+
+**Verdict: PASS**
+
+---
+
+### Test Type: Config Consistency Check
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| Backend PORT (3000) matches vite proxy target | ✅ PASS | `backend/.env` PORT=3000; `vite.config.js` target=`http://localhost:3000` |
+| Vite proxy uses http:// (no SSL in dev) | ✅ PASS | Backend has no SSL config; vite proxy correctly uses `http://` |
+| CORS_ORIGIN includes frontend dev server | ✅ PASS | `FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173` — all dev/preview ports covered |
+| Docker Compose DB config matches .env | ✅ PASS | DB user/password/port consistent between `docker-compose.yml` defaults and `backend/.env` DATABASE_URL |
+
+**Verdict: PASS — no config mismatches**
+
+---
+
+### Test Type: Security Scan
+
+**Checklist:** `.workflow/security-checklist.md` — all items verified for Sprint 10 scope.
+
+#### Authentication & Authorization
+
+| Item | Status | Notes |
+|------|--------|-------|
+| All API endpoints require auth | ✅ PASS | `ai.js`, `plants.js`, `careActions.js`, `careHistory.js`, `careDue.js`, `profile.js` all use `router.use(authenticate)` or per-route `authenticate` middleware. Auth routes appropriately public. |
+| Auth tokens have expiration | ✅ PASS | JWT_EXPIRES_IN=15m, REFRESH_TOKEN_EXPIRES_DAYS=7 |
+| Password hashing uses bcrypt | ✅ PASS | `bcrypt` with 12 rounds in auth.js |
+| Failed login rate-limited | ✅ PASS | `authLimiter` (20 req/15min) applied to `/api/v1/auth/` |
+
+#### Input Validation & Injection Prevention
+
+| Item | Status | Notes |
+|------|--------|-------|
+| SQL queries use parameterized statements | ✅ PASS | All queries via Knex query builder; `knex.raw()` only used for `gen_random_uuid()` defaults and `MAX()` aggregate — no user input |
+| HTML output sanitized (XSS) | ✅ PASS | React default escaping; no `dangerouslySetInnerHTML` usage in T-050 changes |
+| Input validation on server side | ✅ PASS | AI endpoint validates plant_type length, care-actions validates care_type enum, auth validates email/password |
+
+#### API Security
+
+| Item | Status | Notes |
+|------|--------|-------|
+| CORS configured for expected origins only | ✅ PASS | Comma-separated allowlist in FRONTEND_URL |
+| Rate limiting on public endpoints | ✅ PASS | General (100/15min) + auth-specific (20/15min) limiters |
+| Error responses don't leak internals | ✅ PASS | `errorHandler.js` returns generic message for unknown errors; never leaks stack traces |
+| Security headers (helmet) | ✅ PASS | `app.use(helmet())` sets X-Content-Type-Options, X-Frame-Options, etc. |
+
+#### Data Protection
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Credentials in env vars, not code | ✅ PASS | JWT_SECRET, GEMINI_API_KEY, DATABASE_URL all via `process.env` |
+| .env files gitignored | ✅ PASS | `.gitignore` includes `.env`, `.env.local`, `.env.*.local`, `.env.production`, `backend/.env.staging` |
+| Logs don't contain PII/tokens | ✅ PASS | Only error messages logged; no token or user data in console output |
+
+#### Infrastructure
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Dependencies checked for vulnerabilities | ⚠️ KNOWN | `npm audit`: 2 pre-existing vulns (path-to-regexp high, brace-expansion moderate) — both fixable via `npm audit fix`. These are transitive deps (Express 4.x, nodemon). Not new in Sprint 10. Previously documented in Sprint 9 qa-build-log. |
+| Default credentials removed | ✅ PASS | `.env.example` uses placeholder values |
+
+**Verdict: PASS — no new security issues. 2 pre-existing dependency vulnerabilities (known since Sprint 9, not P1).**
+
+---
+
+### Overall Sprint 10 QA Summary
+
+| Test Category | Result |
+|---------------|--------|
+| Frontend Unit Tests (107/107) | ✅ PASS |
+| Backend Unit Tests (69/69) | ✅ PASS |
+| Integration Test (T-050) | ✅ PASS |
+| Config Consistency | ✅ PASS |
+| Security Scan | ✅ PASS (2 known pre-existing dep vulns) |
+
+**T-050 Status: PASS — ready for Done.**
+
+---
+
+## Sprint 10 — QA Regression & Product-Perspective Testing (2026-03-29)
+
+**Date:** 2026-03-29
+**QA Engineer:** QA Agent (Orchestrator Sprint #10 — second pass)
+**Sprint:** 10
+**Purpose:** Regression verification, product-perspective testing, T-051 status check, deploy readiness confirmation.
+
+---
+
+### Test Type: Unit Test — Regression Check
+
+| Check | Result |
+|-------|--------|
+| `cd backend && npm test` | ✅ **69/69 tests pass** (8 test suites) — matches Sprint 9 baseline |
+| `cd frontend && npm test -- --run` | ✅ **107/107 tests pass** (20 test files) — matches T-050 baseline |
+| Any new regressions since first QA pass | ✅ None detected |
+
+**Verdict: PASS — no regressions**
+
+---
+
+### Test Type: Config Consistency Check (Re-verified)
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| Backend PORT (3000) matches vite proxy target | ✅ PASS | `backend/.env` PORT=3000; `vite.config.js` target=`http://localhost:3000` |
+| Vite proxy uses http:// (no SSL in dev) | ✅ PASS | No SSL config in backend; proxy correctly uses `http://` |
+| CORS_ORIGIN includes frontend dev server | ✅ PASS | `FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173` |
+| Docker Compose DB config matches .env | ✅ PASS | User/password/port consistent |
+
+**Verdict: PASS — no config mismatches**
+
+---
+
+### Test Type: Security Scan (Re-verified)
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| `npm audit` (backend) | ⚠️ KNOWN | 2 pre-existing vulns: path-to-regexp (high), brace-expansion (moderate). Same as Sprint 9. Transitive deps of Express 4 and nodemon. |
+| .env gitignored | ✅ PASS | `git check-ignore backend/.env` confirms gitignored |
+| No hardcoded secrets in source | ✅ PASS | JWT_SECRET, GEMINI_API_KEY accessed via `process.env` only |
+| No dangerouslySetInnerHTML | ✅ PASS | Zero instances in frontend/src/ |
+| knex.raw() usage safe | ✅ PASS | Only used for `gen_random_uuid()` defaults in migrations — no user input |
+| Auth middleware on all protected routes | ✅ PASS | All route files use `router.use(authenticate)` or per-route middleware |
+
+**Verdict: PASS — no new security issues**
+
+---
+
+### Test Type: Product-Perspective Testing
+
+Tested from a user's perspective against the project-brief.md flows.
+
+#### Confirmed Known Issues (Already in feedback-log.md)
+
+| Issue | FB ID | Status | Confirmed |
+|-------|-------|--------|-----------|
+| Plant card badges don't show care type labels | FB-038 | New | ✅ Confirmed — `StatusBadge.jsx` receives `careType` prop but only uses it in `title` attribute (tooltip), not in visible text. User cannot distinguish which badge refers to which care type at a glance. |
+| Auth tokens lost on page refresh | FB-039 | New | ✅ Confirmed — tokens stored in memory-only variables in `api.js`. Any page refresh or tab close loses the session. |
+| Photo removal doesn't enable Save button | FB-040 | New | ✅ Confirmed — `isDirty` memo (EditPlantPage.jsx:83-115) checks `if (photo) return true` for new uploads but never compares `photoUrl` against `plant.photo_url`. Removing an existing photo sets `photoUrl=''` but isDirty stays false. |
+
+#### New Observations
+
+| Observation | Category | Severity | Notes |
+|-------------|----------|----------|-------|
+| AI advice error handling is robust | Positive | — | Gemini fallback chain (T-048) works correctly — 429 errors cascade through 4 models before failing. Error messages are user-friendly ("AI service returned an error or timed out.") |
+| Care Due Dashboard UX is excellent | Positive | — | Three urgency sections (overdue/due today/coming up) with distinct visual hierarchy. Mark-done is optimistic with toast feedback. Focus management (T-050) properly handles all edge cases. |
+| Plant card keyboard navigation works well | Positive | — | Cards have tabIndex, Enter key triggers navigation, edit/delete buttons have proper aria-labels. |
+| Confetti animation on mark-done | Positive | — | Satisfying feedback per project-brief Flow 1 requirement. |
+
+#### T-051 Status Check
+
+| Task | Current Status | Notes |
+|------|---------------|-------|
+| T-051 (Monitor Agent: fix stale test account) | **Backlog** | `.agents/monitor-agent.md` still references `test@triplanner.local` (4 occurrences). Should be `test@plantguardians.local`. Monitor Agent has not started this task yet. This is a documentation-only change — no code QA impact, but should be completed before next Monitor Agent health check to avoid incorrect credentials. |
+
+---
+
+### Overall Sprint 10 QA Summary (Second Pass)
+
+| Test Category | Result |
+|---------------|--------|
+| Frontend Unit Tests (107/107) | ✅ PASS |
+| Backend Unit Tests (69/69) | ✅ PASS |
+| Config Consistency | ✅ PASS |
+| Security Scan | ✅ PASS (2 known pre-existing dep vulns) |
+| Product-Perspective Testing | ✅ PASS (3 known issues already in feedback-log, no new bugs found) |
+
+**Sprint 10 Engineering Tasks:**
+- **T-050:** Done ✅ (QA passed — first pass)
+- **T-051:** Backlog (documentation-only, Monitor Agent responsibility)
+- **T-020:** Backlog (user testing, User Agent / Project Owner responsibility)
+
+**Deploy Readiness:** All engineering code changes (T-050) are QA-verified and deploy-ready. No new security issues. No regressions. Pre-existing dependency vulnerabilities (path-to-regexp, brace-expansion) are known and tracked.
+
