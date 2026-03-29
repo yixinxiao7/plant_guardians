@@ -2101,3 +2101,112 @@ As of Sprint #9 (Monitor Agent Deploy Verified: Yes):
 
 If QA runs regression checks on the backend during T-020 user testing, the Sprint 9 baseline (69/69) is the expected target.
 
+---
+
+## H-108 — Deploy Engineer: Sprint #10 Infrastructure Review — No Tasks Assigned
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-108 |
+| **From** | Deploy Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | Deploy Engineer sprint review complete — no infrastructure tasks assigned for Sprint #10. Staging environment remains verified and stable from Sprint #9. |
+| **Spec Refs** | N/A |
+| **Status** | Complete |
+
+### Review Summary
+
+Sprint #10 agent assignments per `active-sprint.md` explicitly list **no Deploy Engineer tasks**. Confirmed by reviewing `dev-cycle-tracker.md` — no Deploy Engineer tasks exist in Backlog or In Progress status.
+
+### Current Infrastructure Baseline (as of Sprint #9)
+
+| Component | Status |
+|-----------|--------|
+| Staging backend | Running on http://localhost:3000 |
+| Staging frontend | Running on http://localhost:4173 (production build) |
+| Database migrations | All 5 applied and verified |
+| Monitor Agent health check | Deploy Verified: Yes (Sprint #9) — 17/17 endpoints, 5/5 frontend routes |
+| Backend tests | 69/69 passing |
+| Frontend tests | 101/101 passing |
+
+### Sprint #10 Deploy Context
+
+- No new migrations required — Backend Engineer has no tasks this sprint
+- No re-deployment required — codebase changes (T-050, T-051) are small, isolated fixes
+- T-020 user testing can proceed against the current verified staging environment
+- If T-050 (CareDuePage focus management) requires a staging re-deploy after QA sign-off, the Deploy Engineer is on standby to re-run the standard deploy process documented in `qa-build-log.md`
+
+### Rollback Posture
+
+Rollback playbook (`rollback-playbook.md`) remains current. No changes needed this sprint.
+
+---
+
+## H-109 — Frontend Engineer acknowledges SPEC-009 Focus Management Amendment (T-050)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-109 |
+| **From** | Frontend Engineer |
+| **To** | Design Agent |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | Acknowledging SPEC-009 Amendment — Focus Management After Mark-Done. No new API contracts required (pure frontend a11y fix). H-105 acknowledged. H-106 acknowledged (no new backend contracts). |
+| **Spec Refs** | SPEC-009 Amendment (T-050), H-105, H-106 |
+| **Status** | Acknowledged |
+
+### Implementation Notes
+
+- Read and implemented all 4 branches of the focus decision tree from SPEC-009 Amendment
+- Ref map keyed by `${plant_id}__${care_type}` as specified
+- `viewMyPlantsButtonRef` added to all-clear CTA
+- Reduced motion: synchronous focus (no delay)
+- Standard motion: 350ms fallback timer (transitionend preferred, setTimeout fallback)
+- Button component updated with `forwardRef` to support ref on the all-clear CTA
+- No new API calls — existing `POST /api/v1/care-actions` mark-done flow unchanged
+
+---
+
+## H-110 — Frontend Engineer → QA Engineer: T-050 Focus Management Complete — Ready for QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-110 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | T-050 (Focus management after mark-done in Care Due Dashboard) implemented and ready for QA. |
+| **Spec Refs** | T-050, SPEC-009 Amendment, FB-033 |
+| **Status** | Pending |
+
+### What Changed
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/CareDuePage.jsx` | Added `markDoneButtonRefs` ref map, `cardRefs` ref map, `viewMyPlantsButtonRef`. Added `getNextFocusTarget()` helper implementing the 4-branch focus decision tree. Updated `handleMarkDone` to compute post-removal focus target, handle reduced-motion (sync) vs standard-motion (350ms delay) focus movement. |
+| `frontend/src/components/Button.jsx` | Wrapped with `forwardRef` so the all-clear "View my plants" button can receive a ref. |
+| `frontend/src/__tests__/CareDuePage.test.jsx` | 6 new test cases covering all focus scenarios from SPEC-009 Amendment test table. |
+
+### What to Test
+
+1. **Middle item removal**: Mark Monstera watering as done (first of two overdue items) → focus should move to Pothos's "Mark as done" button
+2. **Last in section, next section has items**: Remove last overdue item → focus moves to first Due Today item's button
+3. **Skip empty sections**: Remove last overdue item when Due Today is empty → focus skips to first Coming Up item
+4. **Cross-section (Due Today → Coming Up)**: Remove last Due Today item → focus moves to first Coming Up item
+5. **All-clear**: Remove the only remaining item → focus moves to "View my plants" button
+6. **Reduced motion**: With `prefers-reduced-motion: reduce` enabled, focus should move immediately (no 300ms animation delay)
+
+### Test Results
+
+- **107/107 frontend tests pass** (101 existing + 6 new)
+- **Build: 0 errors** (297ms)
+- No regressions in any existing test file
+
+### Known Limitations
+
+- In jsdom tests, CSS `transitionend` event doesn't fire; tests rely on the 350ms setTimeout fallback path. Real browser testing recommended for the `transitionend` listener path.
+- Edge case: if user clicks mark-done on two items simultaneously before the first resolves, focus management handles each independently (buttons are disabled during in-flight API calls, so this should not occur in practice).
+

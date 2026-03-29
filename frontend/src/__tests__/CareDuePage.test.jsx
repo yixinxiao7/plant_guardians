@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import CareDuePage from '../pages/CareDuePage.jsx';
 
 const mockNavigate = vi.fn();
@@ -358,5 +358,153 @@ describe('CareDuePage', () => {
       expect(screen.getByText('Due in 3 days')).toBeInTheDocument();
     });
     expect(screen.getByText('Due in 3 days').getAttribute('title')).toContain('March 30, 2026');
+  });
+
+  // --- Focus Management After Mark-Done (T-050) ---
+  // Helper: mock prefers-reduced-motion
+  const mockReducedMotion = (reduced) => {
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
+      matches: query === '(prefers-reduced-motion: reduce)' ? reduced : false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+  };
+
+  describe('Focus management after mark-done (T-050)', () => {
+    beforeEach(() => {
+      // Default: standard motion (no reduced-motion preference)
+      mockReducedMotion(false);
+    });
+
+    it('focuses next sibling mark-done button when middle overdue item is removed', async () => {
+      // Overdue has 2 items: Monstera (idx 0), Pothos (idx 1)
+      // Removing Monstera (idx 0) → Pothos (now idx 0) should receive focus
+      mockCareDueGet.mockResolvedValue(sampleData);
+      mockCareActionsMarkDone.mockResolvedValue({});
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Monstera')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByLabelText('Mark Monstera watering as done'));
+
+      await waitFor(() => {
+        const pothosBtn = screen.getByLabelText('Mark Pothos fertilizing as done');
+        expect(document.activeElement).toBe(pothosBtn);
+      }, { timeout: 2000 });
+    });
+
+    it('focuses first Due Today item when last Overdue item is removed', async () => {
+      const dataOneOverdue = {
+        overdue: [sampleData.overdue[0]],
+        due_today: sampleData.due_today,
+        upcoming: sampleData.upcoming,
+      };
+      mockCareDueGet.mockResolvedValue(dataOneOverdue);
+      mockCareActionsMarkDone.mockResolvedValue({});
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Monstera')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByLabelText('Mark Monstera watering as done'));
+
+      await waitFor(() => {
+        const snakePlantBtn = screen.getByLabelText('Mark Snake Plant watering as done');
+        expect(document.activeElement).toBe(snakePlantBtn);
+      }, { timeout: 2000 });
+    });
+
+    it('focuses first Coming Up item when last Overdue item removed and Due Today is empty', async () => {
+      const dataOverdueAndUpcoming = {
+        overdue: [sampleData.overdue[0]],
+        due_today: [],
+        upcoming: sampleData.upcoming,
+      };
+      mockCareDueGet.mockResolvedValue(dataOverdueAndUpcoming);
+      mockCareActionsMarkDone.mockResolvedValue({});
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Monstera')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByLabelText('Mark Monstera watering as done'));
+
+      await waitFor(() => {
+        const fiddleLeafBtn = screen.getByLabelText('Mark Fiddle Leaf Fig repotting as done');
+        expect(document.activeElement).toBe(fiddleLeafBtn);
+      }, { timeout: 2000 });
+    });
+
+    it('focuses first Coming Up item when last Due Today item removed', async () => {
+      const dataDueTodayAndUpcoming = {
+        overdue: [],
+        due_today: sampleData.due_today,
+        upcoming: sampleData.upcoming,
+      };
+      mockCareDueGet.mockResolvedValue(dataDueTodayAndUpcoming);
+      mockCareActionsMarkDone.mockResolvedValue({});
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Snake Plant')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByLabelText('Mark Snake Plant watering as done'));
+
+      await waitFor(() => {
+        const fiddleLeafBtn = screen.getByLabelText('Mark Fiddle Leaf Fig repotting as done');
+        expect(document.activeElement).toBe(fiddleLeafBtn);
+      }, { timeout: 2000 });
+    });
+
+    it('focuses "View my plants" button when last remaining item is removed (all-clear)', async () => {
+      const dataSingleItem = {
+        overdue: [{
+          plant_id: 'p1',
+          plant_name: 'Monstera',
+          care_type: 'watering',
+          days_overdue: 3,
+          last_done_at: '2026-03-24T08:00:00.000Z',
+        }],
+        due_today: [],
+        upcoming: [],
+      };
+      mockCareDueGet.mockResolvedValue(dataSingleItem);
+      mockCareActionsMarkDone.mockResolvedValue({});
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Monstera')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByLabelText('Mark Monstera watering as done'));
+
+      await waitFor(() => {
+        const viewBtn = screen.getByText('View my plants');
+        expect(document.activeElement).toBe(viewBtn);
+      }, { timeout: 2000 });
+    });
+
+    it('focuses synchronously (no delay) when prefers-reduced-motion: reduce', async () => {
+      mockReducedMotion(true);
+      mockCareDueGet.mockResolvedValue(sampleData);
+      mockCareActionsMarkDone.mockResolvedValue({});
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Monstera')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByLabelText('Mark Monstera watering as done'));
+
+      // With reduced motion, focus moves synchronously — no 350ms delay needed
+      await waitFor(() => {
+        const pothosBtn = screen.getByLabelText('Mark Pothos fertilizing as done');
+        expect(document.activeElement).toBe(pothosBtn);
+      });
+    });
   });
 });

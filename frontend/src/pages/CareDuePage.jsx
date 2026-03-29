@@ -58,6 +58,59 @@ const SECTION_CONFIG = {
   },
 };
 
+const SECTION_ORDER = ['overdue', 'due_today', 'upcoming'];
+
+/**
+ * Determine the next focus target after an item is removed from a section.
+ * Decision tree (SPEC-009 Amendment — T-050):
+ *   1. Next sibling in same section → its mark-done button
+ *   2. No sibling in section; later section has items → first button in next non-empty section
+ *   3. No later section; earlier section has items → first button in topmost non-empty section
+ *   4. All empty → null (caller focuses "View my plants")
+ *
+ * @param {string} removedItemKey - The ref key of the removed item (plant_id__care_type)
+ * @param {string} removedSectionKey - The section the item was removed from
+ * @param {number} removedIndex - The index of the removed item in its original section
+ * @param {object} postRemovalData - Data after the item has been removed
+ * @param {object} buttonRefs - Ref map of mark-done button DOM nodes
+ */
+function getNextFocusTarget(removedItemKey, removedSectionKey, removedIndex, postRemovalData, buttonRefs) {
+  const sectionItems = postRemovalData[removedSectionKey] || [];
+
+  // 1. Next sibling in same section (item at the same index, or last item if we removed the last)
+  if (sectionItems.length > 0) {
+    const targetIdx = Math.min(removedIndex, sectionItems.length - 1);
+    const targetItem = sectionItems[targetIdx];
+    const key = `${targetItem.plant_id}__${targetItem.care_type}`;
+    const btn = buttonRefs[key];
+    if (btn) return btn;
+  }
+
+  // 2. Next non-empty section below (Overdue → Due Today → Coming Up order)
+  const currentIdx = SECTION_ORDER.indexOf(removedSectionKey);
+  for (let i = currentIdx + 1; i < SECTION_ORDER.length; i++) {
+    const items = postRemovalData[SECTION_ORDER[i]] || [];
+    if (items.length > 0) {
+      const key = `${items[0].plant_id}__${items[0].care_type}`;
+      const btn = buttonRefs[key];
+      if (btn) return btn;
+    }
+  }
+
+  // 3. Earlier section above (topmost non-empty)
+  for (let i = 0; i < currentIdx; i++) {
+    const items = postRemovalData[SECTION_ORDER[i]] || [];
+    if (items.length > 0) {
+      const key = `${items[0].plant_id}__${items[0].care_type}`;
+      const btn = buttonRefs[key];
+      if (btn) return btn;
+    }
+  }
+
+  // 4. All empty
+  return null;
+}
+
 function getUrgencyText(sectionKey, item) {
   if (sectionKey === 'overdue') {
     if (item.last_done_at === null) return 'Never done';
@@ -94,7 +147,9 @@ export default function CareDuePage() {
   const [markingItems, setMarkingItems] = useState(new Set());
   const [removingItems, setRemovingItems] = useState(new Set());
   const [liveMessage, setLiveMessage] = useState('');
-  const nextFocusRef = useRef(null);
+  const markDoneButtonRefs = useRef({});
+  const viewMyPlantsButtonRef = useRef(null);
+  const cardRefs = useRef({});
 
   useEffect(() => {
     fetchCareDue();
@@ -117,6 +172,7 @@ export default function CareDuePage() {
   const handleMarkDone = useCallback(
     async (item, sectionKey) => {
       const itemKey = `${item.plant_id}-${item.care_type}`;
+      const refKey = `${item.plant_id}__${item.care_type}`;
       setMarkingItems((prev) => new Set(prev).add(itemKey));
       setLiveMessage('');
 
@@ -126,15 +182,78 @@ export default function CareDuePage() {
         addToast(`${item.plant_name} ${careLabel} marked as done! 🌿`, 'success');
         setLiveMessage(`${item.plant_name} ${careLabel} marked as done.`);
 
+        // Compute post-removal data for focus target calculation
+        const postRemovalData = data ? {
+          overdue: data.overdue.filter((i) => !(i.plant_id === item.plant_id && i.care_type === item.care_type)),
+          due_today: data.due_today.filter((i) => !(i.plant_id === item.plant_id && i.care_type === item.care_type)),
+          upcoming: data.upcoming.filter((i) => !(i.plant_id === item.plant_id && i.care_type === item.care_type)),
+        } : null;
+
+        // Find the index of the removed item in its original section
+        const originalSection = data[sectionKey] || [];
+        const removedIndex = originalSection.findIndex(
+          (i) => i.plant_id === item.plant_id && i.care_type === item.care_type
+        );
+
+        // Determine focus target before DOM removal
+        const focusTarget = postRemovalData
+          ? getNextFocusTarget(refKey, sectionKey, removedIndex, postRemovalData, markDoneButtonRefs.current)
+          : null;
+
+        // Check reduced motion preference
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
         // Animate removal
         setRemovingItems((prev) => new Set(prev).add(itemKey));
-        setTimeout(() => {
+
+        const moveFocus = () => {
+          // Clean up the removed item's refs
+          delete markDoneButtonRefs.current[refKey];
+          delete cardRefs.current[refKey];
+
           setRemovingItems((prev) => {
             const next = new Set(prev);
             next.delete(itemKey);
             return next;
           });
-        }, 300);
+
+          // Move focus to target
+          if (focusTarget && document.contains(focusTarget)) {
+            focusTarget.focus();
+          } else {
+            // All-clear state or target unmounted — focus "View my plants" button
+            // Use requestAnimationFrame to wait for all-clear state to render
+            requestAnimationFrame(() => {
+              if (viewMyPlantsButtonRef.current) {
+                viewMyPlantsButtonRef.current.focus();
+              }
+            });
+          }
+        };
+
+        if (prefersReducedMotion) {
+          // Instant removal — move focus synchronously
+          moveFocus();
+        } else {
+          // Wait for 300ms card fade-out transition, then move focus
+          const cardEl = cardRefs.current[refKey];
+          if (cardEl) {
+            const onTransitionEnd = (e) => {
+              if (e.target === cardEl) {
+                cardEl.removeEventListener('transitionend', onTransitionEnd);
+                moveFocus();
+              }
+            };
+            cardEl.addEventListener('transitionend', onTransitionEnd);
+            // Fallback in case transitionend doesn't fire
+            setTimeout(() => {
+              cardEl.removeEventListener('transitionend', onTransitionEnd);
+              moveFocus();
+            }, 350);
+          } else {
+            setTimeout(moveFocus, 350);
+          }
+        }
       } catch {
         addToast("Couldn't mark as done. Please try again.", 'error');
         setLiveMessage('Could not mark as done. Please try again.');
@@ -146,7 +265,7 @@ export default function CareDuePage() {
         });
       }
     },
-    [markDone, addToast]
+    [markDone, addToast, data]
   );
 
   const isAllClear =
@@ -235,6 +354,7 @@ export default function CareDuePage() {
             You're all caught up. Check back later or explore your plant inventory.
           </p>
           <Button
+            ref={viewMyPlantsButtonRef}
             variant="primary"
             onClick={() => navigate('/')}
             style={{ marginTop: 28 }}
@@ -288,6 +408,7 @@ export default function CareDuePage() {
               <ul className="care-due-item-list">
                 {items.map((item) => {
                   const itemKey = `${item.plant_id}-${item.care_type}`;
+                  const refKey = `${item.plant_id}__${item.care_type}`;
                   const careConfig = CARE_TYPE_CONFIG[item.care_type] || CARE_TYPE_CONFIG.watering;
                   const CareIcon = careConfig.icon;
                   const isMarking = markingItems.has(itemKey);
@@ -302,6 +423,7 @@ export default function CareDuePage() {
                   return (
                     <li
                       key={itemKey}
+                      ref={(el) => { cardRefs.current[refKey] = el; }}
                       className={`care-due-card ${isRemoving ? 'care-due-card--removing' : ''}`}
                     >
                       <div
@@ -323,6 +445,7 @@ export default function CareDuePage() {
                         </span>
                       </div>
                       <button
+                        ref={(el) => { markDoneButtonRefs.current[refKey] = el; }}
                         className="care-due-mark-done-btn"
                         onClick={() => handleMarkDone(item, key)}
                         disabled={isMarking}
