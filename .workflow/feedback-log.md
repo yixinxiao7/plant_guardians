@@ -882,3 +882,75 @@ The `normalizeLastDone` helper (`val ? val.split('T')[0] : ''`) works correctly 
 `npm audit` reports a **high** severity vulnerability in `path-to-regexp` (GHSA-37ch-88jc-xwx2 — ReDoS). This is a transitive dependency of Express 4. It has been present since the project was created and is tracked in FB-031 (Express 5 migration). Not actionable within Express 4. Risk is mitigated by rate limiting on all routes. No user action needed this sprint, but the Express 5 migration should remain on the backlog.
 
 ---
+
+## FB-038 — Plant card care status badges don't show which care type is overdue
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-038 |
+| **Source** | Project Owner |
+| **Sprint** | 10 |
+| **Date** | 2026-03-28 |
+| **Category** | UX Issue |
+| **Severity** | Major |
+| **Status** | New |
+
+### Description
+
+On the Plant Inventory page, each plant card shows care status badges (e.g. "1 day overdue", "On track", "On track") but the badges do not indicate which care type they refer to. The user cannot tell at a glance whether watering, fertilizing, or repotting is overdue.
+
+**Requested fix:** Each badge should be prefixed with a care type label or icon so the status is unambiguous. For example: "Watering: 1 day overdue", "Fertilizing: On track", "Repotting: On track" — or equivalent icon-based labelling (e.g. a water droplet icon before the watering badge). The Care History page already uses color-coded icons per care type (blue for watering, green for fertilizing, terracotta for repotting) — the same visual system should be applied to the plant card badges for consistency.
+
+**Fix location:** `frontend/src/components/PlantCard.jsx` (badge rendering logic).
+
+---
+
+## FB-039 — Users are forced to log in again on every page refresh
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-039 |
+| **Source** | Project Owner |
+| **Sprint** | 10 |
+| **Date** | 2026-03-28 |
+| **Category** | UX Issue |
+| **Severity** | Major |
+| **Status** | New |
+
+### Description
+
+Auth tokens are stored in memory only (`let accessToken` / `refreshToken` in `frontend/src/utils/api.js`). This was a deliberate security decision in Sprint 3 to avoid XSS-vulnerable `localStorage`/`sessionStorage` token storage. The tradeoff is that any hard page refresh wipes both tokens, forcing the user to log in again — even if their session should still be valid.
+
+For production this is unacceptable UX. Users expect to remain logged in across browser sessions and page refreshes.
+
+**Recommended fix:** Persist the refresh token in an `HttpOnly` cookie set by the backend on login/refresh (the backend sends `Set-Cookie: refresh_token=...; HttpOnly; Secure; SameSite=Strict`). The frontend never reads or writes this cookie directly — it is sent automatically by the browser on requests to the refresh endpoint. The access token can remain in memory (short-lived, XSS-safe). On page load, the frontend attempts a silent token refresh using the cookie; if it succeeds, the user is transparently re-authenticated without seeing a login screen.
+
+This is the industry-standard pattern for secure session persistence and resolves the UX issue without reintroducing XSS risk.
+
+**Files affected:** `backend/src/routes/auth.js` (set/clear HttpOnly cookie on login, refresh, logout), `frontend/src/utils/api.js` (call refresh endpoint on app init, pass `credentials: 'include'` on refresh requests).
+
+---
+
+## FB-040 — Removing a plant photo doesn't enable the Save button
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-040 |
+| **Source** | Project Owner |
+| **Sprint** | 10 |
+| **Date** | 2026-03-29 |
+| **Category** | Bug |
+| **Severity** | Major |
+| **Status** | New |
+
+### Description
+
+On the Edit Plant page, removing an existing photo (via the remove button) does not enable the Save Changes button — it remains greyed out.
+
+Root cause: the `isDirty` memo in `EditPlantPage.jsx` (line 88) only returns `true` when a new photo file is selected (`if (photo) return true`). It never compares `photoUrl` against the original `plant.photo_url`. When the user removes the photo, `setPhotoUrl('')` is called but `isDirty` stays `false` because the comparison is never made.
+
+**Fix:** Add a check inside the `isDirty` memo comparing `photoUrl` against `(plant.photo_url || '')`. If they differ, return `true`. Also add `photoUrl` to the memo's dependency array.
+
+**Fix location:** `frontend/src/pages/EditPlantPage.jsx`, `isDirty` useMemo (around line 83–115).
+
+---
