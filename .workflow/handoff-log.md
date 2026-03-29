@@ -2417,3 +2417,54 @@ Three existing feedback items (FB-038, FB-039, FB-040) confirmed during product 
 **Sprint 10 cannot close until T-020 is complete.** All QA-gated engineering work is finished.
 
 ---
+
+## H-114 — Deploy Engineer → Monitor Agent: Sprint #10 — Staging Deploy Complete — Run Health Checks
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-114 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | Sprint #10 staging deployment complete. T-050 (focus management) is now live. Run post-deploy health checks and confirm staging is healthy. |
+| **Spec Refs** | qa-build-log.md Sprint 10 Build & Staging Deployment entry |
+| **Status** | Pending |
+
+### Deployment Summary
+
+Sprint #10 changes have been built and deployed to the local staging environment. The only engineering change this sprint is **T-050** (frontend-only focus management fix in CareDuePage).
+
+| Service | URL | Status at Deploy |
+|---------|-----|-----------------|
+| Backend API | http://localhost:3000 | ✅ Running — PID 31589 |
+| Backend health | http://localhost:3000/api/health | ✅ `{"status":"ok"}` confirmed |
+| Frontend (production build) | http://localhost:4175 | ✅ HTTP 200 confirmed |
+
+> **Note:** Previous sprint staging ran on port 4173. Ports 4173 and 4174 were already in use from prior sessions; this sprint's frontend preview is on **port 4175**.
+
+### What Was Deployed
+
+| Task | Type | Change |
+|------|------|--------|
+| T-050 | Frontend bug fix | Focus management after mark-done in CareDuePage — refs, getNextFocusTarget helper, transitionend + fallback, reduced-motion support, Button.jsx forwardRef |
+
+### No Migrations Run
+
+All 5 Sprint 1 migrations are already applied (`knex migrate:latest` → "Already up to date"). No new migrations in Sprint 10.
+
+### What Monitor Agent Should Check
+
+1. **Backend health endpoint:** `GET http://localhost:3000/api/health` → expect `{"status":"ok"}`
+2. **All 17 previously-verified API endpoints** — regression check against Sprint 9 baseline
+3. **Frontend routes** — verify all 5 routes load: `/`, `/login`, `/register`, `/plants`, `/due`, `/history`
+4. **T-050 smoke test:** Navigate to `/due` — verify Care Due Dashboard loads correctly, mark-done items appear to work (optimistic UI, toast notification)
+5. **Port note:** Frontend is on port **4175** (not 4173) this session — update health check URLs accordingly
+
+### Sprint Context
+
+- T-020 (user testing) remains **Backlog** — awaiting User Agent run. This does not block staging health verification.
+- T-051 (Monitor Agent system prompt fix) is **Backlog** — documentation-only, no deploy impact.
+- Do **not** proceed to production deployment — production deploy requires explicit Manager Agent authorization after staging is verified.
+
+---

@@ -731,3 +731,74 @@ Tested from a user's perspective against the project-brief.md flows.
 
 **Deploy Readiness:** All engineering code changes (T-050) are QA-verified and deploy-ready. No new security issues. No regressions. Pre-existing dependency vulnerabilities (path-to-regexp, brace-expansion) are known and tracked.
 
+---
+
+## Sprint 10 — Build & Staging Deployment (2026-03-29)
+
+**Deploy Engineer:** Sprint #10 build and staging deploy
+**Date:** 2026-03-29
+**Sprint:** 10
+**QA Sign-off Reference:** H-112 (QA Engineer → Deploy Engineer)
+
+---
+
+### Pre-Deploy Checks
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| QA confirmation in handoff-log | ✅ PASS | H-112: 107/107 frontend tests, 69/69 backend tests — all pass |
+| Pending migrations | ✅ NONE | No new migrations in Sprint 10. All 5 Sprint 1 migrations already applied (verified: `knex migrate:latest` → "Already up to date") |
+| Sprint 10 tasks ready | ✅ VERIFIED | T-050 Done; T-051 Backlog (doc-only, no deploy impact); T-020 Backlog (user testing, not a code change) |
+| Docker availability | ⚠️ N/A | Docker not available in this environment. Using local process deployment (standard for this workspace). |
+
+---
+
+### Build Log
+
+| Step | Result | Details |
+|------|--------|---------|
+| `cd backend && npm install` | ✅ SUCCESS | Dependencies up to date; 2 known pre-existing audit warnings (path-to-regexp, brace-expansion) — unchanged from Sprint 9 |
+| `cd frontend && npm install` | ✅ SUCCESS | Dependencies up to date |
+| `cd frontend && npm run build` | ✅ SUCCESS | Vite 8.0.2 — 4612 modules transformed, 0 errors, 0 warnings |
+
+**Build Output:**
+```
+dist/index.html                            0.74 kB │ gzip:   0.41 kB
+dist/assets/index-BNRL_D3i.css            39.06 kB │ gzip:   7.09 kB
+dist/assets/confetti.module-No8_urVw.js   10.57 kB │ gzip:   4.20 kB
+dist/assets/index-CMumk1kN.js            391.89 kB │ gzip: 114.51 kB
+✓ built in 283ms
+```
+
+---
+
+### Staging Deployment Log
+
+| Step | Result | Details |
+|------|--------|---------|
+| Database migrations | ✅ SUCCESS | `npm run migrate` → "Already up to date" — all 5 Sprint 1 migrations verified applied |
+| Backend start | ✅ SUCCESS | PID 31589 — `node src/server.js` started on port 3000 |
+| Backend health check | ✅ SUCCESS | `GET /api/health` → `{"status":"ok","timestamp":"2026-03-29T20:13:54.436Z"}` |
+| Frontend preview start | ✅ SUCCESS | PID 31671 — `vite preview` started; port 4173 and 4174 already in use from prior sprints; running on port 4175 |
+| Frontend HTTP check | ✅ SUCCESS | `GET http://localhost:4175` → HTTP 200 |
+
+**Environment:** Staging (local processes)
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running |
+| Backend health endpoint | http://localhost:3000/api/health | ✅ Healthy |
+| Frontend (production build) | http://localhost:4175 | ✅ Running |
+
+**Build Status: SUCCESS**
+
+---
+
+### Sprint 10 Changes Deployed
+
+| Task | Change | Files Affected |
+|------|--------|---------------|
+| T-050 | Focus management after mark-done in Care Due Dashboard | `CareDuePage.jsx`, `Button.jsx`, `CareDuePage.test.jsx` |
+
+No backend changes, no migration changes, no new environment variables.
+
