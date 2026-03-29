@@ -2468,3 +2468,124 @@ All 5 Sprint 1 migrations are already applied (`knex migrate:latest` → "Alread
 - Do **not** proceed to production deployment — production deploy requires explicit Manager Agent authorization after staging is verified.
 
 ---
+
+---
+
+## H-117 — Monitor Agent → Backend Engineer: Sprint #10 — CORS Mismatch — Add Port 4175 to FRONTEND_URL
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-117 |
+| **From** | Monitor Agent |
+| **To** | Backend Engineer |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | CORS mismatch detected: staging frontend runs on port 4175 but FRONTEND_URL only includes ports 5173, 5174, 4173. Browser API calls from staging return HTTP 500. Blocks T-020 user testing. |
+| **Spec Refs** | FB-043, qa-build-log.md Sprint 10 Post-Deploy Health Check |
+| **Status** | Pending |
+
+### Issue
+
+During Sprint #10 post-deploy health check, the Monitor Agent detected a CORS configuration mismatch:
+
+| Config | Value |
+|--------|-------|
+| Staging frontend URL | `http://localhost:4175` (documented in H-114 Deploy Engineer handoff) |
+| `FRONTEND_URL` in `backend/.env` | `http://localhost:5173,http://localhost:5174,http://localhost:4173` |
+| Port 4175 in FRONTEND_URL? | **No** |
+
+**Evidence:**
+```
+curl -s -o /dev/null -w "%{http_code}" -H "Origin: http://localhost:4175" \
+  -H "Authorization: Bearer <token>" \
+  http://localhost:3000/api/v1/plants
+→ 500
+```
+CORS OPTIONS preflight from `http://localhost:4175` also returns 500.
+
+**Root cause:** `backend/src/app.js` line 28: `callback(new Error(...))` is called for unrecognized origins. Express converts this to a 500 Internal Server Error with no CORS headers, blocking the browser.
+
+### Required Fix
+
+**File:** `backend/.env`
+
+Change:
+```
+FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173
+```
+To:
+```
+FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175
+```
+
+Then restart the backend process (`node src/server.js`).
+
+Also update `backend/.env.example` to document port 4175.
+
+### Verification
+
+After applying the fix:
+```bash
+curl -s -o /dev/null -w "%{http_code}" \
+  -X OPTIONS http://localhost:3000/api/v1/plants \
+  -H "Origin: http://localhost:4175" \
+  -H "Access-Control-Request-Method: GET"
+# Expected: 204
+```
+
+### Priority
+
+**P1 — Blocks T-020 user testing.** User testing (T-020) requires real browser interactions with the staging app. This CORS error prevents all API calls in the browser. Sprint #10 cannot close until T-020 is complete.
+
+### Pattern Note
+
+This is the same root cause as T-045 (Sprint 9). Consider documenting in `.env.example` that `FRONTEND_URL` must be updated each sprint to match the active `vite preview` port.
+
+---
+
+## H-118 — Monitor Agent → Manager Agent: Sprint #10 — Deploy Verified: No — CORS Mismatch Blocks Staging
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-118 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | Sprint #10 post-deploy health check complete. Deploy Verified: No. All 17 API endpoints healthy. CORS mismatch blocks browser access from staging port 4175. Fix pending with Backend Engineer (H-117). |
+| **Spec Refs** | qa-build-log.md Sprint 10 Post-Deploy Health Check, FB-043, H-117 |
+| **Status** | Pending |
+
+### Summary
+
+Sprint #10 post-deploy health check is complete. Results:
+
+| Category | Result |
+|----------|--------|
+| Backend responds (GET /api/health → 200) | ✅ PASS |
+| Auth flow (login/register/refresh/logout) | ✅ PASS |
+| All 17 API endpoints | ✅ PASS (17/17, 0 failures, no 5xx) |
+| Database connectivity | ✅ PASS |
+| Frontend accessible at http://localhost:4175 | ✅ PASS |
+| Config: PORT match (backend 3000 = vite proxy 3000) | ✅ PASS |
+| Config: Protocol match (HTTP, no SSL) | ✅ PASS |
+| Config: CORS_ORIGIN includes staging port | ❌ **FAIL** — port 4175 not in FRONTEND_URL |
+| **Deploy Verified** | **No** |
+
+### Blocker
+
+CORS mismatch (FB-043): `http://localhost:4175` is not in `backend/.env` `FRONTEND_URL`. Browser API calls from staging return HTTP 500. This blocks T-020 user testing.
+
+**Fix is trivial:** Add `,http://localhost:4175` to `FRONTEND_URL`, restart backend. Backend Engineer assigned via H-117.
+
+### T-051 Status
+
+T-051 (Monitor Agent: update stale test credentials in system prompt) was completed as part of this health check run. The system prompt in `.agents/monitor-agent.md` has been updated to replace `test@triplanner.local` with `test@plantguardians.local`. T-051 moved to Done in `dev-cycle-tracker.md`.
+
+### Recommendation
+
+1. Backend Engineer applies CORS fix (H-117) — ~2 minutes
+2. Backend process restarted
+3. Monitor Agent re-verifies CORS preflight → Deploy Verified: Yes
+4. T-020 user testing can proceed
+

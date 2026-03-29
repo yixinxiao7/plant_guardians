@@ -990,3 +990,37 @@ The Care Due Dashboard (`/due`) is a standout feature. The three-section urgency
 The 4-model Gemini fallback chain (T-048) makes the AI advice feature much more resilient. In test runs, 429 rate-limit errors correctly cascade through `gemini-2.0-flash → gemini-2.5-flash → gemini-2.5-flash-lite → gemini-2.5-pro` before failing gracefully with a user-friendly error. The error message ("AI service returned an error or timed out") is appropriately vague — no internal details leaked. This is the right pattern for external API dependencies.
 
 ---
+
+---
+
+## FB-043 — Monitor Alert: CORS Mismatch — Staging Frontend Port 4175 Not in FRONTEND_URL
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-043 |
+| **Source** | Monitor Agent — Sprint #10 Post-Deploy Health Check |
+| **Sprint** | 10 |
+| **Date** | 2026-03-29 |
+| **Category** | Monitor Alert |
+| **Severity** | Major |
+| **Status** | New |
+
+### Description
+
+The Sprint #10 staging frontend preview server is running on port **4175** (ports 4173 and 4174 were already in use from prior sprint sessions). However, `backend/.env` `FRONTEND_URL` only includes `http://localhost:5173,http://localhost:5174,http://localhost:4173` — port **4175 is missing**.
+
+`backend/src/app.js` CORS middleware calls `callback(new Error(...))` for unrecognized origins. Express's error handler converts this to an HTTP 500 response with no `Access-Control-Allow-Origin` header.
+
+**Observed behavior:**
+- `curl -H "Origin: http://localhost:4175" http://localhost:3000/api/v1/plants` → **HTTP 500**
+- CORS OPTIONS preflight from `http://localhost:4175` → **HTTP 500**
+- Direct API calls (no Origin header) → **HTTP 200** ✅ (working normally)
+
+**Impact:** Browser-initiated API calls from the staging frontend at `http://localhost:4175` are blocked. The staging app cannot be used for T-020 user testing. The /due page (T-050) change cannot be validated in a real browser session.
+
+**Fix:** Add `,http://localhost:4175` to `FRONTEND_URL` in `backend/.env` and restart the backend process. Same pattern as T-045 (Sprint 9).
+
+**Root cause pattern:** The `vite preview` port increments each sprint when prior ports are occupied. `FRONTEND_URL` is not automatically updated. A more durable fix would be to document the expected preview port in `.env.example` and remind the Deploy Engineer to update it each sprint.
+
+**Handoff created:** H-117 (Monitor Agent → Backend Engineer)
+

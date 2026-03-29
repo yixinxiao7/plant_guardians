@@ -802,3 +802,147 @@ dist/assets/index-CMumk1kN.js            391.89 kB │ gzip: 114.51 kB
 
 No backend changes, no migration changes, no new environment variables.
 
+
+---
+
+## Sprint 10 — Post-Deploy Health Check (2026-03-29)
+
+**Monitor Agent:** Sprint #10 post-deploy health check
+**Date:** 2026-03-29T21:05:00Z
+**Sprint:** 10
+**Environment:** Staging
+**Reference Deploy Handoff:** H-114 (Deploy Engineer → Monitor Agent)
+
+---
+
+### Config Consistency Validation
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Backend PORT | `3000` (from `backend/.env`) | `3000` | ✅ PASS |
+| Vite proxy target port | Port `3000` (matches backend PORT) | `http://localhost:3000` | ✅ PASS |
+| Protocol (SSL) | HTTP (no `SSL_KEY_PATH`/`SSL_CERT_PATH` in `.env`) | Vite proxy uses `http://` | ✅ PASS |
+| CORS_ORIGIN includes staging frontend | `FRONTEND_URL` must include `http://localhost:4175` (Sprint #10 staging port) | `FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173` — port 4175 **NOT included** | ❌ **FAIL** |
+| Docker backend port mapping | N/A — no backend container in `docker-compose.yml` (postgres only) | N/A | ✅ N/A |
+
+**Config Consistency Result: ❌ FAIL**
+
+**CORS Mismatch Detail:**
+- Sprint #10 staging frontend runs on port `4175` (ports 4173/4174 in use from prior sessions — documented in H-114)
+- `backend/.env` `FRONTEND_URL` = `http://localhost:5173,http://localhost:5174,http://localhost:4173` — does NOT include `http://localhost:4175`
+- `backend/src/app.js` CORS middleware throws `new Error(...)` for unrecognized origins → Express error handler returns **HTTP 500**
+- Verified via curl: `curl -H "Origin: http://localhost:4175" http://localhost:3000/api/v1/plants` → **HTTP 500** `{"error":{"message":"Route not found.","code":"NOT_FOUND"}}` (CORS error intercepted before route)
+- CORS OPTIONS preflight from `http://localhost:4175` → **HTTP 500**
+- **Impact:** All browser-initiated API calls from the staging frontend at `http://localhost:4175` are blocked by CORS policy. The staging app is non-functional for browser testing.
+- **Fix:** Add `http://localhost:4175` to `FRONTEND_URL` in `backend/.env` and restart backend.
+
+---
+
+### Health Check — Endpoint Verification
+
+**Token acquisition:** `POST /api/v1/auth/login` with `test@plantguardians.local` / `TestPass123!`
+**Note:** System prompt referenced stale `test@triplanner.local` — returns HTTP 401. Correct credential is `test@plantguardians.local` (T-051 documents this fix).
+
+| # | Endpoint | Method | Expected | Actual Status | Result | Notes |
+|---|----------|--------|----------|---------------|--------|-------|
+| 1 | `/api/health` | GET | 200 | **200** `{"status":"ok","timestamp":"2026-03-29T20:18:34.651Z"}` | ✅ PASS | — |
+| 2 | `/api/v1/auth/login` | POST | 200 + tokens | **200** with `access_token`, `refresh_token`, user object | ✅ PASS | `test@plantguardians.local` |
+| 3 | `/api/v1/auth/register` | POST | 201 | **201** | ✅ PASS | New user created successfully |
+| 4 | `/api/v1/auth/refresh` | POST | 200 + new access_token | **200**, `access_token` present | ✅ PASS | — |
+| 5 | `/api/v1/auth/logout` | POST | 200 | **200** `{"data":{"message":"Logged out successfully."}}` | ✅ PASS | Requires `refresh_token` in body |
+| 6 | `/api/v1/plants` | GET | 200 | **200**, `data` key present | ✅ PASS | Auth required — 401 without token (verified) |
+| 7 | `/api/v1/plants` | POST | 201 | **201**, plant ID returned | ✅ PASS | Includes `care_schedules` array |
+| 8 | `/api/v1/plants/:id` | GET | 200 | **200** | ✅ PASS | Includes `care_schedules` + `recent_care_actions` |
+| 9 | `/api/v1/plants/:id` | PUT | 200 | **200** | ✅ PASS | Note: endpoint is `PUT`, not `PATCH` |
+| 10 | `/api/v1/plants/:id` | DELETE | 200 | **200** | ✅ PASS | — |
+| 11 | `/api/v1/plants/:id/photo` | POST | 400 (no file) | **400** | ✅ PASS | Endpoint exists; multipart required |
+| 12 | `/api/v1/plants/:id/care-actions` | POST | 201 | **201** | ✅ PASS | Requires plant to have matching care schedule |
+| 13 | `/api/v1/plants/:id/care-actions/:id` | DELETE | 200 | **200** | ✅ PASS | Correctly reverts `last_done_at` on schedule |
+| 14 | `/api/v1/care-actions` | GET | 200 + pagination | **200**, `pagination` key present | ✅ PASS | — |
+| 15 | `/api/v1/care-due` | GET | 200 | **200**, `data` key present | ✅ PASS | — |
+| 16 | `/api/v1/profile` | GET | 200 | **200** with `user` + `stats` | ✅ PASS | — |
+| 17 | `/api/v1/ai/advice` | POST | 200 | **200** with AI care advice | ✅ PASS | Gemini API live and responding |
+
+**Endpoint Health Result: ✅ 17/17 PASS — No 5xx errors on any endpoint**
+
+---
+
+### Auth Protection Check
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| `GET /api/v1/plants` without token | HTTP 401 | **401** | ✅ PASS |
+| `GET /api/v1/plants` with valid Bearer token | HTTP 200 | **200** | ✅ PASS |
+
+---
+
+### Frontend Accessibility
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| `frontend/dist/` exists (production build) | Files present | `index.html`, `assets/`, `favicon.svg`, `icons.svg` | ✅ PASS |
+| `GET http://localhost:4175` | HTTP 200 | **200** | ✅ PASS |
+
+---
+
+### Database Connectivity
+
+- Health endpoint `GET /api/health` responds successfully → database connection pooling operational
+- All 17 DB-backed endpoints respond with 2xx → zero connection pool errors observed
+- No 500 errors attributed to database in any tested endpoint
+
+**Database Connectivity Result: ✅ PASS**
+
+---
+
+### 5xx Error Check
+
+**No 5xx errors observed on any of the 17 tested API endpoints.**
+
+> Note: `POST http://localhost:3000/api/v1/plants` with `Origin: http://localhost:4175` header → **HTTP 500** (CORS policy error). This is not an application bug — it is the CORS config mismatch documented above.
+
+---
+
+### Health Check Summary
+
+| Category | Result |
+|----------|--------|
+| App responds (GET /api/health → 200) | ✅ PASS |
+| Auth works (login with test@plantguardians.local) | ✅ PASS |
+| All 17 API endpoints respond | ✅ PASS (17/17) |
+| No 5xx errors in tested endpoints | ✅ PASS |
+| Database connected | ✅ PASS |
+| Frontend accessible at http://localhost:4175 | ✅ PASS |
+| Config: backend PORT matches vite proxy target | ✅ PASS |
+| Config: protocol (HTTP/HTTPS) match | ✅ PASS |
+| Config: CORS_ORIGIN includes staging frontend port 4175 | ❌ **FAIL** — port 4175 missing from FRONTEND_URL |
+
+---
+
+### Error Summary
+
+**CORS Mismatch — Staging Frontend Port 4175 Not in FRONTEND_URL**
+
+- **File:** `backend/.env`
+- **Variable:** `FRONTEND_URL`
+- **Current value:** `http://localhost:5173,http://localhost:5174,http://localhost:4173`
+- **Missing:** `http://localhost:4175`
+- **Evidence:** `curl -H "Origin: http://localhost:4175" http://localhost:3000/api/v1/plants` → HTTP 500
+- **Root cause:** Each sprint, `vite preview` increments port when previous ports are occupied. Sprint #10 landed on 4175. `FRONTEND_URL` was not updated to include the new port.
+- **Impact:** Browser API calls from the staging app at `http://localhost:4175` are blocked. The app cannot be used for browser-based user testing (T-020).
+- **Fix:** Append `,http://localhost:4175` to `FRONTEND_URL` in `backend/.env`, restart backend. Same fix pattern as T-045 (Sprint 9).
+
+---
+
+### Test Type: Post-Deploy Health Check
+
+| Field | Value |
+|-------|-------|
+| **Test Type** | Post-Deploy Health Check |
+| **Environment** | Staging |
+| **Timestamp** | 2026-03-29T21:05:00Z |
+| **Token** | Acquired via `POST /api/v1/auth/login` with `test@plantguardians.local` (NOT `/auth/register`) |
+| **Deploy Verified** | **No** |
+| **Blocker** | CORS mismatch — `http://localhost:4175` not in `FRONTEND_URL` → HTTP 500 on all browser API requests from staging frontend |
+| **Action Required** | Add `http://localhost:4175` to `FRONTEND_URL` in `backend/.env`, restart backend. Handoff H-117 sent to Backend Engineer. |
+

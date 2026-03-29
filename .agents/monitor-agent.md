@@ -97,13 +97,13 @@ rate-limit quota (10 req/hour per IP) and will cause Playwright smoke tests to f
 if registration exhausts the window before tests run.
 
 **Seeded test account credentials (available on staging after `knex seed:run`):**
-- Email: `test@triplanner.local`
+- Email: `test@plantguardians.local`
 - Password: `TestPass123!`
 
 **Token acquisition example:**
 ```
 POST /api/v1/auth/login
-{ "email": "test@triplanner.local", "password": "TestPass123!" }
+{ "email": "test@plantguardians.local", "password": "TestPass123!" }
 → 200 { "data": { "access_token": "..." } }
 ```
 Use the returned `access_token` as `Authorization: Bearer <token>` on all protected endpoints.
@@ -115,10 +115,10 @@ Use the returned `access_token` as `Authorization: Bearer <token>` on all protec
 ```
 Environment: [Staging/Production]
 Timestamp: [ISO 8601]
-Token: acquired via POST /api/v1/auth/login with test@triplanner.local (NOT /auth/register)
+Token: acquired via POST /api/v1/auth/login with test@plantguardians.local (NOT /auth/register)
 Checks:
   - [ ] App responds (GET /api/v1/health → 200)
-  - [ ] Auth works (POST /api/v1/auth/login → 200 with token) [use test@triplanner.local]
+  - [ ] Auth works (POST /api/v1/auth/login → 200 with token) [use test@plantguardians.local]
   - [ ] Key endpoints respond (list from api-contracts.md)
   - [ ] No 5xx errors in logs
   - [ ] Database connected
