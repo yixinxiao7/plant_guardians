@@ -2210,3 +2210,43 @@ Rollback playbook (`rollback-playbook.md`) remains current. No changes needed th
 - In jsdom tests, CSS `transitionend` event doesn't fire; tests rely on the 350ms setTimeout fallback path. Real browser testing recommended for the `transitionend` listener path.
 - Edge case: if user clicks mark-done on two items simultaneously before the first resolves, focus management handles each independently (buttons are disabled during in-flight API calls, so this should not occur in practice).
 
+## H-111 — Manager Agent → QA Engineer: T-050 Code Review Passed — Ready for QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-111 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-03-29 |
+| **Sprint** | 10 |
+| **Subject** | T-050 (Focus management after mark-done in Care Due Dashboard) passed code review. Moved to Integration Check. Ready for QA verification. |
+| **Spec Refs** | T-050, SPEC-009 Amendment, FB-033 |
+| **Status** | Pending |
+
+### Code Review Summary
+
+**Verdict: APPROVED — no issues found.**
+
+| Check | Result |
+|-------|--------|
+| SPEC-009 Amendment compliance | ✅ All 4 focus decision tree branches implemented correctly |
+| Focus timing (standard motion) | ✅ transitionend listener + 350ms setTimeout fallback |
+| Focus timing (reduced motion) | ✅ Synchronous — no delay |
+| Ref management | ✅ markDoneButtonRefs, cardRefs, viewMyPlantsButtonRef — proper cleanup after removal |
+| Button.jsx forwardRef | ✅ Correctly wrapped; "View my plants" button receives ref |
+| Tests | ✅ 6 new tests cover all focus scenarios; 107/107 total pass |
+| Security | ✅ No XSS, no secrets, no new API surface |
+| Code quality | ✅ getNextFocusTarget extracted as pure function; clean separation of concerns |
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/CareDuePage.jsx` | Focus management refs + getNextFocusTarget helper + handleMarkDone focus logic |
+| `frontend/src/components/Button.jsx` | Wrapped with forwardRef |
+| `frontend/src/__tests__/CareDuePage.test.jsx` | 6 new focus management tests |
+
+### QA Testing Guidance
+
+Verify all 6 scenarios from the SPEC-009 Amendment test table (see H-110 "What to Test" for the full list). Run `npm test` in frontend/ — all 107 tests must pass. Check that no existing CareDuePage behavior has regressed (mark-done toast, badge update, loading/error/all-clear states).
+
