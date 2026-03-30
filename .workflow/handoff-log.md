@@ -2403,3 +2403,55 @@ Manager Agent ran the code review phase for Sprint #10. Result: **no tasks requi
 
 Three existing feedback items (FB-038, FB-039, FB-040) confirmed during product testing. No new bugs discovered. Several positive observations logged (robust AI error handling, excellent Care Due Dashboard UX, good keyboard accessibility).
 
+---
+
+## H-137 — Design Agent Sprint #12 Check-In: No New Specs Required
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-137 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer / Manager Agent |
+| **Date** | 2026-03-30 |
+| **Sprint** | 12 |
+| **Subject** | Sprint #12 Design Agent review complete — no new UI specs needed |
+| **Spec Refs** | SPEC-001 through SPEC-009 (all Approved, all built) |
+| **Status** | Complete |
+
+### Summary
+
+Design Agent has reviewed `active-sprint.md`, `dev-cycle-tracker.md`, `project-brief.md`, and `feedback-log.md` for Sprint #12. **No new UI specs are required this sprint.**
+
+Sprint #12 scope contains no new frontend screens or UI components:
+
+- **T-056** (Backend) — Auth pool fix in `backend/src/db.js` / `backend/knexfile.js`. No UI changes.
+- **T-053-frontend** (Frontend) — Refactor of `frontend/src/utils/api.js` and `frontend/src/hooks/useAuth.jsx` for HttpOnly cookie-based refresh token flow. This is a behavioral/authentication change with no new visible UI surface. The existing login screen (SPEC-001), session persistence, and redirect behavior remain unchanged from the user's perspective. No spec update needed — the acceptance criteria in `active-sprint.md` are fully sufficient for this engineering task.
+- **T-020** (User Testing) — End-to-end MVP test session. All screens under test (plant inventory, plant detail, add/edit plant, AI advice modal, care history, care due dashboard, profile) are fully specced under SPEC-001 through SPEC-009.
+- **T-057** (Backend) — `.env` port correction. No UI impact.
+
+### All Existing Specs — Status Summary
+
+| Spec | Screen | Status |
+|------|--------|--------|
+| SPEC-001 | Login & Sign Up | Approved ✅ |
+| SPEC-002 | Plant Inventory (Home) | Approved ✅ |
+| SPEC-003 | Add Plant | Approved ✅ |
+| SPEC-004 | Edit Plant | Approved ✅ (amended Sprint 6 per FB-005) |
+| SPEC-005 | Plant Detail | Approved ✅ |
+| SPEC-006 | AI Advice Modal | Approved ✅ |
+| SPEC-007 | Profile Page | Approved ✅ |
+| SPEC-008 | Care History Page | Approved ✅ |
+| SPEC-009 | Care Due Dashboard | Approved ✅ (amended Sprint 10 per T-042 / H-105) |
+
+### Design System Notes for T-053-frontend
+
+The auth flow change (silent refresh on app init) has one subtle UX moment the Frontend Engineer should handle gracefully:
+
+- **App init loading state:** While `POST /api/v1/auth/refresh` is in-flight on startup, the app should show a minimal full-screen loading indicator (centered spinner, `#F7F4EF` background, no layout flash) rather than briefly flashing the login screen. This prevents the jarring "login screen flicker" that would occur if the redirect-to-login fires before the refresh response arrives.
+- **Silent failure:** If the refresh call fails (expired or missing cookie), redirect to `/login` without any error toast — this is expected behavior, not an error the user needs to be informed of.
+- Both of these are behavioral guidelines consistent with the existing Japandi aesthetic (calm, no surprises) and do not require a new spec entry.
+
+### No Handoff to Frontend Engineer Required
+
+T-053-frontend already has complete acceptance criteria in `active-sprint.md`. The Frontend Engineer should proceed directly from the sprint task definition. Design Agent is available for clarifying questions.
+
