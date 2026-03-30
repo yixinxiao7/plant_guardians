@@ -762,3 +762,190 @@ T-055 acceptance criteria met. T-020 (User testing) is now **fully unblocked**.
 **T-020 Gate:** CORS is live and verified. T-020 (user testing) is unblocked. Staging URL: http://localhost:4175
 
 **Handoff H-133 sent to Monitor Agent for post-deploy health checks.**
+
+---
+
+## Sprint 11 — QA Verification Pass #2 (2026-03-30)
+
+**Date:** 2026-03-30
+**QA Engineer:** QA Agent (Orchestrator Sprint #11 run)
+**Sprint:** 11
+**Tasks In Scope:** T-055 (CORS fix), T-052 (Care type badges), T-054 (Photo isDirty fix), T-053 (HttpOnly cookie auth — backend only; frontend blocked)
+
+---
+
+### Test Type: Unit Test — Backend
+
+| Check | Result |
+|-------|--------|
+| `cd backend && npm test` | ✅ **72/72 tests pass** (8 test suites) |
+| T-053 auth cookie tests (14 tests incl. 4 new) | ✅ All pass — cookie set, rotation, revocation, clearing, missing cookie 401, invalid cookie 401, idempotent logout, attribute verification |
+| T-055 no test regressions | ✅ Confirmed |
+| Pre-existing flaky 429s in auth tests | ✅ Resolved — rate-limit env vars moved before `require(app)` |
+
+**Verdict: PASS**
+
+---
+
+### Test Type: Unit Test — Frontend
+
+| Check | Result |
+|-------|--------|
+| `cd frontend && npm test` | ✅ **117/117 tests pass** (20 test suites) |
+| T-052 StatusBadge tests (care type icons + labels) | ✅ All pass — 3 care types, singular/plural, icon presence, CSS classes |
+| T-052 PlantCard tests (careType prop passing) | ✅ All pass |
+| T-054 EditPlantPage isDirty test (photo removal) | ✅ Pass — photo removal enables Save button |
+| No regressions from Sprint 10 baseline (107 tests) | ✅ 10 new tests added (117 total), all pass |
+
+**Verdict: PASS**
+
+---
+
+### Test Type: Integration Test — T-055 (CORS Fix)
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| `FRONTEND_URL` includes `:4173` and `:4175` | ✅ | `backend/.env` line 17 |
+| `vite preview` uses `--port 4173` | ✅ | `frontend/package.json` preview script |
+| `.env.example` documents all canonical ports | ✅ | Comments explain :5173/:5174 dev, :4173 preview, :4175 fallback |
+| `.env` structure matches `.env.example` | ✅ | All keys present, order consistent |
+| Backend PORT=3000 matches vite proxy target | ✅ | `vite.config.js` line 8: `http://localhost:3000` |
+
+**Verdict: PASS**
+
+---
+
+### Test Type: Integration Test — T-052 (Care Type Badges)
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| PlantCard passes `careType` prop to StatusBadge | ✅ | `PlantCard.jsx` line 59: `careType={schedule.care_type}` |
+| StatusBadge renders icon + label per CARE_TYPE_CONFIG | ✅ | Drop (blue #5B8FA8), Leaf (green #4A7C59), PottedPlant (terracotta #A67C5B) |
+| Badge text format: "Watering: X days overdue" | ✅ | `fullLabel = config.label + ": " + statusText` |
+| Singular/plural: "1 day" vs "2 days" | ✅ | Ternary on `daysOverdue === 1` |
+| No careType fallback (not_set) renders without icon | ✅ | `config = careType ? CARE_TYPE_CONFIG[careType] : null` |
+| No XSS vectors — text only, no innerHTML/dangerouslySetInnerHTML | ✅ | Confirmed via grep |
+| SPEC-002 Amendment compliance | ✅ | Icon+color system matches CareHistoryPage convention |
+
+**Verdict: PASS**
+
+---
+
+### Test Type: Integration Test — T-054 (Photo Removal isDirty Fix)
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| `isDirty` compares `photoUrl !== (plant.photo_url \|\| '')` | ✅ | `EditPlantPage.jsx` line 89 |
+| `photoUrl` in `isDirty` dependency array | ✅ | Line 116 |
+| Remove photo → `setPhotoUrl('')` → isDirty=true → Save enabled | ✅ | `onRemove` callback sets empty string |
+| Save button disabled when `!isDirty` | ✅ | Line 311: `disabled={!isDirty \|\| saving}` |
+| Unit test verifies scenario | ✅ | EditPlantPage.test.jsx |
+
+**Verdict: PASS**
+
+---
+
+### Test Type: Integration Test — T-053 (HttpOnly Cookie Auth — Backend Only)
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| `POST /auth/register` sets `Set-Cookie` header | ✅ | `setRefreshTokenCookie(res, refresh_token)` line 90 |
+| `POST /auth/login` sets `Set-Cookie` header | ✅ | Line 134 |
+| `POST /auth/refresh` reads from `req.cookies.refresh_token` | ✅ | Line 159 |
+| `POST /auth/refresh` rotates token + sets new cookie | ✅ | Lines 170, 182 |
+| `POST /auth/logout` reads from cookie, revokes, clears | ✅ | Lines 202-208 |
+| `DELETE /auth/account` clears cookie | ✅ | Line 254 |
+| Cookie attributes: HttpOnly, Secure, SameSite=Strict, Path=/api/v1/auth | ✅ | Lines 47-52 |
+| `refresh_token` NOT in response body (register/login) | ✅ | Response only includes `access_token` and `user` |
+| `cookie-parser` registered before auth routes in app.js | ✅ | `app.use(cookieParser())` line 35, auth routes line 78 |
+| CORS `credentials: true` set | ✅ | `app.js` line 31 |
+| **Frontend `api.js` updated for cookie flow?** | ❌ BLOCKED | Still uses body-based `refresh_token` (lines 7, 33-49, 112-116). No `credentials: 'include'`. Silent re-auth not implemented. |
+
+**Backend Verdict: PASS**
+**Frontend Verdict: BLOCKED — api.js not updated. See H-131.**
+**Overall T-053 Verdict: BLOCKED**
+
+---
+
+### Test Type: Config Consistency Check
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| Backend PORT (3000) matches vite proxy target | ✅ | `.env` PORT=3000, `vite.config.js` target=`http://localhost:3000` |
+| Vite proxy uses http:// (no SSL in dev) | ✅ | Backend has no SSL config in dev |
+| CORS_ORIGIN includes frontend dev server origin | ✅ | `http://localhost:5173` is first in FRONTEND_URL |
+| Docker postgres port matches DATABASE_URL | ✅ | Both use port 5432 |
+| Docker test postgres port matches TEST_DATABASE_URL | ⚠️ Minor | `.env` uses 5432 for test DB, `docker-compose.yml` maps test to 5433, `.env.example` uses 5433. Dev `.env` has test pointing to 5432 (shared staging port). Not a blocker — test runs use the test DB name, not the port. |
+
+**Verdict: PASS (minor .env test port inconsistency noted — non-blocking)**
+
+---
+
+### Test Type: Security Scan
+
+**Date:** 2026-03-30
+**Scope:** All Sprint 11 tasks (T-055, T-052, T-053 backend, T-054)
+
+#### Authentication & Authorization
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| All API endpoints require auth | ✅ | `authenticate` middleware on all protected routes |
+| Auth tokens have expiration (15m access, 7d refresh) | ✅ | `.env` JWT_EXPIRES_IN=15m, REFRESH_TOKEN_EXPIRES_DAYS=7 |
+| Password hashing uses bcrypt | ✅ | `User.js` line 11: `bcrypt.hash(password, SALT_ROUNDS)` |
+| Failed login rate-limited | ✅ | `authLimiter` in app.js (20 req/15min) |
+| Refresh token rotation on use | ✅ | Old token revoked before new one issued |
+| HttpOnly cookie prevents JS access | ✅ | `httpOnly: true` in cookie options |
+| SameSite=Strict prevents CSRF | ✅ | `sameSite: 'strict'` |
+| Secure flag set | ✅ | `secure: true` — note: requires HTTPS in production |
+
+#### Input Validation & Injection Prevention
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| Server-side validation on all inputs | ✅ | `validateBody` middleware on register/login |
+| SQL queries use parameterized statements (Knex) | ✅ | All models use `.where()`, `.insert()` — no raw SQL concatenation |
+| HTML output sanitized (no XSS) | ✅ | No `dangerouslySetInnerHTML`, no `innerHTML` in app code |
+| File uploads validated (type, size) | ✅ | Multer config validates mimetype + size limit |
+
+#### API Security
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| CORS allows only expected origins | ✅ | Dynamic origin check against allowedOrigins array |
+| Rate limiting on public endpoints | ✅ | General (100/15min) + Auth-specific (20/15min) |
+| Error responses don't leak internals | ✅ | errorHandler.js: unknown errors → generic "An unexpected error occurred" |
+| Security headers via Helmet | ✅ | `app.use(helmet())` |
+
+#### Data Protection
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| Credentials in .env, not in code | ✅ | JWT_SECRET, GEMINI_API_KEY in .env |
+| .env in .gitignore | ✅ | Confirmed in .gitignore |
+| .env.example uses placeholder values | ✅ | `your-super-secret-jwt-key-change-in-production` and `your-gemini-api-key` |
+| Logs do not contain PII/passwords | ✅ | Only error messages logged, no req.body dumps |
+
+#### npm audit
+
+| Vulnerability | Severity | Package | Status |
+|---------------|----------|---------|--------|
+| brace-expansion < 1.1.13 | Moderate | nodemon dependency | Pre-existing, not new |
+| path-to-regexp < 0.1.13 (ReDoS) | High | Express 4 dependency | Pre-existing, not new. Fix requires Express 5 migration (out of scope). |
+
+**No new vulnerabilities introduced in Sprint 11.**
+
+**Security Verdict: PASS — No P1 security issues. Pre-existing vulns are known and tracked.**
+
+---
+
+### Overall Sprint 11 QA Summary
+
+| Task | Unit Tests | Integration | Security | Verdict |
+|------|-----------|-------------|----------|---------|
+| **T-055** (CORS fix) | ✅ 72/72 backend | ✅ Config verified | ✅ No issues | **Done** ✅ |
+| **T-052** (Care badges) | ✅ 117/117 frontend | ✅ SPEC-002 compliant | ✅ No XSS | **Done** ✅ |
+| **T-054** (Photo isDirty) | ✅ 117/117 frontend | ✅ Logic verified | ✅ No issues | **Done** ✅ |
+| **T-053** (Cookie auth) | ✅ 72/72 backend | ❌ Frontend not updated | ✅ Backend secure | **Blocked** ⚠️ |
+
+**Deploy Readiness:** T-055, T-052, T-054 are ready. T-053 remains blocked on frontend `api.js` update.

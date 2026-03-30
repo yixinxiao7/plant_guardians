@@ -3163,3 +3163,125 @@ See H-128 and H-130 for the complete list of required changes. All changes are i
 ### T-020 Gate
 
 CORS is live and verified for http://localhost:4175. All three MVP flows should be testable. The user testing session (T-020) is now **unblocked**. Please confirm health checks pass and note in your response whether T-020 can proceed.
+
+---
+
+## H-134 — Manager Agent: Sprint #11 Code Review Pass — No Tasks in Review
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-134 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | Manager review pass completed. No tasks currently in "In Review" status. Sprint 11 status summary and next actions documented. |
+| **Spec Refs** | T-020, T-051, T-053, T-055, T-052, T-054 |
+| **Status** | Complete |
+
+### Sprint #11 — Current State Summary (2026-03-30)
+
+All Sprint 11 code review was completed earlier this sprint. This review pass confirms no new tasks have entered "In Review" since then.
+
+| Task | Status | Review Result | Notes |
+|------|--------|---------------|-------|
+| **T-055** | Done ✅ | Code review passed, QA passed, deployed | CORS fix live on staging |
+| **T-052** | Done ✅ | Code review passed, QA passed, deployed | Care type badges live on staging |
+| **T-054** | Done ✅ | Code review passed, QA passed, deployed | Photo removal isDirty fix live |
+| **T-053** | Blocked ⚠️ | Backend code review passed → Integration Check. Frontend NOT started. | `frontend/src/utils/api.js` still uses body-based refresh token flow (verified 2026-03-30). H-130 and H-131 detail required changes. Frontend Engineer has not submitted updates. |
+| **T-020** | Backlog → Unblocked ✅ | N/A (user testing, not code) | T-055 blocker is Done. Staging deploy live (H-133). Awaiting user/project owner testing session. |
+| **T-051** | Backlog | N/A (not started) | Documentation fix — Monitor Agent to update stale test account reference in `.agents/monitor-agent.md`. |
+
+### Outstanding Blockers
+
+1. **T-053 frontend half:** The Frontend Engineer has NOT updated `api.js` to use cookie-based auth (`credentials: 'include'`). The file still contains `refreshToken` in-memory management and body-based token passing (lines 7, 33-49, 112-116). This is the single remaining code task for Sprint 11. **Action: Frontend Engineer must implement H-130 changes and submit for review.**
+
+2. **T-020 user testing:** Unblocked but requires the user/project owner to conduct the testing session. No agent action needed — this is a human gate.
+
+3. **T-051 documentation:** Trivial fix. Monitor Agent should update `.agents/monitor-agent.md` before sprint close.
+
+### Next Actions
+
+| Agent | Action Required |
+|-------|----------------|
+| **Frontend Engineer** | Complete T-053 frontend half (H-130 changes to `api.js`) and submit for review |
+| **User Agent / Project Owner** | Conduct T-020 user testing session on staging (http://localhost:4175) |
+| **Monitor Agent** | Complete T-051 (update stale test account reference) + run Sprint 11 post-deploy health check (H-133) |
+| **QA Engineer** | Stand by — re-verify T-053 once frontend half is submitted and reviewed |
+| **Manager Agent** | Review T-053 frontend when submitted; triage T-020 feedback when testing complete |
+
+---
+
+## H-135 — QA Engineer → Deploy Engineer: Sprint #11 QA Pass #2 — Deploy Readiness Confirmed (Partial)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-135 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | QA verification pass #2 complete. T-055, T-052, T-054 all pass unit tests, integration tests, config consistency, and security scan. T-053 remains blocked on frontend. Deploy readiness confirmed for 3 of 4 tasks. |
+| **Spec Refs** | T-055, T-052, T-054, T-053 |
+| **Status** | Partial — T-053 blocked |
+
+### QA Results Summary
+
+| Task | Unit Tests | Integration | Security | Verdict |
+|------|-----------|-------------|----------|---------|
+| **T-055** (CORS fix) | ✅ 72/72 | ✅ Config verified | ✅ Pass | **Done** ✅ |
+| **T-052** (Care badges) | ✅ 117/117 | ✅ SPEC-002 compliant | ✅ Pass | **Done** ✅ |
+| **T-054** (Photo isDirty) | ✅ 117/117 | ✅ Logic verified | ✅ Pass | **Done** ✅ |
+| **T-053** (Cookie auth) | ✅ 72/72 backend | ❌ Frontend blocked | ✅ Backend pass | **Blocked** ⚠️ |
+
+### Test Counts
+
+- **Backend:** 72/72 pass (8/8 suites) — 0 failures
+- **Frontend:** 117/117 pass (20/20 suites) — 0 failures
+- **Security:** No P1 issues. 2 pre-existing npm audit vulnerabilities (brace-expansion moderate, path-to-regexp high via Express 4). No new vulnerabilities.
+- **Config consistency:** Backend PORT=3000 matches vite proxy target. CORS includes all dev/staging origins. No SSL mismatch. Minor: `.env` TEST_DATABASE_URL uses port 5432 vs docker-compose 5433 — non-blocking.
+
+### Deploy Recommendation
+
+**T-055, T-052, T-054 are deployed and verified.** No additional deploy action needed for these.
+
+**T-053:** Do NOT deploy frontend with T-053 backend changes until Frontend Engineer completes `api.js` cookie migration AND QA re-verifies. The current frontend `api.js` sends refresh tokens in the body; backend now reads from cookies. Deploying both together without the frontend fix will break token refresh for all users.
+
+### Remaining Sprint Items
+
+- **T-020** (User testing) — Unblocked. Awaiting user/project owner.
+- **T-051** (Monitor stale prompt) — Documentation. Awaiting Monitor Agent.
+- **T-053 frontend** — Blocked. Awaiting Frontend Engineer (H-130, H-131).
+
+---
+
+## H-136 — QA Engineer → Frontend Engineer: T-053 Remains Blocked — api.js Cookie Migration Still Required
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-136 |
+| **From** | QA Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | QA Pass #2 confirms T-053 backend is fully verified (72/72 tests, security pass, cookie attributes correct). Frontend `api.js` is STILL using body-based refresh token flow. T-053 cannot close until this is resolved. |
+| **Spec Refs** | T-053, H-130, H-131 |
+| **Status** | Blocked |
+
+### What's Still Missing
+
+`frontend/src/utils/api.js` has not been updated since H-131 was filed. The same 5 issues persist:
+
+1. `refreshAccessToken()` (line 35-49): Sends `{ refresh_token }` in body. Must use `credentials: 'include'` with no body.
+2. `auth.logout()` (line 112-116): Sends `{ refresh_token }` in body. Must use `credentials: 'include'` only.
+3. `request()` function: No `credentials: 'include'` — browser won't send/receive cookies.
+4. `setTokens()`/`clearTokens()`: Still manage `refreshToken` in memory. Should be removed.
+5. Silent re-auth on app init: Not implemented.
+
+### Impact
+
+Token refresh is **broken** against the updated backend. Access tokens expire after 15 minutes; when the frontend tries to refresh, it sends the token in the body, but the backend reads from `req.cookies.refresh_token`. Result: 401 → user logged out.
+
+### Priority
+
+**P1 — Blocking.** This is the single remaining code task for Sprint 11.

@@ -1024,3 +1024,59 @@ The Sprint #10 staging frontend preview server is running on port **4175** (port
 
 **Handoff created:** H-117 (Monitor Agent → Backend Engineer)
 
+---
+
+### FB-041 — Sprint #11 QA Product Observations (2026-03-30)
+
+**Source:** QA Engineer — Sprint #11 product-perspective testing
+
+---
+
+**Observation 1: Care type badges are a major clarity improvement**
+- **Category:** Positive
+- **Severity:** N/A
+- **Details:** T-052 badges ("Watering: 2 days overdue", "Fertilizing: On track") are significantly clearer than the previous unlabeled status pills. The color-coded Phosphor icons (blue drop, green leaf, terracotta pot) provide instant visual recognition. Multi-badge layout wraps cleanly. This makes the inventory page immediately more useful for the target audience (novice plant carers).
+
+**Observation 2: Photo removal Save button fix resolves a real dead-end**
+- **Category:** Positive
+- **Severity:** N/A
+- **Details:** T-054 fixes a genuine user frustration — before this, removing a plant photo left the Save button disabled with no way to persist the change. Simple fix, high impact.
+
+**Observation 3: Frontend auth refresh is temporarily broken**
+- **Category:** Bug
+- **Severity:** P1
+- **Details:** The backend now reads refresh tokens from cookies, but `api.js` still sends them in the request body. This means automatic token refresh (on 401) will fail — users will be logged out unexpectedly when their access token expires. Frontend Engineer needs to complete the `api.js` cookie migration (H-130, H-131) before this can ship. Not a regression for users yet (not deployed), but MUST be fixed before any deploy that includes T-053 backend changes.
+
+**Observation 4: CORS port drift permanently resolved**
+- **Category:** Positive
+- **Severity:** N/A
+- **Details:** T-055 pins `vite preview` to port 4173, eliminating the recurring CORS failures that blocked T-020 for 10 consecutive sprints. The `.env.example` now documents all canonical ports. This is a long-overdue infrastructure fix.
+
+---
+
+### QA Pass #2 — Product-Perspective Testing (2026-03-30)
+
+**Source:** QA Engineer — Sprint #11 product-perspective testing (pass #2)
+
+---
+
+**Observation 5: Error handler properly shields internal details**
+- **Category:** Positive
+- **Severity:** N/A
+- **Details:** The centralized `errorHandler.js` correctly returns generic "An unexpected error occurred" for unknown errors, never leaking stack traces, file paths, or internal state. Structured JSON error format (`{ error: { message, code } }`) is consistent across all endpoints. This is critical for the novice user audience — they should never see scary technical errors.
+
+**Observation 6: Rate limiting protects against brute force**
+- **Category:** Positive
+- **Severity:** N/A
+- **Details:** Auth endpoints have a stricter rate limit (20/15min) vs general API (100/15min). This protects user accounts from brute-force attacks. Rate limit messages are user-friendly ("Too many authentication attempts, please try again later.").
+
+**Observation 7: Test DB port inconsistency in .env**
+- **Category:** UX Issue
+- **Severity:** P3
+- **Details:** `backend/.env` has `TEST_DATABASE_URL` pointing to port 5432 (same as staging DB), while `docker-compose.yml` and `.env.example` map the test postgres to port 5433. This doesn't cause test failures because the test DB is differentiated by name, but it's a papercut that could confuse a new contributor. Recommend aligning `.env` TEST_DATABASE_URL to port 5433 for consistency.
+
+**Observation 8: HttpOnly cookie auth is a solid security upgrade (backend side)**
+- **Category:** Positive
+- **Severity:** N/A
+- **Details:** T-053 backend implementation is textbook: token rotation on refresh, HttpOnly + Secure + SameSite=Strict + scoped Path. Refresh tokens are never exposed to JavaScript. Cookie clearing on logout and account deletion. This eliminates the XSS-accessible refresh token that was previously stored in JS memory. Once the frontend half is done, this will be a significant security improvement.
+
