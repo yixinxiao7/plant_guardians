@@ -3034,3 +3034,132 @@ Per the Sprint 11 contract integration notes (api-contracts.md):
 ### Priority
 
 This is the blocking frontend half of T-053 (P1). Please complete and submit for review this sprint.
+
+---
+
+## H-131 — QA Engineer → Frontend Engineer: T-053 Blocked — Frontend api.js Not Updated for Cookie Auth
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-131 |
+| **From** | QA Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | T-053 moved to Blocked. Backend passes all QA checks. Frontend `api.js` still uses body-based refresh token flow — MUST be updated to cookie-based flow before T-053 can move to Done. |
+| **Spec Refs** | T-053, H-128, H-130, Sprint 11 API Contracts |
+| **Status** | Blocked |
+
+### What's Blocking
+
+The backend half of T-053 passes all QA checks (72/72 tests, security verification, contract compliance). However, `frontend/src/utils/api.js` has NOT been updated:
+
+1. **`refreshAccessToken()` (line 35-49):** Still sends `{ refresh_token }` in request body. Must use `credentials: 'include'` with no body.
+2. **`auth.logout()` (line 113-116):** Still sends `{ refresh_token }` in body. Must use `credentials: 'include'` only.
+3. **`request()` function:** Does not include `credentials: 'include'` — browser will not send/receive cookies.
+4. **`setTokens()`/`clearTokens()`:** Still manage `refreshToken` in memory. Should be removed — browser manages cookie.
+5. **Silent re-auth on app init:** Not implemented. Required for persistent login feature.
+
+**Impact:** The current frontend refresh flow is BROKEN against the updated backend. `POST /auth/refresh` now reads from `req.cookies.refresh_token`, but the frontend sends the token in the body (which the backend no longer reads). This means token refresh will fail with 401.
+
+### Required Actions
+
+See H-128 and H-130 for the complete list of required changes. All changes are in `frontend/src/utils/api.js` and `frontend/src/hooks/useAuth.jsx`.
+
+### Priority
+
+**P1 — Blocking.** T-053 cannot move to Done until this is resolved. This also blocks T-020 user testing of the persistent login feature.
+
+---
+
+## H-132 — QA Engineer → Deploy Engineer: Sprint #11 Partial Deploy Readiness
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-132 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | QA verification complete for Sprint #11. Three tasks pass (T-055, T-052, T-054). One task blocked (T-053 — waiting on frontend). Partial deploy readiness confirmed. |
+| **Spec Refs** | T-055, T-052, T-053, T-054 |
+| **Status** | Partial — awaiting T-053 frontend |
+
+### QA Summary
+
+| Task | Status | Result |
+|------|--------|--------|
+| **T-055** — CORS port drift fix | **Done** ✅ | All checks pass. CORS config correct. Preview port pinned. |
+| **T-052** — Care type badge icons | **Done** ✅ | All checks pass. 9 new tests. SPEC-002 Amendment compliance verified. |
+| **T-054** — Photo removal isDirty fix | **Done** ✅ | All checks pass. 1 new test. isDirty logic correct. |
+| **T-053** — HttpOnly cookie auth | **Blocked** ⚠️ | Backend passes (72/72 tests, security verified). Frontend `api.js` not yet updated. |
+
+### Test Results
+
+- **Backend:** 72/72 pass (8/8 suites) — 0 failures
+- **Frontend:** 117/117 pass (20/20 suites) — 0 failures
+- **Security:** No P1 issues. Pre-existing npm audit vulns noted (Express 4 path-to-regexp, brace-expansion in nodemon). No new vulnerabilities.
+- **Config consistency:** No mismatches.
+
+### Deploy Recommendation
+
+**T-055, T-052, and T-054 are ready to deploy.** These are independent changes with no cross-dependencies.
+
+**T-053 is NOT ready.** Do not deploy the backend auth cookie changes without the corresponding frontend `api.js` update — the current frontend will break (refresh token sent in body, backend now reads from cookie). Deploy T-053 only after Frontend Engineer completes the `api.js` update AND QA re-verifies.
+
+### Remaining Sprint Items (Not QA's Responsibility)
+
+- **T-020** (User testing) — Requires user/project owner; CORS fix (T-055) is done; T-020 is unblocked.
+- **T-051** (Monitor Agent stale prompt) — Documentation fix; no QA testing needed.
+
+---
+
+## H-133 — Deploy Engineer → Monitor Agent: Sprint #11 Staging Deploy Complete — Health Check Requested
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-133 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | Sprint #11 staging deployment complete. Frontend rebuilt with T-052 and T-054 changes. CORS live. Please run post-deploy health checks. |
+| **Spec Refs** | T-055, T-052, T-054, T-020 |
+| **Status** | Pending |
+
+### What Was Deployed
+
+| Task | Description | Status |
+|------|-------------|--------|
+| **T-055** | CORS config — ports 4173 + 4175 in FRONTEND_URL; backend already running with config | ✅ Live |
+| **T-052** | Frontend: care type badges on PlantCard (Watering/Fertilizing/Repotting icons + labels) | ✅ Live |
+| **T-054** | Frontend: photo removal enables Save button in EditPlantPage | ✅ Live |
+| **T-053** | Backend: HttpOnly cookie auth running (PID 41646). Frontend `api.js` NOT updated — refresh flow broken until H-130/H-131 resolved. **Do NOT test T-053 integrated flow.** | ⚠️ Partial |
+
+### Staging Endpoints
+
+| Service | URL | Notes |
+|---------|-----|-------|
+| **Frontend (Sprint 11)** | http://localhost:4175 | PID 44508 — new build (2026-03-30 09:32) |
+| **Backend API** | http://localhost:3000 | PID 41646 — includes T-053 backend changes |
+| **Health endpoint** | http://localhost:3000/ | Returns 404 JSON (expected — no health route) |
+
+### Health Checks Requested
+
+1. **GET http://localhost:3000/api/v1/plants** — Requires auth. Verify backend API responds (401 without token is expected and correct).
+2. **CORS preflight** — `OPTIONS http://localhost:3000/api/v1/plants` with `Origin: http://localhost:4175` → expect `204 No Content` + `Access-Control-Allow-Origin: http://localhost:4175`.
+3. **Frontend serving** — `GET http://localhost:4175/` → expect `200 OK` with HTML.
+4. **Auth flow (basic)** — POST `/api/v1/auth/login` with test credentials → expect `200` with `access_token`. ⚠️ Refresh token is now cookie-based — verify `Set-Cookie` header present on login response.
+5. **T-052 visual** — Verify plant inventory page shows care-type-prefixed badges (e.g., "Watering: 2 days overdue").
+6. **T-054 functional** — Verify removing a plant photo enables Save button on Edit Plant page.
+7. **T-020 readiness** — Confirm no P0 blocking errors. Confirm T-020 (user testing) can proceed.
+
+### ⚠️ Known Issues (Not Regressions)
+
+- **T-053 integrated refresh flow is broken:** Frontend `api.js` still sends `refresh_token` in request body; backend now reads from cookie. Token refresh will return 401. This is a known, tracked issue (H-131). Do not flag as a regression — it is the expected state until Frontend Engineer resolves H-130.
+- **Preview port 4175 instead of 4173:** Port 4173 is occupied by an unrelated project (triplanner). Port 4175 is in `FRONTEND_URL` — CORS is verified. Not a blocker.
+- **Pre-existing npm audit vulnerabilities:** 2 known (brace-expansion moderate, path-to-regexp high via Express 4). Not new, not P1.
+
+### T-020 Gate
+
+CORS is live and verified for http://localhost:4175. All three MVP flows should be testable. The user testing session (T-020) is now **unblocked**. Please confirm health checks pass and note in your response whether T-020 can proceed.

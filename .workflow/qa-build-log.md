@@ -490,3 +490,275 @@ Backend restarted to pick up updated `FRONTEND_URL`. New process confirmed servi
 #### T-020 Gate Status
 
 T-055 acceptance criteria met. T-020 (User testing) is now **fully unblocked**.
+
+---
+
+## Sprint #11 — QA Verification (2026-03-30)
+
+**QA Engineer — Full test run for Sprint #11 tasks: T-055, T-052, T-053 (backend), T-054**
+
+---
+
+### Unit Test Results
+
+**Test Type:** Unit Test
+**Date:** 2026-03-30
+
+#### Backend Tests
+
+- **Result:** 72/72 PASS ✅
+- **Suites:** 8/8 pass (plants, auth, ai, careHistory, careDue, careActions, account, profile)
+- **T-053 auth tests:** 14 tests covering register (cookie set), login (cookie set), refresh (cookie rotation, missing cookie → 401, invalid cookie → 401, already-rotated → 401), logout (cookie cleared, idempotent, no Bearer → 401), plus cookie attribute verification
+- **Pre-existing 429 flakes:** RESOLVED — test setup now sets rate-limit env vars before `require(app)`
+- **Regression:** No regressions from Sprint 10 baseline (was 69; now 72 with 3 net new T-053 tests)
+
+#### Frontend Tests
+
+- **Result:** 117/117 PASS ✅
+- **Suites:** 20/20 pass
+- **T-052 new tests:** 6 StatusBadge tests (watering/fertilizing/repotting icons, singular/plural days, no-icon fallback, with-icon class) + 3 PlantCard tests (multi-badge, no-schedules, singular day) = 9 new
+- **T-054 new test:** 1 EditPlantPage test (remove photo → Save enabled)
+- **Regression:** No regressions from Sprint 10 baseline (was 107; now 117 with 10 new tests)
+
+---
+
+### Integration Test Results
+
+**Test Type:** Integration Test
+**Date:** 2026-03-30
+
+#### T-055 — CORS Port Drift Fix ✅ PASS
+
+| Check | Result |
+|-------|--------|
+| `FRONTEND_URL` in `.env` includes `:4173` and `:4175` | ✅ `http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` |
+| `frontend/package.json` preview script pinned to `--port 4173` | ✅ `"preview": "vite preview --port 4173"` |
+| `.env.example` documents all canonical ports | ✅ Comments explain each port's purpose |
+| `.env.example` matches `.env` structure | ✅ Same variable names and format |
+| CORS middleware parses comma-separated `FRONTEND_URL` | ✅ `app.js` line 24 splits and trims |
+| `credentials: true` set in CORS config | ✅ `app.js` line 31 |
+
+#### T-052 — Care-Type Badge Icons ✅ PASS
+
+| Check | Result |
+|-------|--------|
+| StatusBadge accepts `careType` prop | ✅ Renders icon + label prefix |
+| Watering badge: blue Drop icon (#5B8FA8) + "Watering: [status]" | ✅ CARE_TYPE_CONFIG map correct |
+| Fertilizing badge: green Leaf icon (#4A7C59) + "Fertilizing: [status]" | ✅ |
+| Repotting badge: terracotta PottedPlant icon (#A67C5B) + "Repotting: [status]" | ✅ |
+| Badge text format: "Watering: 1 day overdue" (singular) / "3 days overdue" (plural) | ✅ Line 30 handles `daysOverdue === 1` |
+| No-schedules badge: "Not set" without icon | ✅ `config` is null when no `careType` |
+| Icons are `aria-hidden="true"` | ✅ Line 58 |
+| Icon size 13px, bold weight | ✅ Lines 56-57 |
+| Padding adjusted for icon badges | ✅ `.status-badge-with-icon` class applied |
+| Matches SPEC-002 Amendment | ✅ All 7 spec requirements met |
+
+#### T-054 — Photo Removal isDirty Fix ✅ PASS
+
+| Check | Result |
+|-------|--------|
+| `isDirty` useMemo compares `photoUrl` against `(plant.photo_url \|\| '')` | ✅ Line 89 |
+| `photoUrl` in dependency array | ✅ Line 116 |
+| `onRemove` sets `photoUrl` to `''` | ✅ Line 277 |
+| Save button disabled when `!isDirty` | ✅ Line 311 |
+| Unit test covers remove-photo → Save enabled flow | ✅ EditPlantPage.test.jsx |
+
+#### T-053 — HttpOnly Refresh Token Cookie (Backend Only) ✅ PASS
+
+| Check | Result |
+|-------|--------|
+| `cookie-parser` registered before auth routes in `app.js` | ✅ Line 35 (`cookieParser()`), auth routes at line 78 |
+| `POST /register`: `Set-Cookie` with HttpOnly, Secure, SameSite=Strict, Path=/api/v1/auth | ✅ `setRefreshTokenCookie()` at line 90 |
+| `POST /register`: `refresh_token` NOT in response body | ✅ Response has only `user` + `access_token` (line 92-102) |
+| `POST /login`: same cookie behavior | ✅ Line 134, response lines 136-150 |
+| `POST /refresh`: reads from `req.cookies.refresh_token` | ✅ Line 159 |
+| `POST /refresh`: rotates token (revoke old + issue new) | ✅ Lines 170-182 |
+| `POST /refresh`: returns only `access_token` in body | ✅ Lines 184-188 |
+| `POST /logout`: reads cookie, revokes token, clears cookie | ✅ Lines 202-208 |
+| `POST /logout`: idempotent (no cookie = still 200) | ✅ `if (rawToken)` guard at line 203 |
+| `DELETE /account`: clears cookie | ✅ Line 253 |
+| Cookie Max-Age matches REFRESH_TOKEN_EXPIRES_DAYS (7d = 604800s) | ✅ Lines 43-44 |
+| API contract match (Sprint 11 api-contracts.md) | ✅ All 4 endpoints match contract exactly |
+
+#### T-053 — Frontend api.js ⚠️ NOT YET UPDATED
+
+| Check | Result |
+|-------|--------|
+| `api.js` uses `credentials: 'include'` on auth calls | ❌ Still missing |
+| `refreshAccessToken()` reads token from cookie (no body) | ❌ Still sends `{ refresh_token }` in body (line 38) |
+| `auth.logout()` does not send `refresh_token` in body | ❌ Still sends (line 115) |
+| `setTokens()`/`clearTokens()` manages refresh token in memory | ❌ Still manages `refreshToken` variable (lines 7, 11, 24) |
+| Silent re-auth on app init | ❌ Not implemented |
+
+**Note:** Frontend `api.js` update is assigned to Frontend Engineer per H-130. T-053 CANNOT move to Done until the frontend half is complete. Backend half passes all checks.
+
+---
+
+### Config Consistency Check
+
+**Test Type:** Config Consistency
+**Date:** 2026-03-30
+
+| Check | Result |
+|-------|--------|
+| Backend PORT (3000) matches vite proxy target (`http://localhost:3000`) | ✅ |
+| No SSL in dev → vite proxy uses `http://` (not `https://`) | ✅ |
+| `CORS_ORIGIN` includes frontend dev server `http://localhost:5173` | ✅ First entry in `FRONTEND_URL` |
+| `CORS_ORIGIN` includes frontend preview `http://localhost:4173` | ✅ |
+| Docker-compose postgres port (5432) matches `DATABASE_URL` | ✅ |
+| Docker-compose test DB port (5433) matches `TEST_DATABASE_URL` | ✅ `.env` uses 5432 for test (same host, different DB name); docker-compose exposes test on 5433 — **minor inconsistency** but both approaches work (same-port/different-DB-name vs different-port) |
+| `credentials: true` in CORS config (required for cookies) | ✅ `app.js` line 31 |
+
+**Result:** No blocking mismatches. One minor note: `.env` test DB uses port 5432 (same Postgres instance, different database name) while `docker-compose.yml` provisions a separate test Postgres on port 5433. Both approaches work — the `.env` approach shares the Postgres instance, docker-compose provides full isolation. No action needed.
+
+---
+
+### Security Scan
+
+**Test Type:** Security Scan
+**Date:** 2026-03-30
+
+#### npm audit (Backend)
+
+- **Result:** 2 vulnerabilities (1 moderate, 1 high) — both PRE-EXISTING
+  - `brace-expansion` < 1.1.13 (moderate) — in nodemon transitive deps
+  - `path-to-regexp` < 0.1.13 (high, ReDoS) — in Express 4 core dependency
+- **Remediation:** Both fixable via `npm audit fix` for the moderate one. The `path-to-regexp` issue is an Express 4 core dep — noted in Sprint 11 Out of Scope as "Express 5 migration — advisory backlog; no fix available without breaking changes."
+- **Assessment:** Not a P1 — known pre-existing, mitigated by input validation on routes. No new vulnerabilities introduced by Sprint 11 changes.
+
+#### Security Checklist Verification
+
+| Item | Status | Notes |
+|------|--------|-------|
+| **Authentication & Authorization** | | |
+| All API endpoints require auth | ✅ | `authenticate` middleware on all protected routes |
+| Auth tokens have expiration and refresh | ✅ | JWT 15m expiry, refresh token 7d, rotation on use |
+| Password hashing uses bcrypt | ✅ | Via `User.create()` and `User.verifyPassword()` |
+| Failed login attempts rate-limited | ✅ | `authLimiter` at 20 requests per 15min window |
+| **Input Validation & Injection Prevention** | | |
+| SQL queries use parameterized statements | ✅ | All queries via Knex query builder; `knex.raw` only in migrations |
+| User inputs validated server-side | ✅ | `validateBody` middleware on register/login/plants |
+| HTML output sanitized (XSS) | ✅ | React auto-escapes; no `dangerouslySetInnerHTML` anywhere |
+| File uploads validated (type, size) | ✅ | Multer with mime-type + size limits |
+| **API Security** | | |
+| CORS configured for expected origins only | ✅ | Dynamic origin check against `FRONTEND_URL` list |
+| Rate limiting applied | ✅ | General (100/15m) + auth-specific (20/15m) |
+| API responses don't leak internals | ✅ | Centralized `errorHandler` returns safe messages |
+| Sensitive data not in URL query params | ✅ | Tokens in headers/cookies only |
+| Security headers (helmet) | ✅ | `app.use(helmet())` — X-Content-Type-Options, X-Frame-Options, etc. |
+| **Data Protection** | | |
+| Credentials in env vars, not code | ✅ | JWT_SECRET, GEMINI_API_KEY, DATABASE_URL all from `.env` |
+| `.env` in `.gitignore` | ✅ | Verified |
+| Logs don't contain PII/tokens | ✅ | Console output checked — only error messages, no token values |
+| **T-053 Cookie Security** | | |
+| HttpOnly flag (XSS protection) | ✅ | `httpOnly: true` in `setRefreshTokenCookie()` |
+| Secure flag (HTTPS only in prod) | ✅ | `secure: true` |
+| SameSite=Strict (CSRF protection) | ✅ | `sameSite: 'strict'` |
+| Cookie scoped to auth routes only | ✅ | `path: '/api/v1/auth'` |
+| Token rotation on refresh | ✅ | Old token revoked before issuing new one |
+| Refresh token never in response body | ✅ | Removed from all JSON responses |
+
+**Security Scan Result:** ✅ PASS — No P1 security issues. Pre-existing npm audit vulnerabilities are known and mitigated.
+
+---
+
+### Product-Perspective Testing Notes
+
+**Date:** 2026-03-30
+
+#### T-052 — Care Type Badges (User Perspective)
+
+- **Positive:** Badge labels like "Watering: 2 days overdue" are much clearer than the previous unlabeled badges. Users can now instantly tell which care type needs attention without clicking into plant detail. This is a significant UX improvement.
+- **Positive:** Color-coded icons (blue water drop, green leaf, terracotta pot) provide strong visual recognition even before reading text.
+- **Edge case reviewed:** Plant with all three care types active shows all badges in a wrapped flex layout — readable and not cramped.
+
+#### T-054 — Photo Removal Save Button (User Perspective)
+
+- **Positive:** The fix correctly enables Save when a user removes a photo. Previously this was a dead end — user removed photo but couldn't save. Simple fix with high impact.
+
+#### T-053 — Cookie-Based Auth (User Perspective)
+
+- **Note:** Backend is ready for persistent login. Once frontend is updated, users will no longer need to re-login after page refresh. This addresses a real user pain point (FB-039).
+- **Risk:** Frontend `api.js` still sends `refresh_token` in request body. Until updated, the refresh endpoint will return 401 (body-based token not found in cookies). This means **current frontend refresh flow is broken** against the updated backend. Frontend Engineer must update `api.js` before this can ship.
+
+#### T-055 — CORS Fix (User Perspective)
+
+- **Positive:** CORS port drift permanently resolved. Fixed preview port eliminates the recurring "staging doesn't work" issue that has blocked T-020 for 10 sprints.
+
+---
+
+## Sprint #11 — Build & Staging Deployment (2026-03-30)
+
+**Deploy Engineer:** Sprint #11 staging deploy
+**Date:** 2026-03-30
+**Sprint:** 11
+**Tasks Deployed:** T-055 (CORS config already live), T-052 (care type badges), T-054 (photo isDirty fix)
+**Tasks Held:** T-053 (backend auth cookie changes running; frontend `api.js` not yet updated — do NOT test T-053 integrated flow until H-132 condition is met)
+
+---
+
+### Pre-Deploy Checks
+
+| Check | Result | Details |
+|-------|--------|---------|
+| QA sign-off received | ✅ | H-132 — QA confirms T-055, T-052, T-054 ready to deploy |
+| Migrations pending | ✅ None | `knex migrate:status` — 5/5 migrations up to date, no pending |
+| Backend tests | ✅ 72/72 | `cd backend && npm test` — 8/8 suites pass |
+| Frontend tests | ✅ 117/117 | `cd frontend && npm test` — 20/20 suites pass |
+| Security checklist | ✅ | Reviewed per H-129. No P1 issues. 2 pre-existing npm audit vulns (noted, not new) |
+
+---
+
+### Build
+
+| Step | Result | Details |
+|------|--------|---------|
+| `cd frontend && npm run build` | ✅ SUCCESS | 4612 modules transformed, 0 errors |
+| dist/assets/index-Ct89y25P.js | ✅ | 392.34 kB (gzip: 114.66 kB) |
+| dist/assets/index-B5-ttYap.css | ✅ | 39.15 kB (gzip: 7.11 kB) |
+| Build timestamp | ✅ | 2026-03-30 09:32 — includes T-052 + T-054 changes |
+
+---
+
+### Staging Deployment Log
+
+| Step | Result | Details |
+|------|--------|---------|
+| Killed stale frontend preview (PID 31688 / port 4173) | ✅ | Previous Sprint 10/T-055 preview removed |
+| Killed stale frontend preview (PID 39822 / port 4174) | ✅ | Stale plant_guardians preview removed |
+| Start new frontend preview | ✅ | PID 44508 — started 2026-03-30 09:32:48 |
+| Frontend preview port | ⚠️ 4175 | `--port 4173` requested; 4173 occupied by unrelated project (triplanner), 4174 killed; landed on 4175. Port 4175 is in `FRONTEND_URL` — CORS is covered |
+| Backend running | ✅ | PID 41646 (node src/server.js) — no restart needed; T-055 CORS config already live |
+| No migrations to run | ✅ | All 5 migrations already at "up to date" |
+
+---
+
+### Post-Deploy CORS Verification
+
+| Origin | CORS Preflight | Access-Control-Allow-Origin |
+|--------|---------------|----------------------------|
+| http://localhost:4173 | ✅ 204 No Content | http://localhost:4173 |
+| http://localhost:4175 | ✅ 204 No Content | http://localhost:4175 |
+
+---
+
+### Staging URLs
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| Backend API | http://localhost:3000 | 41646 | ✅ Running |
+| Frontend (Sprint 11 build) | http://localhost:4175 | 44508 | ✅ Running |
+| Database | postgresql://localhost:5432/plant_guardians_staging | — | ✅ Migrations up to date |
+
+---
+
+### Deploy Verdict
+
+**Environment:** Staging
+**Build Status:** ✅ Success
+**Deploy Status:** ✅ Deployed
+**Tasks Live:** T-052 (care type badges), T-054 (photo isDirty fix), T-055 (CORS config)
+**T-053 Status:** Backend changes running (PID 41646 started 09:19). Frontend `api.js` NOT yet updated — integrated refresh-token flow is broken until Frontend Engineer completes H-130/H-131 changes. Do not test T-053 end-to-end until QA re-verification (per H-132 recommendation).
+**T-020 Gate:** CORS is live and verified. T-020 (user testing) is unblocked. Staging URL: http://localhost:4175
+
+**Handoff H-133 sent to Monitor Agent for post-deploy health checks.**
