@@ -1128,3 +1128,80 @@ During the Sprint #11 post-deploy health check (triggered by H-133 / H-137), `PO
 ### Handoff
 
 → H-138 filed to Deploy Engineer for investigation.
+
+---
+
+## FB-045 — Plant photo broken after upload and save
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-045 |
+| **Source** | Project Owner |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | Bug |
+| **Severity** | Major |
+| **Status** | New |
+
+### Description
+
+After adding a photo to a plant and saving, the photo does not display — the image appears broken. The upload appears to succeed (no error shown), but the resulting photo URL is not resolvable in the browser.
+
+**Likely root cause:** Photos are uploaded to `./uploads/` on the backend server (`UPLOAD_DIR` in `.env`). If the backend does not serve the uploads directory as static files, or if `photo_url` is stored as a server-local path rather than a publicly accessible URL, the browser cannot load the image.
+
+**Investigation steps:**
+1. Inspect the plant detail API response — check the value of `photo_url` after upload.
+2. Check whether the backend serves `/uploads/` as static files (`express.static` in `backend/src/app.js`).
+3. Verify the URL returned by `POST /plants/:id/photo` is correctly relative or absolute and loadable by the browser.
+
+**Fix location:** `backend/src/app.js` (static file serving), upload route (URL construction in photo upload response).
+
+---
+
+## FB-046 — Care Due Dashboard categorizes plants into wrong urgency sections due to UTC/local timezone mismatch
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-046 |
+| **Source** | Project Owner |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | Bug |
+| **Severity** | Major |
+| **Status** | New |
+
+### Description
+
+Plants that should appear in "Due Today" or "Upcoming" show up in the wrong section on the Care Due Dashboard. For example, a plant due today appears as overdue, or an upcoming plant appears as due today.
+
+**Root cause:** `backend/src/routes/careDue.js` calculates "today" using `startOfDayUTC(new Date())` — midnight UTC. If the user's local timezone is behind UTC (e.g. US Eastern = UTC-4/5), the backend's UTC "today" is already tomorrow from the user's perspective. This shifts all categorization by one day, causing plants to appear one bucket too urgent.
+
+**Fix:** The backend should base its day boundary on the user's local timezone, not UTC. The simplest approach is to accept an optional `tz` or `utcOffset` query parameter from the frontend (e.g. `GET /api/v1/care-due?utcOffset=-240` for UTC-4) and use it to compute the local midnight boundary. Alternatively, use the browser's `Intl.DateTimeFormat().resolvedOptions().timeZone` to send a timezone name and compute the local day on the backend using a library like `date-fns-tz`.
+
+**Fix locations:** `backend/src/routes/careDue.js` (accept timezone param, adjust `today` calculation), `frontend/src/utils/api.js` or `CareDuePage.jsx` (send timezone in request).
+
+---
+
+## FB-047 — T-020 COMPLETE: All MVP flows verified by project owner
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-047 |
+| **Source** | Project Owner |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | New |
+
+### Description
+
+Project owner has completed T-020 user testing. All 5 flows verified end-to-end in the browser:
+
+- **Flow 1 (Novice):** Register → add plant → mark care done → confetti ✅
+- **Flow 2 (AI advice):** Accept + reject flows ✅
+- **Flow 3 (Inventory management):** Edit schedule + save; delete a plant ✅
+- **Care History (/history):** ✅
+- **Care Due Dashboard (/due):** Functional but has a timezone categorization bug (FB-046 — already logged). Non-blocking for MVP declaration.
+
+**T-020 is Done. The MVP is officially complete.** FB-046 (Care Due timezone bug) and FB-045 (photo display broken) are carried forward as Sprint 13 bug fixes. T-020 must be marked Done in `dev-cycle-tracker.md` and the sprint closeout summary must declare MVP complete.

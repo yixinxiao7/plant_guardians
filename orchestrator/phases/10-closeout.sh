@@ -59,6 +59,14 @@ CRITICAL: Do NOT skip step 6. The next sprint plan MUST be written to active-spr
         sprint_state_set "phase" "closeout"
         sprint_state_set "closeout_status" "complete"
         log_success "Sprint #${sprint_num} closed out"
+
+        # Kill any backend server running on port 3000
+        local backend_pid
+        backend_pid=$(lsof -ti :3000 2>/dev/null || true)
+        if [[ -n "$backend_pid" ]]; then
+            kill "$backend_pid" 2>/dev/null || true
+            log_info "Backend server (PID ${backend_pid}) on port 3000 stopped"
+        fi
     else
         log_error "Closeout incomplete — expected sprint summary in sprint-log.md"
         return 1
