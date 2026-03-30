@@ -1118,3 +1118,123 @@ T-055 acceptance criteria met. T-020 (User testing) is now **fully unblocked**.
 - **Pre-existing npm audit vulnerabilities:** 2 known. Not new.
 
 **Re-Validation Verdict: ✅ PASS — Staging environment healthy. T-055, T-052, T-054 confirmed live. Handoff H-137 sent to Monitor Agent.**
+
+---
+
+## Sprint #11 — Post-Deploy Health Check (2026-03-30)
+
+**Test Type:** Post-Deploy Health Check + Config Consistency Validation
+**Agent:** Monitor Agent
+**Sprint:** 11
+**Environment:** Staging (local)
+**Timestamp:** 2026-03-30T19:04:00Z
+**Triggered By:** H-133 (Deploy Engineer) + H-137 (Deploy Engineer re-validation)
+**Deploy Verified:** **No ⚠️**
+
+---
+
+### Config Consistency Validation
+
+| Check | Source A | Source B | Result |
+|-------|----------|----------|--------|
+| **Port match** | `backend/.env` PORT=3000 | `frontend/vite.config.js` proxy target `http://localhost:3000` | ✅ PASS |
+| **Protocol match** | `backend/.env` — no `SSL_KEY_PATH` / `SSL_CERT_PATH` set → HTTP | Vite proxy uses `http://localhost:3000` | ✅ PASS |
+| **CORS match** | `backend/.env` FRONTEND_URL=`http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` | Frontend dev server default `:5173`, staging `:4175` | ✅ PASS |
+| **Docker port match** | `infra/docker-compose.yml` — only PostgreSQL containers (5432/5433); no backend container | N/A | ✅ N/A |
+
+**Config Consistency Result: ✅ PASS — No mismatches detected.**
+
+Notes:
+- Backend serves plain HTTP (no SSL configured); Vite proxy correctly uses `http://`. No protocol mismatch.
+- `FRONTEND_URL` now correctly includes all relevant origins: 5173, 5174, 4173, 4175. Prior CORS failure (FB-043, H-117) is resolved by T-055.
+- Docker-compose does not define a backend service container; only PostgreSQL is containerised. No backend port mapping to validate.
+
+---
+
+### Health Checks
+
+**Services Running at Time of Check:**
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| Backend API | http://localhost:3000 | 41646 | ✅ Running (`node src/server.js`) |
+| Frontend (Sprint 11 build) | http://localhost:4175 | 44508 | ✅ Running (vite preview) |
+| PostgreSQL | localhost:5432 | — | ✅ Connected |
+
+#### Check Results
+
+| # | Check | Expected | Actual | Result |
+|---|-------|----------|--------|--------|
+| 1 | `GET http://localhost:3000/api/health` | 200 `{"status":"ok"}` | 200 `{"status":"ok","timestamp":"2026-03-30T19:02:17.180Z"}` | ✅ PASS |
+| 2 | `GET http://localhost:3000/api/v1/health` | 200 (per contract spec) | 404 `{"error":{"message":"Route not found.","code":"NOT_FOUND"}}` | ⚠️ NOTE (health route is `/api/health`, not `/api/v1/health`) |
+| 3 | `POST /api/v1/auth/login` (test@plantguardians.local / TestPass123!) | 200 + `access_token` + `Set-Cookie` | **Intermittent:** 500 `INTERNAL_ERROR` on 2 of first 8 calls; 200 on all subsequent calls | ❌ **FAIL — intermittent 500** |
+| 4 | `POST /api/v1/auth/login` — Set-Cookie header | `HttpOnly; Secure; SameSite=Strict` present | `Set-Cookie: refresh_token=...; Max-Age=604800; Path=/api/v1/auth; HttpOnly; Secure; SameSite=Strict` | ✅ PASS (T-053 cookie flow live) |
+| 5 | `POST /api/v1/auth/refresh` (no cookie) | 401 `INVALID_REFRESH_TOKEN` | `{"error":{"message":"Refresh token is invalid, expired, or already used.","code":"INVALID_REFRESH_TOKEN"}}` HTTP 401 | ✅ PASS |
+| 6 | `GET /api/v1/plants` (no auth) | 401 `UNAUTHORIZED` | `{"error":{"message":"Missing or invalid authorization header.","code":"UNAUTHORIZED"}}` HTTP 401 | ✅ PASS |
+| 7 | `GET /api/v1/plants` (with Bearer token) | 200 + pagination | `{"data":[],"pagination":{"page":1,"limit":50,"total":0}}` HTTP 200 | ✅ PASS |
+| 8 | `GET /api/v1/profile` (with Bearer token) | 200 + user data | `{"data":{"user":{"id":"51b28759...","full_name":"Test User","email":"test@plantguardians.local",...},"stats":{...}}}` HTTP 200 | ✅ PASS |
+| 9 | `GET /api/v1/care-actions` (with Bearer token) | 200 + pagination | `{"data":[],"pagination":{"page":1,"limit":20,"total":0}}` HTTP 200 | ✅ PASS |
+| 10 | `GET /api/v1/care-due` (with Bearer token) | 200 + overdue/due_today/upcoming | `{"data":{"overdue":[],"due_today":[],"upcoming":[]}}` HTTP 200 | ✅ PASS |
+| 11 | `POST /api/v1/plants` (with Bearer token) | 201 + plant object | `{"data":{"id":"81624784-...","name":"Health Check Plant",...,"care_schedules":[]}}` HTTP 201 | ✅ PASS |
+| 12 | `GET /api/v1/plants/:id` (with Bearer token) | 200 + plant detail | HTTP 200 with full plant object including `recent_care_actions` | ✅ PASS |
+| 13 | `DELETE /api/v1/plants/:id` (with Bearer token) | 200 + confirmation | `{"data":{"message":"Plant deleted successfully.","id":"81624784-..."}}` HTTP 200 | ✅ PASS |
+| 14 | `POST /api/v1/ai/advice` (with Bearer token) | 200 with AI care advice | HTTP 200 with full care advice JSON (Gemini API live) | ✅ PASS |
+| 15 | CORS preflight `OPTIONS /api/v1/plants` Origin: http://localhost:4175 | 204 + `Access-Control-Allow-Origin: http://localhost:4175` | HTTP 204 + `Access-Control-Allow-Origin: http://localhost:4175`, `Access-Control-Allow-Credentials: true` | ✅ PASS |
+| 16 | Frontend `GET http://localhost:4175/` | 200 HTML | HTTP 200 with full React app HTML | ✅ PASS |
+| 17 | Database connectivity | Connected, queries succeed | 3 users in `plant_guardians_staging.users`, CRUD operations succeed | ✅ PASS |
+| 18 | No 5xx errors on protected routes | 0 5xx | 0 5xx on all protected endpoints (auth/plants/profile/care) | ✅ PASS |
+| 19 | Auth rate limit behavior | 429 after AUTH_RATE_LIMIT_MAX | 429 received after ~18 calls within 15-min window | ✅ PASS (rate limiter working) |
+
+---
+
+### Issues Found
+
+#### ❌ FAIL: Intermittent 500 on POST /api/v1/auth/login
+
+**Severity:** Major
+**Observed:** 2 of the first 8 login calls returned HTTP 500 `{"error":{"message":"An unexpected error occurred.","code":"INTERNAL_ERROR"}}`
+**Pattern:** Failures occurred on calls 1 and 3 of the health check session. All subsequent calls (~15+) returned 200. Suggests a possible cold-start / DB connection pool warm-up issue or a race condition in the T-053 cookie-based auth code path.
+**Impact:** Real users hitting the backend after a restart or idle period could receive a 500 error on login. This is a P1 reliability issue that blocks T-020 user testing sign-off.
+**Reproducibility:** Could not consistently reproduce — does not appear to be a persistent failure, but was observed twice in a single session.
+
+#### ⚠️ WARNING: Auth Rate Limit Window Partially Exhausted by Health Check
+
+**Severity:** Minor (monitor-induced)
+**Observed:** Approximately 18 POST /api/v1/auth/login calls were made during this health check run. Final 2 calls returned HTTP 429 "Too many authentication attempts". The `AUTH_RATE_LIMIT_MAX=20` per 15-minute window is effectively exhausted.
+**Impact:** If Playwright smoke tests or further automated tests requiring auth run within the current 15-minute window, they will encounter 429 responses. Wait ~15 minutes before running auth-dependent tests.
+**Note:** The system prompt explicitly warns to use `/auth/login` instead of `/auth/register` to avoid consuming registration rate limits. The same caution applies to login rate limits when running many health check calls. Future health checks should limit auth calls to ≤3 per run.
+
+#### ℹ️ NOTE: Health route discrepancy — `/api/health` not `/api/v1/health`
+
+**Severity:** Informational
+**Observed:** The health endpoint is reachable at `GET /api/health` (returns 200), but `GET /api/v1/health` returns 404. The API contracts and monitor health check template reference `/api/v1/health`.
+**Impact:** Non-blocking — backend is healthy. Contracts and monitoring templates should be updated to reference `/api/health` to avoid confusion.
+
+#### ℹ️ NOTE: T-053 integrated refresh flow broken (known, documented)
+
+**Severity:** Informational (tracked issue, not a regression)
+**Details:** Frontend `api.js` still sends refresh token in request body; backend now reads from `req.cookies.refresh_token`. Token refresh returns 401 after 15-minute access token expiry. Tracked in H-131/H-136. Not a regression introduced by this deploy — Frontend Engineer has not yet completed the frontend half of T-053.
+
+---
+
+### Summary
+
+| Category | Result |
+|----------|--------|
+| Config Consistency | ✅ PASS |
+| Backend responding | ✅ PASS (`/api/health` → 200) |
+| Auth flow (login + Set-Cookie) | ⚠️ PARTIAL — works after warm-up; intermittent 500 on first calls |
+| Auth enforcement (401 without token) | ✅ PASS |
+| Protected API endpoints (plants, profile, care-actions, care-due) | ✅ PASS (5/5) |
+| CRUD operations (create/read/delete plant) | ✅ PASS |
+| AI advice endpoint | ✅ PASS (Gemini API live) |
+| CORS (staging origin :4175) | ✅ PASS |
+| Frontend (http://localhost:4175/) | ✅ PASS |
+| Database connectivity | ✅ PASS |
+| No 5xx on core endpoints | ✅ PASS (auth login 500 only, intermittent) |
+
+**Deploy Verified: No ⚠️**
+
+**Reason:** Intermittent HTTP 500 `INTERNAL_ERROR` observed on POST /api/v1/auth/login (2 occurrences in initial session). All other 17 endpoint checks pass. Config consistency fully validated. Cannot certify staging as fully healthy until the auth 500 root cause is identified and confirmed resolved. Investigation handoff sent to Deploy Engineer (H-138).
+
+**T-020 User Testing Gate:** T-020 is conditionally unblocked pending resolution of the intermittent auth 500. If the 500 is confirmed to be a transient cold-start artifact (not reproducible after warm-up), T-020 may proceed with the caveat that the backend should be confirmed warm before testing begins.

@@ -1080,3 +1080,50 @@ The Sprint #10 staging frontend preview server is running on port **4175** (port
 - **Severity:** N/A
 - **Details:** T-053 backend implementation is textbook: token rotation on refresh, HttpOnly + Secure + SameSite=Strict + scoped Path. Refresh tokens are never exposed to JavaScript. Cookie clearing on logout and account deletion. This eliminates the XSS-accessible refresh token that was previously stored in JS memory. Once the frontend half is done, this will be a significant security improvement.
 
+
+---
+
+## FB-044 — Monitor Alert: Intermittent 500 on POST /api/v1/auth/login
+
+**ID:** FB-044
+**Type:** Monitor Alert
+**Severity:** Major
+**Sprint:** 11
+**Date:** 2026-03-30
+**Reported By:** Monitor Agent
+**Environment:** Staging (http://localhost:3000)
+
+### Description
+
+During the Sprint #11 post-deploy health check (triggered by H-133 / H-137), `POST /api/v1/auth/login` returned HTTP 500 `{"error":{"message":"An unexpected error occurred.","code":"INTERNAL_ERROR"}}` on 2 of the first 8 calls in the session.
+
+**Reproduction pattern:**
+- Call 1 (first call of session): HTTP 500
+- Call 2 (verbose curl with `-v` flag): HTTP 200 ✅
+- Call 3 (standard curl): HTTP 500
+- Calls 4–18: HTTP 200 ✅ (until rate limit at call 19/20)
+
+**Backend process:** PID 41646 (`node src/server.js`) running since 2026-03-30 09:19 AM.
+**Database:** PostgreSQL on localhost:5432, staging DB `plant_guardians_staging` — connected and healthy (3 users, CRUD succeeds).
+
+### Suspected Root Cause
+
+1. **DB connection pool cold start**: On first requests after an idle period, the connection pool may have uninitialized connections, causing a transient query failure. Subsequent requests succeed once the pool is warmed up.
+2. **T-053 cookie-parser race**: The newly added `cookie-parser` middleware (T-053 / H-120) could introduce a timing issue in the request parsing pipeline that affects a subset of requests.
+
+### Impact
+
+- Users hitting the backend after restart or idle period may receive a 500 login error (P1 UX failure — cannot log in).
+- T-020 user testing should not begin until this is confirmed non-reproducible after warm-up, or root cause is identified and fixed.
+
+### Recommended Investigation Steps
+
+1. Check backend error logs (stderr / pm2 logs / nodemon output) for stack traces around the 500 responses.
+2. Reproduce: restart backend cold → immediately run 5 POST /api/v1/auth/login calls and observe.
+3. Check if `cookie-parser` initialization order in `backend/src/app.js` is correct (must be registered before auth router).
+4. Check if `refresh_tokens` table has any constraint violations being swallowed by the generic error handler.
+5. If DB pool cold-start is confirmed, consider configuring `knex` pool `min` size to keep at least 1 connection alive.
+
+### Handoff
+
+→ H-138 filed to Deploy Engineer for investigation.

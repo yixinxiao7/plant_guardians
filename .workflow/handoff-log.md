@@ -3346,3 +3346,91 @@ Please verify the following:
 
 All three MVP flows (register/login, plant management, care tracking) are fully testable on staging. T-020 user testing is **unblocked**.
 
+
+---
+
+## H-138 — Monitor Agent → Deploy Engineer: Sprint #11 Health Check — Deploy Verified: No — Auth 500 Investigation Required
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-138 |
+| **From** | Monitor Agent |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | Sprint #11 post-deploy health check complete. Deploy Verified = No. Intermittent HTTP 500 on POST /api/v1/auth/login detected. All other checks pass. Investigation required before T-020 user testing. |
+| **Spec Refs** | H-133, H-137, FB-044 |
+| **Status** | Action Required |
+
+### Health Check Summary
+
+**Config Consistency:** ✅ PASS — PORT match (3000), HTTP protocol match, CORS includes all dev/staging origins, Docker has no backend container.
+
+**Endpoint Results:** 17/18 checks PASS. 1 FAIL (intermittent auth 500).
+
+| Check | Result |
+|-------|--------|
+| `GET /api/health` → 200 | ✅ PASS |
+| `POST /api/v1/auth/login` → 200 + Set-Cookie | ❌ **FAIL (intermittent 500)** |
+| All protected endpoints (plants, profile, care-actions, care-due) | ✅ PASS |
+| CORS preflight (Origin: http://localhost:4175) → 204 | ✅ PASS |
+| Frontend http://localhost:4175/ → 200 | ✅ PASS |
+| Database connectivity | ✅ PASS |
+| Auth enforcement (401 without token) | ✅ PASS |
+| T-053 Set-Cookie header present on login | ✅ PASS |
+
+### Failure Detail
+
+`POST /api/v1/auth/login` returned HTTP 500 `{"error":{"message":"An unexpected error occurred.","code":"INTERNAL_ERROR"}}` on calls 1 and 3 of the session. All subsequent calls (15+) returned HTTP 200. Backend PID 41646 running since 09:19 AM.
+
+**Full details:** FB-044 in feedback-log.md.
+
+### Action Required
+
+1. Check backend stderr/logs for stack traces at the time of the 500 responses (around 2026-03-30T19:02 UTC).
+2. Reproduce: restart the backend process cold → immediately issue 5 POST `/api/v1/auth/login` requests and observe.
+3. Investigate `cookie-parser` middleware registration order in `backend/src/app.js` (T-053 introduced `cookie-parser`).
+4. If DB connection pool is the cause, adjust `knex` pool `min` to maintain at least 1 idle connection.
+5. Once resolved, confirm by running 10 consecutive login calls → all 200. Then notify Monitor Agent to re-verify and mark Deploy Verified = Yes.
+
+### T-020 Gate
+
+T-020 user testing is **conditionally unblocked**: if the 500 is confirmed to be a cold-start-only artifact and the backend is currently warm (it has been running since 09:19 AM), T-020 can proceed now with caution. However, if the backend is restarted before T-020, warm-up must be confirmed before testing.
+
+### ⚠️ Additional Note: Rate Limit Partially Exhausted
+
+The health check consumed ~18 of 20 allowed auth requests in the current 15-minute window (AUTH_RATE_LIMIT_MAX=20). Further auth calls will return 429 until the window resets (~15 minutes from 2026-03-30T19:04 UTC). Do not run automated auth tests until the rate limit window resets.
+
+---
+
+## H-139 — Monitor Agent → Manager Agent: Sprint #11 Post-Deploy Health Check Complete — Deploy Verified: No (Auth 500 Intermittent)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-139 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | Sprint #11 post-deploy health check complete. Deploy Verified = No due to intermittent 500 on auth login. Config consistency passes. 17/18 endpoint checks pass. Investigation delegated to Deploy Engineer (H-138). |
+| **Spec Refs** | H-133, H-137, H-138, FB-044 |
+| **Status** | Complete |
+
+### Result
+
+Post-deploy health check and config consistency validation for Sprint #11 are complete.
+
+**Deploy Verified: No ⚠️**
+
+**Single blocking issue:** POST /api/v1/auth/login returns HTTP 500 intermittently (2 of 8 initial calls) — suspected DB connection pool cold-start or `cookie-parser` middleware race condition introduced by T-053. Root cause investigation delegated to Deploy Engineer (H-138, FB-044).
+
+**Everything else is healthy:**
+- Config consistency: ✅ All 4 checks pass (port, protocol, CORS, Docker)
+- 17 of 18 API endpoint checks pass
+- CORS for staging origin :4175 verified ✅
+- Frontend serving at http://localhost:4175 ✅
+- T-053 HttpOnly cookie on login response ✅
+- AI advice endpoint (Gemini API live) ✅
+- Database connected and CRUD working ✅
+
+**T-020 User Testing:** Conditionally unblocked. Backend is currently warm (running since 09:19 AM). If backend is restarted before user testing, a warm-up confirmation step should be added. Full gate: Deploy Engineer investigates and resolves the auth 500, then Monitor Agent re-verifies.
