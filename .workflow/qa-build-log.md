@@ -949,3 +949,172 @@ T-055 acceptance criteria met. T-020 (User testing) is now **fully unblocked**.
 | **T-053** (Cookie auth) | ✅ 72/72 backend | ❌ Frontend not updated | ✅ Backend secure | **Blocked** ⚠️ |
 
 **Deploy Readiness:** T-055, T-052, T-054 are ready. T-053 remains blocked on frontend `api.js` update.
+
+---
+
+## Sprint 11 — Build Log (2026-03-30)
+
+**Date:** 2026-03-30
+**Deploy Engineer:** Deploy Agent (Orchestrator Sprint #11 run)
+**Sprint:** 11
+**Tasks Deployed:** T-055 (CORS fix), T-052 (care type badges), T-054 (photo isDirty fix)
+**Excluded (Blocked):** T-053 (HttpOnly cookie auth — frontend `api.js` not updated)
+
+---
+
+### Dependency Install
+
+| Step | Result |
+|------|--------|
+| `cd backend && npm install` | ✅ Success — `cookie-parser@1.4.7` confirmed installed |
+| `cd frontend && npm install` | ✅ Success — all dependencies up to date |
+| Known npm audit issues | ⚠️ Pre-existing: `brace-expansion` (moderate), `path-to-regexp` (high via Express 4). No new vulns. |
+
+---
+
+### Frontend Build
+
+| Step | Result |
+|------|--------|
+| `cd frontend && npm run build` | ✅ **Success — 0 errors** |
+| Build tool | Vite v8.0.2 |
+| Modules transformed | 4,612 |
+| Output: `dist/index.html` | 0.74 kB (gzip: 0.41 kB) |
+| Output: `dist/assets/index-B5-ttYap.css` | 39.15 kB (gzip: 7.11 kB) |
+| Output: `dist/assets/index-Ct89y25P.js` | 392.34 kB (gzip: 114.66 kB) |
+| Build timestamp | 2026-03-30 09:44:04 |
+
+**Build Verdict: PASS ✅**
+
+---
+
+### Database Migrations
+
+| Step | Result |
+|------|--------|
+| `cd backend && npm run migrate` | ✅ **Already up to date** |
+| Sprint 11 new migrations | None — T-053 requires no schema changes (cookie transport only) |
+| All 5 Sprint 1 migrations | Confirmed up (users, refresh_tokens, plants, care_schedules, care_actions) |
+
+---
+
+### Staging Deployment
+
+**Environment:** Staging (local)
+**Build Status:** ✅ Success
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| **Backend API** | http://localhost:3000 | 41646 | ✅ Running |
+| **Frontend (Sprint 11 build)** | http://localhost:4175 | 44508 | ✅ Running |
+
+#### Health Verification
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| `GET http://localhost:3000/api/v1/plants` | ✅ 401 | Expected — no auth token. Backend responding. |
+| `GET http://localhost:4175/` | ✅ 200 | Frontend serving Sprint 11 build |
+| CORS preflight (`OPTIONS /api/v1/plants`, Origin: http://localhost:4175) | ✅ 204 | `Access-Control-Allow-Origin: http://localhost:4175` confirmed |
+| `Access-Control-Allow-Credentials: true` header | ✅ Present | Required for cookie-based auth (T-053 backend) |
+| `cookie-parser@1.4.7` installed in backend | ✅ Confirmed | T-053 backend dependency |
+
+#### Sprint 11 Feature Verification
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| T-055 — CORS ports 4173 + 4175 | ✅ Live | Preflight 204 from :4175 confirmed |
+| T-052 — Care type badges on PlantCard | ✅ Live | Bundled in Sprint 11 frontend build |
+| T-054 — Photo removal enables Save button | ✅ Live | Bundled in Sprint 11 frontend build |
+| T-053 — HttpOnly cookie auth (backend) | ✅ Live (backend only) | Frontend `api.js` NOT updated — integrated refresh flow is broken until H-130/H-131 resolved |
+
+#### Known Issues (Not Regressions)
+
+- **T-053 integrated refresh flow broken:** Frontend `api.js` still sends `refresh_token` in request body; backend now reads from cookie. Token refresh will return 401. Tracked in H-131. Not a regression.
+- **Port 4173 occupied:** Unrelated triplanner project runs on :4173. Frontend preview on :4175 — CORS verified. Not a blocker.
+- **Pre-existing npm audit vulnerabilities:** 2 known (brace-expansion moderate, path-to-regexp high via Express 4). Not new.
+
+**Staging Deploy Verdict: ✅ SUCCESS — T-055, T-052, T-054 live and verified. T-053 partial (backend only).**
+
+---
+
+## Sprint 11 — Re-Deploy Validation (2026-03-30 — Orchestrator Re-Invoke)
+
+**Date:** 2026-03-30
+**Deploy Engineer:** Deploy Agent (Orchestrator Sprint #11 deploy phase re-invoke)
+**Sprint:** 11
+**Purpose:** Validation pass — re-invoke after QA phase checkpoint. No code changes since previous deploy (commit `263eb73`). Services confirmed running; build re-run to verify no drift.
+
+---
+
+### Dependency Install
+
+| Step | Result |
+|------|--------|
+| `cd backend && npm install` | ✅ Success — all packages up to date |
+| `cd frontend && npm install` | ✅ Success — all packages up to date |
+| Known npm audit issues | ⚠️ Pre-existing: `brace-expansion` (moderate), `path-to-regexp` (high via Express 4). No new vulns introduced. |
+
+---
+
+### Frontend Build
+
+| Step | Result |
+|------|--------|
+| `cd frontend && npm run build` | ✅ **Success — 0 errors** |
+| Build tool | Vite v8.0.2 |
+| Modules transformed | 4,612 |
+| Output: `dist/index.html` | 0.74 kB (gzip: 0.41 kB) |
+| Output: `dist/assets/index-B5-ttYap.css` | 39.15 kB (gzip: 7.11 kB) |
+| Output: `dist/assets/index-Ct89y25P.js` | 392.34 kB (gzip: 114.66 kB) |
+| Build timestamp | 2026-03-30 (re-validation) |
+
+**Build Verdict: PASS ✅ — Identical to previous build. No regressions.**
+
+---
+
+### Database Migrations
+
+| Step | Result |
+|------|--------|
+| `cd backend && npm run migrate` | ✅ **Already up to date** |
+| Sprint 11 new migrations | None — T-053 requires no schema changes |
+| All 5 Sprint 1 migrations | Confirmed up (users, refresh_tokens, plants, care_schedules, care_actions) |
+
+---
+
+### Staging Environment — Current State
+
+**Environment:** Staging (local)
+**Build Status:** ✅ Success
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| **Backend API** | http://localhost:3000 | 41646 | ✅ Running (`node src/server.js`) |
+| **Frontend (Sprint 11 build)** | http://localhost:4175 | 44508 | ✅ Running (vite preview) |
+
+#### Health Verification
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| `GET http://localhost:3000/api/v1/plants` (no auth) | ✅ 401 JSON | Expected — backend responding correctly |
+| `GET http://localhost:4175/` | ✅ 200 HTML | Frontend serving Sprint 11 build |
+| CORS preflight (`OPTIONS /api/v1/plants`, Origin: http://localhost:4175) | ✅ 204 | `Access-Control-Allow-Origin: http://localhost:4175` confirmed |
+| `Access-Control-Allow-Credentials: true` | ✅ Present | Required for T-053 cookie-based auth |
+| `Access-Control-Allow-Methods` | ✅ GET,HEAD,PUT,PATCH,POST,DELETE | |
+
+#### Sprint 11 Feature Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| T-055 — CORS ports 4173 + 4175 | ✅ Live | Verified — 204 preflight from :4175 |
+| T-052 — Care type badges on PlantCard | ✅ Live | Bundled in Sprint 11 frontend build |
+| T-054 — Photo removal enables Save button | ✅ Live | Bundled in Sprint 11 frontend build |
+| T-053 — HttpOnly cookie auth (backend) | ✅ Live (backend only) | Frontend `api.js` not updated — H-136 pending |
+
+#### Known Issues (Not Regressions)
+
+- **T-053 integrated flow blocked:** Frontend `api.js` still body-based. Tracked in H-131/H-136.
+- **Port 4173 occupied:** Triplanner project on :4173; plant_guardians frontend on :4175 — CORS verified.
+- **Pre-existing npm audit vulnerabilities:** 2 known. Not new.
+
+**Re-Validation Verdict: ✅ PASS — Staging environment healthy. T-055, T-052, T-054 confirmed live. Handoff H-137 sent to Monitor Agent.**

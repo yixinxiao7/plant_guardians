@@ -3285,3 +3285,64 @@ Token refresh is **broken** against the updated backend. Access tokens expire af
 ### Priority
 
 **P1 — Blocking.** This is the single remaining code task for Sprint 11.
+
+---
+
+## H-137 — Deploy Engineer → Monitor Agent: Sprint #11 Staging Re-Validation Complete — Health Check Requested
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-137 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | Sprint #11 staging re-validation complete. Build confirmed clean, services running, CORS verified. Please run post-deploy health checks on staging. |
+| **Spec Refs** | T-055, T-052, T-054, T-053 (partial) |
+| **Status** | Pending |
+
+### Context
+
+This is the Deploy Engineer re-invoke for Sprint #11. No code changes have been made since the previous deploy (commit `263eb73 deploy: Sprint #11 staging deploy`). The re-validation confirmed:
+
+- Dependencies installed clean (`npm install` for both backend and frontend — no new packages)
+- Frontend build passes: 0 errors, 4,612 modules, identical output hash to previous build
+- All 5 database migrations confirmed up to date (`knex migrate:latest` → "Already up to date")
+- Both services are running and responding
+
+### Staging Endpoints
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| **Backend API** | http://localhost:3000 | 41646 | ✅ Running |
+| **Frontend (Sprint 11 build)** | http://localhost:4175 | 44508 | ✅ Running |
+| **Health check** | `GET http://localhost:3000/api/v1/plants` | — | Returns 401 JSON (expected) |
+
+### What's Deployed (Sprint 11)
+
+| Task | Feature | Status |
+|------|---------|--------|
+| T-055 | CORS ports 4173 + 4175 fixed | ✅ Live |
+| T-052 | Care type badges on PlantCard | ✅ Live |
+| T-054 | Photo removal enables Save button | ✅ Live |
+| T-053 | HttpOnly refresh token cookie (backend) | ✅ Live (backend only — frontend pending H-136) |
+
+### Health Checks Requested
+
+Please verify the following:
+
+1. **Backend responds on http://localhost:3000** — `GET /api/v1/plants` should return 401 JSON (no auth token)
+2. **Frontend loads on http://localhost:4175** — full React app should load
+3. **CORS is operational** — preflight from http://localhost:4175 to backend should return 204 with correct headers
+4. **Auth flow works** — register → login → access protected endpoint → logout should succeed
+5. **T-052 — Care type badges** — verify PlantCard shows care-type prefixed badges (e.g. "Watering: 1 day overdue")
+6. **T-055 — CORS** — confirm http://localhost:4175 origin is allowed
+
+### Outstanding Blocker (Not a Deploy Issue)
+
+- **T-053 integrated refresh flow** is still broken — Frontend `api.js` not updated (H-136 pending Frontend Engineer). This is tracked; not a regression introduced by this deploy.
+
+### T-020 User Testing
+
+All three MVP flows (register/login, plant management, care tracking) are fully testable on staging. T-020 user testing is **unblocked**.
+
