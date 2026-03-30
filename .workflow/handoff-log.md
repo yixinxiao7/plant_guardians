@@ -2976,3 +2976,61 @@ Per the Sprint 11 contract integration notes (api-contracts.md):
 2. On app init, call `POST /api/v1/auth/refresh` with `credentials: 'include'` for silent re-auth. If 200, store `access_token` in memory. If 401, redirect to `/login`.
 3. Login/register response handlers — stop reading `refresh_token` from body. Only read `access_token`.
 4. Logout — stop sending `refresh_token` in body. Just call `POST /api/v1/auth/logout` with Bearer + `credentials: 'include'`.
+
+---
+
+## H-129 — Manager Agent → QA Engineer: Sprint #11 Code Review Complete — 4 Tasks Pass to Integration Check
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-129 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | Code review complete for T-055, T-052, T-053 (backend), T-054. All 4 tasks moved to Integration Check. QA: run tests, verify security checklist, and product-perspective testing. |
+| **Spec Refs** | T-055, T-052, T-053, T-054 |
+| **Status** | Pending |
+
+### Tasks Ready for QA
+
+| Task | Type | What to Test |
+|------|------|-------------|
+| **T-055** | Bug Fix (Config) | Verify CORS preflight returns correct `Access-Control-Allow-Origin` for ports 4173 and 4175. Verify `vite preview` uses fixed port 4173. Verify `.env.example` matches `.env` structure. |
+| **T-052** | Bug Fix (Frontend) | Verify PlantCard badges show care type icons + labels (e.g., "Watering: 2 days overdue"). Run `StatusBadge.test.jsx` and `PlantCard.test.jsx`. Visual check on plant inventory page. |
+| **T-053** | Feature (Backend only) | Verify all 4 auth endpoints use HttpOnly cookie for refresh token. Run `auth.test.js` (72/72 should pass). Verify `Set-Cookie` headers have correct attributes. Verify refresh_token is NOT in response bodies. ⚠️ Frontend `api.js` not yet updated — frontend integration cannot be tested yet. |
+| **T-054** | Bug Fix (Frontend) | Verify removing a photo on EditPlantPage enables the Save button. Run `EditPlantPage.test.jsx`. |
+
+### Security Review Notes
+
+- **T-053:** Cookie attributes verified: `HttpOnly` (XSS protection), `Secure` (HTTPS-only), `SameSite=Strict` (CSRF protection), `Path=/api/v1/auth` (scoped to auth routes). No secrets leaked. Token rotation on refresh prevents replay attacks.
+- **T-055:** No hardcoded secrets in `.env.example`. Real `.env` file already in `.gitignore`.
+- **T-052/T-054:** No user input rendered as HTML. No `dangerouslySetInnerHTML`. No XSS vectors.
+
+---
+
+## H-130 — Manager Agent → Frontend Engineer: T-053 Frontend Update Required — `api.js` Cookie Migration
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-130 |
+| **From** | Manager Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | T-053 backend is approved and in Integration Check. Frontend `api.js` still uses body-based refresh token flow. Must be updated to cookie-based flow before T-053 can move to Done. |
+| **Spec Refs** | T-053, H-128, Sprint 11 API Contracts |
+| **Status** | Pending |
+
+### Required Changes in `frontend/src/utils/api.js`
+
+1. **All `fetch` calls to `/auth/*` endpoints:** Add `credentials: 'include'` to every fetch options object so the browser sends/receives cookies.
+2. **`refreshAccessToken()`:** Remove `body: JSON.stringify({ refresh_token: refreshToken })`. Send empty body or no body. Stop reading `refresh_token` from response. Only read `access_token`.
+3. **`auth.logout()`:** Remove `body: JSON.stringify({ refresh_token: refreshToken })`. Just call POST with Bearer token + `credentials: 'include'`.
+4. **`auth.register()` / `auth.login()` callers:** Stop extracting `refresh_token` from response data. Only store `access_token` in memory.
+5. **`setTokens()` / `clearTokens()`:** Remove `refreshToken` state entirely — browser manages the cookie. `refreshAccessToken()` guard should check if access token exists, not refresh token.
+6. **Silent re-auth on app init:** On page load, call `POST /api/v1/auth/refresh` with `credentials: 'include'`. If 200, store `access_token`. If 401, redirect to `/login`. This gives persistent login across page refreshes.
+
+### Priority
+
+This is the blocking frontend half of T-053 (P1). Please complete and submit for review this sprint.
