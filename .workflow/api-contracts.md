@@ -1755,3 +1755,245 @@ No new environment variables required. `GEMINI_API_KEY` (existing) is used by al
 ---
 
 *Sprint 9 contract written by Backend Engineer — 2026-03-28. Zero new endpoints. No schema changes. Behavioral-only update to POST /api/v1/ai/advice (429 fallback chain). All 17 prior endpoints and their shapes unchanged.*
+
+---
+
+## Sprint 11 Contracts
+
+**Task:** T-053 — Persistent Login via HttpOnly Refresh Token Cookie
+**Written by:** Backend Engineer — 2026-03-30
+**Status:** Ready for implementation
+
+---
+
+### GROUP 11A — Authentication Cookie Upgrade (T-053)
+
+**Summary of changes:** The four existing auth endpoints (`register`, `login`, `refresh`, `logout`) are updated to transport the refresh token via an `HttpOnly` cookie instead of the response/request body. The access token remains in the response body (memory-only on the frontend — no XSS regression). No new endpoints. No schema changes.
+
+---
+
+#### POST /api/v1/auth/register *(Updated — Sprint 11)*
+
+**Auth:** Public (no token required)
+
+**Description:** Creates a new user account. Returns an access token in the response body and sets the refresh token as an HttpOnly cookie. **Breaking change from Sprint 1:** `refresh_token` is no longer in the response body.
+
+**Request Body:** Unchanged from Sprint 1.
+
+```json
+{
+  "full_name": "string",    // required; min 2 chars, max 100 chars
+  "email": "string",        // required; valid email format; unique across users
+  "password": "string"      // required; min 8 chars
+}
+```
+
+**Response Headers Set:**
+```
+Set-Cookie: refresh_token=<opaque_token>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=604800
+```
+- `HttpOnly` — prevents JavaScript access (XSS protection)
+- `Secure` — only sent over HTTPS (browser ignores on plain `http://` in production; accepted in local dev where `Secure` is set but not enforced by localhost)
+- `SameSite=Strict` — not sent on cross-site requests (CSRF protection)
+- `Path=/api/v1/auth` — scoped to auth routes only; not sent on `/plants`, `/care-actions`, etc.
+- `Max-Age=604800` — 7 days (matches `REFRESH_TOKEN_EXPIRES_DAYS`)
+
+**Success Response — 201 Created:**
+
+```json
+{
+  "data": {
+    "user": {
+      "id": "uuid",
+      "full_name": "string",
+      "email": "string",
+      "created_at": "ISO8601"
+    },
+    "access_token": "string"
+  }
+}
+```
+
+> **Note:** `refresh_token` is no longer in the response body. It is exclusively in the `Set-Cookie` header.
+
+**Error Responses:** Unchanged from Sprint 1.
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | Missing or invalid fields |
+| 409 | `EMAIL_ALREADY_EXISTS` | An account with that email already exists |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+#### POST /api/v1/auth/login *(Updated — Sprint 11)*
+
+**Auth:** Public
+
+**Description:** Authenticates an existing user. Returns an access token in the response body and sets the refresh token as an HttpOnly cookie. **Breaking change from Sprint 1:** `refresh_token` is no longer in the response body.
+
+**Request Body:** Unchanged from Sprint 1.
+
+```json
+{
+  "email": "string",      // required
+  "password": "string"    // required
+}
+```
+
+**Response Headers Set:**
+```
+Set-Cookie: refresh_token=<opaque_token>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=604800
+```
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "user": {
+      "id": "uuid",
+      "full_name": "string",
+      "email": "string",
+      "created_at": "ISO8601"
+    },
+    "access_token": "string"
+  }
+}
+```
+
+> **Note:** `refresh_token` is no longer in the response body. It is exclusively in the `Set-Cookie` header.
+
+**Error Responses:** Unchanged from Sprint 1.
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | Missing email or password |
+| 401 | `INVALID_CREDENTIALS` | Email not found or password is wrong |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+#### POST /api/v1/auth/refresh *(Updated — Sprint 11)*
+
+**Auth:** Public — no Bearer token. Refresh token read from cookie (must send `credentials: 'include'`).
+
+**Description:** Silently re-authenticates a returning user. Reads the `refresh_token` cookie, validates it, issues a new access token (in body) and a rotated refresh token (new cookie). Old refresh token is invalidated. **Breaking change from Sprint 1:** `refresh_token` is no longer in the request body.
+
+**Request Body:** Empty (no body required). The refresh token is read from the `refresh_token` HttpOnly cookie.
+
+```json
+{}
+```
+
+**Cookie Required:**
+```
+Cookie: refresh_token=<opaque_token>
+```
+The browser sends this automatically when the request is made with `credentials: 'include'`.
+
+**Response Headers Set (rotated token):**
+```
+Set-Cookie: refresh_token=<new_opaque_token>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=604800
+```
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "access_token": "string"
+  }
+}
+```
+
+> **Note:** New rotated refresh token is set via `Set-Cookie` header only — not in the response body.
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 401 | `INVALID_REFRESH_TOKEN` | Cookie missing, token not found in DB, token expired, or token already revoked |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+#### POST /api/v1/auth/logout *(Updated — Sprint 11)*
+
+**Auth:** Bearer token required (`Authorization: Bearer <access_token>`)
+
+**Description:** Revokes the refresh token and clears the HttpOnly cookie. **Breaking change from Sprint 1:** `refresh_token` is no longer required in the request body.
+
+**Request Body:** Empty (no body required). The refresh token is read from the `refresh_token` HttpOnly cookie.
+
+```json
+{}
+```
+
+**Cookie Required:**
+```
+Cookie: refresh_token=<opaque_token>
+```
+
+**Response Headers Set (clears the cookie):**
+```
+Set-Cookie: refresh_token=; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT
+```
+
+**Success Response — 200 OK:** Unchanged from Sprint 1.
+
+```json
+{
+  "data": {
+    "message": "Logged out successfully."
+  }
+}
+```
+
+> **Note:** Cookie is cleared via `Max-Age=0` + epoch `Expires`. If the `refresh_token` cookie is absent, logout still succeeds (idempotent — access token is still invalidated via normal session end on the client).
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token in `Authorization` header |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+### Frontend Integration Notes (for Frontend Engineer)
+
+The following changes are required in `frontend/src/utils/api.js`:
+
+1. **All fetch calls** must include `credentials: 'include'` so the browser sends and accepts cookies cross-origin.
+2. **On app init** (e.g., inside a `useEffect` in `App.jsx` or a top-level auth provider): call `POST /api/v1/auth/refresh` with `credentials: 'include'`. If it returns `200`, store the `access_token` in memory and mark the user as authenticated. If it returns `401`, redirect to `/login`.
+3. **Login and register** — `refresh_token` is no longer in the response body. Read only `access_token` from `data`. The cookie is set automatically by the browser.
+4. **Logout** — no need to send `refresh_token` in the body. Call `POST /api/v1/auth/logout` with Bearer token and `credentials: 'include'`.
+5. **Access token** stays memory-only (no `localStorage` / `sessionStorage`). This is unchanged from Sprint 1.
+
+---
+
+### Schema Changes — Sprint 11
+
+None. No new tables, columns, or migrations required for T-053.
+
+The existing `refresh_tokens` table is unchanged. The cookie transport is a route-layer concern only.
+
+---
+
+### Middleware Addition — Sprint 11
+
+The `cookie-parser` npm package must be added to `backend/package.json` and registered in `backend/src/app.js` before the auth router:
+
+```js
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
+```
+
+This is required for `req.cookies.refresh_token` to be available in the auth routes.
+
+No environment variable changes required for cookie behavior. `REFRESH_TOKEN_EXPIRES_DAYS` (existing, defaults to `7`) continues to control token lifetime and is used to derive `Max-Age`.
+
+---
+
+*Sprint 11 contract written by Backend Engineer — 2026-03-30. Four existing auth endpoints updated (register, login, refresh, logout). Refresh token transport moves from body to HttpOnly cookie. Zero new endpoints. No schema changes. No migration files.*

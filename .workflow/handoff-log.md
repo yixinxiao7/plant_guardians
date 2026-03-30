@@ -2642,3 +2642,126 @@ The Frontend Engineer should reference the existing acceptance criteria in `acti
 - The badge left padding adjusts from `12px` to `8px` to offset the icon width; right padding stays `10px`. Total pill padding: `4px 10px 4px 8px`.
 - T-052 can be implemented in parallel with T-055 and T-054 — no dependencies.
 
+---
+
+## H-120 — Backend Engineer → Manager Agent: Sprint #11 — T-053 Schema Proposal — Auto-Approved
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-120 |
+| **From** | Backend Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | T-053 schema/dependency proposal submitted. No migrations needed. `cookie-parser` package addition proposed. Auto-approved per automated sprint flow. |
+| **Spec Refs** | T-053, technical-context.md Sprint 11 section |
+| **Status** | Auto-approved (automated sprint) |
+
+### Proposal Summary
+
+**T-053 — Persistent Login via HttpOnly Cookie**
+
+No database schema changes are required. The `refresh_tokens` table is fully adequate as-is.
+
+The only change outside of `backend/src/routes/auth.js` is:
+- Add `cookie-parser` as a production npm dependency (`npm install cookie-parser`)
+- Register `app.use(cookieParser())` in `backend/src/app.js` before the auth router
+
+No migration files will be created. No new environment variables.
+
+**Auto-approved per automated sprint convention.** Manager Agent should review this entry during sprint closeout.
+
+---
+
+## H-121 — Backend Engineer → Frontend Engineer: Sprint #11 — T-053 API Contracts Ready
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-121 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | Sprint #11 T-053 API contracts are published. Auth endpoints updated to use HttpOnly cookie for refresh token. Frontend must use `credentials: 'include'` and implement silent refresh on app init. |
+| **Spec Refs** | T-053, api-contracts.md Sprint 11 section |
+| **Status** | Pending |
+
+### What Changed (Breaking Changes from Sprint 1)
+
+All four auth endpoints have been updated. Please read the **Sprint 11 Contracts** section in `api-contracts.md` before beginning T-053 frontend work.
+
+| Endpoint | Change |
+|----------|--------|
+| `POST /auth/register` | `refresh_token` removed from response body → now `Set-Cookie` header only |
+| `POST /auth/login` | `refresh_token` removed from response body → now `Set-Cookie` header only |
+| `POST /auth/refresh` | `refresh_token` removed from request body → read from cookie. Response body has only `access_token` |
+| `POST /auth/logout` | `refresh_token` removed from request body → read from cookie |
+
+### Required Frontend Changes (summary)
+
+1. **All fetch calls:** add `credentials: 'include'` so the browser sends/accepts cookies.
+2. **Silent refresh on app init:** `POST /api/v1/auth/refresh` (no body, `credentials: 'include'`) → on 200 store `access_token` in memory and authenticate. On 401 redirect to `/login`.
+3. **Login/register:** read only `access_token` from `data` (no `refresh_token` in body anymore).
+4. **Logout:** no `refresh_token` in body; call with Bearer token + `credentials: 'include'`.
+5. **Access token stays memory-only** — no `localStorage`/`sessionStorage`. Unchanged from Sprint 1.
+
+### Dependency Note
+
+T-053 begins after T-020 (MVP user testing) is marked Done per the sprint critical path. Do not merge T-053 frontend changes until T-020 is complete to avoid regressions during MVP verification.
+
+---
+
+## H-122 — Backend Engineer → QA Engineer: Sprint #11 — T-053 Contracts for Test Reference
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-122 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | T-053 API contracts published. Four auth endpoints updated for HttpOnly cookie refresh token. QA reference for test planning. |
+| **Spec Refs** | T-053, api-contracts.md Sprint 11 section |
+| **Status** | Pending |
+
+### Contracts for Test Planning
+
+**Task:** T-053 — Persistent Login via HttpOnly Refresh Token Cookie
+
+**Endpoints changed:**
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
+
+### Key Test Scenarios for QA
+
+**Backend unit tests (to be written by Backend Engineer during implementation):**
+
+| Scenario | Expected Outcome |
+|----------|-----------------|
+| POST /login (valid creds) | 200; response body has `access_token` only (no `refresh_token`); `Set-Cookie` header present with `HttpOnly`, `Secure`, `SameSite=Strict` |
+| POST /register (valid payload) | 201; response body has `access_token` only; `Set-Cookie` header present |
+| POST /refresh (valid cookie) | 200; new `access_token` in body; new `Set-Cookie` header with rotated token |
+| POST /refresh (missing/invalid cookie) | 401 `INVALID_REFRESH_TOKEN` |
+| POST /refresh (expired cookie) | 401 `INVALID_REFRESH_TOKEN` |
+| POST /logout (valid Bearer + cookie) | 200; `Set-Cookie` header clears cookie (`Max-Age=0`) |
+| POST /logout (missing Bearer) | 401 `UNAUTHORIZED` |
+
+**Frontend / integration tests (to be written by Frontend Engineer):**
+
+| Scenario | Expected Outcome |
+|----------|-----------------|
+| Hard page refresh (session valid) | Silent refresh succeeds; user stays logged in; no login redirect |
+| Hard page refresh (cookie expired / missing) | Silent refresh returns 401; user redirected to `/login` |
+| Login flow | Cookie set; `access_token` in memory; page reflects authenticated state |
+| Logout flow | Cookie cleared; in-memory token cleared; redirect to `/login` |
+
+**Regression check:**
+- All 69/69 existing backend tests must still pass after the T-053 changes.
+- All 107/107 existing frontend tests must still pass.
+
+### Dependency Note
+
+T-053 begins after T-020 is Done (per sprint critical path). QA should test T-053 after both backend and frontend halves are implemented and after T-020 is closed.
+

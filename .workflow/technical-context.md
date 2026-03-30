@@ -270,3 +270,34 @@ WHERE p.user_id = :userId
 Both queries use parameterized values via Knex — no string concatenation.
 
 ---
+
+## Sprint 11 — Schema & Migration Notes (T-053)
+
+**Proposed by:** Backend Engineer — 2026-03-30
+**Status: Auto-approved (automated sprint)** — Manager Agent will review in closeout phase.
+
+### No New Migrations Required
+
+T-053 (persistent login via HttpOnly refresh token cookie) requires **no schema changes**. The existing `refresh_tokens` table created in Sprint 1 stores all data needed:
+
+- `id`, `user_id`, `token_hash`, `expires_at`, `revoked_at`, `created_at` — all present and sufficient.
+- Token lookup, rotation, and revocation logic is unchanged.
+- The only change is in the **transport layer**: the raw token moves from JSON response body → `Set-Cookie` header on responses, and from JSON request body → `req.cookies` on requests.
+
+**No migration files will be created for Sprint 11.**
+
+### Dependency Addition — `cookie-parser`
+
+The `cookie-parser` npm package must be added as a production dependency:
+
+```bash
+npm install cookie-parser
+```
+
+This is the only external dependency change for Sprint 11. The package is a well-maintained Express ecosystem package. `cookie-parser` is registered in `backend/src/app.js` before the auth router so that `req.cookies` is populated in all auth route handlers.
+
+### Environment Variables — Sprint 11
+
+No new environment variables. Existing `REFRESH_TOKEN_EXPIRES_DAYS` (default: `7`) is used to derive the cookie `Max-Age` (value × 86400 seconds).
+
+---
