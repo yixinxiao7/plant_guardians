@@ -1465,6 +1465,130 @@ Use **Phosphor Icons** (`phosphor-react`): outlined style, consistent with Japan
 - `CheckCircle`, `X`, `CaretDown`, `CaretUp` — UI controls
 - `User`, `SignOut` — profile
 
+---
+
+### SPEC-002 Amendment — Care-Type Prefixed Status Badges in PlantCard (Sprint #11 — T-052)
+
+**Status:** Approved — 2026-03-30
+**Related Task:** T-052
+**Fix location:** `frontend/src/components/PlantCard.jsx`
+
+#### Background
+
+The existing status badges on `PlantCard` show care schedule health (e.g., "1 day overdue", "On Track") but do not identify *which* care type they refer to. When a plant has multiple care schedules (watering + fertilizing + repotting), the user cannot tell at a glance which care is overdue. T-052 fixes this by prefixing each badge with its care type icon and label, using the same visual system established in SPEC-008 (Care History Page).
+
+---
+
+#### Enhanced Status Badge Anatomy
+
+Each badge now follows this layout (left to right, inline-flex, vertically centered):
+
+```
+[ icon ]  [ CareType ]: [ status text ]
+  16px        —              —
+```
+
+**Component structure per badge:**
+```
+<span class="care-badge care-badge--[status]">
+  <Icon aria-hidden="true" size={13} weight="bold" color={careTypeIconColor} />
+  <span class="care-badge__label">[CareType]: [status text]</span>
+</span>
+```
+
+- Icon: 13px, Phosphor bold weight (matches dense badge size), `aria-hidden="true"`
+- Gap between icon and text: `4px`
+- The full badge is still a pill: `padding: 4px 10px 4px 8px`, `border-radius: 24px`, `font-size: 12px`, `font-weight: 500`
+- The 2px reduction in left padding (from 12px → 8px) compensates for the icon so the badge doesn't feel too wide
+
+---
+
+#### Care-Type Icon + Color System
+
+Inherit directly from SPEC-008 (Care History Page) for cross-screen consistency:
+
+| Care Type | `care_type` value | Phosphor Icon | Icon Color |
+|-----------|------------------|--------------|------------|
+| Watering | `watering` | `Drop` | `#5B8FA8` (calm blue) |
+| Fertilizing | `fertilizing` | `Leaf` | `#4A7C59` (sage green) |
+| Repotting | `repotting` | `PottedPlant` | `#A67C5B` (terracotta) |
+
+> **Important:** The icon color indicates *care type* and is always the same regardless of status. The badge *background* and *text color* continue to encode the *care status* (on track / due today / overdue / not set), as defined in the Design System Conventions table above.
+
+---
+
+#### Badge Text Format
+
+| Care Status | Badge Text Example |
+|-------------|-------------------|
+| On Track | "Watering: On track" |
+| Due Today | "Fertilizing: Due today" |
+| Overdue 1 day | "Repotting: 1 day overdue" |
+| Overdue N days | "Watering: 3 days overdue" |
+| Not Set | "Fertilizing: Not set" |
+
+Use **sentence case** (not title case). Capitalize only the care type name; status text is lowercase.
+
+---
+
+#### Multi-Badge Layout in PlantCard
+
+When a plant has multiple care schedules, badges stack vertically in a `flex-wrap: wrap` row with `gap: 6px`. On cards with limited horizontal space, badges wrap naturally — they do not truncate or hide.
+
+```
+[💧 Watering: 1 day overdue]
+[🌿 Fertilizing: On track]
+[🪴 Repotting: Due today]
+```
+
+Maximum visible: all active schedules (no cap). If a plant has no care schedules at all, show the existing "Not set" badge without a care-type prefix (since there's no schedule to label).
+
+---
+
+#### Full Badge State Table (Updated)
+
+| State | Care Type Prefix | Background | Text/Icon Color | Status Icon Color |
+|-------|-----------------|-----------|-----------------|------------------|
+| On Track | ✓ `[icon] [Type]:` | `#E8F4EC` | `#4A7C59` | Care type color (above) |
+| Due Today | ✓ `[icon] [Type]:` | `#FDF4E3` | `#C4921F` | Care type color (above) |
+| Overdue N days | ✓ `[icon] [Type]:` | `#FAEAE4` | `#B85C38` | Care type color (above) |
+| Not Set (has schedule) | ✓ `[icon] [Type]:` | `#F0EDE6` | `#B0ADA5` | Care type color (above), also at 0.6 opacity |
+| No schedules at all | ✗ (no prefix) | `#F0EDE6` | `#B0ADA5` | n/a |
+
+---
+
+#### Responsive Behavior
+
+No change to PlantCard responsive layout. Badges already wrap — the additional icon+label content increases badge width by approximately 60–80px per badge. This is acceptable across all breakpoints. On mobile, the badge row remains `flex-wrap: wrap` so no overflow occurs.
+
+---
+
+#### Accessibility
+
+- Care type icon: `aria-hidden="true"` — the text label ("Watering:", "Fertilizing:", "Repotting:") provides full context for screen readers
+- Each badge remains a `<span>` (non-interactive, read inline with plant name)
+- No change to PlantCard's overall ARIA structure
+- For each badge, the full accessible text string (read by screen reader) will be, e.g.: "Watering: 1 day overdue" — the care type is explicit and the status is explicit; no ambiguity
+
+---
+
+#### Unit Test Requirements (T-052)
+
+The Frontend Engineer must add tests covering:
+
+| Test # | Scenario | Expected Output |
+|--------|----------|----------------|
+| 1 | Watering badge, status overdue 2 days | Drop icon (blue `#5B8FA8`) + "Watering: 2 days overdue", red badge background |
+| 2 | Fertilizing badge, status on track | Leaf icon (green `#4A7C59`) + "Fertilizing: On track", green badge background |
+| 3 | Repotting badge, status due today | PottedPlant icon (terracotta `#A67C5B`) + "Repotting: Due today", amber badge background |
+| 4 | Multiple badges on one card | All three care types render in correct order; flex-wrap active |
+| 5 | Plant with no care schedules | Single "Not set" badge with no icon prefix |
+| 6 | Watering overdue 1 day (singular) | "Watering: 1 day overdue" (not "1 days overdue") |
+
+All 107+ existing frontend tests must continue to pass.
+
+---
+
 ### Font Loading
 Both fonts from Google Fonts:
 ```html

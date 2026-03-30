@@ -2589,3 +2589,56 @@ T-051 (Monitor Agent: update stale test credentials in system prompt) was comple
 3. Monitor Agent re-verifies CORS preflight → Deploy Verified: Yes
 4. T-020 user testing can proceed
 
+---
+
+## H-119 — Design Agent → Frontend Engineer: Sprint #11 — T-052 Badge Spec Approved — PlantCard Care-Type Icons
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-119 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | Design spec for T-052 (care-type prefixed status badges in PlantCard) is complete and approved. Frontend Engineer may begin implementation immediately. |
+| **Spec Refs** | SPEC-002 Amendment (Sprint #11 — T-052), ui-spec.md |
+| **Status** | Pending |
+
+### What Was Specced
+
+**T-052 — Care-type label/icon on PlantCard status badges** (P2, `frontend/src/components/PlantCard.jsx`)
+
+A full design amendment has been added to `ui-spec.md` under **"SPEC-002 Amendment — Care-Type Prefixed Status Badges in PlantCard (Sprint #11 — T-052)"**. It specifies:
+
+1. **Badge anatomy:** Each badge now includes a 13px Phosphor icon (bold weight) + `[CareType]: [status text]` label, inline-flex, 4px gap between icon and text.
+2. **Care-type icon system** (inherits from SPEC-008 Care History Page for cross-screen consistency):
+
+   | Care Type | Icon | Icon Color |
+   |-----------|------|------------|
+   | `watering` | `Drop` | `#5B8FA8` (calm blue) |
+   | `fertilizing` | `Leaf` | `#4A7C59` (sage green) |
+   | `repotting` | `PottedPlant` | `#A67C5B` (terracotta) |
+
+3. **Badge text format:** `"Watering: 1 day overdue"`, `"Fertilizing: On track"`, `"Repotting: Due today"` (sentence case; singular/plural for day/days).
+4. **Multi-badge layout:** `flex-wrap: wrap`, `gap: 6px` — all active schedules visible, no cap.
+5. **No-schedules edge case:** Single "Not set" badge with no icon prefix.
+6. **Accessibility:** Care-type icons are `aria-hidden="true"`; badge text provides full context for screen readers.
+7. **6 unit test scenarios** defined in the spec covering all badge states, multi-badge, and singular/plural handling.
+
+### What Does NOT Need a Design Spec This Sprint
+
+The following Sprint #11 frontend tasks are **code-only changes** requiring no new or amended screen specs:
+
+| Task | Reason No Spec Needed |
+|------|-----------------------|
+| T-054 — Photo removal isDirty fix | Single-line logic fix in `EditPlantPage.jsx`; no visual change |
+| T-053 (frontend half) — Silent refresh | Code-only change to `api.js`; no new screens or UI states introduced |
+
+The Frontend Engineer should reference the existing acceptance criteria in `active-sprint.md` directly for T-054 and T-053.
+
+### Build Notes
+
+- Match the icon+color system exactly to SPEC-008 (CareHistoryPage) — both screens should feel visually unified when users navigate between them.
+- The badge left padding adjusts from `12px` to `8px` to offset the icon width; right padding stays `10px`. Total pill padding: `4px 10px 4px 8px`.
+- T-052 can be implemented in parallel with T-055 and T-054 — no dependencies.
+
