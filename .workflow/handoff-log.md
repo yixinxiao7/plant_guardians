@@ -3434,3 +3434,53 @@ Post-deploy health check and config consistency validation for Sprint #11 are co
 - Database connected and CRUD working ✅
 
 **T-020 User Testing:** Conditionally unblocked. Backend is currently warm (running since 09:19 AM). If backend is restarted before user testing, a warm-up confirmation step should be added. Full gate: Deploy Engineer investigates and resolves the auth 500, then Monitor Agent re-verifies.
+
+---
+
+## H-140 — Manager Agent → All Agents: Sprint #11 Closeout Complete — Sprint #12 Priorities
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-140 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-30 |
+| **Sprint** | 12 |
+| **Subject** | Sprint #11 closed. Sprint #12 plan published. Immediate priorities: T-056 (auth 500 fix, P0) and T-053-frontend (api.js cookie migration, P1) must both be Done before T-020 user testing begins. |
+| **Spec Refs** | T-056, T-053-frontend, T-020, T-057, FB-044, active-sprint.md Sprint #12 |
+| **Status** | Pending |
+
+### Sprint #11 Closeout Summary
+
+Sprint #11 delivered:
+- ✅ T-055 — CORS port drift permanently fixed (vite preview pinned to :4173)
+- ✅ T-052 — Care type badges on plant cards (Watering/Fertilizing/Repotting icons)
+- ✅ T-054 — Photo removal enables Save button in EditPlantPage
+- ✅ T-051 — Monitor Agent stale test account reference corrected
+- ✅ T-053 (backend) — HttpOnly cookie auth backend fully implemented
+
+Not completed:
+- ❌ T-053 (frontend) — api.js never updated despite three handoffs (H-130, H-131, H-136)
+- ❌ T-020 — Deploy Verified: No (FB-044 intermittent auth 500); carry-over #12
+
+### Sprint #12 Agent Priorities
+
+| Agent | Task | Priority | Start Condition |
+|-------|------|----------|----------------|
+| **Backend Engineer** | T-056: Investigate and fix intermittent auth 500 (FB-044) — check error logs, reproduce cold-start, configure knex pool min:1 if DB cold-start confirmed | **P0 — START IMMEDIATELY** | No dependencies |
+| **Backend Engineer** | T-057: Fix TEST_DATABASE_URL port in backend/.env (5432 → 5433) | P3 | After T-056 |
+| **Frontend Engineer** | T-053-frontend: Complete api.js cookie migration — `credentials: 'include'`, remove body-based refresh_token, implement silent re-auth on init. See H-130, H-131, H-136 for complete requirements. | **P1 — START IMMEDIATELY** | No dependencies (T-053 backend already live) |
+| **QA Engineer** | Verify T-056 fix (72/72 backend tests), verify T-053-frontend (117/117 frontend tests + integration check) | On-demand | After each task completes |
+| **Deploy Engineer** | Re-deploy with T-053-frontend changes; run cold-start verification after T-056 fix | After QA sign-off | After T-056 + T-053-frontend Done |
+| **Monitor Agent** | Post-deploy health check — verify auth 500 is resolved, all endpoints pass, Deploy Verified: Yes | After Deploy Engineer | After re-deploy |
+| **User Agent / Project Owner** | T-020: End-to-end MVP testing — all flows, Care History, Care Due Dashboard, persistent login | **P0 — BEGIN AFTER T-056 + T-053-frontend DONE** | T-056 Done AND T-053-frontend Done |
+
+### Sprint #12 Critical Path
+
+```
+T-056 (Auth 500 fix — P0, NOW) ──┐
+                                  ├→ T-020 (MVP Testing — P0)
+T-053-frontend (api.js — P1, NOW) ┘
+```
+
+T-020 is the absolute sprint gate. Sprint #12 will not close until MVP is declared complete.

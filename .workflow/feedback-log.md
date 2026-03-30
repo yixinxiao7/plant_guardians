@@ -1092,6 +1092,7 @@ The Sprint #10 staging frontend preview server is running on port **4175** (port
 **Date:** 2026-03-30
 **Reported By:** Monitor Agent
 **Environment:** Staging (http://localhost:3000)
+**Status:** Tasked → T-056 (Sprint 12) — Investigate and fix intermittent auth 500 on POST /api/v1/auth/login; Major bug must be resolved before T-020 user testing can proceed.
 
 ### Description
 

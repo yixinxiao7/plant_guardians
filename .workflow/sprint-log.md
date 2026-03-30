@@ -851,6 +851,92 @@ The Sprint #10 Monitor Agent post-deploy health check (2026-03-29T21:05Z) return
 
 ---
 
+### Sprint #11 — 2026-03-29 to 2026-03-30
+
+**Sprint Goal:** Fix the recurring CORS port-drift issue permanently (T-055), declare MVP complete via end-to-end user testing (T-020), deliver persistent login via HttpOnly cookie (T-053), add care-type badges to plant cards (T-052), fix photo-removal isDirty bug (T-054), and close out the stale Monitor Agent system prompt (T-051).
+
+**Outcome:** Partial — Four of six engineering tasks delivered and QA-verified (T-055, T-052, T-054, T-051). T-053 backend half completed; frontend half blocked by Frontend Engineer who never updated `api.js` despite three handoffs (H-130, H-131, H-136). T-020 (MVP declaration) did not execute — Monitor Agent returned **Deploy Verified: No** due to intermittent HTTP 500 on POST /api/v1/auth/login (FB-044). T-020 carries into Sprint #12 for the **twelfth consecutive sprint**.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-055 | Deploy Engineer: CORS port drift permanently fixed. `http://localhost:4175` added to `FRONTEND_URL`. `vite preview` script pinned to `--port 4173`. `.env.example` updated with all canonical port documentation. CORS preflight from :4173 and :4175 both return 204 + correct header. 72/72 backend tests pass. |
+| T-052 | Frontend Engineer: Care type badges added to PlantCard. Each status badge now prefixed with Phosphor icon + care type label (blue water drop for watering, green leaf for fertilizing, terracotta pot for repotting). Badge text examples: "Watering: 2 days overdue", "Fertilizing: On track". 9 new tests. 117/117 frontend tests pass. SPEC-002 Amendment compliant. |
+| T-054 | Frontend Engineer: Photo removal isDirty fix in EditPlantPage. `isDirty` useMemo now compares `photoUrl` against `(plant.photo_url \|\| '')`. Removing an existing photo enables Save button. `photoUrl` added to memo dependency array. 1 new unit test. 117/117 frontend tests pass. |
+| T-051 | Monitor Agent: Stale test account reference updated in `.agents/monitor-agent.md`. Now references `test@plantguardians.local` / `TestPass123!` correctly. |
+| T-053 (backend) | Backend Engineer: HttpOnly refresh token cookie implemented. `POST /auth/register`, `POST /auth/login` set `Set-Cookie: refresh_token=...; HttpOnly; Secure; SameSite=Strict`. `POST /auth/refresh` reads from `req.cookies.refresh_token` with token rotation. `POST /auth/logout` and `DELETE /auth/account` clear cookie. `cookie-parser` added. 14 auth tests rewritten + 4 new. 72/72 backend tests pass. |
+
+---
+
+#### Tasks Carried Over to Sprint #12
+
+| Task ID | Description | Reason |
+|---------|-------------|--------|
+| T-053 (frontend) | Frontend: Complete api.js cookie migration (remove body-based refresh_token, add `credentials: 'include'`, silent re-auth on app init) | **Blocked — Frontend Engineer never completed.** Three handoffs sent (H-130, H-131, H-136). `api.js` still sends refresh token in request body; backend now reads from cookie. Current state: token refresh returns 401 after access token expires. P1 blocker for T-020 (users will be silently logged out after 15 minutes if refresh fails). |
+| T-020 | User testing — all 3 MVP flows + Care History + Care Due Dashboard | **Twelfth consecutive carry-over.** Blocked by: (1) intermittent auth 500 (FB-044, tasked as T-056); (2) T-053 frontend not done (refresh flow broken). Once T-056 and T-053 frontend are Done, T-020 is fully unblocked. |
+
+---
+
+#### Verification Failures
+
+The Sprint #11 post-deploy health check (2026-03-30T19:04:00Z) returned **Deploy Verified: No** due to:
+
+1. **Intermittent HTTP 500 on POST /api/v1/auth/login (FB-044)** — 2 of the first 8 login calls returned HTTP 500 `INTERNAL_ERROR`. Pattern: failures on calls 1 and 3, all subsequent calls return 200. Suspected root cause: DB connection pool cold-start (Knex `min` pool size not configured) or `cookie-parser` middleware race condition introduced by T-053 backend changes. Tasked as T-056 (Sprint 12 P0). All other 17 endpoint checks passed. Config consistency fully validated (CORS fix T-055 working correctly).
+
+---
+
+#### Key Feedback Themes
+
+| Feedback ID | Category | Severity | Disposition |
+|-------------|----------|----------|-------------|
+| FB-044 | Monitor Alert — Intermittent 500 on POST /api/v1/auth/login after restart/idle | Major | Tasked → T-056 (Sprint 12 P0) |
+| QA Obs 3 | Bug — Frontend auth refresh broken (api.js still body-based; backend now cookie-based) | P1 | Tracked via T-053 frontend carry-over to Sprint 12 |
+| QA Obs 7 | Minor — TEST_DATABASE_URL port inconsistency (.env uses 5432, docker-compose uses 5433) | P3 | Tasked → T-057 (Sprint 12 P3) |
+| QA Obs 5 | Positive — Error handler correctly shields internal details | N/A | Acknowledged |
+| QA Obs 8 | Positive — HttpOnly cookie auth backend is a solid security upgrade | N/A | Acknowledged |
+
+---
+
+#### What Went Well
+
+- T-055 permanently resolves the recurring CORS port-drift pattern that blocked T-020 for 10 consecutive sprints — fixed `--port 4173` in `vite preview` script eliminates future drift
+- T-052 care-type badges are a significant UX improvement praised by QA: "Watering: 2 days overdue" is immediately actionable where the previous unlabeled badges were not
+- T-054 photo-removal fix resolves a genuine user dead-end with minimal code change (high impact/effort ratio)
+- T-051 Monitor Agent stale credential fix means future health checks will work correctly without manual override
+- T-053 backend implementation is textbook HttpOnly cookie auth: token rotation, revocation, cookie clearing on logout/account-delete, full CORS `credentials: true` support
+- 72/72 backend tests, 117/117 frontend tests — both new high watermarks
+- Pre-existing 429 flake in auth tests definitively resolved by moving rate-limit env vars before `require(app)`
+
+---
+
+#### What to Improve
+
+- **Frontend Engineer must complete T-053 frontend half in Sprint #12 without exception.** Three handoffs (H-130, H-131, H-136) were sent in Sprint #11 and the work was never started. This is the only remaining code task for persistent login.
+- **Auth 500 intermittent failure (FB-044) must be investigated at sprint start** before any user testing proceeds. The simplest likely fix is configuring `knex` pool `min: 1` to prevent cold-start connection failures.
+- T-020 has now carried over **11 consecutive sprints**. Sprint #12 will gate T-020 strictly on T-056 Done AND T-053 frontend Done — no exceptions.
+- Health endpoint documentation inconsistency should be corrected: `/api/health` (not `/api/v1/health`) in api-contracts.md and monitor health check templates.
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Owner |
+|------|----------|-------|
+| Intermittent auth 500 on cold start (FB-044) | P0 | Backend/Deploy Engineer — Sprint 12 T-056 |
+| T-053 frontend half incomplete — api.js still body-based refresh | P1 | Frontend Engineer — Sprint 12 carry-over |
+| TEST_DATABASE_URL port inconsistency (.env 5432 vs docker-compose 5433) | P3 | Backend Engineer — Sprint 12 T-057 |
+| Health endpoint route discrepancy (/api/health not /api/v1/health in docs) | P3 | QA/Deploy — Sprint 12 minor fix |
+| Express 4 path-to-regexp ReDoS (FB-031/FB-037) | P3 Advisory | Backlog — Express 5 migration |
+
+---
+
+*Sprint #11 summary written by Manager Agent on 2026-03-30.*
+
+---
+
 ## Template
 
 ### Sprint #N — [Start Date] to [End Date]
