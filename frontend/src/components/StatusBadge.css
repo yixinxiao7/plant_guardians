@@ -6,6 +6,15 @@
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
+  gap: 4px;
+}
+
+.status-badge-with-icon {
+  padding: 4px 10px 4px 8px;
+}
+
+.status-badge-icon {
+  flex-shrink: 0;
 }
 
 .status-badge-on-track {

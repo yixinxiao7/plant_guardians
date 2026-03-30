@@ -448,3 +448,45 @@ No backend changes, no migration changes, no new environment variables.
 | **Blocker** | CORS mismatch — `http://localhost:4175` not in `FRONTEND_URL` → HTTP 500 on all browser API requests from staging frontend |
 | **Action Required** | Add `http://localhost:4175` to `FRONTEND_URL` in `backend/.env`, restart backend. Handoff H-117 sent to Backend Engineer. |
 
+
+---
+
+### Build Entry: T-055 — CORS Port Drift Fix
+
+| Field | Value |
+|-------|-------|
+| **Task** | T-055 |
+| **Agent** | Deploy Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Build Status** | Success |
+| **Environment** | Staging |
+
+#### Changes Applied
+
+| File | Change |
+|------|--------|
+| `backend/.env` | Added `http://localhost:4175` to `FRONTEND_URL` (now includes :5173, :5174, :4173, :4175) |
+| `frontend/package.json` | Updated `preview` script from `vite preview` → `vite preview --port 4173` (fixed port, prevents future drift) |
+| `backend/.env.example` | Updated CORS comment to document all canonical ports including :4175 fallback |
+
+#### CORS Preflight Verification
+
+| Origin | HTTP Status | Access-Control-Allow-Origin |
+|--------|-------------|------------------------------|
+| `http://localhost:4173` | 204 No Content ✅ | `http://localhost:4173` ✅ |
+| `http://localhost:4175` | 204 No Content ✅ | `http://localhost:4175` ✅ |
+
+#### Backend Test Results
+
+- **Total:** 70/72 pass
+- **Note:** 2 pre-existing failures in `auth.test.js` logout tests — rate-limiter returns 429 on last 2 tests in the full suite run. These failures exist because T-053 partial implementation (cookie-based auth) increased auth request count per suite run. Not caused by T-055 changes. Zero previously-passing tests were broken.
+- **Unchanged:** All 7 non-auth test suites pass (plants, ai, careHistory, careDue, careActions, account, profile).
+
+#### Backend Restart
+
+Backend restarted to pick up updated `FRONTEND_URL`. New process confirmed serving CORS headers correctly.
+
+#### T-020 Gate Status
+
+T-055 acceptance criteria met. T-020 (User testing) is now **fully unblocked**.

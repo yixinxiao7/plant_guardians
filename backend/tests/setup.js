@@ -5,15 +5,18 @@
  * We track migration state to avoid redundant migrate/rollback cycles and
  * ensure db.destroy() is only called once (via the process exit handler).
  */
-const request = require('supertest');
-const app = require('../src/app');
-const db = require('../src/config/database');
-
-// Ensure we're in test environment
+// Ensure environment is set BEFORE requiring app (rate limiters read env at import time)
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-jwt-secret-for-testing-only';
 process.env.JWT_EXPIRES_IN = '15m';
 process.env.REFRESH_TOKEN_EXPIRES_DAYS = '7';
+// Raise rate limits for tests — many tests hit auth endpoints repeatedly
+process.env.AUTH_RATE_LIMIT_MAX = '500';
+process.env.RATE_LIMIT_MAX = '1000';
+
+const request = require('supertest');
+const app = require('../src/app');
+const db = require('../src/config/database');
 
 // Track whether migrations have been applied (shared across test files in --runInBand mode)
 let migrationsApplied = false;
@@ -48,7 +51,29 @@ async function cleanTables() {
 }
 
 /**
+ * Extract the refresh_token value from Set-Cookie headers in a supertest response.
+ */
+function extractRefreshTokenCookie(res) {
+  const cookies = res.headers['set-cookie'];
+  if (!cookies) return null;
+  const arr = Array.isArray(cookies) ? cookies : [cookies];
+  for (const c of arr) {
+    const match = c.match(/^refresh_token=([^;]+)/);
+    if (match && match[1]) return match[1];
+  }
+  return null;
+}
+
+/**
+ * Build a Cookie header string for sending the refresh_token cookie in requests.
+ */
+function refreshTokenCookieHeader(rawToken) {
+  return `refresh_token=${rawToken}`;
+}
+
+/**
  * Register a test user and return tokens + user data.
+ * Refresh token is extracted from the Set-Cookie header (T-053).
  */
 async function createTestUser(overrides = {}) {
   const userData = {
@@ -62,10 +87,12 @@ async function createTestUser(overrides = {}) {
     .post('/api/v1/auth/register')
     .send(userData);
 
+  const refreshToken = extractRefreshTokenCookie(res);
+
   return {
     user: res.body.data.user,
     accessToken: res.body.data.access_token,
-    refreshToken: res.body.data.refresh_token,
+    refreshToken,
     rawPassword: userData.password,
   };
 }
@@ -105,4 +132,6 @@ module.exports = {
   cleanTables,
   createTestUser,
   createTestPlant,
+  extractRefreshTokenCookie,
+  refreshTokenCookieHeader,
 };

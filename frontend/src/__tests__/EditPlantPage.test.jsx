@@ -165,4 +165,38 @@ describe('EditPlantPage', () => {
     const saveBtn = screen.getByRole('button', { name: /save changes/i });
     expect(saveBtn).toBeDisabled();
   });
+
+  // T-054: Photo removal enables Save button
+  it('enables Save button when user removes an existing photo', async () => {
+    const plantWithPhoto = {
+      ...mockPlant,
+      photo_url: 'http://localhost:3000/uploads/test-photo.jpg',
+    };
+    mockUsePlantDetail = {
+      plant: plantWithPhoto,
+      loading: false,
+      error: null,
+      notFound: false,
+      fetchPlant: vi.fn().mockResolvedValue(plantWithPhoto),
+    };
+
+    render(<EditPlantPage />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Test Plant')).toBeInTheDocument();
+    });
+
+    // Save button should be disabled (no changes yet)
+    const saveBtn = screen.getByRole('button', { name: /save changes/i });
+    expect(saveBtn).toBeDisabled();
+
+    // Click the "Remove photo" button
+    const removeBtn = screen.getByText(/remove photo/i);
+    fireEvent.click(removeBtn);
+
+    // Save button should now be enabled since photo was removed
+    await waitFor(() => {
+      expect(saveBtn).not.toBeDisabled();
+    });
+  });
 });

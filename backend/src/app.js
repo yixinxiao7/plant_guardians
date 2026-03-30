@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const errorHandler = require('./middleware/errorHandler');
@@ -29,6 +30,9 @@ app.use(cors({
   },
   credentials: true,
 }));
+
+// Cookie parsing — must be before auth routes so req.cookies is populated
+app.use(cookieParser());
 
 // Body parsing
 app.use(express.json({ limit: '1mb' }));

@@ -2765,3 +2765,214 @@ T-053 begins after T-020 (MVP user testing) is marked Done per the sprint critic
 
 T-053 begins after T-020 is Done (per sprint critical path). QA should test T-053 after both backend and frontend halves are implemented and after T-020 is closed.
 
+---
+
+## H-123 — Frontend Engineer acknowledges SPEC-002 Amendment (T-052) and implements T-052 + T-054
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-123 |
+| **From** | Frontend Engineer |
+| **To** | Design Agent |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | Acknowledged SPEC-002 Amendment for T-052 care-type prefixed badges. Implementation complete. |
+| **Spec Refs** | SPEC-002 Amendment (Sprint #11 — T-052), H-119 |
+| **Status** | Complete |
+
+### Notes
+
+SPEC-002 Amendment acknowledged and implemented exactly as specified:
+- StatusBadge.jsx updated with care-type icon (Drop/Leaf/PottedPlant) + label prefix
+- Badge text format: "Watering: On track", "Fertilizing: 2 days overdue", etc.
+- Icons use specified colors (#5B8FA8, #4A7C59, #A67C5B), 13px bold weight, aria-hidden
+- Padding adjusted to 4px 10px 4px 8px for icon badges
+- "Not set" badge (no schedules) renders without icon prefix
+- All 117/117 frontend tests pass
+
+---
+
+## H-124 — Frontend Engineer → QA Engineer: T-052 + T-054 Complete — Ready for QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-124 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | T-052 (care-type badge icons) and T-054 (photo removal isDirty fix) are complete and ready for QA testing. |
+| **Spec Refs** | T-052, T-054 |
+| **Status** | Pending |
+
+### T-052 — Care-Type Label/Icon on PlantCard Status Badges
+
+**Files changed:**
+- `frontend/src/components/StatusBadge.jsx` — Added Phosphor icon imports (Drop, Leaf, PottedPlant), CARE_TYPE_CONFIG map, icon rendering with care-type label prefix
+- `frontend/src/components/StatusBadge.css` — Added `gap: 4px`, `.status-badge-with-icon` padding adjustment, `.status-badge-icon` flex-shrink
+- `frontend/src/__tests__/StatusBadge.test.jsx` — Added 6 new tests for care-type badges (watering/fertilizing/repotting icons, singular/plural days, no-icon fallback, with-icon class)
+- `frontend/src/__tests__/PlantCard.test.jsx` — Updated mock, added 3 tests (multi-badge, no-schedules, singular day)
+- `frontend/src/__tests__/InventoryPage.test.jsx` — Added Drop and PottedPlant to icon mock
+
+**What to test:**
+1. Each badge shows the correct Phosphor icon (blue Drop for watering, green Leaf for fertilizing, terracotta PottedPlant for repotting)
+2. Badge text format: "Watering: On track", "Fertilizing: Due today", "Repotting: 1 day overdue"
+3. Singular vs plural: "1 day overdue" vs "3 days overdue"
+4. Multi-schedule plant card shows all badges in order: watering → fertilizing → repotting
+5. Plant with no schedules shows "Not set" badge without icon
+6. Icons are aria-hidden (screen reader reads full text label)
+
+### T-054 — Photo Removal Enables Save Button in EditPlantPage
+
+**Files changed:**
+- `frontend/src/pages/EditPlantPage.jsx` — Added `photoUrl` comparison to `isDirty` useMemo and added `photoUrl` to dependency array
+- `frontend/src/__tests__/EditPlantPage.test.jsx` — Added test: removing existing photo enables Save button
+
+**What to test:**
+1. Navigate to Edit Plant for a plant that has a photo
+2. Click "Remove photo"
+3. Verify the "Save Changes" button becomes enabled
+4. Save and verify the photo_url is cleared on the server
+
+**Known limitations:** None.
+
+**Test results:** 117/117 frontend tests pass (was 107 before; 10 new tests added).
+
+
+---
+
+## H-125 — Deploy Engineer → QA Engineer: T-055 CORS Fix Complete — Ready for Verification
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-125 |
+| **From** | Deploy Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | T-055 (CORS port drift fix) is complete. CORS preflight verified for :4173 and :4175. T-020 is now unblocked. |
+| **Spec Refs** | T-055, T-020 |
+| **Status** | Pending |
+
+### What Was Done
+
+**T-055 — CORS Port Drift Permanent Fix**
+
+Three files changed:
+
+1. **`backend/.env`** — `FRONTEND_URL` updated to include `:4175`:
+   ```
+   FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175
+   ```
+
+2. **`frontend/package.json`** — `preview` script pinned to fixed port:
+   ```json
+   "preview": "vite preview --port 4173"
+   ```
+   This prevents future port drift — `vite preview` will always land on `:4173` regardless of prior sessions occupying `:4173/4174`.
+
+3. **`backend/.env.example`** — CORS comment updated to document all canonical ports including `:4175` fallback.
+
+**Backend restarted** — new process is live with updated `FRONTEND_URL`.
+
+### QA Verification Checklist
+
+1. **CORS preflight :4173** — `curl -X OPTIONS http://localhost:3000/api/v1/health -H "Origin: http://localhost:4173" -D -` → must return `204 No Content` + `Access-Control-Allow-Origin: http://localhost:4173`
+2. **CORS preflight :4175** — same command with `:4175` → must return `204 No Content` + `Access-Control-Allow-Origin: http://localhost:4175`
+3. **`npm run preview`** in `frontend/` — confirm it starts on port `:4173` (not 4174 or 4175)
+4. **Browser test** — open staging preview at `http://localhost:4173`, perform a login — no CORS error in DevTools console
+5. **T-020 gate** — once above passes, T-020 (user testing) is cleared to begin
+
+### Known Issues (Pre-existing, Not T-055)
+
+- `auth.test.js` last 2 tests fail due to rate-limiter (429 vs 401) when running full suite — caused by T-053 partial implementation adding more auth requests per suite run. This is a T-053 concern, not a T-055 regression. All 7 other test suites pass cleanly.
+
+---
+
+## H-127 — Backend Engineer → QA Engineer: T-053 Backend Half Complete — Ready for QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-127 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | T-053 backend implementation complete — HttpOnly refresh token cookie on all auth endpoints. Ready for QA. |
+| **Spec Refs** | T-053, Sprint 11 API Contracts (api-contracts.md) |
+| **Status** | Pending |
+
+### Changes Summary
+
+Refresh token transport moved from JSON body to HttpOnly `Set-Cookie` header across all four auth endpoints. No schema changes. No new migrations.
+
+**Files changed:**
+- `backend/src/app.js` — Added `cookie-parser` middleware before auth routes
+- `backend/src/routes/auth.js` — Updated register, login, refresh, logout, and account-delete handlers:
+  - `setRefreshTokenCookie()` helper sets `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=604800`
+  - `clearRefreshTokenCookie()` helper clears the cookie on logout and account deletion
+  - `POST /refresh` — validation middleware removed; reads `req.cookies.refresh_token` instead of `req.body.refresh_token`
+  - `POST /logout` — validation middleware removed; reads from cookie; idempotent (succeeds even if cookie absent)
+  - `refresh_token` removed from all JSON response bodies
+- `backend/package.json` — Added `cookie-parser` as production dependency
+- `backend/tests/setup.js` — Added `extractRefreshTokenCookie()` and `refreshTokenCookieHeader()` helpers; moved env vars before `require(app)` to fix rate-limiter 429 flakes (resolves the pre-existing issue noted in H-125)
+- `backend/tests/auth.test.js` — Rewritten for cookie flow: 14 tests (was 11), 4 new tests added (missing cookie → 401, invalid cookie → 401, idempotent logout, cookie attribute verification)
+
+### What to Test
+
+| Scenario | Method | Expected Outcome |
+|----------|--------|-----------------|
+| Register (valid) | `POST /api/v1/auth/register` | 201; `access_token` in body; `refresh_token` NOT in body; `Set-Cookie` header with `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/api/v1/auth` |
+| Login (valid) | `POST /api/v1/auth/login` | 200; `access_token` in body; `refresh_token` NOT in body; `Set-Cookie` header present |
+| Refresh (valid cookie) | `POST /api/v1/auth/refresh` with `Cookie: refresh_token=<token>` | 200; new `access_token` in body; new `Set-Cookie` with rotated token |
+| Refresh (no cookie) | `POST /api/v1/auth/refresh` | 401 `INVALID_REFRESH_TOKEN` |
+| Refresh (invalid cookie) | `POST /api/v1/auth/refresh` with bogus cookie | 401 `INVALID_REFRESH_TOKEN` |
+| Refresh (already-rotated cookie) | Use old token after rotation | 401 `INVALID_REFRESH_TOKEN` |
+| Logout (valid Bearer + cookie) | `POST /api/v1/auth/logout` | 200; cookie cleared |
+| Logout (valid Bearer, no cookie) | `POST /api/v1/auth/logout` | 200 (idempotent) |
+| Logout (no Bearer) | `POST /api/v1/auth/logout` | 401 `UNAUTHORIZED` |
+
+### Regression
+
+72/72 backend tests pass (was 69 before T-053; net 3 new tests added for cookie edge cases; rate-limiter 429 flakes also fixed).
+
+### Security Self-Check (per security-checklist.md)
+
+- Refresh token never exposed in response body (XSS protection)
+- Cookie is HttpOnly (no JavaScript access)
+- Cookie is Secure (HTTPS only in production)
+- Cookie is SameSite=Strict (CSRF protection)
+- Cookie scoped to `/api/v1/auth` (not sent on plant/care-action endpoints)
+- Token rotation on refresh (old token revoked)
+- Parameterized Knex queries only — no SQL concatenation
+- No secrets hardcoded — all from env vars
+- Rate limiting in place on auth endpoints
+
+---
+
+## H-128 — Backend Engineer → Frontend Engineer: T-053 Backend API Ready — Cookie-Based Auth
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-128 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 11 |
+| **Subject** | T-053 backend half complete. Auth endpoints now use HttpOnly cookies for refresh tokens. Frontend must update `api.js` per Sprint 11 contract integration notes. |
+| **Spec Refs** | T-053, Sprint 11 API Contracts (api-contracts.md, "Frontend Integration Notes") |
+| **Status** | Pending |
+
+### What Changed (Backend)
+
+1. `POST /auth/register` and `POST /auth/login` — `refresh_token` is no longer in the JSON response body. It is set via `Set-Cookie` header.
+2. `POST /auth/refresh` — No longer reads `refresh_token` from request body. Reads from `req.cookies.refresh_token`. Frontend must send requests with `credentials: 'include'`.
+3. `POST /auth/logout` — No longer requires `refresh_token` in request body. Reads from cookie. Cookie is cleared on response.
+
+### Frontend Action Items
+
+Per the Sprint 11 contract integration notes (api-contracts.md):
+1. All `fetch` calls to auth endpoints must include `credentials: 'include'`.
+2. On app init, call `POST /api/v1/auth/refresh` with `credentials: 'include'` for silent re-auth. If 200, store `access_token` in memory. If 401, redirect to `/login`.
+3. Login/register response handlers — stop reading `refresh_token` from body. Only read `access_token`.
+4. Logout — stop sending `refresh_token` in body. Just call `POST /api/v1/auth/logout` with Bearer + `credentials: 'include'`.

@@ -86,6 +86,7 @@ export default function EditPlantPage() {
     if (type !== (plant.type || '')) return true;
     if (notes !== (plant.notes || '')) return true;
     if (photo) return true; // new photo uploaded
+    if (photoUrl !== (plant.photo_url || '')) return true; // photo removed
     // Check watering
     const origWater = plant.care_schedules?.find(s => s.care_type === 'watering');
     if (origWater) {
@@ -112,7 +113,7 @@ export default function EditPlantPage() {
       if (repottingLastDone !== normalizeLastDone(origRepot.last_done_at)) return true;
     }
     return false;
-  }, [plant, initialized, name, type, notes, photo, watering, fertilizing, fertilizingExpanded, repotting, repottingExpanded, wateringLastDone, fertilizingLastDone, repottingLastDone]);
+  }, [plant, initialized, name, type, notes, photo, photoUrl, watering, fertilizing, fertilizingExpanded, repotting, repottingExpanded, wateringLastDone, fertilizingLastDone, repottingLastDone]);
 
   const validate = () => {
     const errs = {};

@@ -35,6 +35,35 @@ async function generateRefreshToken(userId) {
   return rawToken;
 }
 
+/**
+ * Set the refresh token as an HttpOnly cookie on the response.
+ * Cookie attributes: HttpOnly, Secure, SameSite=Strict, Path=/api/v1/auth
+ */
+function setRefreshTokenCookie(res, rawToken) {
+  const expiresInDays = parseInt(process.env.REFRESH_TOKEN_EXPIRES_DAYS || '7', 10);
+  const maxAgeSeconds = expiresInDays * 86400;
+
+  res.cookie('refresh_token', rawToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'strict',
+    path: '/api/v1/auth',
+    maxAge: maxAgeSeconds * 1000, // Express expects milliseconds
+  });
+}
+
+/**
+ * Clear the refresh token cookie.
+ */
+function clearRefreshTokenCookie(res) {
+  res.clearCookie('refresh_token', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'strict',
+    path: '/api/v1/auth',
+  });
+}
+
 // POST /api/v1/auth/register
 router.post(
   '/register',
@@ -57,6 +86,9 @@ router.post(
       const access_token = generateAccessToken(user);
       const refresh_token = await generateRefreshToken(user.id);
 
+      // Set refresh token as HttpOnly cookie (T-053)
+      setRefreshTokenCookie(res, refresh_token);
+
       res.status(201).json({
         data: {
           user: {
@@ -66,7 +98,6 @@ router.post(
             created_at: user.created_at,
           },
           access_token,
-          refresh_token,
         },
       });
     } catch (err) {
@@ -99,6 +130,9 @@ router.post(
       const access_token = generateAccessToken(user);
       const refresh_token = await generateRefreshToken(user.id);
 
+      // Set refresh token as HttpOnly cookie (T-053)
+      setRefreshTokenCookie(res, refresh_token);
+
       res.status(200).json({
         data: {
           user: {
@@ -108,7 +142,6 @@ router.post(
             created_at: user.created_at,
           },
           access_token,
-          refresh_token,
         },
       });
     } catch (err) {
@@ -118,14 +151,15 @@ router.post(
 );
 
 // POST /api/v1/auth/refresh
+// Refresh token is read from the HttpOnly cookie (T-053)
 router.post(
   '/refresh',
-  validateBody([
-    { field: 'refresh_token', required: true, type: 'string' },
-  ]),
   async (req, res, next) => {
     try {
-      const { refresh_token: rawToken } = req.body;
+      const rawToken = req.cookies && req.cookies.refresh_token;
+      if (!rawToken) {
+        throw new InvalidRefreshTokenError();
+      }
 
       const tokenRecord = await RefreshToken.findValid(rawToken);
       if (!tokenRecord) {
@@ -144,10 +178,12 @@ router.post(
       const access_token = generateAccessToken(user);
       const new_refresh_token = await generateRefreshToken(user.id);
 
+      // Set rotated refresh token as HttpOnly cookie (T-053)
+      setRefreshTokenCookie(res, new_refresh_token);
+
       res.status(200).json({
         data: {
           access_token,
-          refresh_token: new_refresh_token,
         },
       });
     } catch (err) {
@@ -157,16 +193,19 @@ router.post(
 );
 
 // POST /api/v1/auth/logout
+// Refresh token is read from the HttpOnly cookie (T-053)
 router.post(
   '/logout',
   authenticate,
-  validateBody([
-    { field: 'refresh_token', required: true, type: 'string' },
-  ]),
   async (req, res, next) => {
     try {
-      const { refresh_token: rawToken } = req.body;
-      await RefreshToken.revokeByRawToken(rawToken);
+      const rawToken = req.cookies && req.cookies.refresh_token;
+      if (rawToken) {
+        await RefreshToken.revokeByRawToken(rawToken);
+      }
+
+      // Clear the refresh token cookie (T-053)
+      clearRefreshTokenCookie(res);
 
       res.status(200).json({
         data: {
@@ -210,6 +249,9 @@ router.delete(
           // File may already be missing — non-critical, continue
         }
       }
+
+      // Clear the refresh token cookie on account deletion (T-053)
+      clearRefreshTokenCookie(res);
 
       res.status(204).end();
     } catch (err) {
