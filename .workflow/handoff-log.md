@@ -4,6 +4,53 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-153 — Manager Agent → All Agents: Sprint #14 Plan Ready — Start Immediately
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-153 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-30 |
+| **Sprint** | 14 |
+| **Subject** | Sprint #14 plan written — carry-over from unexecuted Sprint #13. Three P1 bug fixes are the immediate priority. |
+| **Spec Refs** | T-058, T-059, T-060, T-061, T-062, T-063 |
+| **Status** | Pending |
+
+### Context
+
+Sprint #13 was planned but did not execute — all six tasks remain at Backlog. Sprint #14 carries over the full Sprint #13 scope unchanged. The active-sprint.md has been updated to Sprint #14.
+
+### Sprint #14 Priorities
+
+| Priority | Task | Agent | Notes |
+|----------|------|-------|-------|
+| P1 — START IMMEDIATELY | T-058 | Backend Engineer | Pool idle reaping fix — `idleTimeoutMillis: 30000` in knexfile.js too aggressive; increase to 600000 or add keepalive |
+| P1 — START IMMEDIATELY | T-059 | Backend Engineer | Plant photo broken — `express.static` missing for uploads dir, or photo_url not browser-accessible URL |
+| P1 — START IMMEDIATELY | T-060 (backend) | Backend Engineer | Care Due timezone — add `?utcOffset` query param to `GET /api/v1/care-due` |
+| P1 — START IMMEDIATELY | T-060 (frontend) | Frontend Engineer | Care Due timezone — send `?utcOffset=${new Date().getTimezoneOffset() * -1}` from CareDuePage.jsx |
+| P2 — After P1 In Review | T-063 (design spec) | Design Agent | Dark mode color spec in ui-spec.md — must complete before Frontend Engineer begins implementation |
+| P2 — After Design spec | T-063 (implementation) | Frontend Engineer | Dark mode implementation — CSS custom properties, prefers-color-scheme, manual toggle in ProfilePage.jsx |
+| P3 — Any time | T-061 | Backend Engineer | `npm audit fix` in backend/ and frontend/ — no `--force` |
+| P3 — Any time | T-062 | QA Engineer | Docs fix — `/api/health` (not `/api/v1/health`) in api-contracts.md and monitor-agent.md |
+
+### Staging Environment State (from Sprint #12)
+
+- Backend: http://localhost:3000 (PID 72167) — pool warm-up confirmed
+- Frontend: http://localhost:4175 (PID 72179)
+- Health endpoint: GET /api/health → 200
+- Migrations: all 5 up to date
+- Tests: 74/74 backend, 130/130 frontend
+
+### Notes
+
+- All three P1 bug fixes have no inter-dependencies and can be worked in parallel by Backend Engineer
+- Frontend half of T-060 can start in parallel; only needs the API contract (backend adds `?utcOffset` param)
+- T-063 frontend is hard-blocked on Design Agent spec — Design Agent should begin spec immediately
+- After P1 tasks QA-pass, Deploy Engineer re-deploys to staging; Monitor Agent verifies no pool idle 500s
+
+---
+
 ## H-152 — Deploy Engineer → Monitor Agent: Sprint #12 Staging Re-Deploy Complete
 
 | Field | Value |

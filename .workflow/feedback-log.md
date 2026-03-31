@@ -1141,7 +1141,7 @@ During the Sprint #11 post-deploy health check (triggered by H-133 / H-137), `PO
 | **Date** | 2026-03-30 |
 | **Category** | Bug |
 | **Severity** | Major |
-| **Status** | New |
+| **Status** | Tasked → T-059 (Sprint 13) |
 
 ### Description
 
@@ -1168,7 +1168,7 @@ After adding a photo to a plant and saving, the photo does not display — the i
 | **Date** | 2026-03-30 |
 | **Category** | Bug |
 | **Severity** | Major |
-| **Status** | New |
+| **Status** | Tasked → T-060 (Sprint 13) |
 
 ### Description
 
@@ -1192,7 +1192,7 @@ Plants that should appear in "Due Today" or "Upcoming" show up in the wrong sect
 | **Date** | 2026-03-30 |
 | **Category** | Positive |
 | **Severity** | N/A |
-| **Status** | New |
+| **Status** | Acknowledged — T-020 Done. MVP officially declared complete. Shared with team. |
 
 ### Description
 
@@ -1218,7 +1218,7 @@ Project owner has completed T-020 user testing. All 5 flows verified end-to-end 
 | **Date** | 2026-03-30 |
 | **Category** | Positive |
 | **Severity** | N/A |
-| **Status** | New |
+| **Status** | Acknowledged — T-056 pool warm-up quality noted. Shared with team. |
 
 ### Description
 
@@ -1236,7 +1236,7 @@ T-056 pool warm-up fix is well-engineered. The `afterCreate` connection validati
 | **Date** | 2026-03-30 |
 | **Category** | Positive |
 | **Severity** | N/A |
-| **Status** | New |
+| **Status** | Acknowledged — T-053-frontend cookie migration quality noted. Shared with team. |
 
 ### Description
 
@@ -1254,7 +1254,7 @@ T-053-frontend cookie auth migration is thorough. All 5 fetch call sites have `c
 | **Date** | 2026-03-30 |
 | **Category** | Bug |
 | **Severity** | P3 |
-| **Status** | New |
+| **Status** | Acknowledged — Minor/pre-existing flaky test. Backlog for future sprint investigation. |
 
 ### Description
 
@@ -1272,7 +1272,7 @@ T-053-frontend cookie auth migration is thorough. All 5 fetch call sites have `c
 | **Date** | 2026-03-30 |
 | **Category** | Bug |
 | **Severity** | P3 |
-| **Status** | New |
+| **Status** | Acknowledged — P3 housekeeping. Scheduled as Sprint 13 tech debt task T-061. |
 
 ### Description
 
@@ -1290,7 +1290,7 @@ T-053-frontend cookie auth migration is thorough. All 5 fetch call sites have `c
 | **Date** | 2026-03-30 |
 | **Category** | Positive |
 | **Severity** | — |
-| **Status** | New |
+| **Status** | Acknowledged — Production-quality auth architecture noted. Shared with team. |
 
 ### Description
 
@@ -1308,7 +1308,7 @@ The auth flow is now robust and well-architected. Refresh token rotation with SH
 | **Date** | 2026-03-30 |
 | **Category** | Positive |
 | **Severity** | — |
-| **Status** | New |
+| **Status** | Acknowledged — Silent re-auth UX quality noted. Consistent with Japandi aesthetic direction. |
 
 ### Description
 
@@ -1326,7 +1326,7 @@ The loading state in useAuth.jsx prevents the jarring "login page flash" on hard
 | **Date** | 2026-03-30 |
 | **Category** | UX Issue |
 | **Severity** | Minor |
-| **Status** | New |
+| **Status** | Acknowledged — Gemini API key is active and quota-available per FB-058. No action needed. |
 
 ### Description
 
@@ -1349,7 +1349,7 @@ The GEMINI_API_KEY in backend/.env appears to be a real key (`AIzaSyB_...`) but 
 | **Date** | 2026-03-30 |
 | **Category** | UX Issue |
 | **Severity** | Cosmetic |
-| **Status** | New |
+| **Status** | Acknowledged — Cosmetic/minor validation gap. Backlog for future sprint. |
 
 ### Description
 
@@ -1367,7 +1367,7 @@ The POST /plants endpoint validates `name` as required string but does not enfor
 | **Date** | 2026-03-30 |
 | **Category** | Positive |
 | **Severity** | — |
-| **Status** | New |
+| **Status** | Acknowledged — Production-ready error handling quality noted. Shared with team. |
 
 ### Description
 
@@ -1385,7 +1385,7 @@ The centralized error handler in errorHandler.js is well-implemented. Unknown er
 | **Date** | 2026-03-30 |
 | **Category** | Monitor Alert |
 | **Severity** | Major |
-| **Status** | New |
+| **Status** | Tasked → T-058 (Sprint 13 P1) |
 
 ### Description
 
@@ -1433,7 +1433,7 @@ T-056 fixed **cold-start** 500s (server process just started, pool never initial
 | **Date** | 2026-03-30 |
 | **Category** | Positive |
 | **Severity** | — |
-| **Status** | New |
+| **Status** | Acknowledged — Gemini AI active and quota-available. Resolves FB-054 advisory. |
 
 ### Description
 

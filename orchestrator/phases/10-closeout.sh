@@ -53,7 +53,7 @@ WRITE THE NEXT SPRINT PLAN:
 
 CRITICAL: Do NOT skip step 6. The next sprint plan MUST be written to active-sprint.md before closeout is complete. The plan phase will verify it exists — if it is missing, the sprint cycle will stall."
 
-    run_agent_with_retry "manager" "$task_prompt" 3 30 "${MODEL_LIGHT:-sonnet}"
+    run_agent_with_retry "manager" "$task_prompt" 3 50 "${MODEL_LIGHT:-sonnet}"
 
     if phase_closeout_complete; then
         sprint_state_set "phase" "closeout"

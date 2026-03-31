@@ -937,6 +937,170 @@ The Sprint #11 post-deploy health check (2026-03-30T19:04:00Z) returned **Deploy
 
 ---
 
+### Sprint #12 — 2026-03-30 to 2026-03-30
+
+**Sprint Goal:** Close out the MVP once and for all — fix the intermittent auth 500 (T-056, P0), complete the persistent login frontend half (T-053-frontend, P1), declare MVP complete via full end-to-end user testing (T-020, P0), and fix TEST_DATABASE_URL port inconsistency (T-057, P3).
+
+**Outcome:** Complete — MVP officially declared complete. All four sprint tasks delivered and QA-verified. T-020 user testing completed by project owner. Deploy Verified: Yes (two independent Monitor Agent passes). Post-MVP development begins in Sprint #13.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-056 | Backend Engineer: Fixed intermittent auth 500 on POST /api/v1/auth/login. Root cause: Knex tarn pool created connections lazily; first requests raced pool warm-up; idle connections reaped after 30s could also cause transient 500s. Fix: `afterCreate` connection validation hook in knexfile.js, `idleTimeoutMillis: 30000`, `reapIntervalMillis: 1000`, and explicit pool warm-up (concurrent SELECT 1 queries) in server.js before HTTP traffic accepted. 2 regression tests added (sequential + concurrent cold-start login). 74/74 backend tests pass. |
+| T-053-frontend | Frontend Engineer: Completed api.js cookie migration. `credentials: 'include'` added to all 5 fetch call sites. `refreshToken` memory variable removed. `refreshAccessToken()` sends no body (cookie sent automatically). `auth.logout()` sends no body. Silent re-auth on app init in useAuth.jsx with loading state to prevent login-page flash. 13 new tests. 130/130 frontend tests pass. Build: 0 errors. |
+| T-057 | Backend Engineer: Resolved TEST_DATABASE_URL port inconsistency. Kept port 5432 (correct for local dev, no Docker Postgres on 5433). Added clarifying comment in .env. Updated knexfile.js fallback URL to 5433 for future Docker setup. 74/74 tests pass. |
+| T-020 | Project Owner: Completed full end-to-end MVP user testing — all 5 flows verified in browser. Flow 1 (Novice: register → add plant → mark care done → confetti) ✅. Flow 2 (AI advice: accept + reject flows) ✅. Flow 3 (Inventory management: edit schedule + delete plant) ✅. Care History (/history) ✅. Care Due Dashboard (/due — functional with timezone caveat FB-046) ✅. **MVP officially declared complete.** |
+
+---
+
+#### Tasks Carried Over to Sprint #13
+
+None — all Sprint #12 tasks completed.
+
+---
+
+#### Verification Failures
+
+**No sustained verification failures.** Deploy Verified: Yes on both Monitor Agent passes.
+
+A transient 500 on the first POST /api/v1/auth/login call was observed by the Monitor Agent (FB-057). This is a **partial regression** from T-056: T-056 fixed cold-start 500s but did not address post-idle 500s where connections are reaped after 30 seconds of inactivity. The issue is self-healing (1–3 requests) and does not block staging testing, but represents a production risk. Tasked as T-058 (Sprint 13, P1).
+
+---
+
+#### Key Feedback Themes
+
+| Feedback ID | Category | Severity | Disposition |
+|-------------|----------|----------|-------------|
+| FB-045 | Bug — Plant photo broken after upload and save | Major | Tasked → T-059 (Sprint 13 P1) |
+| FB-046 | Bug — Care Due Dashboard UTC/local timezone mismatch | Major | Tasked → T-060 (Sprint 13 P1) |
+| FB-047 | Positive — T-020 complete, MVP declared | N/A | Acknowledged |
+| FB-048 | Positive — T-056 pool warm-up is well-engineered | N/A | Acknowledged |
+| FB-049 | Positive — T-053-frontend cookie migration is thorough | N/A | Acknowledged |
+| FB-050 | Bug — Flaky careDue test (pre-existing, P3) | P3 | Acknowledged — Backlog |
+| FB-051 | Bug — npm audit 2 vulnerabilities (P3, fix available) | P3 | Acknowledged — T-061 (Sprint 13 P3) |
+| FB-052 | Positive — Auth flow is production-quality | N/A | Acknowledged |
+| FB-053 | Positive — Silent re-auth prevents login flash | N/A | Acknowledged |
+| FB-054 | UX Issue — Gemini quota concern (resolved by FB-058) | Minor | Acknowledged |
+| FB-055 | UX Issue — Long plant names, no max length | Cosmetic | Acknowledged — Backlog |
+| FB-056 | Positive — Error handling is production-ready | N/A | Acknowledged |
+| FB-057 | Monitor Alert — Transient 500 on post-idle pool reaping | Major | Tasked → T-058 (Sprint 13 P1) |
+| FB-058 | Positive — Gemini AI now returning 200 OK | N/A | Acknowledged |
+
+---
+
+#### What Went Well
+
+- **MVP is officially complete** — T-020 closed after 12 sprint cycles. All 5 user flows pass end-to-end in the browser. This is the most significant milestone of the project.
+- T-056 cold-start fix is architecturally sound: defense-in-depth approach (afterCreate validation + idle timeouts + explicit pool warm-up before HTTP) with 2 regression tests providing ongoing coverage.
+- T-053-frontend delivered cleanly this sprint after a two-sprint carry-over. The silent re-auth pattern with loading state is UX-correct and test-covered (13 new tests, 130/130 passing).
+- Test suite grew to 74 backend / 130 frontend — new high watermarks for both.
+- Deploy Verified: Yes on two independent Monitor Agent passes — staging environment is healthy.
+- Gemini AI endpoint is active and returning correct responses (FB-058) — Flow 2 fully testable.
+- QA product-perspective feedback (FB-048 through FB-056) demonstrates production-quality implementations across auth, error handling, and UX.
+
+---
+
+#### What to Improve
+
+- **Pool idle reaping (T-058):** T-056 fixed cold-start 500s but the post-idle reaping case remains. `idleTimeoutMillis: 30000` is too aggressive for staging (connections reaped every 30s of inactivity). Sprint 13 must increase this or add a keepalive heartbeat.
+- **Photo display bug (T-059):** Upload appears to succeed but photo_url is not browser-loadable — likely a static file serving or URL construction issue. Should have been caught before T-020.
+- **Timezone bug on Care Due Dashboard (T-060):** UTC vs local timezone mismatch causes wrong urgency bucketing. The backend should accept timezone context from the frontend when computing day boundaries.
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Owner | Sprint |
+|------|----------|-------|--------|
+| Pool idle reaping causes transient 500 on /auth/login after 30s inactivity (FB-057) | P1 | Backend Engineer | 13 — T-058 |
+| Plant photo broken after upload — photo_url not browser-loadable (FB-045) | P1 | Backend Engineer | 13 — T-059 |
+| Care Due Dashboard UTC/local timezone mismatch (FB-046) | P1 | Backend + Frontend Engineers | 13 — T-060 |
+| npm audit 2 vulnerabilities — `npm audit fix` available (FB-051) | P3 | Backend Engineer | 13 — T-061 |
+| Flaky careDue test — "should handle never-done plants" socket hang up (FB-050) | P3 | Backend Engineer | Backlog |
+| Long plant name — no max length validation on POST /plants (FB-055) | Cosmetic | Backend Engineer | Backlog |
+| Health endpoint docs discrepancy (/api/health not /api/v1/health in api-contracts.md) | P3 | QA/Deploy | 13 — T-062 |
+
+---
+
+*Sprint #12 summary written by Manager Agent on 2026-03-30.*
+
+---
+
+### Sprint #13 — 2026-03-31 to 2026-04-04
+
+**Sprint Goal:** Fix three critical post-MVP bugs from user testing (T-058 pool idle 500, T-059 broken plant photo, T-060 Care Due timezone), run dependency housekeeping (T-061), fix health endpoint docs (T-062), and begin the first post-MVP feature — dark mode (T-063).
+
+**Outcome:** Not Started — Sprint #13 was fully planned and all tasks were assigned, but the sprint cycle did not execute. All six tasks remain at Backlog status with no code changes produced. All tasks carry over to Sprint #14 with unchanged priority and scope.
+
+---
+
+#### Tasks Completed
+
+None. Sprint #13 produced no code changes.
+
+---
+
+#### Tasks Carried Over to Sprint #14
+
+| Task ID | Description | Reason |
+|---------|-------------|--------|
+| T-058 | Backend: Fix pool idle reaping causing transient 500 on POST /api/v1/auth/login (P1) | Sprint did not execute |
+| T-059 | Backend: Fix plant photo broken after upload and save (P1) | Sprint did not execute |
+| T-060 | Backend + Frontend: Fix Care Due Dashboard UTC/local timezone mismatch (P1) | Sprint did not execute |
+| T-061 | Backend + Frontend: npm audit fix — resolve non-breaking vulnerabilities (P3) | Sprint did not execute |
+| T-062 | QA/Docs: Fix health endpoint documentation discrepancy (P3) | Sprint did not execute |
+| T-063 | Design + Frontend: Implement dark mode — B-005 (P2) | Sprint did not execute |
+
+---
+
+#### Verification Failures
+
+None — no staging deploy was attempted in Sprint #13.
+
+---
+
+#### Key Feedback Themes
+
+- No new feedback was filed in Sprint #13.
+- All Sprint #12 feedback (FB-045 through FB-058) was already triaged as Acknowledged or Tasked in Sprint #12.
+
+---
+
+#### What Went Well
+
+- Sprint #13 plan was detailed and technically precise — root causes documented, fix locations identified, acceptance criteria specific. The plan requires no revision for Sprint #14.
+- All task dependencies and blocked-by relationships remain valid and correctly documented.
+- Staging environment from Sprint #12 remains healthy (Deploy Verified: Yes, two Monitor Agent passes).
+
+---
+
+#### What to Improve
+
+- Sprint #13 did not execute — the orchestrator should confirm agent availability before committing to a sprint plan.
+- Three P1 bug fixes (T-058, T-059, T-060) directly impact production readiness and have been pending since Sprint #12 user testing. Sprint #14 must treat these as absolute P0 with zero tolerance for further carry-over.
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Owner | Sprint |
+|------|----------|-------|--------|
+| Pool idle reaping causes transient 500 on /auth/login after 30s inactivity (FB-057) | P1 | Backend Engineer | 14 — T-058 |
+| Plant photo broken after upload — photo_url not browser-loadable (FB-045) | P1 | Backend Engineer | 14 — T-059 |
+| Care Due Dashboard UTC/local timezone mismatch (FB-046) | P1 | Backend + Frontend Engineers | 14 — T-060 |
+| npm audit 2 vulnerabilities — `npm audit fix` available (FB-051) | P3 | Backend Engineer | 14 — T-061 |
+| Health endpoint docs discrepancy (/api/health not /api/v1/health in api-contracts.md) | P3 | QA/Deploy | 14 — T-062 |
+| Dark mode not yet implemented (B-005) | P2 | Design Agent + Frontend Engineer | 14 — T-063 |
+
+---
+
+*Sprint #13 summary written by Manager Agent on 2026-03-30.*
+
+---
+
 ## Template
 
 ### Sprint #N — [Start Date] to [End Date]
