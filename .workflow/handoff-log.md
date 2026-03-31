@@ -4,6 +4,52 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-165 — Manager → QA Engineer: Sprint 14 Code Review Complete — 5 Tasks Approved for Integration Check
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-165 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-03-31 |
+| **Sprint** | 14 |
+| **Subject** | Code review complete for T-058, T-059, T-060, T-061, T-063 — all moved to Integration Check |
+| **Status** | Pending QA |
+
+### Review Summary
+
+All 5 Sprint 14 tasks have passed Manager code review and moved from **In Review → Integration Check**. QA Engineer should now run the security checklist and verify each task.
+
+#### T-058 — Pool Idle Fix (Backend Engineer) ✅
+- **Files:** `backend/knexfile.js`, `backend/src/server.js`
+- **Review:** `idleTimeoutMillis` increased to 600000 (10 min) across all environments. Keepalive interval (5 min) with `.unref()` prevents connection reaping. No contract changes. 2 regression tests (sequential login + config verification).
+- **QA focus:** Verify login reliability after idle periods. Confirm 83/83 backend tests pass.
+
+#### T-059 — Photo Upload Fix (Backend Engineer) ✅
+- **Files:** `backend/src/app.js`
+- **Review:** Removed env gate on `express.static('/uploads')`. Added `fs.mkdirSync` with `{ recursive: true }`. Photo URLs remain relative (`/uploads/<uuid>.<ext>`). No path traversal risk (UUIDs as filenames). 2 tests (static route 200 + relative path format).
+- **QA focus:** Upload a photo, verify the returned `photo_url` is browser-accessible. Test in both dev and production-like config.
+
+#### T-060 — UTC Offset for Care Due (Backend + Frontend) ✅
+- **Files:** `backend/src/routes/careDue.js`, `frontend/src/utils/api.js`
+- **Review:** Backend accepts optional `?utcOffset=<minutes>` with strict validation (integer, range -840 to 840, string equality check to reject floats). Backward compatible. Frontend already sends offset. Matches Sprint 14 API contract. 5 backend tests.
+- **QA focus:** **Integration test required** — this touches both FE and BE. Verify care due items are bucketed by local timezone, not UTC. Test with various offsets.
+
+#### T-061 — npm audit fix (Backend Engineer) ✅
+- **Files:** `backend/package.json`, `frontend/package.json` (dependency updates only)
+- **Review:** Non-breaking `npm audit fix` (no `--force`). Zero vulnerabilities post-fix. All tests pass.
+- **QA focus:** Run `npm audit` in both directories to confirm 0 vulnerabilities. Verify no behavioral regressions.
+
+#### T-063 — Dark Mode (Design + Frontend) ✅
+- **Files:** 17 frontend files (see H-164 for full list)
+- **Review:** Matches SPEC-010 exactly. CSS custom properties with `[data-theme="dark"]` selector + `@media (prefers-color-scheme: dark)` fallback. ThemeToggle uses proper ARIA. useTheme hook handles localStorage + system preference. FOUC prevention in index.html. 5 new tests.
+- **QA focus:** Visual QA across all pages in dark mode. Verify WCAG AA contrast. Test toggle persistence across refresh. Test system preference detection. Verify no FOUC.
+
+### Blocker Note
+Deploy Engineer flagged in H-161 that ProfilePage.test.jsx was missing icon mocks — Frontend Engineer has since fixed this (see H-164). Verify 135/135 frontend tests now pass.
+
+---
+
 ## H-164 — Frontend Engineer → QA Engineer: Sprint 14 Frontend Tasks Complete (T-060, T-063)
 
 | Field | Value |
