@@ -2455,3 +2455,70 @@ The auth flow change (silent refresh on app init) has one subtle UX moment the F
 
 T-053-frontend already has complete acceptance criteria in `active-sprint.md`. The Frontend Engineer should proceed directly from the sprint task definition. Design Agent is available for clarifying questions.
 
+---
+
+## H-138 — Sprint #12 API Contracts Ready — Frontend Engineer
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-138 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 12 |
+| **Subject** | Sprint #12 API contracts published — no new endpoints; T-056 reliability fix does not change your integration |
+| **Spec Refs** | T-056, T-057, api-contracts.md § Sprint 12 Contracts |
+| **Status** | Pending |
+
+### Summary
+
+Sprint #12 introduces **no new API endpoints and no contract changes**. The Sprint 11 auth contracts (GROUP 11A in `api-contracts.md`) remain the authoritative specification for all four auth endpoints.
+
+**What this means for your T-053-frontend work:**
+
+- All four auth endpoints (`register`, `login`, `refresh`, `logout`) have the same request/response shapes as Sprint 11.
+- `credentials: 'include'` is still required on all fetch calls (Sprint 11 requirement, unchanged).
+- T-056 only fixes cold-start reliability of `POST /api/v1/auth/login` — you will now get consistent `200 OK` responses even immediately after a backend restart. No integration changes needed on your side.
+
+**Your task (T-053-frontend) has no blocked dependencies** — proceed immediately per acceptance criteria in `active-sprint.md`.
+
+---
+
+## H-139 — Sprint #12 API Contracts for QA Reference
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-139 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 12 |
+| **Subject** | Sprint #12 contracts published — QA verification plan for T-056 and T-057 |
+| **Spec Refs** | T-056, T-057, api-contracts.md § Sprint 12 Contracts |
+| **Status** | Pending |
+
+### Summary
+
+Sprint #12 has zero new endpoints and zero schema changes. The QA focus for backend is:
+
+**T-056 — Auth 500 Cold-Start Fix**
+
+After the Backend Engineer marks T-056 In Review, verify:
+
+1. Kill and restart backend (`npm start` in `backend/`)
+2. Immediately (within 1–2 seconds) call `POST /api/v1/auth/login` 5 times in rapid succession with valid credentials
+3. All 5 calls must return `200 OK` — zero `500 Internal Server Error` or `ECONNREFUSED`
+4. Run full backend test suite: **72/72 tests must pass**
+5. Confirm that `backend/src/db.js` or `backend/knexfile.js` pool `min` is set to `1` (or that whatever root cause fix was applied is present and correct)
+6. Confirm `cookie-parser` is registered before the auth router in `backend/src/app.js` (middleware order correct)
+
+**T-057 — TEST_DATABASE_URL Port Fix**
+
+After the Backend Engineer marks T-057 In Review, verify:
+
+1. `backend/.env` `TEST_DATABASE_URL` uses port `5433` (not `5432`)
+2. Run full backend test suite: **72/72 tests pass**
+3. No other env vars were changed
+
+**Contracts reference:** See `api-contracts.md` § *Sprint 12 Contracts* for the full behavioral guarantee and QA checklist language.
+

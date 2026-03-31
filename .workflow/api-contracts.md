@@ -1997,3 +1997,60 @@ No environment variable changes required for cookie behavior. `REFRESH_TOKEN_EXP
 ---
 
 *Sprint 11 contract written by Backend Engineer — 2026-03-30. Four existing auth endpoints updated (register, login, refresh, logout). Refresh token transport moves from body to HttpOnly cookie. Zero new endpoints. No schema changes. No migration files.*
+
+---
+
+## Sprint 12 Contracts — 2026-03-30
+
+**Written by:** Backend Engineer — 2026-03-30
+**Status:** Final — No new or changed endpoints this sprint.
+
+---
+
+### Overview
+
+Sprint #12 scope contains **zero new API endpoints** and **zero schema changes**. All backend work is reliability and configuration fixes:
+
+| Task | Type | API Impact |
+|------|------|-----------|
+| T-056 | Bug fix — intermittent 500 on `POST /api/v1/auth/login` | None — contract unchanged, reliability improved |
+| T-057 | Config fix — `TEST_DATABASE_URL` port in `backend/.env` | None — test-only, zero runtime impact |
+
+---
+
+### T-056 — POST /api/v1/auth/login Reliability Fix
+
+**Contract status:** UNCHANGED from Sprint 11. The endpoint spec defined in GROUP 11A remains authoritative.
+
+**What is being fixed:** An intermittent HTTP 500 occurs on `POST /api/v1/auth/login` when the backend is cold-started (FB-044). Root cause is suspected Knex connection pool cold-start (pool `min` is 0, so first request races against pool warm-up) or a `cookie-parser` middleware registration race in `app.js`. No change to request shape, response shape, error codes, or auth requirements.
+
+**Behavioral guarantee after fix:** `POST /api/v1/auth/login` MUST return `200 OK` with a valid access token (and set the `refresh_token` HttpOnly cookie) on every call, including the very first request after a cold backend restart. The 5-in-a-row / no-500 acceptance criterion from `active-sprint.md` is the verification target.
+
+**For Frontend Engineer:** No changes to your integration. `credentials: 'include'` is already required (Sprint 11 contract). The fix simply eliminates the transient 500 that could interrupt the login flow.
+
+**For QA Engineer:** After T-056 is implemented, verify:
+1. Restart backend (kill process → `npm start`)
+2. Immediately call `POST /api/v1/auth/login` 5 times in rapid succession
+3. All 5 must return `200 OK` — zero `500 Internal Server Error`
+4. All 72/72 backend tests must still pass
+
+---
+
+### T-057 — TEST_DATABASE_URL Config Fix
+
+**Contract status:** No API impact whatsoever.
+
+**What is being fixed:** `backend/.env` has `TEST_DATABASE_URL` pointing to port `5432`. `docker-compose.yml` maps the test PostgreSQL service to port `5433`. This mismatch causes test-suite failures if tests run against Docker. The fix updates the port to `5433` in `backend/.env`.
+
+**For Frontend Engineer:** No action needed.
+**For QA Engineer:** After T-057 is applied, confirm all 72/72 backend tests pass. No new test cases needed for this fix.
+
+---
+
+### Schema Changes — Sprint 12
+
+**None.** No new tables, columns, or migrations. No Manager approval required.
+
+---
+
+*Sprint 12 contract written by Backend Engineer — 2026-03-30. Zero new endpoints. Zero schema changes. T-056 stabilizes existing POST /api/v1/auth/login reliability. T-057 corrects a test config port mismatch. All existing Sprint 11 contracts remain authoritative.*
