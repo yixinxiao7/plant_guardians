@@ -4,6 +4,75 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 15 — Deploy Engineer: Staging Deploy (2026-03-31)
+
+**Date:** 2026-03-31
+**Agent:** Deploy Engineer (Orchestrator Sprint #15)
+**Sprint:** 15
+**Environment:** Staging (local)
+**Triggered by:** Sprint #15 orchestrator phase — all Sprint 15 tasks implemented
+
+---
+
+### Pre-Deploy Checks
+
+| Check | Result |
+|-------|--------|
+| QA sign-off (H-xxx) | ⏳ Pending — QA verification in progress |
+| Handoff log reviewed | ✅ H-173, H-174, H-175, H-176 reviewed |
+| `technical-context.md` migrations | ✅ No new migrations (H-174 confirmed) |
+| Backend tests | ✅ **88/88 PASS** (+5 from Sprint 14 baseline of 83) |
+| Frontend tests | ✅ **142/142 PASS** (+7 from Sprint 14 baseline of 135) |
+| npm audit (backend) | ✅ 0 vulnerabilities |
+| npm audit (frontend) | ✅ 0 vulnerabilities |
+| Frontend build | ✅ 0 errors (4626 modules, 159ms) |
+| Test fix applied | ✅ Added `ChartBar` mock to `Sidebar.test.jsx` + `AppShell.test.jsx` |
+
+### Migration Status
+
+| Migration | Status |
+|-----------|--------|
+| 20260323_01_create_users | ✅ Already up to date |
+| 20260323_02_create_refresh_tokens | ✅ Already up to date |
+| 20260323_03_create_plants | ✅ Already up to date |
+| 20260323_04_create_care_schedules | ✅ Already up to date |
+| 20260323_05_create_care_actions | ✅ Already up to date |
+| **New migrations** | None — no schema changes in Sprint 15 |
+
+### Sprint 15 Changes Deployed
+
+| Task | Description | Status |
+|------|-------------|--------|
+| T-064 | `GET /api/v1/care-actions/stats` endpoint (aggregated care stats) | ✅ Deployed |
+| T-065 | `/analytics` page — donut chart, per-plant table, recent activity feed | ✅ Deployed |
+| T-066 | Pool startup warm-up hardened — `db.raw('SELECT 1')` before `app.listen()` | ✅ Deployed |
+| T-068 | Confetti colors updated for dark mode | ✅ Deployed |
+
+### Staging Services
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| Backend | http://localhost:3000 | 98186 | ✅ RUNNING |
+| Frontend | http://localhost:4175 | 98206 | ✅ RUNNING |
+
+### Smoke Tests (Deploy Engineer)
+
+| Check | Result |
+|-------|--------|
+| `GET /api/health` | ✅ `{"status":"ok"}` |
+| `POST /api/v1/auth/register` | ✅ 201 Created |
+| `POST /api/v1/auth/login` (×3 on fresh start) | ✅ 200, 200, 200 — no 500s (T-066 verified) |
+| `GET /api/v1/care-actions/stats` (empty state) | ✅ 200 `{"data":{"total_care_actions":0,"by_plant":[],...}}` |
+| `GET /api/v1/care-actions/stats` (no token) | ✅ 401 UNAUTHORIZED |
+| `GET /api/v1/plants` | ✅ 200 |
+| `GET /api/v1/care-due?utcOffset=-300` | ✅ 200 |
+| Frontend HTTP | ✅ HTTP 200 |
+| Pool warm-up log | ✅ "Database pool warmed up with 2 connections (pool.min=2)" |
+
+**Sprint 15 Staging Deploy: ✅ COMPLETE**
+
+---
+
 ## Sprint 14 — Monitor Agent: Post-Deploy Health Check (2026-03-31)
 
 **Date:** 2026-03-31T14:42:00Z

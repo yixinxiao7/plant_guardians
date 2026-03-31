@@ -211,6 +211,13 @@ export const careActions = {
   },
 };
 
+// Care action stats (analytics)
+export const careStats = {
+  get() {
+    return request('/care-actions/stats');
+  },
+};
+
 // Care due dashboard
 export const careDue = {
   get() {

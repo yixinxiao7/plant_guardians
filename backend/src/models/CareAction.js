@@ -103,6 +103,76 @@ const CareAction = {
       total: parseInt(count, 10),
     };
   },
+  /**
+   * Aggregated care action statistics for a user (T-064).
+   * Returns { totalCareActions, byPlant, byCareType, recentActivity }.
+   * All queries are scoped to the user's plants via JOIN.
+   */
+  async getStatsByUser(userId) {
+    const [totalResult, byPlant, byCareType, recentActivity] = await Promise.all([
+      // 1. Total care actions count
+      db('care_actions as ca')
+        .join('plants as p', 'ca.plant_id', 'p.id')
+        .where('p.user_id', userId)
+        .count('ca.id as count')
+        .first(),
+
+      // 2. Breakdown by plant: count + last_action_at, sorted by count DESC then name ASC
+      db('care_actions as ca')
+        .join('plants as p', 'ca.plant_id', 'p.id')
+        .where('p.user_id', userId)
+        .select(
+          'p.id as plant_id',
+          'p.name as plant_name',
+          db.raw('COUNT(ca.id)::integer as count'),
+          db.raw('MAX(ca.performed_at) as last_action_at')
+        )
+        .groupBy('p.id', 'p.name')
+        .orderByRaw('COUNT(ca.id) DESC, p.name ASC'),
+
+      // 3. Breakdown by care type: count, sorted by count DESC
+      db('care_actions as ca')
+        .join('plants as p', 'ca.plant_id', 'p.id')
+        .where('p.user_id', userId)
+        .select(
+          'ca.care_type',
+          db.raw('COUNT(ca.id)::integer as count')
+        )
+        .groupBy('ca.care_type')
+        .orderByRaw('COUNT(ca.id) DESC'),
+
+      // 4. Recent activity: last 10 care actions across all plants
+      db('care_actions as ca')
+        .join('plants as p', 'ca.plant_id', 'p.id')
+        .where('p.user_id', userId)
+        .select(
+          'p.name as plant_name',
+          'ca.care_type',
+          'ca.performed_at'
+        )
+        .orderBy('ca.performed_at', 'desc')
+        .limit(10),
+    ]);
+
+    return {
+      total_care_actions: parseInt(totalResult.count, 10),
+      by_plant: byPlant.map(row => ({
+        plant_id: row.plant_id,
+        plant_name: row.plant_name,
+        count: parseInt(row.count, 10),
+        last_action_at: row.last_action_at ? new Date(row.last_action_at).toISOString() : null,
+      })),
+      by_care_type: byCareType.map(row => ({
+        care_type: row.care_type,
+        count: parseInt(row.count, 10),
+      })),
+      recent_activity: recentActivity.map(row => ({
+        plant_name: row.plant_name,
+        care_type: row.care_type,
+        performed_at: row.performed_at ? new Date(row.performed_at).toISOString() : null,
+      })),
+    };
+  },
 };
 
 module.exports = CareAction;
