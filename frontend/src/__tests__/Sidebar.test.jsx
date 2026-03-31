@@ -10,6 +10,7 @@ vi.mock('@phosphor-icons/react', () => ({
   X: (props) => <span data-testid="icon-x" {...props} />,
   ClockCounterClockwise: (props) => <span data-testid="icon-clock" {...props} />,
   BellSimple: (props) => <span data-testid="icon-bell" {...props} />,
+  ChartBar: (props) => <span data-testid="icon-chartbar" {...props} />,
 }));
 
 vi.mock('../hooks/useAuth.jsx', () => ({
@@ -37,6 +38,7 @@ describe('Sidebar', () => {
     );
     expect(screen.getByText('My Plants')).toBeInTheDocument();
     expect(screen.getByText('Care Due')).toBeInTheDocument();
+    expect(screen.getByText('Analytics')).toBeInTheDocument();
     expect(screen.getByText('History')).toBeInTheDocument();
     expect(screen.getByText('Profile')).toBeInTheDocument();
   });
