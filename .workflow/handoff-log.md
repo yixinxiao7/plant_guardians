@@ -2757,4 +2757,52 @@ All contract requirements implemented in `frontend/src/utils/api.js` and `fronte
 ### Known Limitations
 
 - Silent re-auth depends on the HttpOnly cookie being present. If backend T-056 (auth 500 fix) is not yet deployed, the first login may intermittently fail.
+
+---
+
+## H-145 — T-056 Code Review Passed → QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-145 |
+| **From** | Manager |
+| **To** | QA Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 12 |
+| **Subject** | T-056 (auth 500 fix) passed code review — ready for QA |
+| **Spec Refs** | T-056, FB-044 |
+| **Status** | Pending |
+| **Notes** | Code review verified: (1) knexfile.js afterCreate hook validates connections with SELECT 1 across all envs; (2) idleTimeoutMillis/reapIntervalMillis correctly configured; (3) server.js warms pool before accepting traffic — safe, non-blocking; (4) cookie-parser ordered before auth routes; (5) 2 regression tests (sequential + concurrent login); (6) 74/74 backend tests pass; (7) no security issues. **QA focus:** Run full backend test suite. Verify login endpoint under load (rapid sequential + concurrent). Confirm no 500s on cold start. Security checklist pass required. |
+
+---
+
+## H-146 — T-053-frontend Code Review Passed → QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-146 |
+| **From** | Manager |
+| **To** | QA Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 12 |
+| **Subject** | T-053-frontend (api.js cookie migration) passed code review — ready for QA |
+| **Spec Refs** | T-053-frontend, H-130, H-131, H-136, H-140, H-141 |
+| **Status** | Pending |
+| **Notes** | Code review verified: (1) `credentials: 'include'` on all 5 fetch calls; (2) refreshToken memory var fully removed; (3) 401 → clear auth + redirect to /login; (4) logout sends no body; (5) silent re-auth on mount with loading state; (6) 13 new tests cover happy + error paths; (7) no XSS/security issues; (8) matches updated API contracts. 130/130 frontend tests pass. **QA focus:** Run full frontend test suite. Integration test: login → refresh → auto-retry on 401 → logout flow. Verify silent re-auth on page reload. Verify no refresh_token in request bodies. Security checklist pass required. T-056 backend fix should be deployed first for full integration testing. |
+
+---
+
+## H-147 — T-057 Code Review Passed → QA
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-147 |
+| **From** | Manager |
+| **To** | QA Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 12 |
+| **Subject** | T-057 (TEST_DATABASE_URL port fix) passed code review — ready for QA |
+| **Spec Refs** | T-057 |
+| **Status** | Pending |
+| **Notes** | Code review verified: (1) .env TEST_DATABASE_URL correctly on port 5432; (2) clarifying comment documents .env.example discrepancy; (3) knexfile.js test fallback updated to 5433 for future Docker; (4) .env is gitignored — no secrets exposed; (5) 74/74 tests pass. Minimal, safe fix. **QA focus:** Run full backend test suite to confirm no regressions. Verify .env comment is accurate. Note: full resolution requires Deploy Engineer to provision Docker test Postgres on 5433 — that's a separate future task. |
 - `Secure` flag on cookie requires HTTPS in production. In local dev (HTTP), the cookie is still set but without `Secure` (standard browser behavior for localhost).
