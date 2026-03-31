@@ -4,6 +4,120 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 12 — Deploy Engineer: Staging Re-Deploy (Orchestrator Sprint #12 — 2026-03-30)
+
+**Date:** 2026-03-30
+**Agent:** Deploy Engineer (Orchestrator Sprint #12 — second invocation)
+**Sprint:** 12
+**Triggered By:** H-148 — QA Engineer confirmed T-056, T-053-frontend, T-057 all QA-passed. Prior processes (PID 71192 backend, PID 71254 frontend) were still running and confirmed healthy; re-deployed fresh to ensure clean state.
+
+---
+
+### Pre-Deploy Gate Check
+
+| Gate | Status | Detail |
+|------|--------|--------|
+| QA sign-off in handoff log | ✅ PASS | H-148 — QA confirmed T-056, T-053-frontend, T-057 all passed |
+| Post-deploy QA re-verification | ✅ PASS | H-151 — All tasks confirmed QA-passed, T-020 unblocked |
+| Pending migrations | ✅ None | No new migrations for Sprint 12 |
+| All sprint tasks Done | ✅ PASS | T-056, T-053-frontend, T-057 all Done. T-020 Backlog (user-driven) |
+
+---
+
+### Dependency Install
+
+| Step | Result | Detail |
+|------|--------|--------|
+| `cd backend && npm install` | ✅ Success | Dependencies up to date (2 known audit advisories — non-blocking, tracked FB-051) |
+| `cd frontend && npm install` | ✅ Success | Dependencies up to date |
+
+---
+
+### Frontend Build
+
+| Step | Result | Detail |
+|------|--------|--------|
+| `cd frontend && npm run build` | ✅ Success | 4612 modules transformed, 0 errors |
+| Frontend bundle size | 392.51 kB (114.67 kB gzip) | |
+| Build warnings | None | |
+
+---
+
+### Migration Check
+
+| Step | Result | Detail |
+|------|--------|--------|
+| `npx knex migrate:latest` | ✅ Already up to date | No new migrations for Sprint 12 |
+| Schema changes | None | T-056, T-053-frontend, T-057 require no DB changes |
+
+---
+
+### Backend Restart
+
+| Step | Result | Detail |
+|------|--------|--------|
+| Old backend (PID 71192) killed | ✅ | Process terminated cleanly |
+| New backend started | ✅ | PID 72167 — `node src/server.js` |
+| T-056 pool warm-up | ✅ | "Database pool warmed up with 2 connections." logged on startup |
+| Startup time | ~4s | Pool warm-up completes before HTTP traffic accepted |
+
+---
+
+### Frontend Preview
+
+| Step | Result | Detail |
+|------|--------|--------|
+| Old frontend preview (PID 71254) killed | ✅ | Process terminated cleanly |
+| New frontend preview started | ✅ | PID 72179 — Sprint 12 build serving on http://localhost:4175 |
+| HTTP status | ✅ 200 | `curl http://localhost:4175/` returns 200 |
+
+---
+
+### Environment Status (Post-Deploy)
+
+| Component | Status | URL / Detail |
+|-----------|--------|--------------|
+| Backend API | ✅ Running | http://localhost:3000 — PID 72167 |
+| Frontend (Sprint 12 build) | ✅ Running | http://localhost:4175 — PID 72179 |
+| PostgreSQL (staging) | ✅ Connected | localhost:5432 — plant_guardians_staging |
+| Migrations | ✅ Up to date | All 5 migrations applied |
+| Health endpoint | ✅ 200 | `GET /api/health` → `{"status":"ok","timestamp":"2026-03-31T00:30:13.887Z"}` |
+
+---
+
+### Cold-Start Verification (T-056 Regression Test)
+
+5 sequential POST /api/v1/auth/login calls immediately after backend restart (PID 72167):
+
+| Request | HTTP Code |
+|---------|-----------|
+| 1 | 401 |
+| 2 | 401 |
+| 3 | 401 |
+| 4 | 401 |
+| 5 | 401 |
+
+**Result: ✅ PASSED — 5/5 login requests returned 401 (expected for invalid credentials) with zero 500s.**
+T-056 regression confirmed. Auth 500 cold-start issue is resolved.
+
+---
+
+### Sprint 12 Re-Deploy Summary
+
+| Environment | Build Status | Deploy Status | Health |
+|-------------|-------------|---------------|--------|
+| Staging | ✅ Success | ✅ Deployed | ✅ Healthy |
+| Production | N/A | N/A — not yet deployed | N/A |
+
+**Changes deployed:**
+- T-056: Knex pool warm-up in server.js, afterCreate validation hook + idle/reap timeouts in knexfile.js
+- T-053-frontend: `credentials: 'include'` on all fetch calls, refreshToken memory var removed, silent re-auth on app init in api.js + useAuth.jsx
+- T-057: TEST_DATABASE_URL clarifying comment in .env (no functional staging/production impact)
+
+**Handoff:** Monitor Agent handoff logged (see handoff-log.md)
+
+---
+
 ## Sprint 12 — Deploy Engineer: Staging Deploy Complete (2026-03-30)
 
 **Date:** 2026-03-30

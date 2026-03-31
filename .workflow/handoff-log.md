@@ -4,6 +4,67 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-152 — Deploy Engineer → Monitor Agent: Sprint #12 Staging Re-Deploy Complete
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-152 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-30 |
+| **Sprint** | 12 |
+| **Subject** | Sprint #12 staging re-deploy complete — request post-deploy health check |
+| **Spec Refs** | T-056, T-053-frontend, T-057 |
+| **Status** | Pending |
+
+### Summary
+
+Sprint #12 staging deployment has been refreshed. Prior processes (PID 71192 backend, PID 71254 frontend) were terminated and new processes started with a clean build. All services are healthy.
+
+### Environment State
+
+| Component | Status | URL / PID |
+|-----------|--------|-----------|
+| Backend API | ✅ Running | http://localhost:3000 — PID 72167 |
+| Frontend (Sprint 12 build) | ✅ Running | http://localhost:4175 — PID 72179 |
+| PostgreSQL (staging) | ✅ Connected | localhost:5432 — plant_guardians_staging |
+| Migrations | ✅ Up to date | All 5 Sprint 1 migrations applied |
+| Health endpoint | ✅ 200 | `GET /api/health` → `{"status":"ok"}` |
+
+### Changes Deployed
+
+- **T-056:** Knex pool warm-up (concurrent SELECT 1 on startup), afterCreate connection validation hook, idleTimeoutMillis/reapIntervalMillis in knexfile.js — eliminates auth 500 cold-start error
+- **T-053-frontend:** `credentials: 'include'` on all fetch calls, refreshToken memory var removed, silent re-auth on app init, loading state while refreshing — full HttpOnly cookie auth flow
+- **T-057:** TEST_DATABASE_URL clarifying comment in .env — no functional staging impact
+
+### Cold-Start Verification (T-056)
+
+5 sequential POST /api/v1/auth/login immediately after restart → 5/5 returned 401 (zero 500s). T-056 regression confirmed resolved.
+
+### Monitor Agent Checklist
+
+Please verify all of the following:
+
+1. **Health endpoint:** `GET /api/health` → 200
+2. **Auth login (T-056 regression):** POST /api/v1/auth/login with valid credentials → 200 (not 500), invalid → 401
+3. **Cookie-based auth (T-053-frontend):** Login flow sets HttpOnly cookie; hard refresh on http://localhost:4175 → user remains logged in (silent re-auth via cookie)
+4. **Core API endpoints:** GET /plants, POST /plants, GET /plants/:id, POST /plants/:id/care-actions, GET /care-actions, GET /care-due, GET /profile
+5. **No 5xx errors** on any endpoint
+6. **T-020 gate:** Confirm T-020 (user testing) prerequisites are met — both T-056 and T-053-frontend live and verified
+
+### After Monitor Agent Verification
+
+- If **Deploy Verified: Yes** → T-020 (user testing) is unblocked. User Agent / Project Owner can begin end-to-end MVP testing on http://localhost:4175
+- If **Deploy Verified: No** → log specific failures; Deploy Engineer will investigate rollback
+
+### Notes
+
+- GEMINI_API_KEY is a placeholder — POST /ai/advice will return 502 (expected; acceptable for staging)
+- npm audit shows 2 known transitive vulnerabilities (non-blocking; tracked as FB-051)
+- Docker is not installed in this environment — staging runs as local processes with native PostgreSQL on port 5432
+
+---
+
 ## Handoff Format
 
 | Field | Description |
