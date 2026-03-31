@@ -1372,3 +1372,87 @@ The POST /plants endpoint validates `name` as required string but does not enfor
 ### Description
 
 The centralized error handler in errorHandler.js is well-implemented. Unknown errors never leak stack traces or file paths. All structured errors return consistent `{ error: { message, code } }` format. The frontend's ApiError class properly captures status codes and error codes for UI display. This is production-ready error handling.
+
+---
+
+## FB-057 — Monitor Alert: Transient 500 on POST /api/v1/auth/login After Pool Idle Reaping
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-057 |
+| **Source** | Monitor Agent |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | Monitor Alert |
+| **Severity** | Major |
+| **Status** | New |
+
+### Description
+
+During Sprint 12 post-deploy health check, the first call to `POST /api/v1/auth/login` (and in a separate earlier Monitor Agent run, the first 3 consecutive calls) returned `HTTP 500 Internal Server Error`:
+
+```
+HTTP/1.1 500 Internal Server Error
+{"error":{"message":"An unexpected error occurred.","code":"INTERNAL_ERROR"}}
+```
+
+After the initial failure(s), all subsequent calls succeeded with HTTP 200 and a valid access token. The behavior is **self-healing** but represents a recurring transient failure window.
+
+### Root Cause Assessment
+
+T-056 added a Knex pool warm-up at server **startup** (2 concurrent `SELECT 1` queries before the HTTP server binds). However, `knexfile.js` sets `idleTimeoutMillis: 30000` (30 seconds) — connections are reaped after 30 seconds of inactivity. `reapIntervalMillis: 1000` checks every second. When the server has been idle for >30 seconds (common in staging), the pool's 2 connections are reaped. When a request arrives, `tarn` (Knex's pool manager) attempts to refill `min: 2`, but the `afterCreate` validation hook adds latency. There appears to be a brief race window where the request races against connection creation, resulting in a 500.
+
+T-056 fixed **cold-start** 500s (server process just started, pool never initialized). It does **not** prevent post-idle 500s when connections are reaped after 30 seconds of inactivity.
+
+### Impact
+
+- **Staging:** Low — self-healing within 1–3 requests. Does not block T-020 user testing.
+- **Production:** High risk — users hitting login immediately after a traffic lull could receive a 500. One transient 500 on login is a serious UX failure.
+
+### Recommended Fix (Sprint 13)
+
+1. Increase `idleTimeoutMillis` from `30000` to `600000` (10 minutes) to match typical PostgreSQL server idle timeout
+2. Or implement a periodic keepalive query (e.g., `setInterval(() => db.raw('SELECT 1'), 25000)`) after server startup to prevent pool connections from idling out
+3. Alternatively, set `min: 2, max: 10` on the pool AND disable `idleTimeoutMillis` entirely (rely on PostgreSQL's server-side `tcp_keepalives_idle`)
+
+### Related
+
+- T-056 (partial fix — addresses cold-start but not post-idle reaping)
+- H-150 (Deploy Engineer staging deploy)
+- See `knexfile.js` `pool.idleTimeoutMillis: 30000` and `pool.reapIntervalMillis: 1000`
+
+---
+
+## FB-058 — Monitor Observation: Gemini AI Now Returning 200 OK (Contradicts FB-054)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-058 |
+| **Source** | Monitor Agent |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | New |
+
+### Description
+
+During Sprint 12 post-deploy health check (2026-03-31T01:10Z), `POST /api/v1/ai/advice` with payload `{"plant_type":"Pothos"}` returned **HTTP 200 OK** with a valid, complete Gemini care advice response:
+
+```json
+{
+  "data": {
+    "identified_plant_type": "Pothos",
+    "confidence": "high",
+    "care_advice": {
+      "watering": {"frequency_value": 7, "frequency_unit": "days", "notes": "..."},
+      "fertilizing": {"frequency_value": 1, "frequency_unit": "months", "notes": "..."},
+      ...
+    }
+  }
+}
+```
+
+This contradicts FB-054 which reported consistent 502 errors due to API quota exhaustion. The `GEMINI_API_KEY` in `backend/.env` is apparently now active and has available quota.
+
+**Impact on T-020:** Flow 2 (AI advice) is now testable in the staging environment. The advisory in H-151 about Gemini returning 502 during user testing is no longer applicable.

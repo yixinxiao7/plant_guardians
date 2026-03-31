@@ -56,7 +56,7 @@ LOGGING:
 
 Be precise in your reports. Include actual HTTP status codes, response bodies, and error messages."
 
-    run_agent_with_retry "monitor-agent" "$task_prompt" 3 35 "${MODEL_LIGHT:-sonnet}"
+    run_agent_with_retry "monitor-agent" "$task_prompt" 3 "${AGENT_MAX_TURNS:-75}" "${MODEL_LIGHT:-sonnet}"
 
     # Check if health checks passed
     if phase_verify_complete; then

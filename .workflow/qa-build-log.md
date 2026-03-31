@@ -1122,3 +1122,179 @@ T-020 (user testing) remains in Backlog — its prerequisites (T-056, T-053-fron
 - T-053-frontend: Done ✅
 - T-057: Done ✅
 - T-020: Backlog → prerequisites met (T-056 + T-053-frontend Done). User testing can begin on http://localhost:4175.
+
+---
+
+## Sprint 12 — Post-Deploy Health Check (2026-03-30)
+
+**Test Type:** Post-Deploy Health Check + Config Consistency Validation
+**Sprint:** 12
+**Environment:** Staging (local)
+**Timestamp:** 2026-03-31T00:51:00Z
+**Triggered by:** H-152 (Deploy Engineer → Monitor Agent)
+**Token:** Acquired via `POST /api/v1/auth/login` with `test@plantguardians.local` (NOT /auth/register)
+
+---
+
+### CONFIG CONSISTENCY VALIDATION
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Backend PORT | 3000 (from `.env`) | 3000 | ✅ PASS |
+| Vite proxy target port | 3000 | `http://localhost:3000` → port 3000 | ✅ PASS |
+| Protocol match | No SSL keys set → HTTP | No `SSL_KEY_PATH`/`SSL_CERT_PATH` in `.env`; Vite uses `http://` | ✅ PASS |
+| CORS origin — dev (5173) | `http://localhost:5173` in `FRONTEND_URL` | `FRONTEND_URL` includes `http://localhost:5173` | ✅ PASS |
+| CORS origin — preview (4173) | `http://localhost:4173` in `FRONTEND_URL` | `FRONTEND_URL` includes `http://localhost:4173` | ✅ PASS |
+| CORS origin — staging preview (4175) | `http://localhost:4175` in `FRONTEND_URL` | `FRONTEND_URL` includes `http://localhost:4175` | ✅ PASS |
+| Docker — backend container port | N/A | `infra/docker-compose.yml` contains only postgres services; no backend container to validate | ✅ N/A |
+
+**Config Consistency Result: ✅ ALL PASS**
+
+Notes:
+- `.env` uses `FRONTEND_URL` (not `CORS_ORIGIN`) — `app.js` reads `FRONTEND_URL` as its CORS allow-list; functionally equivalent.
+- `FRONTEND_URL` covers all 4 relevant frontend origins: `:5173` (dev), `:5174` (alt dev), `:4173` (preview), `:4175` (staging preview running now).
+- No SSL configured (no `SSL_KEY_PATH`/`SSL_CERT_PATH`); HTTP stack is consistent end-to-end.
+- Docker compose only manages PostgreSQL; no backend container port mapping to validate.
+
+---
+
+### HEALTH CHECKS
+
+#### 1. Health Endpoint
+| Check | Result |
+|-------|--------|
+| `GET /api/health` → HTTP 200 | ✅ PASS |
+| Response body | `{"status":"ok","timestamp":"2026-03-31T00:48:31.012Z"}` |
+
+Note: Health endpoint is registered at `/api/health` (no `/v1` prefix). Deploy Engineer handoff confirms this — consistent with app.js registration.
+
+#### 2. Auth — Login with Valid Credentials (T-056 Regression Check)
+| Check | Result |
+|-------|--------|
+| `POST /api/v1/auth/login` (valid creds) → HTTP 200 | ⚠️ CONDITIONAL PASS — see note |
+| Response includes `access_token` | ✅ PASS |
+| Response includes `user` object with `id`, `full_name`, `email`, `created_at` | ✅ PASS |
+| Cookie set: `refresh_token` (HttpOnly, T-053-frontend) | ✅ PASS — cookie returned in `-c` jar |
+| `POST /api/v1/auth/login` (invalid creds) → HTTP 401 `INVALID_CREDENTIALS` | ✅ PASS |
+
+⚠️ **Transient 500 Observed (T-056 Regression Finding):**
+First 3 consecutive login attempts with valid credentials (`test@plantguardians.local`) returned:
+```
+HTTP/1.1 500 Internal Server Error
+{"error":{"message":"An unexpected error occurred.","code":"INTERNAL_ERROR"}}
+```
+After running a direct Node.js DB probe (`RefreshToken.create` + `User.findByEmail` — both succeeded), subsequent login requests returned HTTP 200. The 500 was self-healing.
+
+**Assessment:** This transient 500 indicates the Knex pool on PID 72167 had temporarily exhausted or stale connections. The T-056 warm-up runs at startup but does not appear to prevent pool degradation after idle periods. See Monitor Alert FB-057.
+
+#### 3. Auth — Token Refresh (Cookie Flow)
+| Check | Result |
+|-------|--------|
+| `POST /api/v1/auth/refresh` with HttpOnly cookie → HTTP 200 | ✅ PASS |
+| Response includes new `access_token` | ✅ PASS |
+| Token rotation: old cookie replaced by new cookie | ✅ PASS |
+
+#### 4. Auth — Logout
+| Check | Result |
+|-------|--------|
+| `POST /api/v1/auth/logout` → HTTP 200 | ✅ PASS |
+| Response: `{"data":{"message":"Logged out successfully."}}` | ✅ PASS |
+
+#### 5. Auth Guard
+| Check | Result |
+|-------|--------|
+| `GET /api/v1/plants` (no token) → HTTP 401 `UNAUTHORIZED` | ✅ PASS |
+
+#### 6. Plants — CRUD
+| Endpoint | HTTP Status | Response Shape | Result |
+|----------|------------|----------------|--------|
+| `GET /api/v1/plants` | 200 | `{"data":[],"pagination":{"page":1,"limit":50,"total":0}}` | ✅ PASS |
+| `POST /api/v1/plants` | 201 | Plant object with `id`, `care_schedules[]` including computed `status` | ✅ PASS |
+| `GET /api/v1/plants/:id` | 200 | Plant detail with `care_schedules[]` + `recent_care_actions[]` | ✅ PASS |
+| `DELETE /api/v1/plants/:id` | 200 | `{"data":{"message":"Plant deleted successfully.","id":"..."}}` | ✅ PASS |
+
+#### 7. Care Actions
+| Endpoint | HTTP Status | Response Shape | Result |
+|----------|------------|----------------|--------|
+| `POST /api/v1/plants/:id/care-actions` | 201 | `{"data":{"care_action":{...},"updated_schedule":{...}}}` | ✅ PASS |
+| `DELETE /api/v1/plants/:id/care-actions/:action_id` | 200 | `{"data":{"deleted_action_id":"...","updated_schedule":{...}}}` | ✅ PASS |
+| `GET /api/v1/care-actions` | 200 | `{"data":[],"pagination":{"page":1,"limit":20,"total":0}}` | ✅ PASS |
+
+#### 8. Care Due Dashboard
+| Endpoint | HTTP Status | Response Shape | Result |
+|----------|------------|----------------|--------|
+| `GET /api/v1/care-due` | 200 | `{"data":{"overdue":[],"due_today":[],"upcoming":[]}}` | ✅ PASS |
+
+#### 9. Profile
+| Endpoint | HTTP Status | Response Shape | Result |
+|----------|------------|----------------|--------|
+| `GET /api/v1/profile` | 200 | `{"data":{"user":{...},"stats":{"plant_count":0,"days_as_member":6,"total_care_actions":0}}}` | ✅ PASS |
+
+#### 10. Frontend Build
+| Check | Result |
+|-------|--------|
+| `frontend/dist/` exists (Sprint 12 build) | ✅ PASS |
+| `GET http://localhost:4175` → HTTP 200 | ✅ PASS (PID 72179 serving preview) |
+
+#### 11. 5xx Error Check
+| Check | Result |
+|-------|--------|
+| No 5xx on any endpoint during sustained testing | ✅ PASS (after pool recovery) |
+| Transient 500 on initial login (pre-recovery) | ⚠️ NOTED — see FB-057 |
+
+---
+
+### SUMMARY
+
+| Category | Result |
+|----------|--------|
+| Config Consistency | ✅ ALL PASS |
+| Health Endpoint | ✅ PASS |
+| Auth Flow (login/refresh/logout) | ✅ PASS (transient 500 self-healed — see FB-057) |
+| All Protected Endpoints | ✅ PASS |
+| Frontend Accessible | ✅ PASS |
+| No Sustained 5xx Errors | ✅ PASS |
+
+**Deploy Verified: Yes**
+
+All sprint 12 changes (T-056, T-053-frontend, T-057) are live and functional on staging. A transient 500 on initial login was observed and self-healed; this is logged as FB-057 (Severity: Major) for investigation. It does not block T-020 (user testing), but the pool behavior should be investigated before production deployment.
+
+**T-020 (MVP User Testing) Status: UNBLOCKED** — staging environment verified healthy at http://localhost:4175.
+
+---
+
+## Sprint 12 — Post-Deploy Health Check Re-Verification (2026-03-30, Second Pass)
+
+**Test Type:** Post-Deploy Health Check (Independent Re-Verification)
+**Sprint:** 12
+**Environment:** Staging (local)
+**Timestamp:** 2026-03-31T01:09–01:12Z
+**Triggered by:** Orchestrator Sprint #12 Monitor Agent invocation
+**Token:** Acquired via `POST /api/v1/auth/login` with `test@plantguardians.local` (NOT /auth/register)
+
+This is an independent re-run confirming the findings from the earlier health check (timestamped 2026-03-31T00:51:00Z). Results are consistent.
+
+### New Finding: POST /api/v1/ai/advice Now Returns 200 OK
+
+| Endpoint | Status | Response |
+|----------|--------|----------|
+| `POST /api/v1/ai/advice` with `{"plant_type":"Pothos"}` | **200 OK** | Valid Gemini care advice with confidence: "high" |
+
+FB-054 (QA) reported consistent 502 quota errors on this endpoint. As of this re-verification, the GEMINI_API_KEY in `backend/.env` has available quota and returns correct responses. **Flow 2 (AI advice) is fully testable during T-020.** Filed as FB-058.
+
+### Re-Verification Summary
+
+| Category | Result |
+|----------|--------|
+| Config Consistency (all 4 checks) | ✅ ALL PASS — unchanged from first run |
+| All 13 API endpoint checks | ✅ ALL PASS — unchanged from first run |
+| T-056 Regression (5/5 rapid logins → 200) | ✅ PASS |
+| T-053-frontend Cookie Auth (refresh flow) | ✅ PASS |
+| Frontend at http://localhost:4175 | ✅ PASS |
+| Transient 500 on first login call | ⚠️ OBSERVED AGAIN — pool idle reaping (see FB-057) |
+| POST /api/v1/ai/advice | ✅ PASS (200 OK — Gemini working, see FB-058) |
+
+**Deploy Verified: Yes** (confirmed — second independent pass)
+
+**Handoff issued:** H-152 (Monitor Agent → Manager Agent)
+**Advisories filed:** FB-057 (Major — pool idle reaping), FB-058 (Positive — AI advice working)

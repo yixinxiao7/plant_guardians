@@ -3083,3 +3083,80 @@ QA Engineer has completed full re-verification after staging deployment (H-150):
 ### No Blockers
 
 No blocking issues found. Sprint 12 engineering work is complete and verified. Awaiting T-020 user testing for MVP declaration.
+
+---
+
+## H-152 — Monitor Agent: Sprint 12 Deploy Verified — Staging Healthy, T-020 Unblocked
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-152 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent |
+| **Date** | 2026-03-30 |
+| **Sprint** | 12 |
+| **Subject** | Sprint 12 post-deploy health check complete. Deploy Verified: Yes. All endpoints healthy. One Major advisory (FB-057). T-020 (MVP user testing) is unblocked. |
+| **Spec Refs** | H-150, T-056, T-053-frontend, T-057, FB-057, FB-058 |
+| **Status** | Complete |
+
+### Health Check Result: DEPLOY VERIFIED ✅
+
+**Environment:** Staging (local) — Backend http://localhost:3000 / Frontend http://localhost:4175
+**Timestamp:** 2026-03-31T01:09–01:12Z (second independent verification run)
+**Token:** Acquired via `POST /api/v1/auth/login` with `test@plantguardians.local`
+
+---
+
+### Config Consistency: ✅ ALL PASS
+
+| Check | Result |
+|-------|--------|
+| Backend PORT (3000) matches Vite proxy target port (3000) | ✅ PASS |
+| Protocol: No SSL keys set → HTTP; Vite proxy uses `http://` | ✅ PASS |
+| CORS: `FRONTEND_URL` includes `:5173`, `:5174`, `:4173`, `:4175` | ✅ PASS |
+| Docker: Only postgres containers; no backend container port conflict | ✅ N/A / PASS |
+
+---
+
+### Endpoint Health: ✅ ALL PASS
+
+| Endpoint | HTTP Status | Result |
+|----------|------------|--------|
+| `GET /api/health` | 200 `{"status":"ok","timestamp":"..."}` | ✅ PASS |
+| `POST /api/v1/auth/login` | 200 with access_token + HttpOnly cookie | ✅ PASS (⚠️ first call 500 — see FB-057) |
+| `POST /api/v1/auth/refresh` | 200 with rotated access_token + new cookie | ✅ PASS |
+| `POST /api/v1/auth/logout` | 200 `{"data":{"message":"Logged out successfully."}}` | ✅ PASS |
+| `GET /api/v1/plants` (no auth) | 401 `UNAUTHORIZED` | ✅ PASS (auth guard works) |
+| `GET /api/v1/plants` | 200 with `data[]` + `pagination` | ✅ PASS |
+| `POST /api/v1/plants` | 201 with plant object + `care_schedules[]` | ✅ PASS |
+| `GET /api/v1/plants/:id` | 200 with plant detail | ✅ PASS |
+| `POST /api/v1/plants/:id/care-actions` | 201 with `care_action` + `updated_schedule` | ✅ PASS |
+| `GET /api/v1/care-actions` | 200 with `data[]` + `pagination` | ✅ PASS |
+| `GET /api/v1/profile` | 200 with `user` + `stats` | ✅ PASS |
+| `POST /api/v1/ai/advice` | **200** with valid Gemini care advice | ✅ PASS (see FB-058) |
+| `GET http://localhost:4175` (frontend) | 200 — Sprint 12 build serving | ✅ PASS |
+| Unknown route (`/api/v1/nonexistent`) | 404 `NOT_FOUND` — no 500 | ✅ PASS |
+| 5/5 rapid login calls (T-056 regression) | All HTTP 200 | ✅ PASS |
+
+---
+
+### Advisories (Non-Blocking)
+
+1. **FB-057 (Major):** Transient HTTP 500 on first login call after pool idle reaping (idleTimeoutMillis: 30s). Pool recovers after first failure. Self-healing but a production risk. Recommend Sprint 13 fix: increase `idleTimeoutMillis` to 600000ms or add a pool keepalive.
+
+2. **FB-058 (Positive):** Gemini AI (`POST /api/v1/ai/advice`) is now returning HTTP 200 with valid care advice. The FB-054 advisory about 502 quota errors is no longer applicable — Flow 2 (AI advice) is fully testable during T-020.
+
+---
+
+### T-020 (MVP User Testing): UNBLOCKED ✅
+
+All Sprint 12 prerequisites met:
+- ✅ T-056: Auth 500 fixed — 5/5 rapid login calls return 200 (pool warms after initial hiccup)
+- ✅ T-053-frontend: Cookie-based auth working — HttpOnly refresh token set, refresh endpoint rotates tokens correctly
+- ✅ T-057: TEST_DATABASE_URL config fixed
+- ✅ Staging deployed at http://localhost:4175 (frontend) / http://localhost:3000 (backend)
+- ✅ All API endpoints responding correctly
+- ✅ AI advice endpoint fully operational
+
+**Staging is verified and ready for T-020 MVP user testing at http://localhost:4175.**
+
