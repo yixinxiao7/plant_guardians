@@ -42,6 +42,10 @@
   background: var(--color-accent-hover);
 }
 
+[data-theme="dark"] .btn-primary {
+  color: #1A1815;
+}
+
 /* Secondary */
 .btn-secondary {
   background: transparent;
@@ -51,6 +55,10 @@
 
 .btn-secondary:hover:not(:disabled) {
   background: rgba(92, 122, 92, 0.08);
+}
+
+[data-theme="dark"] .btn-secondary:hover:not(:disabled) {
+  background: rgba(126, 175, 126, 0.08);
 }
 
 /* Danger */
@@ -63,6 +71,10 @@
   background: #a04f30;
 }
 
+[data-theme="dark"] .btn-danger {
+  color: #1A1815;
+}
+
 /* Ghost */
 .btn-ghost {
   background: transparent;
@@ -71,6 +83,10 @@
 
 .btn-ghost:hover:not(:disabled) {
   background: rgba(107, 107, 95, 0.08);
+}
+
+[data-theme="dark"] .btn-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 /* Icon */
@@ -87,6 +103,15 @@
   background: var(--color-surface-alt);
 }
 
+[data-theme="dark"] .btn-icon:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Focus rings — dark mode */
+[data-theme="dark"] .btn:focus-visible {
+  box-shadow: 0 0 0 3px rgba(126, 175, 126, 0.35);
+}
+
 /* Spinner */
 .btn-spinner {
   width: 18px;
@@ -95,6 +120,11 @@
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
+}
+
+[data-theme="dark"] .btn-primary .btn-spinner {
+  border-color: rgba(26, 24, 21, 0.3);
+  border-top-color: #1A1815;
 }
 
 .btn-secondary .btn-spinner {

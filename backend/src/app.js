@@ -38,11 +38,16 @@ app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files in development
-if (process.env.NODE_ENV !== 'production') {
-  const uploadDir = process.env.UPLOAD_DIR || './uploads';
-  app.use('/uploads', express.static(path.resolve(uploadDir)));
+// Serve uploaded files as static assets (T-059).
+// In production, a reverse proxy (nginx) would typically handle this,
+// but the Express fallback ensures photo_url is always browser-accessible.
+const uploadDir = path.resolve(process.env.UPLOAD_DIR || './uploads');
+// Ensure the uploads directory exists at startup
+const fs = require('fs');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
 }
+app.use('/uploads', express.static(uploadDir));
 
 // Rate limiting
 const generalLimiter = rateLimit({

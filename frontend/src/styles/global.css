@@ -50,6 +50,13 @@ input, textarea, select {
   outline-offset: 2px;
 }
 
+/* Theme transition (smooth color changes on toggle) */
+html:not(.no-transition) *,
+html:not(.no-transition) *::before,
+html:not(.no-transition) *::after {
+  transition: background-color 0.3s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
 /* Skeleton shimmer animation */
 @keyframes shimmer {
   0% { background-position: -200px 0; }
@@ -57,7 +64,7 @@ input, textarea, select {
 }
 
 .skeleton {
-  background: linear-gradient(90deg, var(--color-border) 25%, #eae7e0 50%, var(--color-border) 75%);
+  background: linear-gradient(90deg, var(--color-skeleton-base) 25%, var(--color-skeleton-highlight) 50%, var(--color-skeleton-base) 75%);
   background-size: 200px 100%;
   animation: shimmer 1.5s infinite;
   border-radius: var(--radius-input);
@@ -106,4 +113,11 @@ input, textarea, select {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* System preference listener setup */
+html.no-transition *,
+html.no-transition *::before,
+html.no-transition *::after {
+  transition: none !important;
 }

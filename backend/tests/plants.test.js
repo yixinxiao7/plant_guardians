@@ -313,4 +313,40 @@ describe('POST /api/v1/plants/:id/photo (T-010)', () => {
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('PLANT_NOT_FOUND');
   });
+
+  it('should return a photo_url that is browser-accessible via /uploads/ static route (T-059)', async () => {
+    const { accessToken } = await createTestUser();
+    const plant = await createTestPlant(accessToken);
+
+    // Upload a photo
+    const uploadRes = await request(app)
+      .post(`/api/v1/plants/${plant.id}/photo`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .attach('photo', path.join(TEST_FIXTURES_DIR, 'test-photo.jpg'));
+
+    expect(uploadRes.status).toBe(200);
+    const photoUrl = uploadRes.body.data.photo_url;
+    expect(photoUrl).toMatch(/^\/uploads\//);
+
+    // Fetch the photo directly via the static route — should return 200
+    const fetchRes = await request(app).get(photoUrl);
+    expect(fetchRes.status).toBe(200);
+    expect(fetchRes.headers['content-type']).toMatch(/image/);
+  });
+
+  it('should return a relative /uploads/ path, not an absolute URL (T-059)', async () => {
+    const { accessToken } = await createTestUser();
+    const plant = await createTestPlant(accessToken);
+
+    const res = await request(app)
+      .post(`/api/v1/plants/${plant.id}/photo`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .attach('photo', path.join(TEST_FIXTURES_DIR, 'test-photo.jpg'));
+
+    expect(res.status).toBe(200);
+    const photoUrl = res.body.data.photo_url;
+    // Must be relative path, not absolute URL
+    expect(photoUrl).not.toMatch(/^https?:\/\//);
+    expect(photoUrl).toMatch(/^\/uploads\/[a-f0-9-]+\.\w+$/);
+  });
 });

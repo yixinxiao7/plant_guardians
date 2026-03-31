@@ -36,6 +36,11 @@
   flex-shrink: 0;
 }
 
+[data-theme="dark"] .profile-avatar {
+  background: #2A4A2A;
+  color: #EDE8DF;
+}
+
 .profile-details {
   display: flex;
   flex-direction: column;
@@ -93,6 +98,15 @@
   color: var(--color-text-secondary);
 }
 
+/* Appearance */
+.profile-appearance-card {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
 /* Actions */
 .profile-actions-card {
   display: flex;
@@ -103,7 +117,7 @@
 
 .profile-delete-btn {
   font-size: 13px;
-  color: #B85C38;
+  color: var(--color-status-red);
   background: none;
   border: none;
   cursor: pointer;
@@ -120,7 +134,7 @@
 /* History Link */
 .profile-history-link {
   font-size: 13px;
-  color: #5C7A5C;
+  color: var(--color-accent);
   text-decoration: none;
   font-weight: 500;
   margin-bottom: 16px;

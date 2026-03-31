@@ -214,7 +214,8 @@ export const careActions = {
 // Care due dashboard
 export const careDue = {
   get() {
-    return request('/care-due');
+    const utcOffset = new Date().getTimezoneOffset() * -1;
+    return request(`/care-due?utcOffset=${utcOffset}`);
   },
 };
 

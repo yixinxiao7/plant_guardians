@@ -13,6 +13,13 @@ vi.mock('@phosphor-icons/react', () => ({
   CheckCircle: (props) => <span data-testid="icon-check" {...props} />,
   SignOut: (props) => <span data-testid="icon-signout" {...props} />,
   WarningOctagon: (props) => <span data-testid="icon-warning" {...props} />,
+  Monitor: (props) => <span data-testid="icon-monitor" {...props} />,
+  Sun: (props) => <span data-testid="icon-sun" {...props} />,
+  Moon: (props) => <span data-testid="icon-moon" {...props} />,
+}));
+
+vi.mock('../components/ThemeToggle.jsx', () => ({
+  default: () => <div data-testid="theme-toggle">Theme Toggle</div>,
 }));
 
 vi.mock('../hooks/useAuth.jsx', () => ({

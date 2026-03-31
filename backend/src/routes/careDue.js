@@ -48,9 +48,33 @@ function diffDaysUTC(a, b) {
 // GET /api/v1/care-due
 router.get('/', async (req, res, next) => {
   try {
+    // T-060: Accept optional utcOffset query parameter (minutes from UTC)
+    let utcOffsetMinutes = 0; // default: UTC
+    if (req.query.utcOffset !== undefined) {
+      const parsed = parseInt(req.query.utcOffset, 10);
+      if (isNaN(parsed) || parsed < -840 || parsed > 840 || String(parsed) !== String(req.query.utcOffset)) {
+        return res.status(400).json({
+          error: {
+            message: 'utcOffset must be an integer in the range -840 to 840.',
+            code: 'VALIDATION_ERROR',
+          },
+        });
+      }
+      utcOffsetMinutes = parsed;
+    }
+
     const rows = await CareSchedule.findAllWithLastAction(req.user.id);
 
-    const today = startOfDayUTC(new Date());
+    // Compute "today" in the user's local timezone.
+    // When utcOffset is provided, we shift all date comparisons so that
+    // "start of day" aligns with the user's local midnight instead of UTC midnight.
+    const now = new Date();
+    // "Local now" = UTC now + offset (converting UTC instant to local clock time)
+    const localNow = new Date(now.getTime() + utcOffsetMinutes * 60 * 1000);
+    // Truncate to local midnight (using UTC methods on the shifted time)
+    const todayMs = Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate());
+
+    const msPerDay = 24 * 60 * 60 * 1000;
     const overdue = [];
     const due_today = [];
     const upcoming = [];
@@ -60,9 +84,12 @@ router.get('/', async (req, res, next) => {
       const baseline = row.last_done_at
         ? new Date(row.last_done_at)
         : new Date(row.plant_created_at);
-      const nextDue = startOfDayUTC(new Date(baseline.getTime() + frequencyDays * 24 * 60 * 60 * 1000));
+      // Shift baseline to local time, then compute next due at local day granularity
+      const baselineLocal = new Date(baseline.getTime() + utcOffsetMinutes * 60 * 1000);
+      const baselineDayMs = Date.UTC(baselineLocal.getUTCFullYear(), baselineLocal.getUTCMonth(), baselineLocal.getUTCDate());
+      const nextDueMs = baselineDayMs + frequencyDays * msPerDay;
 
-      const diff = diffDaysUTC(nextDue, today);
+      const diff = Math.round((nextDueMs - todayMs) / msPerDay);
 
       if (diff < 0) {
         // Overdue
@@ -79,10 +106,13 @@ router.get('/', async (req, res, next) => {
           plant_id: row.plant_id,
           plant_name: row.plant_name,
           care_type: row.care_type,
+          last_done_at: row.last_done_at ? new Date(row.last_done_at).toISOString() : null,
         });
       } else if (diff >= 1 && diff <= 7) {
         // Upcoming (1-7 days away)
-        const dueDate = nextDue.toISOString().split('T')[0];
+        // Express due_date as local calendar date (YYYY-MM-DD)
+        const dueDateObj = new Date(nextDueMs);
+        const dueDate = dueDateObj.toISOString().split('T')[0];
         upcoming.push({
           plant_id: row.plant_id,
           plant_name: row.plant_name,

@@ -249,6 +249,101 @@ describe('GET /api/v1/care-due', () => {
     expect(betaIdx).toBeLessThan(alphaIdx);
   });
 
+  it('should accept utcOffset query parameter and still return valid results (T-060)', async () => {
+    const { accessToken } = await createTestUser();
+
+    // Plant with watering every 3 days; last watered 5 days ago → overdue by 2 days
+    const plant = await createTestPlant(accessToken, {
+      name: 'Offset Plant',
+      care_schedules: [
+        { care_type: 'watering', frequency_value: 3, frequency_unit: 'days' },
+      ],
+    });
+    await recordCareAction(accessToken, plant.id, 'watering', daysAgo(5));
+
+    // Test with a positive offset (e.g. UTC+5:30 = 330 minutes)
+    const res = await request(app)
+      .get('/api/v1/care-due?utcOffset=330')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toBeDefined();
+    expect(res.body.data.overdue).toBeDefined();
+    expect(res.body.data.due_today).toBeDefined();
+    expect(res.body.data.upcoming).toBeDefined();
+
+    // The plant should still show up (overdue regardless of timezone)
+    const allItems = [
+      ...res.body.data.overdue,
+      ...res.body.data.due_today,
+      ...res.body.data.upcoming,
+    ];
+    const found = allItems.find(i => i.plant_id === plant.id);
+    expect(found).toBeDefined();
+  });
+
+  it('should return same results without utcOffset as with utcOffset=0 (backward compat, T-060)', async () => {
+    const { accessToken } = await createTestUser();
+
+    const plant = await createTestPlant(accessToken, {
+      name: 'Compat Plant',
+      care_schedules: [
+        { care_type: 'watering', frequency_value: 3, frequency_unit: 'days' },
+      ],
+    });
+    await recordCareAction(accessToken, plant.id, 'watering', daysAgo(5));
+
+    const [resNoOffset, resZeroOffset] = await Promise.all([
+      request(app)
+        .get('/api/v1/care-due')
+        .set('Authorization', `Bearer ${accessToken}`),
+      request(app)
+        .get('/api/v1/care-due?utcOffset=0')
+        .set('Authorization', `Bearer ${accessToken}`),
+    ]);
+
+    expect(resNoOffset.status).toBe(200);
+    expect(resZeroOffset.status).toBe(200);
+    // Both should produce identical results
+    expect(resNoOffset.body.data.overdue.length).toBe(resZeroOffset.body.data.overdue.length);
+    expect(resNoOffset.body.data.due_today.length).toBe(resZeroOffset.body.data.due_today.length);
+    expect(resNoOffset.body.data.upcoming.length).toBe(resZeroOffset.body.data.upcoming.length);
+  });
+
+  it('should return 400 VALIDATION_ERROR for non-integer utcOffset (T-060)', async () => {
+    const { accessToken } = await createTestUser();
+
+    const res = await request(app)
+      .get('/api/v1/care-due?utcOffset=abc')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('should return 400 VALIDATION_ERROR for utcOffset out of range (T-060)', async () => {
+    const { accessToken } = await createTestUser();
+
+    const res = await request(app)
+      .get('/api/v1/care-due?utcOffset=1000')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toMatch(/utcOffset/);
+  });
+
+  it('should accept negative utcOffset (e.g. US Eastern = -300) (T-060)', async () => {
+    const { accessToken } = await createTestUser();
+
+    const res = await request(app)
+      .get('/api/v1/care-due?utcOffset=-300')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toBeDefined();
+  });
+
   it('should handle weekly frequency correctly', async () => {
     const { accessToken } = await createTestUser();
 

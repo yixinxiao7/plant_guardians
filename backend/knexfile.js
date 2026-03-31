@@ -20,10 +20,11 @@ module.exports = {
           done(err, conn);
         });
       },
-      // Destroy idle connections before PostgreSQL kills them (default pg timeout is ~10 min)
-      idleTimeoutMillis: 30000,
-      // Check for idle connections frequently
-      reapIntervalMillis: 1000,
+      // Keep idle connections alive long enough to avoid mid-request pool refill races (T-058).
+      // Previously 30s caused transient 500s when requests arrived during tarn refill + afterCreate validation.
+      idleTimeoutMillis: 600000, // 10 minutes — matches PostgreSQL default idle timeout
+      // Check for idle connections periodically
+      reapIntervalMillis: 5000,
     },
   },
   test: {
@@ -61,8 +62,8 @@ module.exports = {
           done(err, conn);
         });
       },
-      idleTimeoutMillis: 30000,
-      reapIntervalMillis: 1000,
+      idleTimeoutMillis: 600000,
+      reapIntervalMillis: 5000,
     },
   },
   production: {
@@ -79,8 +80,8 @@ module.exports = {
           done(err, conn);
         });
       },
-      idleTimeoutMillis: 30000,
-      reapIntervalMillis: 1000,
+      idleTimeoutMillis: 600000,
+      reapIntervalMillis: 5000,
     },
   },
 };

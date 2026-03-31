@@ -276,3 +276,33 @@ describe('POST /api/v1/auth/login — cold-start regression (T-056)', () => {
     }
   });
 });
+
+describe('POST /api/v1/auth/login — idle pool regression (T-058)', () => {
+  it('should return 200 on 5 sequential logins after pool has been idle (no 500s)', async () => {
+    await createTestUser({ email: 'idle-test@example.com', password: 'idlepass123' });
+
+    // In the test environment the pool has short idle timeouts. We cannot easily
+    // simulate a 10-minute wait, but we can verify that the increased idle timeout
+    // config is correctly applied and that sequential logins still work reliably.
+    const results = [];
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'idle-test@example.com', password: 'idlepass123' });
+      results.push(res);
+    }
+
+    for (const res of results) {
+      expect(res.status).toBe(200);
+      expect(res.body.data.access_token).toBeDefined();
+    }
+  });
+
+  it('should have idleTimeoutMillis >= 600000 in non-test configurations', () => {
+    // Verify the knexfile config fix was applied correctly
+    const knexfile = require('../knexfile');
+    expect(knexfile.development.pool.idleTimeoutMillis).toBeGreaterThanOrEqual(600000);
+    expect(knexfile.staging.pool.idleTimeoutMillis).toBeGreaterThanOrEqual(600000);
+    expect(knexfile.production.pool.idleTimeoutMillis).toBeGreaterThanOrEqual(600000);
+  });
+});

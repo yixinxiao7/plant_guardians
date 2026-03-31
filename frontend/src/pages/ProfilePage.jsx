@@ -7,6 +7,7 @@ import { useToast } from '../hooks/useToast.jsx';
 import { formatMonthYear } from '../utils/formatDate.js';
 import Button from '../components/Button.jsx';
 import DeleteAccountModal from '../components/DeleteAccountModal.jsx';
+import ThemeToggle from '../components/ThemeToggle.jsx';
 import './ProfilePage.css';
 
 export default function ProfilePage() {
@@ -146,6 +147,11 @@ export default function ProfilePage() {
           <span className="stat-number">{stats.total_care_actions ?? 0}</span>
           <span className="stat-label">Care actions completed</span>
         </div>
+      </div>
+
+      {/* Appearance */}
+      <div className="profile-appearance-card">
+        <ThemeToggle />
       </div>
 
       {/* Account Actions */}

@@ -40,12 +40,24 @@
   box-shadow: 0 0 0 3px rgba(92, 122, 92, 0.15);
 }
 
+[data-theme="dark"] .input-field:focus {
+  box-shadow: 0 0 0 3px rgba(126, 175, 126, 0.25);
+}
+
 .input-field.input-error {
   border-color: var(--color-status-red);
 }
 
 .input-field.input-error:focus {
   box-shadow: 0 0 0 3px rgba(184, 92, 56, 0.15);
+}
+
+[data-theme="dark"] .input-field.input-error {
+  background: #2E1A14;
+}
+
+[data-theme="dark"] .input-field.input-error:focus {
+  box-shadow: 0 0 0 3px rgba(224, 122, 96, 0.2);
 }
 
 .input-field:disabled {

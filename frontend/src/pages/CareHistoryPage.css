@@ -42,7 +42,7 @@
 }
 
 .care-history-filter-select {
-  background: #FFFFFF;
+  background: var(--color-surface);
   border: 1.5px solid var(--color-border);
   border-radius: 8px;
   padding: 8px 32px 8px 12px;
@@ -214,7 +214,7 @@
 
 /* Shimmer animation */
 .care-history-skeleton-list .skeleton {
-  background: linear-gradient(90deg, #F0EDE6 25%, #E8E4DC 50%, #F0EDE6 75%);
+  background: linear-gradient(90deg, var(--color-skeleton-base) 25%, var(--color-skeleton-highlight) 50%, var(--color-skeleton-base) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
 }
