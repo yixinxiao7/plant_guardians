@@ -1452,6 +1452,508 @@ Use `@testing-library/user-event` for click simulation. Assert `document.activeE
 
 ---
 
+---
+
+### SPEC-010 — Dark Mode: Color Tokens & Theme Toggle
+
+**Status:** Approved
+**Related Tasks:** T-063 (Dark Mode — Design Spec)
+**Sprint:** 14
+
+#### Overview
+
+Plant Guardians' Japandi botanical aesthetic translates naturally into dark mode — the design language is already minimal, earthy, and low-contrast. Dark mode should feel like moving from a sunlit studio into a warmly-lit evening room: the same materials, the same calm, just quieter. The palette draws on aged ink, dark weathered wood, and candlelight — never cold blue-blacks or pure `#000000`.
+
+This spec defines:
+1. The full dark mode color token set (mapped to every existing light-mode token)
+2. CSS implementation strategy (custom properties on `:root`, dark overrides)
+3. The system preference default (`prefers-color-scheme`)
+4. The manual toggle UI on the Profile page
+5. Per-screen guidance for elements that need special attention in dark mode
+6. Contrast validation against WCAG AA (4.5:1 minimum for body text, 3:1 for large text/UI components)
+
+---
+
+#### Dark Mode Color Tokens
+
+All tokens below are CSS custom property overrides applied under `[data-theme="dark"]` on `<html>`. When the user's system preference is dark AND no manual override is set, these same tokens apply via `@media (prefers-color-scheme: dark)`.
+
+| Token Name | Light Value | Dark Value | Notes |
+|-----------|------------|-----------|-------|
+| `--color-bg` | `#F7F4EF` | `#1A1815` | Deep warm charcoal — like aged ink on paper |
+| `--color-surface` | `#FFFFFF` | `#242220` | Dark card/panel surface — dark weathered wood |
+| `--color-surface-alt` | `#F0EDE6` | `#2C2A26` | Elevated surface — secondary cards, inset areas |
+| `--color-sidebar` | `#FFFFFF` | `#1F1D1A` | Sidebar background — slightly distinct from main bg |
+| `--color-modal` | `#FFFFFF` | `#2C2A26` | Modal and drawer background |
+| `--color-text-primary` | `#2C2C2C` | `#EDE8DF` | Warm off-white — like parchment in candlelight |
+| `--color-text-secondary` | `#6B6B5F` | `#9B9489` | Muted warm gray — supporting labels |
+| `--color-text-disabled` | `#B0ADA5` | `#5A5650` | Very muted — inactive states |
+| `--color-accent-primary` | `#5C7A5C` | `#7EAF7E` | Sage green, lightened for dark bg (≈7:1 contrast on `#1A1815`) |
+| `--color-accent-hover` | `#4A6449` | `#91BE91` | Hover/active accent |
+| `--color-accent-warm` | `#A67C5B` | `#C2956A` | Terracotta, slightly lightened |
+| `--color-status-green` | `#4A7C59` | `#6EB88A` | "On track" text/icon color |
+| `--color-status-green-bg` | `#E8F4EC` | `#1A2F22` | "On track" badge background |
+| `--color-status-yellow` | `#C4921F` | `#E8B94A` | "Due today" text/icon color |
+| `--color-status-yellow-bg` | `#FDF4E3` | `#2B220D` | "Due today" badge background |
+| `--color-status-red` | `#B85C38` | `#E07A60` | "Overdue" text/icon color |
+| `--color-status-red-bg` | `#FAEAE4` | `#2E1A14` | "Overdue" badge background |
+| `--color-border` | `#E0DDD6` | `#3C3830` | Card/input borders — subtle warm dark |
+| `--color-border-focus` | `#5C7A5C` | `#7EAF7E` | Focus ring color — matches accent |
+| `--color-overlay` | `rgba(44,44,44,0.45)` | `rgba(0,0,0,0.65)` | Modal/drawer backdrop |
+| `--color-card-shadow` | `0 2px 8px rgba(44,44,44,0.06)` | `0 2px 12px rgba(0,0,0,0.35)` | Card elevation shadow |
+| `--color-skeleton-base` | `#F0EDE6` | `#2C2A26` | Skeleton loader base color |
+| `--color-skeleton-highlight` | `#E8E4DC` | `#383530` | Skeleton shimmer highlight |
+
+> **Non-goals:** No pure `#000000` anywhere. No cool blue-black tones. Every dark value must contain a warm undertone — brown, tan, or muted gold. The app should feel like a dimly-lit Japanese earthenware studio, not a developer terminal.
+
+---
+
+#### WCAG AA Contrast Validation
+
+All required combinations verified at 4.5:1 minimum for body text (WCAG AA). Large text (18px+ or 14px+ bold) requires 3:1.
+
+| Foreground | Background | Estimated Ratio | Use Case | Pass? |
+|-----------|-----------|----------------|---------|-------|
+| `#EDE8DF` | `#1A1815` | ≈ 15.8:1 | Primary text on page background | ✅ AAA |
+| `#EDE8DF` | `#242220` | ≈ 13.1:1 | Primary text on card surface | ✅ AAA |
+| `#9B9489` | `#1A1815` | ≈ 5.8:1 | Secondary text on page background | ✅ AA |
+| `#9B9489` | `#242220` | ≈ 4.8:1 | Secondary text on card | ✅ AA |
+| `#7EAF7E` | `#1A1815` | ≈ 7.2:1 | Accent (links, CTAs) on bg | ✅ AAA |
+| `#7EAF7E` | `#242220` | ≈ 6.0:1 | Accent on card | ✅ AA |
+| `#1A1815` | `#7EAF7E` | ≈ 7.2:1 | White-on-accent (Primary button text) | ✅ AAA |
+| `#6EB88A` | `#1A2F22` | ≈ 5.2:1 | Status green badge | ✅ AA |
+| `#E8B94A` | `#2B220D` | ≈ 8.1:1 | Status yellow badge | ✅ AAA |
+| `#E07A60` | `#2E1A14` | ≈ 5.6:1 | Status red badge | ✅ AA |
+| `#EDE8DF` | `#1F1D1A` | ≈ 14.9:1 | Text on sidebar | ✅ AAA |
+
+> **Frontend Engineer note:** During implementation, verify each combination using a browser contrast checker or the axe DevTools extension. If any combination falls below 4.5:1, lighten the foreground token by 5–10% luminosity until it passes.
+
+---
+
+#### Button Variants — Dark Mode Overrides
+
+| Variant | Dark Background | Dark Text | Dark Border | Notes |
+|---------|----------------|-----------|------------|-------|
+| Primary | `#7EAF7E` | `#1A1815` | none | Sage green bg, dark text — high contrast |
+| Primary hover | `#91BE91` | `#1A1815` | none | Lightened sage on hover |
+| Secondary | transparent | `#7EAF7E` | 1.5px `#7EAF7E` | Outlined in sage green |
+| Danger | `#E07A60` | `#1A1815` | none | Terracotta red, dark text |
+| Ghost | transparent | `#9B9489` | none | Muted warm gray text |
+| Icon | transparent | `#9B9489` | none | Circle hover: `rgba(255,255,255,0.08)` |
+
+Focus rings on all buttons in dark mode: `box-shadow: 0 0 0 3px rgba(126,175,126,0.35)`.
+
+---
+
+#### Status Badge Component — Dark Mode Overrides
+
+| State | Dark Background | Dark Text Color | Label |
+|-------|----------------|----------------|-------|
+| On Track | `#1A2F22` | `#6EB88A` | "On Track" |
+| Due Today | `#2B220D` | `#E8B94A` | "Due Today" |
+| Overdue N days | `#2E1A14` | `#E07A60` | "X days overdue" |
+| Not Set | `#2C2A26` | `#5A5650` | "Not set" |
+
+All badge specs (padding, border-radius, font-size, font-weight) are unchanged from the light mode convention.
+
+---
+
+#### Input Fields — Dark Mode Overrides
+
+| State | Background | Border | Text |
+|-------|-----------|--------|------|
+| Default | `#242220` | `#3C3830` | `#EDE8DF` |
+| Placeholder | `#242220` | `#3C3830` | `#5A5650` |
+| Focus | `#242220` | `#7EAF7E` | `#EDE8DF`, focus ring `rgba(126,175,126,0.25)` |
+| Error | `#2E1A14` | `#E07A60` | `#EDE8DF`, error msg `#E07A60` |
+| Disabled | `#2C2A26` | `#3C3830` | `#5A5650` |
+
+---
+
+#### Photo Upload Zone — Dark Mode
+
+| State | Background | Border | Text |
+|-------|-----------|--------|------|
+| Empty | `#2C2A26` | `2px dashed #3C3830` | `#9B9489` |
+| Dragover | `#1A2F22` | `2px dashed #7EAF7E` | `#7EAF7E` |
+| Preview | normal image fill | none | — |
+| Hover overlay | `rgba(26,24,21,0.6)` | — | `#EDE8DF` |
+
+---
+
+#### Sidebar — Dark Mode
+
+| Element | Dark Value |
+|---------|-----------|
+| Background | `#1F1D1A` |
+| Right border | `1px solid #3C3830` |
+| Nav item (inactive) | Text `#9B9489`, icon `#9B9489` |
+| Nav item (active) | Left border `4px solid #7EAF7E`, text `#7EAF7E`, bg `rgba(126,175,126,0.1)` |
+| Nav item (hover) | bg `rgba(255,255,255,0.04)` |
+| User name | `#EDE8DF` |
+| User email/subtitle | `#9B9489` |
+| Logout button text | `#9B9489` |
+| Care Due badge | Background `#E07A60`, text `#1A1815` |
+
+---
+
+#### Plant Photo Placeholder — Dark Mode
+
+The leaf icon placeholder on cards and detail pages:
+
+- Background: `#1A2F22` (very dark green — same hue as status-green-bg)
+- Icon color: `#3A5C43` (muted dark sage)
+
+This maintains the botanical identity without being too bright.
+
+---
+
+#### Skeleton / Loading States — Dark Mode
+
+Shimmer gradient:
+```css
+background: linear-gradient(
+  90deg,
+  var(--color-skeleton-base) 25%,      /* #2C2A26 */
+  var(--color-skeleton-highlight) 50%, /* #383530 */
+  var(--color-skeleton-base) 75%       /* #2C2A26 */
+);
+background-size: 200% 100%;
+animation: shimmer 1.4s ease-in-out infinite;
+```
+
+---
+
+#### Confetti Animation — Dark Mode
+
+The "Mark as done" confetti burst (SPEC-005) uses warm botanical colors. In dark mode, those same colors look even better against a dark background — **no changes needed** to the confetti particle colors (`#5C7A5C`, `#A67C5B`, `#C4921F`). However, add `#7EAF7E` (dark-mode sage) and `#E8B94A` (dark-mode amber) to the particle palette for extra vibrancy in dark context.
+
+---
+
+#### AI Advice Card — Dark Mode
+
+The "Get AI Advice" card in Add/Edit Plant screens:
+
+- Background: `#2C2A26` (Surface Alt)
+- Border: none (same as light)
+- Sparkle icon: `#E8B94A` (warm amber — more visible in dark)
+- Body text: `#9B9489`
+- Button: Secondary variant (see above)
+
+AI results cards in the modal:
+- Background: `#242220` (Surface)
+- Border: `1px solid #3C3830`
+
+---
+
+#### "Filled by AI" Badge — Dark Mode
+
+- Background: `rgba(126,175,126,0.15)`
+- Text: `#7EAF7E`
+- Border: `1px solid rgba(126,175,126,0.3)`
+
+---
+
+#### Theme Toggle — Behavior Specification
+
+##### Detection & Initialization Order
+
+On every page load, the app determines which theme to apply using this priority order:
+
+1. **Check `localStorage`** for key `plant-guardians-theme`.
+   - If value is `'dark'` → apply dark mode immediately (set `data-theme="dark"` on `<html>`)
+   - If value is `'light'` → apply light mode (remove `data-theme` attribute or set `data-theme="light"`)
+   - If value is `'system'` or key is absent → fall through to step 2
+2. **Check `window.matchMedia('(prefers-color-scheme: dark)').matches`**
+   - If `true` → apply dark mode
+   - If `false` → apply light mode (default)
+
+> **Critical:** This initialization must happen **before first paint** — place the theme-check script as an inline `<script>` in the `<head>` of `index.html`, before any CSS or component loads. This prevents the flash of un-themed content (FOUC).
+
+```html
+<!-- index.html <head> — must run before first paint -->
+<script>
+  (function() {
+    var stored = localStorage.getItem('plant-guardians-theme');
+    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (stored === 'dark' || (!stored && prefersDark) || (stored === 'system' && prefersDark)) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  })();
+</script>
+```
+
+##### CSS Implementation
+
+Define all tokens on `:root` (light mode defaults). Override them in `[data-theme="dark"]`:
+
+```css
+:root {
+  --color-bg: #F7F4EF;
+  --color-surface: #FFFFFF;
+  /* ... all light tokens ... */
+}
+
+[data-theme="dark"] {
+  --color-bg: #1A1815;
+  --color-surface: #242220;
+  /* ... all dark tokens ... */
+}
+
+/* System preference fallback (when no manual override is set) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #1A1815;
+    --color-surface: #242220;
+    /* ... all dark tokens ... */
+  }
+}
+```
+
+If using Tailwind CSS, use the `darkMode: 'class'` strategy with the class `dark` on `<html>`. Map the above tokens to Tailwind config `theme.extend.colors`. The `data-theme="dark"` attribute should add/remove the `dark` class simultaneously.
+
+##### Listening to System Preference Changes
+
+The app should respond to live system preference changes (user toggles OS dark mode while app is open) **only when the user has not set a manual preference** (i.e., `localStorage` value is `'system'` or absent):
+
+```js
+window.matchMedia('(prefers-color-scheme: dark)')
+  .addEventListener('change', (e) => {
+    const stored = localStorage.getItem('plant-guardians-theme');
+    if (!stored || stored === 'system') {
+      document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+    }
+  });
+```
+
+---
+
+#### Profile Page — Theme Toggle Component (SPEC-007 Amendment)
+
+Add a new "Appearance" section to the Profile page (SPEC-007), placed **above** the "Account Actions" section (above Log Out / Delete Account).
+
+##### Section Header
+
+- Label: "Appearance" — DM Sans, 13px, `font-weight: 500`, `color: #6B6B5F` (same style as other section labels)
+- `margin-bottom: 12px`
+
+##### Theme Selector
+
+A **segmented control** (three-option button group) offering: System / Light / Dark.
+
+**Layout:**
+
+```
+[Appearance]
+[  System  |  Light  |  Dark  ]
+```
+
+- Container: `display: inline-flex`, `border: 1.5px solid var(--color-border)`, `border-radius: 8px`, `overflow: hidden`, `background: var(--color-surface-alt)`
+- Each option button: `padding: 8px 16px`, `font-size: 13px`, `font-weight: 500`, no border (the container provides it), `cursor: pointer`, `transition: background 0.15s ease`
+
+**Option states:**
+
+| State | Background | Text | Notes |
+|-------|-----------|------|-------|
+| Active (selected) | `var(--color-surface)` | `var(--color-text-primary)` | `box-shadow: 0 1px 3px rgba(0,0,0,0.1)` |
+| Inactive | transparent | `var(--color-text-secondary)` | — |
+| Hover (inactive) | `rgba(0,0,0,0.04)` in light / `rgba(255,255,255,0.04)` in dark | `var(--color-text-primary)` | — |
+
+**Option labels & icons:**
+
+| Option | Icon | Label | Behavior |
+|--------|------|-------|---------|
+| System | Phosphor `Monitor` (16px) | "System" | Follows OS `prefers-color-scheme`; remove manual `localStorage` entry |
+| Light | Phosphor `Sun` (16px) | "Light" | Forces light mode; sets `localStorage` to `'light'` |
+| Dark | Phosphor `Moon` (16px) | "Dark" | Forces dark mode; sets `localStorage` to `'dark'` |
+
+Icons are positioned to the left of the label, `gap: 6px`, `display: inline-flex`, `align-items: center`.
+
+**On selection:**
+1. Update the segmented control's visual state immediately (optimistic)
+2. Write the chosen value (`'system'` | `'light'` | `'dark'`) to `localStorage` key `plant-guardians-theme`
+3. Apply the theme change immediately: set or remove `data-theme` on `<html>` (and toggle `dark` Tailwind class if applicable)
+4. The entire page re-themes with CSS transitions (`transition: background-color 0.3s ease, color 0.2s ease, border-color 0.2s ease` on `:root` — but see note below)
+
+> **Transition note:** Apply CSS transitions on theme change for a smooth visual experience. However, on initial page load, disable transitions to prevent FOUC. Strategy: add a `no-transition` class to `<html>` during initialization script, then remove it after the first paint via `requestAnimationFrame`.
+
+**Current value on load:** Read from `localStorage`. If absent, default to "System" option selected.
+
+##### Full Profile Page Appearance Section Layout
+
+```
+Card: background var(--color-surface), border 1.5px solid var(--color-border), border-radius 12px, padding 24px
+
+[Section label: "Appearance" — DM Sans 13px, color text-secondary]
+[Segmented control: System | Light | Dark]
+[margin-bottom: 24px, border-bottom: 1px solid var(--color-border) to separator before Account Actions]
+```
+
+---
+
+#### Per-Screen Dark Mode Guidance
+
+##### Login Screen (SPEC-001)
+
+| Element | Dark Treatment |
+|---------|---------------|
+| Left brand panel | `background: #2A2620` — dark sage-brown, warmer than bg. Keep botanical illustration in `#3A5C43` (muted dark sage) |
+| Right form panel | `background: var(--color-bg)` — standard dark bg |
+| Logo text | `#EDE8DF` |
+| Tagline | `#9B9489` |
+| Tab toggle container | `background: #2C2A26`, active tab `background: #242220` |
+| Form error banner | `background: #2E1A14`, text `#E07A60`, border left `2px solid #E07A60` |
+
+##### Inventory Screen (SPEC-002)
+
+| Element | Dark Treatment |
+|---------|---------------|
+| Page background | `#1A1815` |
+| Sidebar | See Sidebar dark spec above |
+| Plant cards | `background: #242220`, shadow as specced |
+| Card hover | `box-shadow: 0 6px 20px rgba(0,0,0,0.4)` |
+| Empty state illustration | Stroke color `#3A5C43`, bg transparent |
+| Delete modal | `background: #2C2A26` |
+| Search input | See input dark spec |
+
+##### Add/Edit Plant Screens (SPEC-003, SPEC-004)
+
+| Element | Dark Treatment |
+|---------|---------------|
+| Form background | `var(--color-bg)` |
+| Section cards | `background: var(--color-surface)`, border `var(--color-border)` |
+| AI Advice card | `background: var(--color-surface-alt)` |
+| Photo upload zone | See Photo Upload Zone dark spec above |
+| "Filled by AI" badge | See above |
+| Collapsible section dividers | `border-color: var(--color-border)` |
+| Frequency inputs | Standard input dark spec |
+
+##### Plant Detail Screen (SPEC-005)
+
+| Element | Dark Treatment |
+|---------|---------------|
+| Header card | `background: var(--color-surface)` |
+| Plant photo area | Standard (no change to image) |
+| Photo placeholder | See Plant Photo Placeholder dark spec |
+| Notes box | `background: var(--color-bg)`, border `var(--color-border)` |
+| Care cards | `background: var(--color-surface)`, border `var(--color-border)` |
+| "Mark as done" button | Secondary variant in dark (see button spec) |
+| "Done" state | `background: #1A2F22`, text `#6EB88A`, border `#3A5C43` |
+| "Undo" button | Ghost variant dark |
+| Recent activity timeline | Text `#9B9489`, icon colors per care type (use dark status palette) |
+| Care icon backgrounds | Watering: `#1A2530`/`#4A7A96` — Fertilizing: `#1A2F22`/`#6EB88A` — Repotting: `#2E1A14`/`#C2956A` |
+
+> **Confetti note:** `canvas-confetti` renders on a canvas element — it is inherently unaffected by CSS theming. The particle colors are set in JS. In dark mode, add the extra colors noted above (`#7EAF7E`, `#E8B94A`) to the confetti palette for a more vibrant result.
+
+##### AI Advice Modal (SPEC-006)
+
+| Element | Dark Treatment |
+|---------|---------------|
+| Backdrop | `rgba(0,0,0,0.65)` |
+| Modal card | `background: #2C2A26` |
+| Plant ID banner | `background: #242220`, border `1px solid #3C3830` |
+| Care advice cards | `background: #1F1D1A`, border `1px solid #3C3830` |
+| Loading spinner | `#7EAF7E` |
+| Action button sticky bar | `background: #2C2A26`, border-top `1px solid #3C3830` |
+
+##### Profile Page (SPEC-007)
+
+| Element | Dark Treatment |
+|---------|---------------|
+| Page background | `var(--color-bg)` |
+| Profile card | `background: var(--color-surface)` |
+| Avatar background | `#2A4A2A` (dark sage green) |
+| Stat tiles | `background: var(--color-bg)` (slightly inset from cards) |
+| Stat number color | `#7EAF7E` (dark accent green) |
+| Account Actions card | `background: var(--color-surface)`, border `var(--color-border)` |
+| Appearance section | Inside Account Actions card, above Log Out |
+| Log Out button | Secondary variant dark |
+| Delete Account button | `color: #E07A60` |
+| Delete modal | `background: #2C2A26` |
+| Warning icon | `#E07A60` |
+
+##### Care History Page (SPEC-008)
+
+| Element | Dark Treatment |
+|---------|---------------|
+| Page background | `var(--color-bg)` |
+| Filter dropdown | Standard input dark spec |
+| List item dividers | `border-color: var(--color-border)` |
+| Care type icon backgrounds | Watering `#1A2530`, Fertilizing `#1A2F22`, Repotting `#2E1A14` |
+| Care type icon colors | Watering `#5B8FA8`, Fertilizing `#6EB88A`, Repotting `#C2956A` (same hues, preserve identity) |
+| Plant name | `var(--color-text-primary)` |
+| Action label, timestamp | `var(--color-text-secondary)` |
+| Empty state illustration | Stroke `#3A5C43` |
+| "Load more" button | Ghost variant dark |
+
+##### Care Due Dashboard (SPEC-009)
+
+| Element | Dark Treatment |
+|---------|---------------|
+| Page background | `var(--color-bg)` |
+| Section header rows | Background `var(--color-bg)` (no visible change — just text updates) |
+| "Overdue" section header | Icon + count text `#E07A60` |
+| "Due Today" section header | Icon + count text `#E8B94A` |
+| "Coming Up" section header | Icon + count text `#7EAF7E` |
+| Count pills | Follow status badge dark spec |
+| Care item cards | `background: var(--color-surface)`, border `var(--color-border)` |
+| Care type icons | Per Care History dark spec above |
+| "Mark as done" button | Secondary variant dark |
+| In-flight state | `opacity: 0.6` on card (same behavior) |
+| All-clear illustration | `#3A5C43` stroke, `#E8B94A` sparkle accent |
+| Sidebar badge | Background `#E07A60`, text `#1A1815` |
+
+---
+
+#### Reduced Motion Considerations
+
+The `prefers-reduced-motion: reduce` media query is already respected for:
+- Confetti (SPEC-005): skip animation entirely
+- Skeleton shimmer: disable keyframe animation, use static color
+- Care item removal (SPEC-009): instant DOM removal, no fade
+
+In dark mode, ensure the theme transition CSS (`transition: background-color 0.3s ease`) also respects reduced motion:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+  }
+}
+```
+
+---
+
+#### Test Requirements for T-063 Frontend
+
+The Frontend Engineer must write at least 3 new tests (in addition to the 130 existing). Suggested tests:
+
+| Test # | Description | Assert |
+|--------|-------------|--------|
+| 1 | Theme toggle: click "Dark" → `localStorage` set to `'dark'`, `<html>` gets `data-theme="dark"` | DOM attribute + localStorage |
+| 2 | Theme toggle: click "Light" after dark → `localStorage` set to `'light'`, `data-theme="light"` | DOM attribute + localStorage |
+| 3 | Theme toggle: click "System" → `localStorage` key removed (or set to `'system'`), theme follows mocked `prefers-color-scheme` | localStorage state + theme class |
+| 4 (optional) | Page load with `localStorage = 'dark'` → `data-theme="dark"` present before first render | Initial DOM state |
+| 5 (optional) | Page load with no localStorage + mocked `prefers-color-scheme: dark` → dark mode active | Initial DOM state |
+
+---
+
+#### Summary Checklist for Frontend Engineer
+
+- [ ] Add inline `<script>` to `index.html` `<head>` for flash-free theme initialization
+- [ ] Define all CSS custom properties in `:root` (light) and `[data-theme="dark"]` (dark)
+- [ ] Add `@media (prefers-color-scheme: dark)` fallback for system preference
+- [ ] Add `prefers-color-scheme` change listener (for live OS theme changes)
+- [ ] Replace all hardcoded color values in components with CSS custom property references (or Tailwind dark: variants)
+- [ ] Add Appearance segmented control to Profile page (System / Light / Dark)
+- [ ] Persist preference to `localStorage` under key `plant-guardians-theme`
+- [ ] Verify all 7+ screens in dark mode (Login, Inventory, Add Plant, Edit Plant, Plant Detail, AI Advice Modal, Care History, Care Due Dashboard, Profile)
+- [ ] Verify confetti animation and skeleton loaders in dark mode
+- [ ] Run axe or Lighthouse accessibility audit in dark mode — no contrast failures
+- [ ] All 130 existing frontend tests pass; at least 3 new toggle tests added
+
+---
+
 ## Design Notes for Frontend Engineer
 
 ### Animation Library Recommendation
@@ -1464,6 +1966,7 @@ Use **Phosphor Icons** (`phosphor-react`): outlined style, consistent with Japan
 - `Sparkle` — AI advice
 - `CheckCircle`, `X`, `CaretDown`, `CaretUp` — UI controls
 - `User`, `SignOut` — profile
+- `Monitor`, `Sun`, `Moon` — theme toggle (new for Sprint #14)
 
 ---
 

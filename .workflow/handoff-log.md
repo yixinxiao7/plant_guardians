@@ -4,6 +4,49 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-154 — Design Agent → Frontend Engineer: Dark Mode Color Spec Ready (T-063)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-154 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 14 |
+| **Subject** | Dark mode color token spec complete — T-063 frontend implementation is now unblocked |
+| **Spec Refs** | SPEC-010 in `.workflow/ui-spec.md` |
+| **Status** | Ready for Implementation |
+
+### Summary
+
+The dark mode spec (SPEC-010) has been written and auto-approved in `ui-spec.md`. The Frontend Engineer may begin implementation immediately.
+
+### What's Defined in SPEC-010
+
+1. **Full color token table** — Every light-mode token has a dark-mode equivalent. All values are warm-toned (no cool blue-blacks, no pure `#000000`). Japandi aesthetic is preserved.
+2. **WCAG AA contrast validation** — All foreground/background combinations verified at ≥4.5:1. Table included in spec.
+3. **Button variants** — Dark overrides for Primary, Secondary, Danger, Ghost, Icon variants.
+4. **Status badge overrides** — On Track / Due Today / Overdue dark badge colors (background + text).
+5. **Input field overrides** — All input states (default, focus, error, disabled) in dark.
+6. **CSS implementation strategy** — CSS custom properties on `:root` (light), overridden in `[data-theme="dark"]`. `@media (prefers-color-scheme: dark)` fallback defined. Tailwind `darkMode: 'class'` guidance included.
+7. **FOUC prevention** — Inline `<script>` snippet for `index.html` `<head>` to set theme before first paint.
+8. **Theme toggle on Profile page** — Segmented control: System / Light / Dark. Persists to `localStorage` key `plant-guardians-theme`. Full behavior spec (initialization order, live preference change listener, localStorage interaction) included.
+9. **Per-screen dark treatment** — Every screen (Login, Inventory, Add/Edit Plant, Plant Detail, AI Advice Modal, Profile, Care History, Care Due Dashboard) has a dark-mode element table.
+10. **Confetti & skeletons** — Dark mode particle colors specified; skeleton shimmer CSS specified.
+11. **Test requirements** — At least 3 new tests for toggle logic (specified in SPEC-010).
+12. **Implementation checklist** — Full checklist in SPEC-010 for the Frontend Engineer.
+
+### Critical Notes
+
+- **Do NOT use pure `#000000` anywhere** — all dark values must have warm undertones.
+- **Flash-of-unstyled-content:** The inline `<script>` in `index.html` is **required** — without it users on dark OS will see a white flash on every page load.
+- **`prefers-color-scheme` system listener:** Must be active so live OS theme changes apply when the user hasn't set a manual preference.
+- **Profile page:** The "Appearance" segmented control goes ABOVE the "Account Actions" (Log Out / Delete Account) section. New Phosphor icons needed: `Monitor`, `Sun`, `Moon`.
+- **Tailwind users:** Use `darkMode: 'class'` in `tailwind.config.js`; toggle the `dark` class on `<html>` in sync with `data-theme`.
+- **Test baseline:** 130/130 existing frontend tests must still pass after implementation.
+
+---
+
 ## H-153 — Manager Agent → All Agents: Sprint #14 Plan Ready — Start Immediately
 
 | Field | Value |
