@@ -2092,6 +2092,509 @@ All 107+ existing frontend tests must continue to pass.
 
 ---
 
+---
+
+### SPEC-011 — Care History Analytics Page
+
+**Status:** Approved
+**Related Tasks:** T-065 (Care Analytics — Design + Frontend)
+**Sprint:** 15
+**Date:** 2026-03-31
+
+---
+
+#### Description
+
+The Care Analytics page gives Plant Guardians users actionable insight into how consistently and actively they've cared for their plants. Rather than only showing *what* is due, this screen shows *what has been accomplished* — turning the daily habit of plant care into a visible, gratifying record of guardianship.
+
+The page lives at `/analytics` and is accessible from the sidebar. It consumes data from `GET /api/v1/care-actions/stats` and presents three zones:
+
+1. **Summary Stats Bar** — high-level headline numbers (total actions, top plant, streak)
+2. **Care Breakdown Chart** — donut chart showing proportion of watering / fertilizing / repotting across all actions
+3. **Per-Plant Frequency Table** — how many care actions each plant has received, sorted by most cared-for
+
+The tone is warm and affirming — this is a "look how far you've come" screen, not a dashboard of cold metrics. Copy and visual weight should communicate accomplishment.
+
+---
+
+#### Route
+
+`/analytics`
+
+---
+
+#### Navigation Entry Point
+
+Add a new **"Analytics"** sidebar item:
+
+- **Position in sidebar:** Below "Care Due" (`/due`), above "History" (`/history`)
+- **Icon:** Phosphor `ChartBar` (outlined), 20px
+- **Label:** "Analytics"
+- **No badge** — this page is not urgency-driven; no count indicator is needed
+- **Active state:** left border `3px solid #5C7A5C`, background `#F0EDE6`, text `#2C2C2C`; uses `var(--color-surface-alt)` and `var(--color-accent-primary)` in dark mode
+- **Inactive state:** no border, background transparent, text `#6B6B5F`; uses `var(--color-text-secondary)` in dark mode
+
+**Updated sidebar nav order (desktop, top to bottom):**
+1. My Plants (`/`) — Phosphor `Plant`
+2. Care Due (`/due`) — Phosphor `BellSimple` + urgency badge
+3. **Analytics (`/analytics`) — Phosphor `ChartBar`** ← new
+4. History (`/history`) — Phosphor `ClockCounterClockwise`
+5. *(profile + logout at bottom)*
+
+---
+
+#### Layout
+
+App shell (persistent 240px sidebar + main content area), consistent with all other authenticated screens.
+
+**Main content area:**
+- `max-width: 960px`, horizontally centered
+- `padding: 40px 32px` (desktop), `padding: 24px 16px` (mobile)
+
+**Page structure (top to bottom):**
+
+```
+┌─────────────────────────────────────────────┐
+│  Page Header                                │
+│  "Care Analytics"  [subtitle]               │
+├─────────────────────────────────────────────┤
+│  Summary Stats Bar (3 stat tiles in a row)  │
+├──────────────────────┬──────────────────────┤
+│  Care Breakdown      │  Recent Activity      │
+│  (Donut Chart)       │  Feed                │
+├──────────────────────┴──────────────────────┤
+│  Per-Plant Frequency Table                  │
+└─────────────────────────────────────────────┘
+```
+
+On tablet and mobile, the two-column middle zone collapses to a single column (chart above, activity feed below).
+
+---
+
+#### Page Header
+
+- **Title:** "Care Analytics" — Playfair Display, 32px, `font-weight: 600`, `color: var(--color-text-primary)`
+- **Subtitle:** "A look at how you've been caring for your plants." — DM Sans, 14px, `color: var(--color-text-secondary)`, `margin-bottom: 32px`
+- No action buttons in the header; this is a read-only view
+
+---
+
+#### Zone 1 — Summary Stats Bar
+
+Three stat tiles arranged in a `3-column CSS grid`, `gap: 16px`, full width.
+
+**Tile anatomy:**
+- Container: `background: var(--color-surface)`, `border: 1px solid var(--color-border)`, `border-radius: 12px`, `padding: 24px`, `box-shadow: var(--card-shadow)`
+- Top: small icon (Phosphor, 20px, outlined) + label in `color: var(--color-text-secondary)`, `font-size: 13px`, `font-weight: 500`, `display: flex`, `align-items: center`, `gap: 8px`
+- Middle: large number — `font-size: 40px`, `font-weight: 600`, `color: var(--color-accent-primary)`, Playfair Display, `margin: 8px 0 4px`
+- Bottom: supporting sub-label — `font-size: 12px`, `color: var(--color-text-secondary)`
+
+**Three tiles:**
+
+| # | Icon | Label | Value Source | Sub-label |
+|---|------|-------|-------------|-----------|
+| 1 | `CheckCircle` (sage `#5C7A5C`) | "Total care actions" | `data.total_care_actions` | "across all your plants" |
+| 2 | `Plant` (sage `#5C7A5C`) | "Most cared-for plant" | `data.by_plant[0].plant_name` (first entry after API sorts by count DESC) | "[N] care actions" where N = `data.by_plant[0].count` |
+| 3 | `Lightning` (amber `#C4921F`) | "Most common care type" | The `care_type` key from `data.by_care_type` with the highest `count` | "[N] actions total" |
+
+**Tile 2 — "Most cared-for plant" edge cases:**
+- If `data.by_plant` is empty: show "—" as the value and sub-label "Start caring for a plant"
+- Long plant name: truncate with ellipsis at 2 lines (`display: -webkit-box`, `-webkit-line-clamp: 2`, `overflow: hidden`)
+
+**Tile 3 — "Most common care type" display:**
+- Capitalize the care type string: "Watering", "Fertilizing", "Repotting"
+- If all counts are 0: show "—"
+
+---
+
+#### Zone 2 — Care Breakdown Chart (Left Column, desktop 55% width)
+
+**Section heading:** "Care by Type" — DM Sans, 16px, `font-weight: 600`, `color: var(--color-text-primary)`, `margin-bottom: 20px`
+
+**Chart type:** Donut chart (Recharts `<PieChart>` with `<Pie>` and `innerRadius`)
+
+A donut chart is chosen over a bar chart because there are exactly 3 care types — the proportional relationship between them is the key insight. A donut at this scale reads instantly and fits well beside the activity feed in the two-column layout.
+
+**Chart container:** `background: var(--color-surface)`, `border: 1px solid var(--color-border)`, `border-radius: 12px`, `padding: 24px`, `box-shadow: var(--card-shadow)`
+
+**Recharts configuration:**
+
+```jsx
+<PieChart width={280} height={280}>
+  <Pie
+    data={byTypeData}
+    cx="50%"
+    cy="50%"
+    innerRadius={75}
+    outerRadius={110}
+    paddingAngle={3}
+    dataKey="count"
+  >
+    {byTypeData.map((entry, index) => (
+      <Cell key={entry.care_type} fill={CARE_TYPE_COLORS[entry.care_type]} />
+    ))}
+  </Pie>
+  <Tooltip content={<CustomTooltip />} />
+</PieChart>
+```
+
+**Donut center label (rendered as SVG `<text>` or absolutely positioned `<div>` in chart center):**
+- Line 1: `data.total_care_actions` — `font-size: 28px`, `font-weight: 600`, `fill: var(--color-text-primary)`, Playfair Display
+- Line 2: "total" — `font-size: 12px`, `fill: var(--color-text-secondary)`
+
+**Segment colors (consistent with care-type system across the app):**
+
+| Care Type | Color (light mode) | Color (dark mode) |
+|-----------|-------------------|-------------------|
+| `watering` | `#5B8FA8` (calm blue) | `#4A7A96` |
+| `fertilizing` | `#4A7C59` (sage green) | `#6EB88A` |
+| `repotting` | `#A67C5B` (terracotta) | `#C2956A` |
+
+**Legend (below or to the right of donut):**
+
+Rendered as a custom legend (not Recharts default), `display: flex`, `flex-direction: column`, `gap: 10px`, positioned to the right of the donut on desktop, below on mobile.
+
+Each legend row:
+```
+● Watering      30  (71%)
+● Fertilizing    8  (19%)
+● Repotting      4  (10%)
+```
+
+- Color dot: `width: 10px`, `height: 10px`, `border-radius: 50%`, `background: [care type color]`, `flex-shrink: 0`
+- Care type label: DM Sans, 14px, `color: var(--color-text-primary)`, `font-weight: 500`, flex-grow: 1
+- Count: DM Sans, 14px, `color: var(--color-text-primary)`, `font-weight: 600`, min-width for alignment
+- Percentage: DM Sans, 12px, `color: var(--color-text-secondary)`, `margin-left: 6px`
+
+Percentage is computed client-side: `Math.round((count / total) * 100)`. If total is 0, display "—" for all.
+
+**Custom Tooltip (on hover):**
+- `background: var(--color-surface)`, `border: 1px solid var(--color-border)`, `border-radius: 8px`, `padding: 8px 12px`, `box-shadow: 0 4px 12px rgba(0,0,0,0.1)`
+- Content: "[Care Type]: [count] actions ([%])"
+- `font-size: 13px`, `color: var(--color-text-primary)`
+- In dark mode, border uses `var(--color-border)`, background uses `var(--color-surface)` — all tokens; no hardcoded values
+
+**Accessible text alternative (WCAG requirement):**
+
+Below the chart container, render a visually-hidden data table that screen readers will announce. This table must be focusable/readable but hidden from sighted users:
+
+```jsx
+<table className="sr-only" aria-label="Care actions by type">
+  <thead><tr><th>Care Type</th><th>Count</th><th>Percentage</th></tr></thead>
+  <tbody>
+    <tr><td>Watering</td><td>30</td><td>71%</td></tr>
+    <tr><td>Fertilizing</td><td>8</td><td>19%</td></tr>
+    <tr><td>Repotting</td><td>4</td><td>10%</td></tr>
+  </tbody>
+</table>
+```
+
+CSS for `.sr-only`:
+```css
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+```
+
+The `<PieChart>` element itself: `aria-hidden="true"` (the sr-only table provides the accessible equivalent).
+
+---
+
+#### Zone 2 — Recent Activity Feed (Right Column, desktop 45% width)
+
+**Section heading:** "Recent Activity" — DM Sans, 16px, `font-weight: 600`, `color: var(--color-text-primary)`, `margin-bottom: 20px`
+
+**Container:** `background: var(--color-surface)`, `border: 1px solid var(--color-border)`, `border-radius: 12px`, `padding: 24px`, `box-shadow: var(--card-shadow)`, `height: 100%` (matches chart zone height on desktop)
+
+**Data source:** `data.recent_activity` — the 10 most recent care actions across all plants
+
+**Feed layout:** Vertical list, `display: flex`, `flex-direction: column`, `gap: 0` (items share a divider, not gap)
+
+**Each activity row:**
+
+```
+[Icon]  [Plant Name]                [relative time]
+        [Care type label]
+```
+
+- **Care type icon:** Same circular icon system as SPEC-008 Care History:
+  - `watering`: `Drop`, background `#EBF4F7`, icon `#5B8FA8`
+  - `fertilizing`: `Leaf`, background `#E8F4EC`, icon `#4A7C59`
+  - `repotting`: `PottedPlant`, background `#F4EDE8`, icon `#A67C5B`
+  - Circle: `width: 32px`, `height: 32px`, `border-radius: 50%`, `flex-shrink: 0`, icon 15px
+  - In dark mode: backgrounds `#1A2530` / `#1A2F22` / `#2E1A14`, icon colors same as light
+- **Plant name:** DM Sans, 14px, `font-weight: 500`, `color: var(--color-text-primary)`, `line-height: 1.3`; truncate at 1 line with ellipsis if overlong
+- **Care type label:** DM Sans, 12px, `color: var(--color-text-secondary)`, capitalized ("Watered", "Fertilized", "Repotted")
+- **Relative time:** DM Sans, 11px, `color: var(--color-text-disabled)`, right-aligned (flex spacer), e.g. "2 days ago", "just now", "1 week ago"
+  - `<time>` element with `datetime="[ISO8601]"` and `title="[full date string]"` for accessibility
+
+**Row layout:** `display: flex`, `align-items: center`, `gap: 12px`, `padding: 12px 0`
+
+**Divider between rows:** `border-bottom: 1px solid var(--color-border)` on all rows except the last
+
+**Activity row empty state (if `recent_activity` is empty, only shown in concert with the global empty state):** Not separately shown — the global empty state covers this scenario.
+
+**Scroll behavior:** If 10 items overflow the container height on desktop, add `overflow-y: auto` with a subtle scrollbar. On mobile, the container expands to show all items (no truncation).
+
+---
+
+#### Zone 3 — Per-Plant Frequency Table
+
+**Section heading:** "Care by Plant" — DM Sans, 16px, `font-weight: 600`, `color: var(--color-text-primary)`, `margin-bottom: 16px`
+
+**Container:** `background: var(--color-surface)`, `border: 1px solid var(--color-border)`, `border-radius: 12px`, `padding: 24px`, `box-shadow: var(--card-shadow)`
+
+**Data source:** `data.by_plant`, sorted by `count` DESC (most cared-for plant first). The API returns them in this order.
+
+**Table layout:** A semantic HTML `<table>` styled as a clean, borderless data table.
+
+```
+Plant Name               Last Cared For        Total Actions
+──────────────────────────────────────────────────────────
+🌿 Monstera              2 days ago            15 ████████████░░
+🪴 Spider Plant          1 week ago             8 ██████░░░░░░░░
+🌱 Fiddle Leaf Fig       today                  4 ███░░░░░░░░░░░
+```
+
+**Table structure:**
+
+| Column | Width | Content |
+|--------|-------|---------|
+| Plant Name | ~35% | Plant name with leaf icon prefix |
+| Last Cared For | ~25% | Relative time string (e.g. "3 days ago", "today") using `last_action_at` |
+| Total Actions | ~40% | Number + horizontal progress bar |
+
+**Table header row:**
+- `font-size: 11px`, `font-weight: 600`, `text-transform: uppercase`, `letter-spacing: 0.06em`, `color: var(--color-text-secondary)`
+- `padding-bottom: 12px`, `border-bottom: 1px solid var(--color-border)`
+
+**Table data rows:**
+- `padding: 14px 0`
+- `border-bottom: 1px solid var(--color-border)` on all but the last row
+- `font-size: 14px`, `color: var(--color-text-primary)`
+
+**Plant Name cell:**
+- Phosphor `Plant` icon (12px, `color: var(--color-accent-primary)`, `aria-hidden="true"`), `margin-right: 8px`
+- Plant name text, `font-weight: 500`
+- Truncate at 1 line with ellipsis
+
+**Last Cared For cell:**
+- Relative time string. Use a simple utility:
+  - `< 1 hour ago` → "just now"
+  - `1–23 hours` → "X hours ago"
+  - `1 day` → "yesterday" or "1 day ago"
+  - `2–6 days` → "X days ago"
+  - `7–13 days` → "1 week ago"
+  - `≥ 14 days` → "X weeks ago"
+- `color: var(--color-text-secondary)`, `font-size: 13px`
+- Wrap in `<time datetime="[ISO8601]">` with `title="[full formatted date]"` for accessibility
+
+**Total Actions cell:**
+- Number: `font-size: 14px`, `font-weight: 600`, `color: var(--color-text-primary)`, `margin-right: 12px`, min-width aligned
+- Progress bar: `height: 6px`, `border-radius: 3px`, `background: var(--color-border)` (track), filled portion `background: var(--color-accent-primary)`, `border-radius: 3px`
+- Bar width = `(plant.count / maxCount) * 100%` where `maxCount = data.by_plant[0].count`
+- Progress bar is `aria-hidden="true"` — the count number provides the data for screen readers
+
+**Empty table state:** If `data.by_plant` is empty, do not render the table — show the global empty state instead.
+
+**Row count:** Show all plants, no pagination. If a user has many plants (>10), the table scrolls within its container (`overflow-y: auto`, `max-height: 400px`).
+
+---
+
+#### States
+
+##### State 1 — Loading (Skeleton)
+
+Show immediately on mount while the API call is in-flight. Replace all three zones with skeleton placeholders.
+
+**Summary Stats Bar skeleton:** Three skeleton tiles, each `height: 108px`, `border-radius: 12px`. Inner skeleton blocks:
+- Top: `width: 60%`, `height: 14px`, `border-radius: 4px`
+- Middle: `width: 40%`, `height: 40px`, `border-radius: 4px`, `margin: 12px 0`
+- Bottom: `width: 50%`, `height: 12px`, `border-radius: 4px`
+
+**Chart zone skeleton:** Two side-by-side blocks (55% / 45% split on desktop):
+- Left: `height: 300px`, `border-radius: 12px` — represents chart container
+- Right: `height: 300px`, `border-radius: 12px` — represents activity feed container
+
+**Per-plant table skeleton:** Container `border-radius: 12px`, `padding: 24px`. 4 skeleton rows, each `height: 20px`, `border-radius: 4px`, `margin-bottom: 16px`, varying widths (100%, 85%, 70%, 55%).
+
+All skeleton elements use shimmer animation (`background: linear-gradient(90deg, var(--color-border) 25%, var(--color-surface-alt) 50%, var(--color-border) 75%)`, `background-size: 200% 100%`, animated with `@keyframes shimmer`).
+
+Skeleton shimmer respects `prefers-reduced-motion: reduce` — if reduced motion is preferred, use a static muted background (`var(--color-surface-alt)`) without animation.
+
+Skeleton containers use `aria-busy="true"` on the page root, plus an `aria-live="polite"` region with `aria-label="Loading analytics data"` for screen readers.
+
+##### State 2 — Empty State
+
+Shown when `data.total_care_actions === 0` (user has no care actions recorded yet).
+
+Hide all three zones. Show a single centered empty state block in the main content area:
+
+**Empty state block:**
+- `display: flex`, `flex-direction: column`, `align-items: center`, `text-align: center`
+- `max-width: 420px`, centered horizontally, `margin: 64px auto`
+- Illustration: A simple SVG line-art illustration of a small potted plant with a question mark above it (or Phosphor `Plant` icon at 64px, `color: var(--color-border)`) — represents "no data yet"
+- **Heading:** "No care history yet" — Playfair Display, 24px, `font-weight: 600`, `color: var(--color-text-primary)`, `margin-top: 24px`
+- **Body:** "No care actions recorded yet. Mark a plant as cared for to start tracking." — DM Sans, 15px, `color: var(--color-text-secondary)`, `line-height: 1.6`, `margin-top: 8px`
+- **CTA button:** "Go to my plants" — Primary button, `margin-top: 24px`, navigates to `/` (Inventory)
+
+##### State 3 — Error State
+
+Shown when the `GET /api/v1/care-actions/stats` API call fails (network error, 5xx, 401).
+
+Hide all three zones. Show a centered error block:
+
+- Phosphor `WarningCircle` icon, 48px, `color: var(--color-status-red)`
+- **Heading:** "Couldn't load your analytics" — Playfair Display, 22px, `color: var(--color-text-primary)`, `margin-top: 20px`
+- **Body:** "Something went wrong loading your care data. Please try again." — DM Sans, 14px, `color: var(--color-text-secondary)`, `margin-top: 8px`
+- **"Try again" button:** Secondary button, `margin-top: 24px`, triggers a manual re-fetch. `aria-label="Retry loading analytics"`
+
+**Special case — 401 error:** If the API returns 401 (session expired), do not show the retry button. Instead show: "Your session has expired. Please log in again." with a "Log in" primary button linking to `/login`.
+
+##### State 4 — Populated (Success)
+
+All three zones render with real data. This is the happy path described in full above.
+
+---
+
+#### Responsive Behavior
+
+| Breakpoint | Layout |
+|-----------|--------|
+| Desktop (≥1024px) | Full layout as described: 3-column stats bar, 2-column middle (chart 55% + feed 45%), full-width table |
+| Tablet (768–1023px) | Stats bar: 3 tiles in a row (reduced padding). Middle zone: single column — chart full width above, activity feed full width below. Table: same but with reduced column padding |
+| Mobile (<768px) | Stats bar: 1 tile per row (stacked vertically). Chart and activity feed each full width, stacked. Table: hide "Last Cared For" column to save space; show Plant Name + Total Actions with bar only |
+
+**Sidebar on mobile:** Collapses to a bottom navigation bar (consistent with existing mobile behavior across the app). Analytics icon appears in the bottom nav.
+
+---
+
+#### Dark Mode
+
+All color values use CSS custom properties (`var(--color-*)`) established in SPEC-010. No hardcoded hex values in this screen except within the Recharts chart segments.
+
+**Chart-specific dark mode guidance:**
+
+Because Recharts renders SVG directly, colors passed as `fill` props cannot use CSS custom properties. Use a JavaScript hook to read the current theme and select the appropriate palette:
+
+```jsx
+const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+const CARE_TYPE_COLORS = {
+  watering:    isDark ? '#4A7A96' : '#5B8FA8',
+  fertilizing: isDark ? '#6EB88A' : '#4A7C59',
+  repotting:   isDark ? '#C2956A' : '#A67C5B',
+};
+```
+
+Or subscribe to a `useTheme()` context hook that returns the current theme string, and re-derive `CARE_TYPE_COLORS` reactively so the chart re-renders when the user changes theme.
+
+**Tooltip dark mode:** Since the custom tooltip is a React component with standard HTML elements, it uses CSS custom properties and re-themes automatically.
+
+**Specific dark mode element treatments:**
+
+| Element | Light Value | Dark Value |
+|---------|------------|-----------|
+| Page background | `#F7F4EF` | `#1A1815` |
+| Stat tiles | `background: #FFFFFF`, border `#E0DDD6` | `background: #242220`, border `#3C3830` |
+| Stat number color | `#5C7A5C` | `#7EAF7E` |
+| Chart container | `background: #FFFFFF` | `background: #242220` |
+| Donut center text | `#2C2C2C` | `#EDE8DF` |
+| Donut center sub-label | `#6B6B5F` | `#9B9489` |
+| Activity feed container | `background: #FFFFFF` | `background: #242220` |
+| Activity row divider | `#E0DDD6` | `#3C3830` |
+| Activity icon: watering bg | `#EBF4F7` | `#1A2530` |
+| Activity icon: fertilizing bg | `#E8F4EC` | `#1A2F22` |
+| Activity icon: repotting bg | `#F4EDE8` | `#2E1A14` |
+| Table container | `background: #FFFFFF` | `background: #242220` |
+| Table header text | `#6B6B5F` | `#9B9489` |
+| Table dividers | `#E0DDD6` | `#3C3830` |
+| Progress bar track | `#E0DDD6` | `#3C3830` |
+| Progress bar fill | `#5C7A5C` | `#7EAF7E` |
+| Tooltip background | `#FFFFFF` | `#2C2A26` |
+| Skeleton shimmer base | `#E0DDD6` | `#3C3830` |
+| Skeleton shimmer highlight | `#F0EDE6` | `#2C2A26` |
+
+---
+
+#### Accessibility
+
+- **Page landmark:** `<main>` wraps the content area. `<h1>` for "Care Analytics".
+- **Stats bar:** Each tile is a `<div role="figure" aria-label="[N] [Label]">` so screen readers announce the complete stat.
+- **Chart:** `<PieChart aria-hidden="true">` + a visually-hidden `<table>` with `aria-label="Care actions by type"` (see Zone 2 spec above). This satisfies WCAG 1.1.1 Non-text Content.
+- **Legend:** `<ul>` with `<li>` for each entry. Care type label + count is sufficient — no special ARIA needed beyond the list structure.
+- **Activity feed:** Semantic `<ul>/<li>` structure. Each item's accessible name is derived from visible text: "[Plant Name] — [care type] — [relative time]". Care type icons: `aria-hidden="true"`.
+- **Timestamps:** `<time datetime="[ISO8601]">` with `title="[human-readable date]"` for full date on hover/focus.
+- **Per-plant table:** Semantic `<table>` with `<thead>`, `<tbody>`, `<th scope="col">` for column headers. Progress bars inside each row: `aria-hidden="true"` (the count number carries the data). Table `aria-label="Care frequency by plant"`.
+- **Empty state CTA:** Standard `<button>` or `<a href="/">`, no special ARIA needed.
+- **Error retry:** `<button aria-label="Retry loading analytics">` so the action is unambiguous.
+- **Loading state:** Page root or content container gets `aria-busy="true"` while fetching. An `aria-live="polite"` region announces "Loading care analytics…" on mount, then "Care analytics loaded" on success (or "Failed to load care analytics" on error).
+- **Keyboard navigation:** All interactive elements (CTA button, retry button, theme-dependent links) are reachable by Tab. No focus traps on this page.
+- **Color contrast:** All text must meet WCAG AA (4.5:1) in both light and dark modes. The donut chart segments convey data via color + the legend text — color is not the only means of conveying information (satisfies WCAG 1.4.1).
+- **Focus visible:** All interactive elements show a visible focus indicator (2px sage green focus ring per design system).
+- **Reduced motion:** Skeleton shimmer animation is suppressed under `prefers-reduced-motion: reduce`. No other animations on this page.
+
+---
+
+#### Sidebar Navigation Update (Amendment to SPEC-002)
+
+This spec adds one item to the persistent sidebar nav established in SPEC-002. The complete updated sidebar nav order for authenticated users is:
+
+```
+🌿  My Plants         →  /
+🔔  Care Due          →  /due          [urgency badge if items exist]
+📊  Analytics         →  /analytics    [no badge]
+🕐  History           →  /history
+────────────────────────
+[Avatar] [User Name]
+    Log out
+```
+
+The Analytics nav item must be included in:
+1. The desktop persistent sidebar (`240px` width)
+2. The mobile bottom navigation bar
+3. The Sidebar component's nav link array (wherever it's currently defined in the codebase)
+
+---
+
+#### Component Checklist for Frontend Engineer
+
+- [ ] `AnalyticsPage.jsx` — page container, data fetching, state management
+- [ ] `StatTile.jsx` — reusable stat tile (icon + number + label) — can share with ProfilePage stats if structurally compatible
+- [ ] `CareDonutChart.jsx` — Recharts `PieChart` wrapper with custom legend and sr-only table
+- [ ] `RecentActivityFeed.jsx` — activity list with icon, plant name, care type, relative time
+- [ ] `PlantFrequencyTable.jsx` — semantic table with progress bars
+- [ ] Sidebar — add Analytics nav item (update existing sidebar component)
+- [ ] `useAnalyticsStats` hook (or inline `useEffect`) — fetches `GET /api/v1/care-actions/stats`, returns `{ data, loading, error }`, supports manual `refetch()`
+
+**recharts usage note:** Confirm `recharts` is already in `package.json` before installing. If it adds unacceptable bundle weight (>100KB gzipped after tree-shaking), fall back to a pure CSS/SVG donut implementation and document the decision in `architecture-decisions.md`. Either approach must satisfy the accessible text alternative requirement.
+
+---
+
+#### Unit Test Requirements (T-065 Frontend)
+
+Minimum 5 new tests required. All 135/135 existing frontend tests must continue to pass.
+
+| Test # | Scenario | Expected Result |
+|--------|----------|----------------|
+| 1 | Loading state on mount | Skeleton tiles render; `aria-busy="true"` present |
+| 2 | Populated state (mock API with data) | Total action count renders in stat tile; plant name renders in table; chart renders (or sr-only table shows data) |
+| 3 | Empty state (`total_care_actions: 0`) | "No care history yet" heading visible; "Go to my plants" CTA renders |
+| 4 | Error state (mock API 500) | Error heading renders; "Try again" retry button visible |
+| 5 | Retry on error | Clicking retry triggers a second fetch call |
+| 6 (bonus) | Analytics sidebar nav item | "Analytics" link renders in sidebar; routes to `/analytics` |
+| 7 (bonus) | Dark mode chart colors | When `data-theme="dark"` on `<html>`, chart segment colors use dark palette |
+
+---
+
 ### Font Loading
 Both fonts from Google Fonts:
 ```html

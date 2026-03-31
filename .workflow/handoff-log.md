@@ -4,6 +4,79 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-173 — Design Agent → Frontend Engineer: SPEC-011 Approved — Care Analytics Page Ready to Build
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-173 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-31 |
+| **Sprint** | 15 |
+| **Subject** | SPEC-011 Care History Analytics Page — approved and ready for implementation |
+| **Status** | Active |
+
+### What Was Delivered
+
+SPEC-011 has been written and approved in `.workflow/ui-spec.md`. This spec covers the full Care History Analytics page required by T-065 (Frontend portion).
+
+### Spec Summary
+
+**Route:** `/analytics`
+
+**Navigation:** New "Analytics" sidebar item (Phosphor `ChartBar` icon, no badge) placed between "Care Due" and "History". Must be added to the sidebar component and the mobile bottom nav.
+
+**Three content zones:**
+
+1. **Summary Stats Bar** — Three stat tiles (Total care actions, Most-cared-for plant, Most common care type). Data from `data.total_care_actions`, `data.by_plant[0]`, and the highest-count entry in `data.by_care_type`.
+
+2. **Care Breakdown Chart + Recent Activity Feed** — Two-column layout on desktop, single column on mobile:
+   - Left (55%): Recharts `PieChart` donut chart — 3 segments (watering/fertilizing/repotting) with custom legend. Center label shows total count. WCAG accessibility: `aria-hidden` on the SVG + a visually-hidden `<table>` with all data.
+   - Right (45%): Recent activity feed — last 10 care actions from `data.recent_activity`, each row showing the care-type icon, plant name, care type label, and relative time.
+
+3. **Per-Plant Frequency Table** — Semantic `<table>` listing all plants from `data.by_plant`, sorted by count DESC, with plant name, relative "last cared for" time, and a count + proportional progress bar.
+
+**All four states specified:** Loading skeleton (shimmer), Empty state ("No care history yet" + CTA to inventory), Error state (with retry button), Populated state.
+
+**Dark mode:** All elements use `var(--color-*)` CSS custom properties from SPEC-010. Chart segment colors are derived via a `isDark` JS check (cannot use CSS custom properties in Recharts fill props) — exact dark-mode hex values are specified in the spec.
+
+**Accessibility:** Meets WCAG AA. Chart has an sr-only data table. Stats use `role="figure"`. All timestamps use `<time>` elements. `aria-busy` on loading, `aria-live` region for state announcements.
+
+### Prerequisite: API Contract
+
+T-065 (Frontend) is still blocked on the Backend Engineer publishing `GET /api/v1/care-actions/stats` in `api-contracts.md`. Do not begin implementation until:
+1. ✅ SPEC-011 is ready (this handoff — done)
+2. ⏳ Backend Engineer publishes the API contract in `api-contracts.md`
+
+Check H-172 (Manager Agent) and monitor `api-contracts.md` for the contract entry.
+
+### Key Decisions & Notes
+
+- **Chart library:** Use Recharts (`recharts`). If already in `package.json`, no install needed. If it adds >100KB gzipped after tree-shaking, fall back to a pure CSS/SVG donut and document in `architecture-decisions.md`.
+- **Donut chosen over bar chart:** Only 3 care types — proportional relationship is the key insight. Donut fits the two-column layout cleanly.
+- **Progress bars in the plant table:** Pure CSS — no chart library needed for Zone 3.
+- **Relative time formatting:** Implement a simple utility function (see spec for the formatting rules) — no external library needed.
+- **`useTheme()` hook:** The chart needs to re-render when the user changes theme. Hook into whatever theme context was established in T-063 (Sprint 14 dark mode implementation).
+
+### Files to Create / Modify
+
+| Action | File |
+|--------|------|
+| Create | `frontend/src/pages/AnalyticsPage.jsx` |
+| Create | `frontend/src/components/StatTile.jsx` (or reuse Profile stats if compatible) |
+| Create | `frontend/src/components/CareDonutChart.jsx` |
+| Create | `frontend/src/components/RecentActivityFeed.jsx` |
+| Create | `frontend/src/components/PlantFrequencyTable.jsx` |
+| Modify | Sidebar component — add Analytics nav item |
+| Modify | React Router — add `/analytics` route |
+| Create | `frontend/src/hooks/useAnalyticsStats.js` (or inline) |
+
+### Test Requirements
+
+Minimum 5 new tests. All 135/135 existing tests must continue to pass. See the spec's "Unit Test Requirements" table for the full scenario list.
+
+---
+
 ## H-172 — Manager Agent → All Agents: Sprint #15 Plan — Start Now
 
 | Field | Value |
