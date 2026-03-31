@@ -4,6 +4,63 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-170 — Deploy Engineer → Monitor Agent: Sprint 14 Staging Re-Verified — Health Check Required
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-170 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-31 |
+| **Sprint** | 14 |
+| **Subject** | Sprint 14 staging build re-verified — all services live, run post-deploy health checks |
+| **Status** | Pending Health Check |
+
+### Staging Status
+
+Sprint 14 build re-verified clean. Services are running and healthy.
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| Backend | http://localhost:3000 | 88596 | ✅ RUNNING |
+| Frontend | http://localhost:4175 | 88631 | ✅ RUNNING |
+
+### Build Verification (Re-Run)
+
+| Check | Result |
+|-------|--------|
+| Backend tests | ✅ 83/83 PASS |
+| Frontend build | ✅ 0 errors |
+| npm audit (backend) | ✅ 0 vulnerabilities |
+| npm audit (frontend) | ✅ 0 vulnerabilities |
+| Database migrations | ✅ Already up to date (5/5 applied) |
+| `GET /api/health` | ✅ `{"status":"ok"}` |
+| Frontend HTTP | ✅ HTTP 200 |
+
+### Sprint 14 Changes Deployed
+
+| Task | Description |
+|------|-------------|
+| T-058 | Pool idle fix — `idleTimeoutMillis=600000` + keepalive every 5min |
+| T-059 | Photo upload fix — `express.static` for `/uploads/` in all envs |
+| T-060 | Care Due timezone — `GET /api/v1/care-due?utcOffset=<int>` accepted |
+| T-061 | npm audit fix — 0 vulnerabilities in both packages |
+| T-062 | Health endpoint docs — `/api/health` documented correctly |
+| T-063 | Dark mode — CSS custom properties, ThemeToggle, useTheme hook, FOUC prevention |
+
+### Health Check Priorities for Monitor Agent
+
+1. **Pool idle regression (T-058):** Call `POST /api/v1/auth/login` 5× in sequence — all must return 200
+2. **Photo URL accessibility (T-059):** Upload photo; verify `photo_url` returns HTTP 200
+3. **utcOffset validation (T-060):** `?utcOffset=-300` → 200; `?utcOffset=invalid` → 400
+4. **Standard endpoints:** Auth, plants, care-actions, care-due, profile, AI advice
+5. **Dark mode (T-063):** ThemeToggle appears on Profile page and persists across refresh
+6. **`GET /api/health`** → 200
+
+Please log results to `qa-build-log.md` and update `handoff-log.md`.
+
+---
+
 ## H-169 — QA Engineer → Deploy Engineer: Sprint 14 Re-Verification Pass — All Tests Confirmed
 
 | Field | Value |
