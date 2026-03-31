@@ -852,3 +852,159 @@ Notes:
 **All Sprint 12 engineering tasks pass QA.** Ready for deployment.
 
 T-020 (user testing) remains in Backlog — its prerequisites (T-056, T-053-frontend) are now Done. T-020 can proceed.
+
+---
+
+## Sprint 12 — Post-Deploy QA Re-Verification (2026-03-30)
+
+**Date:** 2026-03-30
+**Agent:** QA Engineer (Orchestrator Sprint #12 — post-deploy re-verification)
+**Sprint:** 12
+**Triggered By:** Orchestrator QA phase after H-150 staging deploy
+
+---
+
+### Test Run 6: Post-Deploy Unit Tests — Backend
+
+| Field | Value |
+|-------|-------|
+| Test Type | Unit Test |
+| Target | Backend (all test suites) |
+| Command | `cd backend && npm test` |
+| Result | **74/74 PASS** |
+| Suites | 8/8 passed: auth (16), plants (16), ai (11), careHistory (9), careDue (8), careActions (6), account (4), profile (2) |
+| T-056 regression | 2 cold-start tests (sequential + concurrent login) — PASS |
+| Duration | ~20s |
+
+**Verdict: ✅ PASS — 74/74 backend tests pass post-deploy. No regressions.**
+
+---
+
+### Test Run 7: Post-Deploy Unit Tests — Frontend
+
+| Field | Value |
+|-------|-------|
+| Test Type | Unit Test |
+| Target | Frontend (all test suites) |
+| Command | `cd frontend && npm test` |
+| Result | **130/130 PASS** |
+| Suites | 22/22 passed |
+| T-053-frontend tests | 13 new tests (10 api.test.js + 5 useAuth.test.jsx — 2 share describe blocks) — all PASS |
+| Duration | ~3.5s |
+
+**Verdict: ✅ PASS — 130/130 frontend tests pass post-deploy. No regressions.**
+
+---
+
+### Test Run 8: Post-Deploy Integration Test
+
+| Field | Value |
+|-------|-------|
+| Test Type | Integration Test |
+| Scope | T-056 (auth cold-start), T-053-frontend (cookie auth), T-057 (env config) |
+
+#### API Contract Verification
+
+| Check | Expected | Actual | Status |
+|-------|----------|--------|--------|
+| `credentials: 'include'` on all fetch calls in api.js | Present on request(), refreshAccessToken(), deleteAccount() | Verified in source: lines 40, 66, 73, 127, 134 | ✅ PASS |
+| refreshAccessToken() sends no body | POST /auth/refresh with no body, cookie-only | Verified: lines 38-42, no body param | ✅ PASS |
+| auth.logout() sends no body | POST /auth/logout with no body | Verified: lines 116-118, no body param | ✅ PASS |
+| Silent re-auth on mount (useAuth.jsx) | useEffect calls refreshAccessToken() when pg_user in sessionStorage | Verified: lines 20-54 | ✅ PASS |
+| Loading state prevents login flash | loading starts true when stored user exists | Verified: lines 13-15 | ✅ PASS |
+| Backend reads refresh_token from cookie | req.cookies.refresh_token in /refresh and /logout | Verified: auth.js lines 159, 202 | ✅ PASS |
+| HttpOnly cookie attributes | httpOnly:true, secure:true, sameSite:'strict', path:'/api/v1/auth' | Verified: auth.js lines 46-52 | ✅ PASS |
+| Refresh token rotation | Old token revoked, new token issued | Verified: auth.js lines 170-182 | ✅ PASS |
+| Cookie cleared on logout | clearRefreshTokenCookie() called | Verified: auth.js line 208 | ✅ PASS |
+| Cookie cleared on account deletion | clearRefreshTokenCookie() called | Verified: auth.js line 254 | ✅ PASS |
+| 401 auto-refresh in api.js | On 401, attempts refreshAccessToken(), retries original request | Verified: api.js lines 69-78 | ✅ PASS |
+| Auth failure callback | onAuthFailure clears user, tokens, sessionStorage | Verified: useAuth.jsx lines 56-62 | ✅ PASS |
+
+#### T-056 Integration Checks
+
+| Check | Status |
+|-------|--------|
+| knexfile.js: `afterCreate` hook in all 4 environments (dev, test, staging, production) | ✅ Verified: lines 18-21, 38-41, 59-62, 79-82 |
+| knexfile.js: `idleTimeoutMillis` configured (dev: 30000, test: 10000, staging: 30000, production: 30000) | ✅ Verified |
+| knexfile.js: `reapIntervalMillis` in dev/staging/production (1000) | ✅ Verified |
+| server.js: Pool warm-up with concurrent SELECT 1 queries | ✅ Verified: line 16 |
+| cookie-parser before auth routes in app.js | ✅ Verified: cookieParser() at line 35, auth routes at line 78 |
+
+#### T-057 Integration Checks
+
+| Check | Status |
+|-------|--------|
+| .env TEST_DATABASE_URL uses port 5432 | ✅ Verified: line 12 |
+| Clarifying comment about .env.example discrepancy | ✅ Verified: lines 9-11 |
+| knexfile.js test fallback uses 5433 for future Docker | ✅ Verified: line 31 |
+| No other env vars changed | ✅ Verified |
+
+**Integration verdict: ✅ PASS — All contracts match between frontend and backend. T-056, T-053-frontend, T-057 all verified.**
+
+---
+
+### Test Run 9: Post-Deploy Config Consistency Check
+
+| Check | Expected | Actual | Status |
+|-------|----------|--------|--------|
+| Backend PORT | 3000 | `PORT=3000` in .env | ✅ |
+| Vite proxy target | http://localhost:3000 | `backendTarget = 'http://localhost:3000'` in vite.config.js | ✅ |
+| Protocol match | Both HTTP (no SSL in dev) | Backend: no SSL config; Vite: `http://` | ✅ |
+| CORS origins include frontend dev server | http://localhost:5173 | `FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` | ✅ |
+| docker-compose postgres port | 5432 | `${POSTGRES_PORT:-5432}:5432` | ✅ |
+| docker-compose test postgres port | 5433 | `${POSTGRES_TEST_PORT:-5433}:5432` | ✅ |
+| knexfile test fallback port | 5433 (for Docker) | Verified | ✅ |
+| .env TEST_DATABASE_URL port | 5432 (for local, no Docker) | Verified | ✅ |
+
+**Config consistency verdict: ✅ PASS — No mismatches found.**
+
+---
+
+### Test Run 10: Post-Deploy Security Scan
+
+| Security Checklist Item | Status | Evidence |
+|------------------------|--------|----------|
+| **Authentication & Authorization** | | |
+| All API endpoints require auth | ✅ | `authenticate` middleware on all protected routes; tests verify 401 without auth |
+| Auth tokens have expiration | ✅ | JWT_EXPIRES_IN=15m; refresh token 7 days with rotation |
+| Password hashing uses bcrypt | ✅ | bcrypt with SALT_ROUNDS=12 in User.js |
+| Failed login attempts rate-limited | ✅ | authLimiter: 20 attempts per 15 minutes |
+| **Input Validation & Injection** | | |
+| Server-side input validation | ✅ | validateBody middleware with type/length/enum/email checks |
+| SQL queries parameterized | ✅ | All queries use Knex query builder; `.raw()` calls use only static SQL (no user input) |
+| File uploads validated | ✅ | Multer file type + size validation; LIMIT_FILE_SIZE error handled |
+| HTML output sanitized (XSS) | ✅ | React auto-escapes by default; no dangerouslySetInnerHTML found |
+| **API Security** | | |
+| CORS configured for expected origins only | ✅ | Explicit allowedOrigins list in app.js; denies unknown origins |
+| Rate limiting on public endpoints | ✅ | General: 100/15min; Auth: 20/15min |
+| Error responses don't leak internals | ✅ | errorHandler.js: unknown errors return generic "An unexpected error occurred." |
+| Sensitive data not in URL params | ✅ | Tokens in headers/cookies, not query params |
+| Security headers (Helmet) | ✅ | `app.use(helmet())` — includes X-Content-Type-Options, X-Frame-Options, etc. |
+| **Data Protection** | | |
+| Credentials in env vars, not code | ✅ | JWT_SECRET, DATABASE_URL, GEMINI_API_KEY all in .env |
+| .env is gitignored | ✅ | Verified in .gitignore |
+| Refresh tokens hashed before storage | ✅ | SHA-256 hash in RefreshToken.hashToken() |
+| Logs don't contain PII/tokens | ✅ | Only console.error for Gemini API errors (no user data) |
+| **Infrastructure** | | |
+| npm audit | ⚠️ Advisory | 2 vulnerabilities: path-to-regexp (high — ReDoS, mitigated by rate limiting), brace-expansion (moderate — dev-only). Neither exploitable in practice. `npm audit fix` recommended for Sprint 13. |
+| Default credentials removed | ✅ | No default/sample credentials in code |
+| Error pages don't reveal tech info | ✅ | Generic JSON error responses only |
+
+**Security scan verdict: ✅ PASS — No P1 security failures. npm audit advisory (non-blocking) already tracked as FB-051.**
+
+---
+
+### Post-Deploy QA Verdict — Sprint 12
+
+| Task | Unit Tests | Integration | Security | Config | Overall |
+|------|-----------|-------------|----------|--------|---------|
+| T-056 | ✅ 74/74 | ✅ PASS | ✅ PASS | ✅ PASS | **QA PASSED** |
+| T-053-frontend | ✅ 130/130 | ✅ PASS | ✅ PASS | ✅ PASS | **QA PASSED** |
+| T-057 | ✅ 74/74 | ✅ PASS | ✅ PASS | ✅ PASS | **QA PASSED** |
+
+**Post-deploy re-verification confirms all Sprint 12 engineering tasks remain QA-passed after staging deployment.**
+
+- T-056: Done ✅
+- T-053-frontend: Done ✅
+- T-057: Done ✅
+- T-020: Backlog → prerequisites met (T-056 + T-053-frontend Done). User testing can begin on http://localhost:4175.

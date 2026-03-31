@@ -1205,3 +1205,170 @@ Project owner has completed T-020 user testing. All 5 flows verified end-to-end 
 - **Care Due Dashboard (/due):** Functional but has a timezone categorization bug (FB-046 — already logged). Non-blocking for MVP declaration.
 
 **T-020 is Done. The MVP is officially complete.** FB-046 (Care Due timezone bug) and FB-045 (photo display broken) are carried forward as Sprint 13 bug fixes. T-020 must be marked Done in `dev-cycle-tracker.md` and the sprint closeout summary must declare MVP complete.
+
+---
+
+## FB-048 — QA Product-Perspective: Sprint 12 Auth Reliability
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-048 |
+| **Source** | QA Engineer |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | New |
+
+### Description
+
+T-056 pool warm-up fix is well-engineered. The `afterCreate` connection validation + `idleTimeoutMillis` + pool warm-up before accepting traffic is a robust defense-in-depth approach. The 2 regression tests (rapid sequential and concurrent login) provide good ongoing protection. Auth reliability should be significantly improved.
+
+---
+
+## FB-049 — QA Product-Perspective: Cookie Auth Migration Clean
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-049 |
+| **Source** | QA Engineer |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | New |
+
+### Description
+
+T-053-frontend cookie auth migration is thorough. All 5 fetch call sites have `credentials: 'include'`. The silent re-auth pattern in useAuth.jsx handles the loading state correctly — users won't see a flash of the login page on hard refresh. The `setTokens()` legacy alias is a good backward-compatibility touch. 13 new tests cover the full happy + error path surface area.
+
+---
+
+## FB-050 — QA Advisory: Flaky careDue Test (Pre-existing)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-050 |
+| **Source** | QA Engineer |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | Bug |
+| **Severity** | P3 |
+| **Status** | New |
+
+### Description
+
+`careDue.test.js` → "should handle never-done plants" intermittently fails with `socket hang up` when run as part of the full backend test suite (74 tests). Passes consistently in isolation. Likely related to connection pool pressure during full suite execution — the `idleTimeoutMillis: 10000` in the test config may be too aggressive when tests run quickly back-to-back. Not a Sprint 12 regression (pre-existing). Recommend investigating as a Sprint 13 task.
+
+---
+
+## FB-051 — QA Advisory: npm audit Vulnerabilities (Sprint 13 Housekeeping)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-051 |
+| **Source** | QA Engineer |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | Bug |
+| **Severity** | P3 |
+| **Status** | New |
+
+### Description
+
+`npm audit` reports 2 vulnerabilities: (1) path-to-regexp ReDoS in Express 4 (high severity, but mitigated by rate limiting), (2) brace-expansion DoS in nodemon (moderate, dev-only). Both have `npm audit fix` available. Recommend running `npm audit fix` as Sprint 13 housekeeping. Express 5 migration remains out of scope.
+
+---
+
+## FB-052 — QA Product-Perspective: Auth Flow Robustness (Positive)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-052 |
+| **Source** | QA Engineer |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | New |
+
+### Description
+
+The auth flow is now robust and well-architected. Refresh token rotation with SHA-256 hashing, HttpOnly cookies with `Secure` + `SameSite=Strict`, automatic token refresh on 401, and silent re-auth on mount all work correctly. The T-056 cold-start fix eliminates the intermittent 500 that was blocking MVP testing. This is solid production-quality authentication.
+
+---
+
+## FB-053 — QA Product-Perspective: Silent Re-Auth UX (Positive)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-053 |
+| **Source** | QA Engineer |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | New |
+
+### Description
+
+The loading state in useAuth.jsx prevents the jarring "login page flash" on hard refresh. When a user refreshes the page, they see a loading state (not the login form) while the silent re-auth call completes. This is good UX — consistent with the Japandi "calm, no surprises" aesthetic direction.
+
+---
+
+## FB-054 — QA Product-Perspective: Gemini API Key Placeholder
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-054 |
+| **Source** | QA Engineer |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | UX Issue |
+| **Severity** | Minor |
+| **Status** | New |
+
+### Description
+
+The GEMINI_API_KEY in backend/.env appears to be a real key (`AIzaSyB_...`) but the Gemini API returns 429/502 consistently in tests (quota exceeded). During T-020 user testing, Flow 2 (AI advice) will likely fail with a 502. The error handling is correct (returns structured error, doesn't leak internals), but the user experience during testing may be impacted. The project owner should ensure a valid, quota-available Gemini API key is configured before T-020 testing, or accept that AI advice will return errors during MVP demo.
+
+### Expected vs Actual
+
+- **Expected:** POST /ai/advice returns 200 with care advice
+- **Actual:** Returns 502 "AI service returned an error or timed out." (due to API quota)
+
+---
+
+## FB-055 — QA Product-Perspective: Edge Case — Long Plant Names
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-055 |
+| **Source** | QA Engineer |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | UX Issue |
+| **Severity** | Cosmetic |
+| **Status** | New |
+
+### Description
+
+The POST /plants endpoint validates `name` as required string but does not enforce a max length. A user could submit a very long plant name (e.g., 10,000 characters) and it would be stored. This could cause UI overflow issues on the inventory page plant cards. Recommend adding `max: 200` to the plant name validation rule as a Sprint 13 improvement.
+
+---
+
+## FB-056 — QA Product-Perspective: Error Handling Quality (Positive)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-056 |
+| **Source** | QA Engineer |
+| **Sprint** | 12 |
+| **Date** | 2026-03-30 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | New |
+
+### Description
+
+The centralized error handler in errorHandler.js is well-implemented. Unknown errors never leak stack traces or file paths. All structured errors return consistent `{ error: { message, code } }` format. The frontend's ApiError class properly captures status codes and error codes for UI display. This is production-ready error handling.

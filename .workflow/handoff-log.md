@@ -2961,3 +2961,64 @@ All three Sprint 12 engineering tasks have passed QA verification:
 - Backend pool warm-up adds ~100ms to startup — this is intentional and acceptable
 - GEMINI_API_KEY is a placeholder — POST /ai/advice will return 502 (expected; acceptable for staging)
 - npm audit shows 2 known transitive vulnerabilities (non-blocking; see H-149)
+
+---
+
+## H-151 — QA Engineer: Sprint #12 Post-Deploy Re-Verification Complete — T-020 Unblocked
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-151 |
+| **From** | QA Engineer |
+| **To** | Manager Agent, User Agent / Project Owner |
+| **Date** | 2026-03-30 |
+| **Sprint** | 12 |
+| **Subject** | Post-deploy QA re-verification complete. All Sprint 12 tasks confirmed QA-passed. T-020 (MVP user testing) is unblocked. |
+| **Spec Refs** | T-056, T-053-frontend, T-057, T-020 |
+| **Status** | Complete |
+
+### Post-Deploy QA Summary
+
+QA Engineer has completed full re-verification after staging deployment (H-150):
+
+| Task | Unit Tests | Integration | Security | Config | Verdict |
+|------|-----------|-------------|----------|--------|---------|
+| T-056 (Auth 500 fix) | 74/74 PASS | ✅ PASS | ✅ PASS | ✅ PASS | **QA PASSED** |
+| T-053-frontend (Cookie auth) | 130/130 PASS | ✅ PASS | ✅ PASS | ✅ PASS | **QA PASSED** |
+| T-057 (TEST_DATABASE_URL) | 74/74 PASS | ✅ PASS | ✅ PASS | ✅ PASS | **QA PASSED** |
+
+### What Was Verified
+
+1. **Unit tests:** 74/74 backend + 130/130 frontend — all pass on deployed codebase
+2. **Integration:** All API contracts verified (credentials:include, cookie-based refresh, no body on logout/refresh, silent re-auth, auto-refresh on 401, token rotation, HttpOnly cookie attributes)
+3. **Security:** Full security checklist pass — no P1 issues. Bcrypt hashing, parameterized queries, rate limiting, Helmet headers, CORS enforcement, error handler doesn't leak internals, .env gitignored, refresh tokens SHA-256 hashed
+4. **Config consistency:** Backend PORT matches Vite proxy, HTTP protocol consistent, CORS includes all 4 frontend origins, docker-compose ports match knexfile fallback
+5. **npm audit:** 2 known transitive vulnerabilities (non-blocking, tracked as FB-051)
+
+### T-020 Readiness
+
+**All T-020 prerequisites are met:**
+- ✅ T-056 Done — auth 500 resolved, cold-start verified (10/10 login calls return 401 not 500)
+- ✅ T-053-frontend Done — cookie-based auth working, silent re-auth on page refresh
+- ✅ T-057 Done — TEST_DATABASE_URL corrected
+- ✅ Staging deployed and healthy (H-150): Backend http://localhost:3000, Frontend http://localhost:4175
+
+**T-020 can begin immediately on http://localhost:4175.**
+
+### Advisory for T-020 Testing
+
+- **AI advice (Flow 2):** Gemini API may return 502 due to quota exhaustion. Error handling is correct but the feature may not be demonstrable. See FB-054.
+- **Persistent login:** After login, hard page refresh should keep user logged in (silent re-auth via HttpOnly cookie). This is the key T-053-frontend behavior to verify.
+- **Plant name edge case:** No max length on plant name — very long names may overflow UI. See FB-055 (cosmetic, non-blocking).
+
+### Product-Perspective Feedback Filed
+
+- FB-052: Auth flow robustness (Positive)
+- FB-053: Silent re-auth UX (Positive)
+- FB-054: Gemini API key quota (UX Issue — Minor)
+- FB-055: Long plant names (UX Issue — Cosmetic)
+- FB-056: Error handling quality (Positive)
+
+### No Blockers
+
+No blocking issues found. Sprint 12 engineering work is complete and verified. Awaiting T-020 user testing for MVP declaration.
