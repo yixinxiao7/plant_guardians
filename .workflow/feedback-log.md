@@ -1564,3 +1564,50 @@ Full independent re-verification of Sprint 14 confirms all 83 backend tests and 
 ### Description
 
 The `GEMINI_API_KEY` value in `backend/.env` appears to be a real Google API key (starts with `AIzaSyB_`). While `.env` is gitignored and not committed to the repository, best practice is to rotate API keys before any production deployment. The `.env.example` correctly uses a placeholder value. This is informational — not blocking staging or development.
+
+---
+
+## FB-065 — Monitor Observation: Residual Single Transient 500 on First Login (Post-T-058)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-065 |
+| **Source** | Monitor Agent |
+| **Sprint** | 14 |
+| **Date** | 2026-03-31 |
+| **Category** | Monitor Alert |
+| **Severity** | Minor |
+| **Status** | New |
+
+### Description
+
+During Sprint 14 post-deploy health check, a single transient `HTTP 500 Internal Server Error` was observed on the very first call to `POST /api/v1/auth/login` with the seeded test account (`test@plantguardians.local`). The server (PID 88596) had been running idle for approximately 4 hours at the time of the check.
+
+```
+POST /api/v1/auth/login
+→ HTTP 500: {"error":{"message":"An unexpected error occurred.","code":"INTERNAL_ERROR"}}
+```
+
+All subsequent calls immediately returned correct status codes:
+- Second call: HTTP 401 INVALID_CREDENTIALS (wrong password test) → correct
+- Valid credentials: HTTP 200 with access_token → correct
+- T-058 regression: 5 sequential logins → all HTTP 200 → correct
+
+### Comparison to Pre-T-058
+
+**FB-057 (Sprint 12):** First 1–3 consecutive calls could fail with 500. Self-healing required multiple retries.
+**Sprint 14 (post-T-058):** Only 1 transient 500 on the very first call of a cold health check session. The keepalive (`setInterval` every 5 min) appears to be maintaining the pool during normal operation, but a brief pool re-establishment window remains on the very first request after an extended idle period (>4 hours, beyond any keepalive window if server process was newly started).
+
+### Impact
+
+- **Staging:** Negligible — self-healed after one call. Does not block testing or user flows.
+- **Production:** Low — T-058 significantly reduces exposure. If server process restarts and receives immediate traffic before the first keepalive fires (within 5 min), one user could see a 500. The keepalive prevents recurring failures after that window.
+
+### Recommendation
+
+Consider adding a connection pool warm-up on server start (execute `SELECT 1` before binding HTTP server) to eliminate the 1-request startup window. This was the intent of T-056 but may need re-verification after T-058's keepalive changes. **Not blocking — T-058 is a clear improvement and passes the regression test.**
+
+### Related
+
+- FB-057 (original issue, Sprint 12)
+- T-058 (pool idle fix, Sprint 13/14)
