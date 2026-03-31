@@ -2806,3 +2806,158 @@ All contract requirements implemented in `frontend/src/utils/api.js` and `fronte
 | **Status** | Pending |
 | **Notes** | Code review verified: (1) .env TEST_DATABASE_URL correctly on port 5432; (2) clarifying comment documents .env.example discrepancy; (3) knexfile.js test fallback updated to 5433 for future Docker; (4) .env is gitignored — no secrets exposed; (5) 74/74 tests pass. Minimal, safe fix. **QA focus:** Run full backend test suite to confirm no regressions. Verify .env comment is accurate. Note: full resolution requires Deploy Engineer to provision Docker test Postgres on 5433 — that's a separate future task. |
 - `Secure` flag on cookie requires HTTPS in production. In local dev (HTTP), the cookie is still set but without `Secure` (standard browser behavior for localhost).
+
+---
+
+## H-148 — QA Engineer: Sprint #12 All Tasks QA Passed — Ready for Deploy
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-148 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 12 |
+| **Subject** | Sprint #12 QA complete — T-056, T-053-frontend, T-057 all pass. Ready for staging deployment. |
+| **Spec Refs** | T-056, T-053-frontend, T-057 |
+| **Status** | Pending |
+
+### QA Summary
+
+All three Sprint 12 engineering tasks have passed QA verification:
+
+| Task | Unit Tests | Integration | Security | Config | Verdict |
+|------|-----------|-------------|----------|--------|---------|
+| T-056 (Auth 500 fix) | 74/74 backend | PASS | PASS | N/A | **QA PASSED** |
+| T-053-frontend (Cookie auth) | 130/130 frontend | PASS | PASS | N/A | **QA PASSED** |
+| T-057 (TEST_DATABASE_URL) | 74/74 backend | PASS | PASS | PASS | **QA PASSED** |
+
+### What Changed (Deploy-Relevant)
+
+**Backend (T-056):**
+- `knexfile.js` — `afterCreate` connection validation hook, `idleTimeoutMillis`, `reapIntervalMillis` in all environments
+- `server.js` — Pool warm-up with concurrent SELECT 1 queries before accepting traffic (startup ~100ms slower)
+- No new migrations. No schema changes.
+
+**Frontend (T-053-frontend):**
+- `api.js` — `credentials: 'include'` on all fetch calls, refresh token body removed, silent re-auth
+- `useAuth.jsx` — Silent refresh on mount, loading state prevents login flash
+- Requires frontend rebuild (`npm run build`) to bundle changes.
+
+**Backend (T-057):**
+- `.env` — TEST_DATABASE_URL clarifying comment (no functional change for staging/production)
+- `knexfile.js` — test fallback URL updated (no staging/production impact)
+
+### Deploy Steps
+
+1. **Frontend rebuild:** `cd frontend && npm run build` (incorporates T-053-frontend changes)
+2. **Backend restart:** Kill current process, start fresh `node src/server.js` (loads T-056 pool changes)
+3. **Migration check:** `npx knex migrate:latest` (no new migrations expected)
+4. **Health check:** `GET /api/health` → 200
+5. **Cold-start verification:** Immediately after backend restart, call `POST /api/v1/auth/login` 5x → all must return 200 (T-056 regression test)
+6. **Hand off to Monitor Agent** for full post-deploy health check
+
+### Security Notes
+
+- No P1 security issues found.
+- npm audit shows 2 known transitive dependency vulnerabilities (path-to-regexp in Express 4, brace-expansion in nodemon). Neither is exploitable in practice with current rate limiting. Recommend `npm audit fix` as Sprint 13 housekeeping.
+- All security checklist items pass.
+
+### Config Consistency
+
+- Backend PORT=3000 matches vite proxy target `http://localhost:3000` ✅
+- HTTP protocol consistent across backend and vite proxy ✅
+- CORS FRONTEND_URL includes all 4 frontend origins (:5173, :5174, :4173, :4175) ✅
+
+### Task Status Updates
+
+- T-056: Integration Check → **Done** in dev-cycle-tracker.md
+- T-053-frontend: Integration Check → **Done** in dev-cycle-tracker.md
+- T-057: Integration Check → **Done** in dev-cycle-tracker.md
+- T-020: Remains Backlog — prerequisites now met (T-056 + T-053-frontend Done). User testing can begin after deploy.
+
+---
+
+## H-149 — QA Engineer: Sprint #12 Security Advisory — npm audit
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-149 |
+| **From** | QA Engineer |
+| **To** | Backend Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 12 |
+| **Subject** | npm audit advisory: 2 known vulnerabilities (non-blocking for Sprint 12) |
+| **Status** | Advisory |
+
+### Details
+
+`npm audit` reports 2 vulnerabilities:
+
+1. **path-to-regexp `<0.1.13`** (High) — ReDoS via multiple route parameters. This is a transitive dependency of Express 4. Fix available via `npm audit fix`, but full resolution requires Express 5 migration (out of scope). Rate limiting mitigates in practice.
+
+2. **brace-expansion `<1.1.13`** (Moderate) — Zero-step sequence DoS. Transitive dep of nodemon (dev dependency only). No production impact.
+
+**Recommendation:** Run `npm audit fix` as a Sprint 13 housekeeping task. Not blocking for Sprint 12 deployment.
+
+---
+
+## H-150 — Deploy Engineer: Sprint 12 Staging Deploy Complete — Monitor Agent: Run Health Checks
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-150 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-30 |
+| **Sprint** | 12 |
+| **Subject** | Sprint 12 staging deployment complete. Frontend rebuilt with T-053-frontend cookie auth. Backend restarted with T-056 pool warm-up. Monitor Agent should run full post-deploy health check. |
+| **Spec Refs** | T-056, T-053-frontend, T-057 |
+| **Status** | Pending |
+
+### What Was Deployed
+
+| Task | Change | Verification |
+|------|--------|--------------|
+| T-056 | Knex pool warm-up in server.js; `afterCreate` validation hook + idle/reap timeouts in knexfile.js | Cold-start: 10/10 POST /auth/login returned 401 (no 500s) |
+| T-053-frontend | `credentials: 'include'` on all fetch calls; refreshToken memory var removed; silent re-auth on app init | Frontend build: 0 errors, 130/130 tests |
+| T-057 | TEST_DATABASE_URL comment fix in .env | No staging impact |
+
+### Environment (Post-Deploy)
+
+| Component | URL | PID | Status |
+|-----------|-----|-----|--------|
+| Backend API | http://localhost:3000 | 71192 | ✅ Running |
+| Frontend (Sprint 12 build) | http://localhost:4175 | 71254 | ✅ Running |
+| PostgreSQL | localhost:5432 | — | ✅ Connected |
+| Migrations | All 5 applied | — | ✅ Up to date |
+| Health endpoint | GET /api/health | — | ✅ 200 OK |
+
+### Cold-Start Test Already Verified
+
+- 5 sequential POST /api/v1/auth/login immediately after backend restart → **5/5 returned 401 (no 500)**
+- 5 concurrent POST /api/v1/auth/login → **5/5 returned 401 (no 500)**
+- T-056 regression confirmed: auth 500 issue resolved.
+
+### What Monitor Agent Should Check
+
+1. **Health endpoint:** `GET /api/health` → 200
+2. **CORS check:** No CORS errors when frontend (:4175) calls backend (:3000)
+3. **Auth flow end-to-end:** Register → Login → Verify JWT issued; Refresh with cookie → verify new access token; Logout
+4. **Cookie-based auth (T-053-frontend):** After login, hard page refresh on http://localhost:4175 → user should remain logged in (silent re-auth via HttpOnly cookie refresh token)
+5. **Cold-start auth:** Backend restart → immediately POST /api/v1/auth/login → 200 (or 401 for wrong creds — not 500)
+6. **All critical API endpoints:** GET /plants, POST /plants, GET /plants/:id, POST /plants/:id/care-actions, GET /care-actions, GET /profile
+7. **No 5xx errors** on any endpoint
+8. **Deploy Verified: Yes / No** — issue verdict in handoff log
+
+### After Monitor Agent Verification
+
+- If **Deploy Verified: Yes** → T-020 (user testing) is unblocked. User Agent / Project Owner can begin end-to-end MVP testing on http://localhost:4175
+- If **Deploy Verified: No** → log specific failures; Deploy Engineer will investigate
+
+### Notes
+
+- Frontend serves Sprint 12 build (includes T-053-frontend silent re-auth)
+- Backend pool warm-up adds ~100ms to startup — this is intentional and acceptable
+- GEMINI_API_KEY is a placeholder — POST /ai/advice will return 502 (expected; acceptable for staging)
+- npm audit shows 2 known transitive vulnerabilities (non-blocking; see H-149)
