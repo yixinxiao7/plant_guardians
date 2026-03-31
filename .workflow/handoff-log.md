@@ -4081,3 +4081,127 @@ One transient HTTP 500 on the very first login call (server idle ~4 hours). Self
 Sprint 14 staging is verified healthy. All 6 tasks (T-058, T-059, T-060, T-061, T-062, T-063) confirmed working in staging. Sprint 14 is complete. Ready for Sprint 15 planning.
 
 ---
+
+## H-174 — Backend Engineer → Manager: Schema Proposal — Sprint 15 (T-064, T-066)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-174 |
+| **From** | Backend Engineer |
+| **To** | Manager |
+| **Date** | 2026-03-31 |
+| **Sprint** | 15 |
+| **Subject** | Sprint 15 schema assessment — no changes required |
+| **Status** | Auto-approved (automated sprint) |
+
+### Proposal
+
+**T-064 (GET /api/v1/care-actions/stats):** No new tables or columns required. The endpoint aggregates data from three existing tables (`care_actions`, `plants`, `care_schedules`) that were created in Sprint 1 migrations. No migration file needed.
+
+**T-066 (Pool startup hardening):** Config/startup-sequence fix only. No DB schema change.
+
+**Conclusion:** Zero migrations this sprint. No deploy-time schema risk. Manager review during closeout phase is sufficient.
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+## H-175 — Backend Engineer → Frontend Engineer: Sprint 15 API Contract Published
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-175 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-31 |
+| **Sprint** | 15 |
+| **Subject** | GET /api/v1/care-actions/stats contract ready — T-065 frontend implementation unblocked |
+| **Status** | Active |
+
+### What Is Ready
+
+The API contract for `GET /api/v1/care-actions/stats` has been published to `.workflow/api-contracts.md` under **Sprint 15 Contracts → GROUP 1 — Care History Analytics (T-064)**.
+
+### Contract Summary
+
+**Endpoint:** `GET /api/v1/care-actions/stats`
+**Auth:** Bearer token (required — same pattern as all protected endpoints)
+**Query params:** None
+**Request body:** None
+
+**Success (200):**
+```json
+{
+  "data": {
+    "total_care_actions": 42,
+    "by_plant": [
+      { "plant_id": "uuid", "plant_name": "Monstera", "count": 15, "last_action_at": "ISO8601" }
+    ],
+    "by_care_type": [
+      { "care_type": "watering", "count": 30 },
+      { "care_type": "fertilizing", "count": 8 },
+      { "care_type": "repotting", "count": 4 }
+    ],
+    "recent_activity": [
+      { "plant_name": "Monstera", "care_type": "watering", "performed_at": "ISO8601" }
+    ]
+  }
+}
+```
+
+**Empty state (200):** All arrays empty, `total_care_actions: 0` — not an error.
+**401:** `{ "error": { "message": "...", "code": "UNAUTHORIZED" } }`
+**500:** `{ "error": { "message": "...", "code": "INTERNAL_ERROR" } }`
+
+### Frontend Integration Notes (T-065)
+
+- Fetch this endpoint exactly as `careDue.get()` does — Bearer token in `Authorization` header, `credentials: 'include'`
+- Add a `careActions.getStats()` method in `frontend/src/utils/api.js`
+- Handle all four states per SPEC-011: loading skeleton, empty state, error state with retry, populated state
+- `recent_activity` always has ≤ 10 entries (no pagination needed)
+- See full contract in `api-contracts.md` for field types, sort orders, and edge-case behavior
+
+### Action Required
+
+Acknowledge this handoff in `handoff-log.md` (H-176 or next available ID) before beginning integration work per sprint protocol.
+
+---
+
+## H-176 — Backend Engineer → QA Engineer: Sprint 15 Contracts for Testing Reference
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-176 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-31 |
+| **Sprint** | 15 |
+| **Subject** | API contracts ready for T-064 and T-066 QA planning |
+| **Status** | Active |
+
+### Contracts Published
+
+**T-064 — GET /api/v1/care-actions/stats** (new endpoint):
+- Full contract in `.workflow/api-contracts.md` → Sprint 15 Contracts → GROUP 1
+- **Test plan per sprint spec:**
+  1. **Happy path (with data):** Authenticated user with care actions → 200 with populated `by_plant`, `by_care_type`, `recent_activity`; verify counts are correct; verify `recent_activity` capped at 10 entries sorted by `performed_at` DESC
+  2. **Empty state:** Authenticated user with zero care actions → 200 with `total_care_actions: 0` and all empty arrays (not a 404 or error)
+  3. **401 — no token:** Request without `Authorization` header → 401 `UNAUTHORIZED`
+  4. **401 — invalid token:** Request with a tampered/expired token → 401 `UNAUTHORIZED`
+  5. **User isolation:** Two users each with plants and care actions → each sees only their own data; no cross-user leakage
+  6. **Sort order:** `by_plant` sorted count DESC then name ASC; `by_care_type` sorted count DESC; `recent_activity` sorted `performed_at` DESC
+
+**T-066 — Pool startup hardening** (no API contract impact):
+- Verify `backend/src/server.js` runs `db.raw('SELECT 1')` (or equivalent warm-up) before `app.listen()`
+- Regression test: simulate fresh server start → immediately call `POST /api/v1/auth/login` 3× → all 3 return 200, no 500s
+- All 83/83 backend tests must still pass after T-066 changes
+
+### Security Checklist Items for T-064
+
+- [ ] User isolation enforced via SQL JOIN on `plants.user_id` — no user can query another user's stats
+- [ ] All DB queries parameterized via Knex — no string interpolation of `userId` or other user input
+- [ ] Auth middleware (`requireAuth`) applied to the route — 401 returned before any DB query on missing/invalid token
+- [ ] No sensitive data (password_hash, refresh tokens, etc.) present in response shape
+- [ ] `total_care_actions`, `count` fields are integers — not strings or floats
+
+---

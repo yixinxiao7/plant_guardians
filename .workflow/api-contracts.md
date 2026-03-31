@@ -2294,3 +2294,126 @@ curl -X GET "http://localhost:3000/api/v1/care-due?utcOffset=-300" \
 ---
 
 *Sprint 14 contract written by Backend Engineer — 2026-03-30. Zero new endpoints. Zero schema changes. Two endpoint clarifications/updates: POST /api/v1/plants/:id/photo (photo_url format made explicit); GET /api/v1/care-due (utcOffset query parameter added). T-058 and T-061 have no API contract impact. All prior sprint contracts remain authoritative.*
+
+---
+
+## Sprint 15 Contracts
+
+*Written by Backend Engineer — 2026-03-31*
+
+---
+
+### GROUP 1 — Care History Analytics (T-064)
+
+---
+
+#### GET /api/v1/care-actions/stats
+
+**Auth:** Bearer token (required)
+
+**Description:** Returns aggregated care action statistics for the authenticated user — total count, breakdown by plant, breakdown by care type, and a recent activity feed. Powers the `/analytics` frontend page (SPEC-011).
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "total_care_actions": 42,
+    "by_plant": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "count": 15,
+        "last_action_at": "ISO8601"
+      }
+    ],
+    "by_care_type": [
+      { "care_type": "watering",    "count": 30 },
+      { "care_type": "fertilizing", "count": 8  },
+      { "care_type": "repotting",   "count": 4  }
+    ],
+    "recent_activity": [
+      {
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "performed_at": "ISO8601"
+      }
+    ]
+  }
+}
+```
+
+**Field Rules:**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `total_care_actions` | integer ≥ 0 | Count of all care actions recorded by this user across all plants |
+| `by_plant` | array | One entry per plant that has at least one care action; sorted by `count` DESC, then `plant_name` ASC as a tiebreaker |
+| `by_plant[].plant_id` | UUID string | Plant's unique identifier |
+| `by_plant[].plant_name` | string | Human-readable plant name |
+| `by_plant[].count` | integer ≥ 1 | Total care actions for this plant |
+| `by_plant[].last_action_at` | ISO 8601 UTC string | Timestamp of the most recent care action for this plant |
+| `by_care_type` | array | One entry per care type that appears in the user's care action history; sorted by `count` DESC |
+| `by_care_type[].care_type` | string | One of `"watering"`, `"fertilizing"`, `"repotting"` (or any valid care type stored in care_schedules) |
+| `by_care_type[].count` | integer ≥ 1 | Total care actions of this type |
+| `recent_activity` | array | The 10 most recent care actions across all plants, sorted by `performed_at` DESC |
+| `recent_activity[].plant_name` | string | Name of the plant that was cared for |
+| `recent_activity[].care_type` | string | Type of care performed |
+| `recent_activity[].performed_at` | ISO 8601 UTC string | When the care action was recorded |
+
+**Empty State:**
+When the user has no care actions at all, the response is:
+```json
+{
+  "data": {
+    "total_care_actions": 0,
+    "by_plant": [],
+    "by_care_type": [],
+    "recent_activity": []
+  }
+}
+```
+This is a valid 200 response — not an error. The frontend renders the empty state UI per SPEC-011.
+
+**User Isolation:** All aggregations are scoped to the authenticated user's plants and care actions only. The query must JOIN through `plants` on `plants.user_id = :userId` to guarantee isolation. No other user's data may leak.
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|----------|
+| 401 | `UNAUTHORIZED` | Missing, expired, or invalid Bearer token |
+| 500 | `INTERNAL_ERROR` | Unexpected server or database error |
+
+**No pagination** — this endpoint is a stats aggregate, not a paginated list.
+
+**Implementation notes (for T-064):**
+- Route handler: `backend/src/routes/careActions.js` (add to existing file) or a new `careActionsStats.js` if separation is cleaner
+- Model method: `CareAction.getStatsByUser(userId)` in `backend/src/models/CareAction.js`
+- Three separate aggregation queries (or one CTE) joined in the model:
+  1. `SELECT COUNT(*) AS total_care_actions FROM care_actions JOIN plants ON ...`
+  2. `SELECT plants.id, plants.name, COUNT(*), MAX(performed_at) FROM care_actions JOIN plants ON ... GROUP BY plants.id ORDER BY count DESC, name ASC`
+  3. `SELECT care_type, COUNT(*) FROM care_actions JOIN plants ON ... GROUP BY care_type ORDER BY count DESC`
+  4. `SELECT plants.name, ca.care_type, ca.performed_at FROM care_actions ca JOIN plants ON ... ORDER BY ca.performed_at DESC LIMIT 10`
+- All queries must use **parameterized Knex** — never string-interpolate `userId`
+- Auth middleware (`requireAuth`) must be applied to this route exactly as it is on `GET /api/v1/care-due`
+
+---
+
+### Schema Changes — Sprint 15
+
+**None.** No new tables, columns, or migrations are required for Sprint 15.
+
+- `GET /api/v1/care-actions/stats` (T-064) aggregates data from existing `care_actions`, `plants`, and `care_schedules` tables — all created in Sprint 1 migrations
+- T-066 (pool startup hardening) is a config/startup-sequence fix only — no DB schema change
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+*Sprint 15 contract written by Backend Engineer — 2026-03-31. One new endpoint: GET /api/v1/care-actions/stats (T-064). Zero schema changes. T-066 has no API contract impact. All prior sprint contracts remain authoritative.*
