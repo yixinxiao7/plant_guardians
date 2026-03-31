@@ -2054,3 +2054,243 @@ Sprint #12 scope contains **zero new API endpoints** and **zero schema changes**
 ---
 
 *Sprint 12 contract written by Backend Engineer — 2026-03-30. Zero new endpoints. Zero schema changes. T-056 stabilizes existing POST /api/v1/auth/login reliability. T-057 corrects a test config port mismatch. All existing Sprint 11 contracts remain authoritative.*
+
+---
+
+## Sprint 14 Contracts — 2026-03-30
+
+**Written by:** Backend Engineer — 2026-03-30
+**Status:** Ready for implementation — API contracts published before any code is written.
+
+---
+
+### Overview
+
+Sprint #14 contains **zero new API endpoints** and **zero schema changes**. All backend API work is bug-fix corrections to two existing endpoints:
+
+| Task | Type | Affected Endpoint | Change |
+|------|------|-------------------|--------|
+| T-058 | Bug fix — pool idle reaping causes transient 500 on login | `POST /api/v1/auth/login` | Contract UNCHANGED — reliability fix only (knexfile.js / server.js config) |
+| T-059 | Bug fix — plant photo URL not browser-accessible after upload | `POST /api/v1/plants/:id/photo` | Contract CLARIFIED — `photo_url` format requirement made explicit |
+| T-060 | Bug fix — Care Due Dashboard timezone mismatch | `GET /api/v1/care-due` | Contract UPDATED — new optional `utcOffset` query parameter added |
+| T-061 | Dependency update — npm audit fix | None | No API impact |
+
+---
+
+### T-058 — POST /api/v1/auth/login Pool Idle Fix
+
+**Contract status:** UNCHANGED from Sprint 11 / Sprint 12.
+
+**What is being fixed (implementation only):** After a 30-second idle period, the Knex connection pool reaps idle connections. The `afterCreate` validation hook adds latency during pool refill, creating a brief window where requests fail with 500. This is the same bug class as T-056 (cold-start), but triggered by idle reaping rather than cold-start.
+
+**Fix strategy (implementation-only, no contract impact):**
+- Increase `idleTimeoutMillis` from `30000` to `600000` (10 minutes) in `backend/knexfile.js` production and staging config sections; AND/OR
+- Add a periodic keepalive query (`SELECT 1`) in `backend/src/server.js` to prevent connection reaping during normal app operation.
+
+**Behavioral guarantee after fix:** `POST /api/v1/auth/login` MUST return `200 OK` consistently, including immediately after a 30+ second period of server inactivity. The fix must not change request shape, response shape, error codes, or auth requirements.
+
+**For Frontend Engineer:** No changes to your integration.
+
+**For QA Engineer:** After T-058 is implemented, verify:
+1. Allow the backend to sit idle for 30+ seconds (or simulate by temporarily setting `idleTimeoutMillis` to 3 seconds in a test config)
+2. Immediately call `POST /api/v1/auth/login` 5 times in rapid succession
+3. All 5 must return `200 OK` — zero `500 Internal Server Error`
+4. All 74/74 backend tests must still pass
+
+---
+
+### T-059 — POST /api/v1/plants/:id/photo — photo_url Format Clarification
+
+**Contract status:** CLARIFIED. The original Sprint 1 contract stated `photo_url` is a "publicly accessible URL" but did not specify the URL format. This sprint's fix makes the format requirement explicit.
+
+#### POST /api/v1/plants/:id/photo *(Clarified — Sprint 14)*
+
+**Auth:** Bearer token (required) — unchanged
+
+**Description:** Unchanged from Sprint 1. Uploads a photo for a plant via `multipart/form-data` and returns a browser-accessible URL.
+
+**Request:** Unchanged from Sprint 1.
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `photo` | file | required; MIME type `image/jpeg`, `image/png`, or `image/webp`; max 5 MB |
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "photo_url": "/uploads/<uuid>.<ext>"
+  }
+}
+```
+
+**`photo_url` format requirements (Sprint 14 clarification):**
+- MUST be a **relative path** of the form `/uploads/<filename>` (e.g., `/uploads/a3f8d2b1-...jpg`)
+- MUST be resolvable by the browser when prefixed with the backend origin (e.g., `http://localhost:3000/uploads/<filename>` returns HTTP 200)
+- The backend MUST serve the `./uploads/` directory as static files at the `/uploads/` path via `express.static`
+- The filename MUST be a UUID v4 (to prevent enumeration/path traversal) plus the original file extension
+- Do NOT store an absolute `http://localhost:3000/...` URL in the database — store only the relative `/uploads/<filename>` path. This ensures portability across environments.
+
+**Error Responses:** Unchanged from Sprint 1.
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `MISSING_FILE` | No `photo` field in the multipart request |
+| 400 | `INVALID_FILE_TYPE` | File MIME type is not `image/jpeg`, `image/png`, or `image/webp` |
+| 400 | `FILE_TOO_LARGE` | File exceeds 5 MB |
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 404 | `PLANT_NOT_FOUND` | No plant with this ID exists, or it belongs to a different user |
+| 500 | `INTERNAL_ERROR` | Unexpected server error (e.g., file system write failure) |
+
+**Implementation notes for Backend Engineer:**
+- Add `app.use('/uploads', express.static(path.join(__dirname, '../uploads')))` in `backend/src/app.js`
+- Ensure the `uploads/` directory is created at startup if it does not exist (use `fs.mkdirSync` with `{ recursive: true }`)
+- The route handler must construct `photo_url` as `/uploads/<filename>` — NOT `http://localhost:3000/uploads/<filename>`
+- This relative URL is stored in `plants.photo_url` and returned by `GET /plants` and `GET /plants/:id`
+
+**End-to-end verification (for QA):**
+1. Call `POST /api/v1/plants/:id/photo` with a valid image → response contains `photo_url: "/uploads/<uuid>.jpg"`
+2. Call `GET /api/v1/plants/:id` → `photo_url` field matches the URL returned by step 1
+3. Fetch `GET http://localhost:3000<photo_url>` directly → returns HTTP 200 with `Content-Type: image/*`
+
+---
+
+### T-060 — GET /api/v1/care-due — UTC Offset Query Parameter (Updated)
+
+**Contract status:** UPDATED. The original Sprint 8 contract did not include timezone support. A new optional `utcOffset` query parameter is added. All other fields (auth, response shape, error codes) are unchanged.
+
+#### GET /api/v1/care-due *(Updated — Sprint 14)*
+
+**Auth:** Required — Bearer token in `Authorization: Bearer <access_token>` header — unchanged
+
+**Description:** Returns care events for all of the authenticated user's plants, bucketed by urgency. **Sprint 14 update:** Accepts an optional `utcOffset` query parameter so urgency bucketing reflects the user's local timezone rather than UTC. All other behavior is unchanged from Sprint 8.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `utcOffset` | integer (minutes) | optional | The caller's UTC offset in minutes from UTC. **Positive values = ahead of UTC (e.g., UTC+5:30 → `330`). Negative values = behind UTC (e.g., UTC-5 → `-300`).** If omitted, backend defaults to UTC (existing behavior — no regression for consumers that don't send the param). |
+
+**Computing `utcOffset` on the frontend:**
+```js
+// JavaScript's getTimezoneOffset() returns minutes *behind* UTC (inverted convention)
+// We invert it to get minutes *ahead* of UTC (standard convention)
+const utcOffset = new Date().getTimezoneOffset() * -1;
+// US Eastern Standard Time → getTimezoneOffset() = 300 → utcOffset = -300
+// Central European Time    → getTimezoneOffset() = -60 → utcOffset = 60
+```
+
+**Validation:**
+- `utcOffset`: optional; if provided, must be an integer in the range `-840` to `840` (valid UTC offset range in minutes); returns `400 VALIDATION_ERROR` if out of range or non-integer
+
+**Backend logic change:**
+- If `utcOffset` is provided: compute "local today" as `[UTC midnight + utcOffset minutes, UTC midnight + utcOffset minutes + 24 hours)` — all comparisons use this local day boundary
+- If `utcOffset` is omitted: use UTC midnight (existing behavior — no change)
+
+**Request — unchanged from Sprint 8:**
+
+```
+GET /api/v1/care-due?utcOffset=-300
+Authorization: Bearer <access_token>
+```
+
+**Success Response — 200 OK:** Unchanged from Sprint 8.
+
+```json
+{
+  "data": {
+    "overdue": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "days_overdue": 3,
+        "last_done_at": "ISO8601 | null"
+      }
+    ],
+    "due_today": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "last_done_at": "ISO8601 | null"
+      }
+    ],
+    "upcoming": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "due_in_days": 3,
+        "due_date": "YYYY-MM-DD"
+      }
+    ]
+  }
+}
+```
+
+**Note on `due_date`:** When `utcOffset` is provided, `due_date` is expressed as a local calendar date (YYYY-MM-DD in the user's local timezone), not a UTC date.
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `utcOffset` provided but not a valid integer in range `[-840, 840]` |
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Frontend integration (for Frontend Engineer — T-060 frontend half):**
+
+In `frontend/src/pages/CareDuePage.jsx` (or `frontend/src/utils/api.js` in the `careDue.get()` method), send `utcOffset` with every request:
+
+```js
+// In api.js — careDue.get()
+const utcOffset = new Date().getTimezoneOffset() * -1;
+const response = await fetch(`/api/v1/care-due?utcOffset=${utcOffset}`, {
+  headers: { Authorization: `Bearer ${accessToken}` },
+  credentials: 'include',
+});
+```
+
+**Backward compatibility:** Any existing API consumer that calls `GET /api/v1/care-due` without `utcOffset` continues to receive UTC-bucketed results. No breaking change.
+
+**Example curl (with utcOffset):**
+```bash
+curl -X GET "http://localhost:3000/api/v1/care-due?utcOffset=-300" \
+  -H "Authorization: Bearer <access_token>"
+```
+
+---
+
+### T-061 — npm audit fix
+
+**Contract status:** No API impact.
+
+**What is being done:** Run `npm audit fix` in both `backend/` and `frontend/` to resolve available non-breaking vulnerabilities. No new endpoints, no schema changes, no request/response shape changes.
+
+**For Frontend Engineer:** No action needed.
+**For QA Engineer:** After T-061, verify all 74/74 backend tests and 130/130 frontend tests still pass. Review `npm audit` output — no new high-severity production vulnerabilities should be introduced.
+
+---
+
+### Schema Changes — Sprint 14
+
+**None.** No new tables, columns, or migrations required for any Sprint 14 task.
+
+- T-058 is a config-only fix (`knexfile.js`, optionally `server.js`)
+- T-059 is a route/static-file fix (no DB schema change; `photo_url` column already exists in `plants` table from Sprint 1)
+- T-060 is a route-logic fix (offset computation uses existing `care_schedules` and `care_actions` data)
+- T-061 is a dependency update only
+
+**No Manager approval required for schema changes this sprint** — there are none.
+
+---
+
+### Health Endpoint Documentation Fix (T-062)
+
+> **Note for QA Engineer:** T-062 assigns QA to fix a documentation discrepancy. If any reference to `/api/v1/health` exists in this file or in `.agents/monitor-agent.md`, it should be corrected to `/api/health`. The actual endpoint is `GET /api/health` (not under `/api/v1/`). No code changes required — docs only.
+
+---
+
+*Sprint 14 contract written by Backend Engineer — 2026-03-30. Zero new endpoints. Zero schema changes. Two endpoint clarifications/updates: POST /api/v1/plants/:id/photo (photo_url format made explicit); GET /api/v1/care-due (utcOffset query parameter added). T-058 and T-061 have no API contract impact. All prior sprint contracts remain authoritative.*

@@ -4,6 +4,110 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-157 — Backend Engineer → QA Engineer: Sprint 14 API Contracts Ready for Testing Reference
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-157 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 14 |
+| **Subject** | Sprint 14 API contracts published — QA reference for T-058, T-059, T-060 |
+| **Contract Ref** | `.workflow/api-contracts.md` — Sprint 14 Contracts section |
+| **Status** | Contracts only — implementation has NOT started yet |
+
+### Summary
+
+Sprint 14 API contracts are now documented in `api-contracts.md`. Use these as the verification reference when QA runs post-implementation checks.
+
+### What to test per contract
+
+**T-058 — POST /api/v1/auth/login pool idle fix:**
+- Restart backend → let it idle 30+ seconds → call `POST /api/v1/auth/login` 5 times → all 5 must return `200 OK` (zero 500s)
+- All 74/74 backend tests must pass after fix
+
+**T-059 — POST /api/v1/plants/:id/photo photo_url fix:**
+- Upload a photo → verify `photo_url` in response is of the form `/uploads/<uuid>.<ext>` (relative path, NOT absolute `http://...`)
+- Fetch `GET http://localhost:3000<photo_url>` directly → must return `200` with `Content-Type: image/*`
+- Call `GET /api/v1/plants/:id` → `photo_url` field must match the uploaded URL
+- Verify error codes still correct: `MISSING_FILE`, `INVALID_FILE_TYPE`, `FILE_TOO_LARGE`, `UNAUTHORIZED`, `PLANT_NOT_FOUND`
+- All 74/74 backend tests must pass after fix
+
+**T-060 — GET /api/v1/care-due utcOffset parameter:**
+- Call without `utcOffset` → behavior unchanged from Sprint 8 (UTC bucketing)
+- Call with `?utcOffset=-300` (US Eastern) → plants due "today" locally must appear in `due_today`, not `overdue`
+- Call with invalid `utcOffset` (e.g., `?utcOffset=9999` or `?utcOffset=abc`) → must return `400 VALIDATION_ERROR`
+- All 74/74 backend tests must pass; end-to-end timezone accuracy verified
+
+---
+
+## H-156 — Backend Engineer → Frontend Engineer: Sprint 14 API Contracts Ready
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-156 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-03-30 |
+| **Sprint** | 14 |
+| **Subject** | Sprint 14 API contracts published — Frontend may begin T-060 frontend half |
+| **Contract Ref** | `.workflow/api-contracts.md` — Sprint 14 Contracts section |
+| **Status** | Contracts only — backend implementation has NOT started yet |
+
+### Summary
+
+The two contracts that require frontend changes are now documented:
+
+**1. GET /api/v1/care-due — new `utcOffset` parameter (T-060 frontend half)**
+
+Update `frontend/src/utils/api.js` in the `careDue.get()` method (or wherever the fetch call lives):
+
+```js
+const utcOffset = new Date().getTimezoneOffset() * -1;
+const response = await fetch(`/api/v1/care-due?utcOffset=${utcOffset}`, {
+  headers: { Authorization: `Bearer ${accessToken}` },
+  credentials: 'include',
+});
+```
+
+This is the **only frontend change needed for T-060**. The backend contract guarantees backward compatibility — if the param is absent, the backend falls back to UTC, so you can safely ship the frontend change before or after the backend fix.
+
+**2. POST /api/v1/plants/:id/photo — photo_url format (T-059 — backend only)**
+
+No frontend changes needed for T-059. The frontend already reads `photo_url` from the upload response and passes it to `PUT /plants/:id`. After the backend fix, `photo_url` will be `/uploads/<filename>` (relative), which the browser will resolve relative to the backend origin. This is already the format the frontend expects.
+
+### No changes required for T-058 or T-061
+
+T-058 (pool idle fix) and T-061 (npm audit) have no API or frontend impact.
+
+---
+
+## H-155 — Backend Engineer → Manager: Sprint 14 Schema Proposal (Auto-approved)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-155 |
+| **From** | Backend Engineer |
+| **To** | Manager |
+| **Date** | 2026-03-30 |
+| **Sprint** | 14 |
+| **Subject** | Sprint 14 schema changes — none required |
+| **Status** | Auto-approved (automated sprint) |
+
+### Summary
+
+No schema changes are required for Sprint 14. All four backend tasks (T-058, T-059, T-060, T-061) work with the existing database schema:
+
+- `photo_url` column already exists in `plants` table (Sprint 1, migration 3)
+- `care_schedules` and `care_actions` tables already contain all data needed for timezone-offset bucketing
+- Pool idle fix is config-only (`knexfile.js`)
+- npm audit fix changes only `package.json` / `package-lock.json`
+
+**No migration files will be created for Sprint 14.**
+
+---
+
 ## H-154 — Design Agent → Frontend Engineer: Dark Mode Color Spec Ready (T-063)
 
 | Field | Value |
