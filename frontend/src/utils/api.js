@@ -4,38 +4,41 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 let accessToken = null;
-let refreshToken = null;
 let onAuthFailure = null;
 
-export function setTokens(access, refresh) {
-  accessToken = access;
-  refreshToken = refresh;
+export function setAccessToken(token) {
+  accessToken = token;
 }
 
 export function getAccessToken() {
   return accessToken;
 }
 
-export function getRefreshToken() {
-  return refreshToken;
-}
-
 export function clearTokens() {
   accessToken = null;
-  refreshToken = null;
+}
+
+// Legacy alias — some existing code passes (access, refresh).
+// We only store the access token now; refresh token lives in HttpOnly cookie.
+export function setTokens(access, _refresh) {
+  accessToken = access;
 }
 
 export function setOnAuthFailure(callback) {
   onAuthFailure = callback;
 }
 
-async function refreshAccessToken() {
-  if (!refreshToken) throw new Error('No refresh token');
-
+/**
+ * Silent re-auth: call POST /auth/refresh with credentials: 'include'.
+ * The browser sends the HttpOnly refresh_token cookie automatically.
+ * On success, stores the new access_token in memory and returns it.
+ * On failure, clears local auth state and throws.
+ */
+export async function refreshAccessToken() {
   const res = await fetch(`${API_BASE}/auth/refresh`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
   });
 
   if (!res.ok) {
@@ -45,7 +48,6 @@ async function refreshAccessToken() {
 
   const json = await res.json();
   accessToken = json.data.access_token;
-  refreshToken = json.data.refresh_token;
   return accessToken;
 }
 
@@ -61,14 +63,14 @@ async function request(path, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  let res = await fetch(url, { ...options, headers });
+  let res = await fetch(url, { ...options, headers, credentials: 'include' });
 
   // Auto-refresh on 401
-  if (res.status === 401 && refreshToken && !options._retried) {
+  if (res.status === 401 && !options._retried) {
     try {
       await refreshAccessToken();
       headers['Authorization'] = `Bearer ${accessToken}`;
-      res = await fetch(url, { ...options, headers, _retried: true });
+      res = await fetch(url, { ...options, headers, credentials: 'include', _retried: true });
     } catch {
       if (onAuthFailure) onAuthFailure();
       throw new ApiError('Session expired. Please log in again.', 'UNAUTHORIZED', 401);
@@ -110,9 +112,9 @@ export const auth = {
     });
   },
   logout() {
+    // No body needed — refresh token is read from HttpOnly cookie by backend
     return request('/auth/logout', {
       method: 'POST',
-      body: JSON.stringify({ refresh_token: refreshToken }),
     });
   },
   async deleteAccount() {
@@ -122,14 +124,14 @@ export const auth = {
       headers['Authorization'] = `Bearer ${accessToken}`;
     }
 
-    let res = await fetch(url, { method: 'DELETE', headers });
+    let res = await fetch(url, { method: 'DELETE', headers, credentials: 'include' });
 
     // Auto-refresh on 401
-    if (res.status === 401 && refreshToken) {
+    if (res.status === 401) {
       try {
         await refreshAccessToken();
         headers['Authorization'] = `Bearer ${accessToken}`;
-        res = await fetch(url, { method: 'DELETE', headers });
+        res = await fetch(url, { method: 'DELETE', headers, credentials: 'include' });
       } catch {
         throw new ApiError('Session expired. Please log in again.', 'UNAUTHORIZED', 401);
       }

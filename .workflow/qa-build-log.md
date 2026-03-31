@@ -4,6 +4,55 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 12 — Deploy Engineer: Staging Environment Status Check (2026-03-30)
+
+**Date:** 2026-03-30
+**Agent:** Deploy Engineer (Orchestrator Sprint #12 — deploy phase)
+**Sprint:** 12
+**Purpose:** Pre-deploy environment verification + backend restart to maintain staging availability
+
+---
+
+### Environment Status
+
+| Component | Status | Detail |
+|-----------|--------|--------|
+| Backend | ✅ Running | http://localhost:3000 — PID 69165 — restarted this session (was down) |
+| Frontend | ✅ Running | http://localhost:4175 (PID 44508) + http://localhost:5174 (PID 2563) — Sprint 11 build |
+| PostgreSQL (staging) | ✅ Connected | localhost:5432 — plant_guardians_staging |
+| Migrations | ✅ Up to date | `knex migrate:latest` → "Already up to date" |
+| Health endpoint | ✅ 200 | `GET /api/health` → `{"status":"ok","timestamp":"2026-03-31T00:08:19.579Z"}` |
+| CORS config | ✅ All ports | FRONTEND_URL covers :5173, :5174, :4173, :4175 |
+
+---
+
+### Backend Test Suite Verification
+
+**Note:** `backend/.env` currently has `TEST_DATABASE_URL` pointing to port 5433 (PostgreSQL Docker container, not running in this environment — Docker not installed). Tests fail when run as-is. Port 5432 hosts the actual `plant_guardians_test` database.
+
+| Test Condition | Result |
+|----------------|--------|
+| `npm test` (current .env — port 5433) | ❌ 74 tests fail (AggregateError — connection refused) |
+| `TEST_DATABASE_URL=...5432/plant_guardians_test npm test` | ✅ **74/74 tests pass** (8 suites) |
+
+**Observation:** The test database exists on port 5432 (plant_guardians_test). The .env TEST_DATABASE_URL mismatch (5433 vs 5432) is the T-057 concern and must be resolved by the Backend Engineer before `npm test` works without env overrides.
+
+---
+
+### Sprint 12 Deploy Readiness Gate Check
+
+| Gate | Status | Notes |
+|------|--------|-------|
+| T-056 (auth 500 fix) QA-passed | ❌ Not done | Backend Engineer has not yet implemented fix |
+| T-053-frontend (api.js cookie migration) QA-passed | ❌ Not done | Frontend Engineer has not yet implemented changes |
+| QA sign-off in handoff log | ❌ Pending | No H-14x QA confirmation for Sprint 12 changes |
+
+**Deploy Verdict: ⏳ BLOCKED — awaiting T-056 + T-053-frontend completion and QA sign-off**
+
+Backend restarted to maintain staging availability. No new code deployed. Current build reflects Sprint 11 state.
+
+---
+
 ## Sprint 11 — QA Verification Pass #2 (2026-03-30)
 
 **Date:** 2026-03-30

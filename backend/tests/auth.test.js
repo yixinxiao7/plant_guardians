@@ -232,3 +232,47 @@ describe('POST /api/v1/auth/logout', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('POST /api/v1/auth/login — cold-start regression (T-056)', () => {
+  it('should return 200 on 5 rapid sequential login calls with no 500 errors', async () => {
+    // Create a user to test against
+    await createTestUser({ email: 'rapid@example.com', password: 'securepass123' });
+
+    // Fire 5 rapid sequential login requests — simulates immediate calls after restart
+    const results = [];
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'rapid@example.com', password: 'securepass123' });
+      results.push(res);
+    }
+
+    // All 5 must succeed — zero 500s
+    for (let i = 0; i < results.length; i++) {
+      expect(results[i].status).toBe(200);
+      expect(results[i].body.data.access_token).toBeDefined();
+      expect(results[i].body.data.user.email).toBe('rapid@example.com');
+    }
+  });
+
+  it('should return 200 on 5 concurrent login calls with no 500 errors', async () => {
+    // Create a user to test against
+    await createTestUser({ email: 'concurrent@example.com', password: 'securepass123' });
+
+    // Fire 5 concurrent login requests — stress test pool under load
+    const promises = Array.from({ length: 5 }, () =>
+      request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'concurrent@example.com', password: 'securepass123' })
+    );
+
+    const results = await Promise.all(promises);
+
+    // All 5 must succeed — zero 500s
+    for (let i = 0; i < results.length; i++) {
+      expect(results[i].status).toBe(200);
+      expect(results[i].body.data.access_token).toBeDefined();
+      expect(results[i].body.data.user.email).toBe('concurrent@example.com');
+    }
+  });
+});
