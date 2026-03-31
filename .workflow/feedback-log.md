@@ -1567,6 +1567,114 @@ The `GEMINI_API_KEY` value in `backend/.env` appears to be a real Google API key
 
 ---
 
+## FB-066 — QA Product-Perspective: Care Analytics Page Quality (Positive)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-066 |
+| **Source** | QA Engineer |
+| **Sprint** | 15 |
+| **Date** | 2026-03-31 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | Acknowledged |
+
+### Description
+
+The Care Analytics page (/analytics) is well-crafted. The pure SVG donut chart avoids heavy dependencies (no recharts bundle cost), the sr-only data table ensures WCAG AA accessibility, and the four page states (loading skeleton, empty, error with retry, populated) all have clear, warm copy aligned with the "botanical guardianship" brand. The dark mode chart color system (separate LIGHT_COLORS/DARK_COLORS maps) matches SPEC-011 exactly and looks cohesive in both themes. This is the first user-facing "value" feature beyond the core inventory — it meaningfully rewards users for caring for their plants.
+
+---
+
+## FB-067 — QA Product-Perspective: Pool Startup Hardening Effective (Positive)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-067 |
+| **Source** | QA Engineer |
+| **Sprint** | 15 |
+| **Date** | 2026-03-31 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | Acknowledged |
+
+### Description
+
+T-066 addresses the residual transient 500 (FB-065) with a minimal, well-scoped fix. Reading pool.min from the knexfile config (not the tarn instance) and guaranteeing ≥ 2 warm-up queries before `app.listen()` is a clean approach. The Deploy Engineer smoke test confirmed 3 fresh-start logins all returned 200 with zero 500s. This closes the pool startup issue that has been tracked since Sprint 12.
+
+---
+
+## FB-068 — QA Product-Perspective: Confetti Dark Mode Colors Look Warm and Celebratory (Positive)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-068 |
+| **Source** | QA Engineer |
+| **Sprint** | 15 |
+| **Date** | 2026-03-31 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | Acknowledged |
+
+### Description
+
+T-068 resolves FB-061 (confetti colors washed out in dark mode). The new dark palette (`#2D5A3D`, `#D4A76A`, `#C2956A`, `#7EAF7E`, `#B87A5A`) uses deep greens, warm amber, and terracotta — consistent with the Japandi botanical aesthetic. The implementation correctly checks `data-theme` attribute for mode detection and respects `prefers-reduced-motion`. The try/catch around the dynamic import is a nice touch for graceful degradation.
+
+---
+
+## FB-069 — QA Advisory: Analytics Empty State Copy Could Be More Inviting
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-069 |
+| **Source** | QA Engineer |
+| **Sprint** | 15 |
+| **Date** | 2026-03-31 |
+| **Category** | UX Issue |
+| **Severity** | Cosmetic |
+| **Status** | New |
+
+### Description
+
+The analytics empty state says "No care actions recorded yet. Mark a plant as cared for to start tracking." While accurate, the copy could be warmer for a feature that's meant to feel affirming. Consider something like "Your care journey starts here — water, fertilize, or repot a plant and watch your progress grow." The CTA button "Go to my plants" is good. Not blocking — cosmetic polish for a future sprint.
+
+---
+
+## FB-070 — QA Product-Perspective: Sprint 15 Analytics Feature Delivers Real User Value (Positive)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-070 |
+| **Source** | QA Engineer |
+| **Sprint** | 15 |
+| **Date** | 2026-03-31 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | Acknowledged |
+
+### Description
+
+The Care Analytics page (`/analytics`) is the first user-facing feature that turns plant care data into insight. The implementation is clean: summary stats bar gives instant gratification (total actions, top plant, most common type), the donut chart is readable and accessible (sr-only table, dark mode colors), and the plant frequency table gives per-plant detail. The empty state is friendly with a clear CTA. The page fits naturally into the sidebar navigation. This is a meaningful post-MVP addition that reinforces the product's identity as a care companion, not just a task tracker.
+
+---
+
+## FB-071 — QA Product-Perspective: Pool Startup Hardening Eliminates Transient 500s (Positive)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-071 |
+| **Source** | QA Engineer |
+| **Sprint** | 15 |
+| **Date** | 2026-03-31 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | Acknowledged |
+
+### Description
+
+T-066 pool startup hardening is well-implemented. The warm-up reads pool.min from the knexfile config (with fallback ≥ 2), fires concurrent SELECT 1 queries, and waits for all to complete before calling app.listen(). The keepalive interval is unref'd so it doesn't prevent graceful shutdown. On startup failure, the process exits with code 1 instead of silently serving with a broken pool. Deploy smoke test (3 fresh-start logins → all 200) confirms the fix works. The residual transient 500 from FB-065 should be fully eliminated.
+
+---
+
 ## FB-065 — Monitor Observation: Residual Single Transient 500 on First Login (Post-T-058)
 
 | Field | Value |
