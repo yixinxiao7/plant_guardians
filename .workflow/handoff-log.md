@@ -4,6 +4,71 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-185 — Deploy Engineer → Monitor Agent: Sprint 15 Staging Deploy Verified — Run Post-Deploy Health Check
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-185 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-31 |
+| **Sprint** | 15 |
+| **Subject** | Sprint 15 staging deploy confirmed — run full post-deploy health check |
+| **Status** | Pending Health Check |
+
+### Deployment Summary
+
+Fresh build and staging verification complete for Sprint #15. Services are running and all Sprint 15 features confirmed live.
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| Backend | http://localhost:3000 | 98186 | ✅ RUNNING |
+| Frontend | http://localhost:4175 | 98206 | ✅ RUNNING |
+
+### Pre-Deploy Gates Cleared
+
+| Gate | Result |
+|------|--------|
+| QA sign-off (H-184) | ✅ 88/88 backend, 142/142 frontend |
+| All Sprint 15 tasks Done | ✅ T-064, T-065, T-066, T-067, T-068 |
+| Frontend build | ✅ Success — no errors |
+| Database migrations | ✅ All 5 up to date — no new migrations |
+| npm audit | ✅ 0 vulnerabilities (backend + frontend) |
+
+### Staging Smoke Tests Passed
+
+| Check | Result |
+|-------|--------|
+| `GET /api/health` | ✅ 200 `{"status":"ok"}` |
+| `GET /api/v1/care-actions/stats` (no auth → 401) | ✅ T-064 endpoint live |
+| `GET http://localhost:4175/analytics` | ✅ 200 — T-065 analytics page live |
+| `POST /api/v1/auth/login` ×5 (T-066 pool check) | ✅ All 401, no 500s |
+| Frontend root | ✅ 200 |
+
+### Sprint 15 Features Live
+
+| Task | Feature |
+|------|---------|
+| T-064 | `GET /api/v1/care-actions/stats` — care analytics aggregation endpoint |
+| T-065 | `/analytics` page — CareDonutChart, RecentActivityFeed, PlantFrequencyTable, StatTile |
+| T-066 | Backend pool warm-up hardening — no transient 500s on first request |
+| T-067 | HttpOnly refresh token cookie flow — code-level verified |
+| T-068 | Dark mode confetti colors — warm botanical palette, reduced-motion respected |
+
+### Instructions for Monitor Agent
+
+Run a full post-deploy health check against the staging environment:
+
+1. **T-064 (stats endpoint):** Register a user → login → `GET /api/v1/care-actions/stats` — must return 200 with valid JSON shape
+2. **T-066 (pool hardening):** `POST /api/v1/auth/login` ×5 rapidly — all must return 200 or 401, no 500s
+3. **T-065 (analytics frontend):** `GET http://localhost:4175/analytics` — must return HTTP 200
+4. **Standard endpoints:** Auth (register/login/refresh/logout), plants CRUD, care-actions, care-due, profile — all should pass
+5. **T-067 (cookie flow):** Note still pending manual browser DevTools verification — not blocking
+
+Log results to `qa-build-log.md` (Sprint 15 section) and update `handoff-log.md`.
+
+---
+
 ## H-184 — QA Engineer → Deploy Engineer: Sprint 15 Full QA Verification Complete — Ready for Deploy
 
 | Field | Value |

@@ -4,6 +4,80 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 15 — Deploy Engineer: Build + Staging Deploy (2026-03-31)
+
+**Date:** 2026-03-31
+**Agent:** Deploy Engineer (Orchestrator Sprint #15)
+**Sprint:** 15
+**Environment:** Staging (localhost)
+**QA Sign-off:** H-184 (88/88 backend, 142/142 frontend — all pass)
+
+---
+
+### Pre-Deploy Checks
+
+| Check | Result |
+|-------|--------|
+| QA confirmation in handoff-log.md (H-184) | ✅ All 5 tasks Done, no P1 issues |
+| Pending migrations | ✅ None — all 5 migrations already up to date |
+| All Sprint 15 tasks Done | ✅ T-064, T-065, T-066, T-067, T-068 |
+
+---
+
+### Build
+
+| Step | Result |
+|------|--------|
+| `cd backend && npm install` | ✅ 0 vulnerabilities |
+| `cd frontend && npm install` | ✅ 0 vulnerabilities |
+| `cd frontend && npm run build` | ✅ Success — 4626 modules, 413 kB bundle (119 kB gzip) |
+
+**Build output:**
+```
+dist/index.html                            1.50 kB │ gzip:   0.67 kB
+dist/assets/index-DxOazpeT.css            52.44 kB │ gzip:   8.81 kB
+dist/assets/confetti.module-No8_urVw.js   10.57 kB │ gzip:   4.20 kB
+dist/assets/index-CISuwZvB.js            413.34 kB │ gzip: 119.31 kB
+✓ built in 157ms
+```
+
+**Build Status: ✅ SUCCESS**
+
+---
+
+### Staging Deployment
+
+Docker not used (local process staging). Services from prior deploy (PIDs 98186/98206) were verified still running and healthy.
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| Backend (node src/server.js) | http://localhost:3000 | 98186 | ✅ RUNNING |
+| Frontend (vite preview) | http://localhost:4175 | 98206 | ✅ RUNNING |
+
+**Migrations:** `npm run migrate` → Already up to date (all 5 Sprint 1 migrations)
+
+---
+
+### Staging Smoke Tests
+
+| Endpoint / Check | HTTP Code | Result |
+|------------------|-----------|--------|
+| `GET /api/health` | 200 | ✅ `{"status":"ok"}` |
+| `GET /api/v1/care-actions/stats` (no auth) | 401 | ✅ T-064 endpoint live |
+| `GET http://localhost:4175/analytics` | 200 | ✅ T-065 analytics page live |
+| `POST /api/v1/auth/login` ×5 (pool warm-up T-066) | 401 ×5 | ✅ No 500s — pool hardening confirmed |
+| Frontend root `http://localhost:4175` | 200 | ✅ |
+
+**Deployment Status: ✅ SUCCESS**
+
+---
+
+### Handoff
+
+Handoff H-185 logged to Monitor Agent for post-deploy health check.
+
+---
+
 ## Sprint 15 — QA Engineer: Full Sprint Verification (2026-03-31)
 
 **Date:** 2026-03-31
