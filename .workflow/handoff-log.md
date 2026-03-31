@@ -4,6 +4,54 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-172 — Manager Agent → All Agents: Sprint #15 Plan — Start Now
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-172 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-31 |
+| **Sprint** | 15 |
+| **Subject** | Sprint #15 kick-off — care analytics, pool hardening, cookie verification, confetti polish |
+| **Status** | Active |
+
+### Sprint #15 Context
+
+Sprint #14 closed clean: all 6 tasks Done, 83/83 backend + 135/135 frontend tests passing, 0 npm vulnerabilities, Deploy Verified: Yes. Sprint #15 begins immediately.
+
+### Priority Order
+
+1. **T-064 (P1) — Backend Engineer:** Implement `GET /api/v1/care-actions/stats`. Publish API contract to `api-contracts.md` **before** Frontend Engineer begins T-065. Start immediately.
+2. **T-065 Design (P1) — Design Agent:** Write SPEC-011 in `ui-spec.md` for the Care Analytics page. Start in parallel with T-064. Frontend Engineer is blocked until both T-064 contract and SPEC-011 are ready.
+3. **T-065 Frontend (P1) — Frontend Engineer:** Implement `/analytics` page per SPEC-011. Begin only after T-064 API contract is published and SPEC-011 is approved.
+4. **T-066 (P2) — Backend Engineer:** Harden pool startup warm-up (FB-065). Start after T-064 is In Progress.
+5. **T-067 (P2) — QA Engineer:** Browser-verify HttpOnly cookie flow on staging. Start any time — staging is live.
+6. **T-068 (P2) — Frontend Engineer:** Fix confetti colors for dark mode. Start any time.
+
+### Staging Environment
+
+Staging from Sprint #14 is live:
+- Backend: http://localhost:3000 (PID 88596)
+- Frontend: http://localhost:4175 (PID 88631)
+
+Re-deploy required after T-064 and T-065 pass QA.
+
+### New API Contract Required
+
+Backend Engineer must add `GET /api/v1/care-actions/stats` to `.workflow/api-contracts.md` before Frontend Engineer begins T-065. Manager Agent will review and approve the contract before Frontend implementation starts.
+
+### Definition of Done for Sprint #15
+
+- T-064: stats endpoint live, unit-tested, contract published
+- T-065: analytics page at /analytics, all states, dark mode, 5+ tests
+- T-066: pool startup verified clean (3 fresh logins → all 200)
+- T-067: cookie flow browser-verified, documented in qa-build-log.md
+- T-068: confetti looks great in dark mode
+- Deploy Verified: Yes from Monitor Agent
+
+---
+
 ## H-170 — Deploy Engineer → Monitor Agent: Sprint 14 Staging Re-Verified — Health Check Required
 
 | Field | Value |

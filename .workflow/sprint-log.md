@@ -1105,7 +1105,7 @@ None — no staging deploy was attempted in Sprint #13.
 
 **Sprint Goal:** Fix three critical post-MVP bugs (pool idle 500, broken photo uploads, Care Due timezone mismatch), run npm audit housekeeping, fix health endpoint docs, and ship dark mode as the first post-MVP feature.
 
-**Outcome:** Completed — All 6 tasks Done. Staging deployed and smoke-tested. Pending Monitor Agent post-deploy health check (H-167).
+**Outcome:** Complete — All 6 tasks Done. Staging deployed, smoke-tested, and Monitor Agent health check confirmed Deploy Verified: Yes (H-171).
 
 ---
 
@@ -1139,7 +1139,7 @@ None.
 | Frontend build | ✅ 0 errors |
 | Staging deploy | ✅ Backend PID 88596, Frontend PID 88614 |
 | Smoke tests | ✅ 8/8 pass |
-| Post-deploy health check | ⏳ Pending — H-167 sent to Monitor Agent |
+| Post-deploy health check | ✅ Deploy Verified: Yes (Monitor Agent H-171, 2026-03-31) |
 
 ---
 
@@ -1149,6 +1149,9 @@ None.
 - **FB-060 (Positive):** Dark mode implementation thorough — CSS custom properties, FOUC prevention, ARIA, reduced-motion. → Acknowledged.
 - **FB-061 (Cosmetic):** Confetti colors not optimized for dark backgrounds. → Tasked to Backlog (B-007).
 - **FB-062 (Positive):** Timezone fix correctly addresses FB-046 — validation thorough, backward compatible. → Acknowledged.
+- **FB-063 (Positive):** Sprint 14 independent re-verification — 83/83 backend, 135/135 frontend pass. 0 npm vulnerabilities. → Acknowledged.
+- **FB-064 (Suggestion, Minor):** Gemini API key in `.env` should be rotated before production deploy. → Acknowledged — pre-production checklist item for project owner. No Sprint 15 task.
+- **FB-065 (Monitor Alert, Minor):** Single transient 500 on first login after 4-hour idle (residual after T-058). → Acknowledged — T-058 is a clear improvement. Pool startup warm-up improvement tracked as T-066 (backlog).
 
 ---
 
@@ -1164,9 +1167,10 @@ None.
 
 #### What to Improve
 
-- Monitor Agent health check still pending (H-167) — need to confirm full endpoint coverage including new `?utcOffset` parameter and photo serving.
-- T-053 (HttpOnly refresh token cookie) frontend half still needs integration verification in a browser — the cookie flow is code-complete but was not explicitly end-to-end tested in this sprint.
-- Production deployment (via infra/docker-compose.prod.yml) has not been attempted yet. Consider scheduling a production dry-run in a future sprint.
+- One transient 500 on first login after extended idle (FB-065) remains — T-058 resolved the bulk of the issue but a startup warm-up improvement is still worth doing (T-066, backlog).
+- T-053 (HttpOnly refresh token cookie) frontend flow is code-complete but has not been fully end-to-end tested in a browser. A dedicated browser QA pass should be scheduled.
+- Production deployment (via infra/docker-compose.prod.yml) has not been attempted yet. SSL certs are the pending gate — project owner must provide before a production dry-run can proceed.
+- No post-MVP analytics or engagement features exist yet — care history chart (B-004) is the next logical user-facing addition.
 
 ---
 
@@ -1175,8 +1179,10 @@ None.
 | Item | Severity | Owner | Sprint |
 |------|----------|-------|--------|
 | Confetti colors not dark-mode optimized (FB-061) | P3 | Frontend Engineer | Backlog — B-007 |
-| Production deployment not yet attempted | P2 | Deploy Engineer | Future sprint |
-| T-053 end-to-end browser cookie integration not verified | P2 | QA Engineer | Future sprint |
+| Production deployment not yet attempted | P2 | Deploy Engineer | Future sprint (blocked on SSL certs) |
+| T-053 end-to-end browser cookie integration not verified | P2 | QA Engineer | Sprint 15 |
+| Pool startup: single transient 500 on very first request after long idle (FB-065) | P3 | Backend Engineer | Sprint 15 — T-066 |
+| Care history chart / analytics not yet built | P2 | Backend + Frontend | Sprint 15 — B-004 |
 
 ---
 

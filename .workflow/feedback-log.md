@@ -1559,7 +1559,7 @@ Full independent re-verification of Sprint 14 confirms all 83 backend tests and 
 | **Date** | 2026-03-31 |
 | **Category** | Suggestion |
 | **Severity** | Minor |
-| **Status** | New |
+| **Status** | Acknowledged — Minor suggestion. Not blocking. Noted as a pre-production checklist item for the project owner: rotate GEMINI_API_KEY before first production deploy. No Sprint 15 task required. |
 
 ### Description
 
@@ -1577,7 +1577,7 @@ The `GEMINI_API_KEY` value in `backend/.env` appears to be a real Google API key
 | **Date** | 2026-03-31 |
 | **Category** | Monitor Alert |
 | **Severity** | Minor |
-| **Status** | New |
+| **Status** | Acknowledged — Minor residual issue. T-058 is a clear improvement (1 transient vs 1–3 pre-fix). Pool startup warm-up improvement added to Sprint 15 technical debt backlog (T-066). Not blocking production. |
 
 ### Description
 
