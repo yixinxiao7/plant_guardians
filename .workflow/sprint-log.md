@@ -1101,6 +1101,89 @@ None — no staging deploy was attempted in Sprint #13.
 
 ---
 
+### Sprint #14 — 2026-03-30 to 2026-03-31
+
+**Sprint Goal:** Fix three critical post-MVP bugs (pool idle 500, broken photo uploads, Care Due timezone mismatch), run npm audit housekeeping, fix health endpoint docs, and ship dark mode as the first post-MVP feature.
+
+**Outcome:** Completed — All 6 tasks Done. Staging deployed and smoke-tested. Pending Monitor Agent post-deploy health check (H-167).
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-058 | Backend: Fix pool idle reaping causing transient 500 on login — increased idle timeout to 10 min, added 5-min keepalive with `.unref()` |
+| T-059 | Backend: Fix plant photo broken after upload — removed env gate on `express.static` for `/uploads/`, auto-create uploads dir |
+| T-060 | Backend + Frontend: Fix Care Due Dashboard UTC/local timezone mismatch — backend accepts `?utcOffset=<minutes>`, frontend sends offset |
+| T-061 | Backend + Frontend: npm audit fix — 0 vulnerabilities in both packages |
+| T-062 | QA/Docs: Fix health endpoint documentation discrepancy — corrected to `/api/health` |
+| T-063 | Design + Frontend: Dark mode — CSS custom properties, ThemeToggle control, FOUC prevention, system preference support |
+
+---
+
+#### Tasks Carried Over
+
+None.
+
+---
+
+#### Verification Results
+
+| Check | Result |
+|-------|--------|
+| Backend tests | ✅ 83/83 pass |
+| Frontend tests | ✅ 135/135 pass |
+| npm audit (backend) | ✅ 0 vulnerabilities |
+| npm audit (frontend) | ✅ 0 vulnerabilities |
+| Frontend build | ✅ 0 errors |
+| Staging deploy | ✅ Backend PID 88596, Frontend PID 88614 |
+| Smoke tests | ✅ 8/8 pass |
+| Post-deploy health check | ⏳ Pending — H-167 sent to Monitor Agent |
+
+---
+
+#### Key Feedback Themes
+
+- **FB-059 (Positive):** Pool idle fix well-engineered — keepalive with `.unref()` is the right pattern. → Acknowledged.
+- **FB-060 (Positive):** Dark mode implementation thorough — CSS custom properties, FOUC prevention, ARIA, reduced-motion. → Acknowledged.
+- **FB-061 (Cosmetic):** Confetti colors not optimized for dark backgrounds. → Tasked to Backlog (B-007).
+- **FB-062 (Positive):** Timezone fix correctly addresses FB-046 — validation thorough, backward compatible. → Acknowledged.
+
+---
+
+#### What Went Well
+
+- All 6 tasks completed in a single sprint cycle — zero carry-over for the first time since Sprint #13 was planned.
+- Three P1 bug fixes (T-058, T-059, T-060) that blocked production readiness are now resolved.
+- Dark mode (T-063) shipped as a high-quality first post-MVP feature with proper ARIA, FOUC prevention, and system preference support.
+- Test suite grew to 218 total tests (83 backend + 135 frontend) with zero failures.
+- Both packages at 0 npm audit vulnerabilities.
+
+---
+
+#### What to Improve
+
+- Monitor Agent health check still pending (H-167) — need to confirm full endpoint coverage including new `?utcOffset` parameter and photo serving.
+- T-053 (HttpOnly refresh token cookie) frontend half still needs integration verification in a browser — the cookie flow is code-complete but was not explicitly end-to-end tested in this sprint.
+- Production deployment (via infra/docker-compose.prod.yml) has not been attempted yet. Consider scheduling a production dry-run in a future sprint.
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Owner | Sprint |
+|------|----------|-------|--------|
+| Confetti colors not dark-mode optimized (FB-061) | P3 | Frontend Engineer | Backlog — B-007 |
+| Production deployment not yet attempted | P2 | Deploy Engineer | Future sprint |
+| T-053 end-to-end browser cookie integration not verified | P2 | QA Engineer | Future sprint |
+
+---
+
+*Sprint #14 summary written by Manager Agent on 2026-03-31.*
+
+---
+
 ## Template
 
 ### Sprint #N — [Start Date] to [End Date]

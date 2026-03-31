@@ -117,7 +117,7 @@ Environment: [Staging/Production]
 Timestamp: [ISO 8601]
 Token: acquired via POST /api/v1/auth/login with test@plantguardians.local (NOT /auth/register)
 Checks:
-  - [ ] App responds (GET /api/v1/health → 200)
+  - [ ] App responds (GET /api/health → 200)
   - [ ] Auth works (POST /api/v1/auth/login → 200 with token) [use test@plantguardians.local]
   - [ ] Key endpoints respond (list from api-contracts.md)
   - [ ] No 5xx errors in logs

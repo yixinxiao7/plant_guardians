@@ -1456,3 +1456,111 @@ During Sprint 12 post-deploy health check (2026-03-31T01:10Z), `POST /api/v1/ai/
 This contradicts FB-054 which reported consistent 502 errors due to API quota exhaustion. The `GEMINI_API_KEY` in `backend/.env` is apparently now active and has available quota.
 
 **Impact on T-020:** Flow 2 (AI advice) is now testable in the staging environment. The advisory in H-151 about Gemini returning 502 during user testing is no longer applicable.
+
+---
+
+## FB-059 — QA Product-Perspective: Pool Idle Fix Eliminates Intermittent Login Failures (Positive)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-059 |
+| **Source** | QA Engineer |
+| **Sprint** | 14 |
+| **Date** | 2026-03-31 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | Acknowledged |
+
+### Description
+
+T-058 pool idle fix is well-engineered. The 5-minute keepalive with `.unref()` is the right pattern — keeps connections warm without preventing graceful shutdown. Users will no longer experience random 500 errors when the server has been idle for 30+ seconds. This was a critical UX issue (FB-057) and is now fully resolved.
+
+---
+
+## FB-060 — QA Product-Perspective: Dark Mode Implementation Quality (Positive)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-060 |
+| **Source** | QA Engineer |
+| **Sprint** | 14 |
+| **Date** | 2026-03-31 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | Acknowledged |
+
+### Description
+
+T-063 dark mode implementation is thorough and well-executed. The CSS custom properties approach avoids JS runtime color switching. FOUC prevention script in `<head>` prevents flash of light mode on dark-mode users' first load. The ThemeToggle uses proper ARIA (`radiogroup` + `aria-checked`). System preference listener automatically updates when OS theme changes. Reduced-motion support for theme transitions is a nice accessibility touch. This is a high-quality first post-MVP feature.
+
+---
+
+## FB-061 — QA Product-Perspective: Confetti Animation Colors in Dark Mode
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-061 |
+| **Source** | QA Engineer |
+| **Sprint** | 14 |
+| **Date** | 2026-03-31 |
+| **Category** | UX Issue |
+| **Severity** | Cosmetic |
+| **Status** | Tasked → Backlog (B-007) |
+
+### Description
+
+The confetti animation (triggered when marking a care action as done) uses the existing light-mode color palette in dark mode. While the existing colors still work acceptably on a dark background, adding vibrancy colors (`#7EAF7E`, `#E8B94A`) per the SPEC-010 guidance would enhance the celebration effect in dark mode. This is a nice-to-have enhancement for a future sprint.
+
+---
+
+## FB-062 — QA Product-Perspective: Care Due Dashboard Timezone Fix Works Correctly
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-062 |
+| **Source** | QA Engineer |
+| **Sprint** | 14 |
+| **Date** | 2026-03-31 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | Acknowledged |
+
+### Description
+
+T-060 timezone fix correctly addresses the UTC/local timezone mismatch (FB-046). The backend validation is thorough — integer check, range check (-840 to 840), and float rejection via string equality. The frontend correctly converts JavaScript's inverted `getTimezoneOffset()` by multiplying by -1. Backward compatibility is preserved when the param is omitted. Users in timezones behind UTC will no longer see plants bucketed one day too urgent.
+
+---
+
+## FB-063 — QA Re-Verification: Sprint 14 Full Test Suite Stable
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-063 |
+| **Source** | QA Engineer |
+| **Sprint** | 14 |
+| **Date** | 2026-03-31 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Status** | Acknowledged |
+
+### Description
+
+Full independent re-verification of Sprint 14 confirms all 83 backend tests and 135 frontend tests pass consistently. No flaky tests observed. npm audit reports 0 vulnerabilities in both packages. All Sprint 14 fixes (pool idle, photo upload, timezone, dark mode) are verified correct. The codebase is in excellent shape for continued development.
+
+---
+
+## FB-064 — QA Advisory: Gemini API Key in .env May Need Rotation
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-064 |
+| **Source** | QA Engineer |
+| **Sprint** | 14 |
+| **Date** | 2026-03-31 |
+| **Category** | Suggestion |
+| **Severity** | Minor |
+| **Status** | New |
+
+### Description
+
+The `GEMINI_API_KEY` value in `backend/.env` appears to be a real Google API key (starts with `AIzaSyB_`). While `.env` is gitignored and not committed to the repository, best practice is to rotate API keys before any production deployment. The `.env.example` correctly uses a placeholder value. This is informational — not blocking staging or development.

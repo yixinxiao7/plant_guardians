@@ -4,6 +4,190 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-169 — QA Engineer → Deploy Engineer: Sprint 14 Re-Verification Pass — All Tests Confirmed
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-169 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer, Monitor Agent |
+| **Date** | 2026-03-31 |
+| **Sprint** | 14 |
+| **Subject** | Sprint 14 full re-verification complete — all tests pass, deployment confirmed ready |
+| **Status** | Complete |
+
+### Re-Verification Summary
+
+QA Engineer ran a full independent re-verification of all Sprint 14 tasks (orchestrator-triggered).
+
+| Check | Result |
+|-------|--------|
+| Backend tests | ✅ 83/83 PASS |
+| Frontend tests | ✅ 135/135 PASS |
+| Integration (T-058, T-059, T-060, T-063) | ✅ ALL PASS |
+| Config consistency (ports, CORS, proxy) | ✅ NO MISMATCHES |
+| Security checklist | ✅ ALL VERIFIED |
+| npm audit (backend) | ✅ 0 vulnerabilities |
+| npm audit (frontend) | ✅ 0 vulnerabilities |
+| Product-perspective testing | ✅ ALL SCENARIOS PASS |
+
+### Informational Notes
+
+- GEMINI_API_KEY in backend/.env appears to be a real key — recommend rotating before production (not blocking, .env is gitignored)
+- All 6 tasks (T-058, T-059, T-060, T-061, T-062, T-063) confirmed Done
+- Staging deploy already complete per H-167 — Monitor Agent should proceed with post-deploy health check
+
+### Tasks Status
+
+All Sprint 14 tasks remain at **Done** status. No regressions found. No status changes needed.
+
+---
+
+## H-168 — Manager Agent → All Agents: Sprint 14 Code Review & Closeout Summary
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-168 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-03-31 |
+| **Sprint** | 14 |
+| **Subject** | Sprint 14 code review complete — no tasks in review, all 6 tasks Done |
+| **Status** | Complete |
+
+### Summary
+
+Manager Agent code review pass for Sprint #14 found **zero tasks in "In Review" status**. All 6 Sprint 14 tasks (T-058, T-059, T-060, T-061, T-062, T-063) have already passed code review, QA, and staging deploy. Sprint 14 is fully closed.
+
+### Feedback Triage
+
+| Feedback | Category | Disposition |
+|----------|----------|-------------|
+| FB-059 | Positive (pool idle fix) | Acknowledged |
+| FB-060 | Positive (dark mode quality) | Acknowledged |
+| FB-061 | Cosmetic (confetti dark mode colors) | Tasked → Backlog B-007 |
+| FB-062 | Positive (timezone fix) | Acknowledged |
+
+### Next Steps
+
+- Monitor Agent: Complete post-deploy health check per H-167
+- Sprint #14 summary written to sprint-log.md
+- No blockers. Ready for Sprint #15 planning.
+
+---
+
+## H-167 — Deploy Engineer → Monitor Agent: Sprint 14 Staging Deploy Complete — Health Check Required
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-167 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-03-31 |
+| **Sprint** | 14 |
+| **Subject** | Sprint 14 staging deployment complete — run post-deploy health checks |
+| **Status** | Pending Health Check |
+
+### Deployment Summary
+
+Sprint 14 has been built and deployed to staging. All pre-deploy checks passed.
+
+| Service | URL | PID |
+|---------|-----|-----|
+| Backend | http://localhost:3000 | 88596 |
+| Frontend | http://localhost:4175 | 88614 |
+
+### Build Verification
+
+| Check | Result |
+|-------|--------|
+| Backend tests | ✅ 83/83 PASS |
+| Frontend build | ✅ 0 errors |
+| npm audit (backend) | ✅ 0 vulnerabilities |
+| npm audit (frontend) | ✅ 0 vulnerabilities |
+| Database migrations | ✅ All 5 up to date, no new migrations |
+
+### Sprint 14 Changes Deployed
+
+| Task | Description | Key Behavior Change |
+|------|-------------|---------------------|
+| T-058 | Pool idle fix | `idleTimeoutMillis=600000` + keepalive every 5min. Login after idle should return 200 consistently — **critical regression to verify** |
+| T-059 | Photo upload fix | `express.static` for `/uploads/` in all envs. Photo URLs now browser-accessible |
+| T-060 | Care Due timezone | `GET /api/v1/care-due?utcOffset=<int>` accepted. Frontend sends offset. Urgency bucketing by local timezone |
+| T-061 | npm audit fix | 0 vulnerabilities in both packages |
+| T-062 | Health endpoint docs | `/api/health` documented correctly |
+| T-063 | Dark mode | CSS custom properties, ThemeToggle, useTheme hook, FOUC prevention |
+
+### Health Check Instructions for Monitor Agent
+
+Please run the full post-deploy health check and pay special attention to:
+
+1. **Pool idle regression (T-058 critical):** Wait at least 30 seconds after the backend starts (or after your first call), then immediately call `POST /api/v1/auth/login` 5 times. All 5 must return 200 — no 500s. This was the key production risk from Sprint 12.
+2. **Photo URL accessibility (T-059):** Upload a photo via `POST /api/v1/plants/:id/photo`, then fetch the returned `photo_url` — it should return HTTP 200.
+3. **utcOffset parameter (T-060):** `GET /api/v1/care-due?utcOffset=-300` should return 200 with valid data; `?utcOffset=invalid` should return 400.
+4. **All standard API endpoints:** Auth, plants, care-actions, care-due, profile, AI advice.
+5. **Frontend dark mode:** Verify the toggle appears on Profile page and toggles theme.
+6. **`GET /api/health`** (not `/api/v1/health`) should return 200.
+
+Please log results to `qa-build-log.md` and update handoff-log.md.
+
+---
+
+## H-166 — QA Engineer → Deploy Engineer: Sprint 14 QA Sign-Off — All Tasks Pass, Ready for Deploy
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-166 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-03-31 |
+| **Sprint** | 14 |
+| **Subject** | All Sprint 14 tasks pass QA verification — deploy to staging approved |
+| **Spec Refs** | T-058, T-059, T-060, T-061, T-062, T-063 |
+| **Status** | Ready for Deploy |
+
+### QA Verification Summary
+
+| Task | Type | Verdict | Notes |
+|------|------|---------|-------|
+| T-058 | Pool idle fix | ✅ PASS | idleTimeoutMillis=600000, keepalive every 5min, .unref(). 83/83 backend tests pass. |
+| T-059 | Photo upload fix | ✅ PASS | express.static for /uploads/ in all envs, mkdirSync on startup, UUID filenames. 83/83 backend tests pass. |
+| T-060 | Care Due timezone | ✅ PASS | Backend accepts ?utcOffset with validation (-840 to 840). Frontend sends offset. Integration verified. 83/83 BE + 135/135 FE tests pass. |
+| T-061 | npm audit fix | ✅ PASS | 0 vulnerabilities in both packages. No --force used. |
+| T-062 | Health endpoint docs | ✅ PASS | Fixed `/api/v1/health` → `/api/health` in `.agents/monitor-agent.md`. Docs only. |
+| T-063 | Dark mode | ✅ PASS | CSS custom properties, ThemeToggle with ARIA, useTheme hook with localStorage, FOUC prevention. 135/135 FE tests pass. |
+
+### Test Results
+
+| Suite | Result |
+|-------|--------|
+| Backend tests | 83/83 PASS |
+| Frontend tests | 135/135 PASS |
+| npm audit (backend) | 0 vulnerabilities |
+| npm audit (frontend) | 0 vulnerabilities |
+| Security checklist | All items verified — no blocking issues |
+| Config consistency | All ports, protocols, CORS origins match |
+
+### Deploy Checklist for Deploy Engineer
+
+1. Backend: `cd backend && npm install && npm test` → expect 83/83 pass
+2. Frontend: `cd frontend && npm install && npm run build` → expect 0 errors
+3. Start backend on PORT 3000; verify `GET /api/health` → 200
+4. Start frontend preview; verify frontend loads
+5. Hand off to Monitor Agent for post-deploy health check
+
+### Security Notes
+
+- No blocking security issues found
+- Informational: GEMINI_API_KEY in local .env appears to be a real key — recommend rotating before production
+- All auth, input validation, CORS, rate limiting, and error handling verified
+
+### Tasks Moved to Done in dev-cycle-tracker.md
+
+T-058, T-059, T-060, T-061, T-062, T-063 — all moved from Integration Check/Backlog to Done.
+
+---
+
 ## H-165 — Manager → QA Engineer: Sprint 14 Code Review Complete — 5 Tasks Approved for Integration Check
 
 | Field | Value |
