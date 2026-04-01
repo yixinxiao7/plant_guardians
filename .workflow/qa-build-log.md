@@ -4,6 +4,384 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 15 — QA Engineer: Final Sprint Verification (2026-04-01, Orchestrator Cycle)
+
+**Date:** 2026-04-01
+**Agent:** QA Engineer (Orchestrator Sprint #15 — final verification pass)
+**Sprint:** 15
+**Environment:** Local development + staging
+
+---
+
+### Test Type: Unit Test
+
+| Suite | Tests | Result |
+|-------|-------|--------|
+| Backend (Jest) | 88/88 | PASS |
+| Frontend (Vitest) | 142/142 | PASS |
+
+**Backend breakdown (9 suites, 88 tests):**
+- auth.test.js — PASS
+- plants.test.js — PASS
+- careActions.test.js — PASS
+- careActionsStats.test.js — PASS (T-064: happy path, empty state, 401, user isolation, recent_activity limit)
+- careDue.test.js — PASS
+- ai.test.js — PASS
+- profile.test.js — PASS
+- account.test.js — PASS
+- All other suites — PASS
+
+**Frontend breakdown (24 suites, 142 tests):**
+- AnalyticsPage.test.jsx — PASS (T-065: loading, empty, error, populated, retry, a11y table, plant table — 7 tests)
+- PlantDetailPage tests — PASS (T-068: confetti dark mode colors)
+- All other suites — PASS
+
+**Coverage assessment:**
+- T-064: 5 tests — happy path (with data), empty state, 401, user isolation, recent_activity limit of 10. ADEQUATE.
+- T-065: 7 tests — all 4 page states, retry, accessible table, plant frequency table. ADEQUATE.
+- T-066: Pool startup hardening verified via startup sequence and smoke tests. ADEQUATE.
+- T-067: Cookie flow verified at code level (credentials: 'include', HttpOnly set, logout clears). ADEQUATE.
+- T-068: Confetti dark mode palette verified. prefers-reduced-motion respected. ADEQUATE.
+
+---
+
+### Test Type: Integration Test
+
+| Check | Expected | Result |
+|-------|----------|--------|
+| **T-064 API contract: response shape** | `{ data: { total_care_actions, by_plant[], by_care_type[], recent_activity[] } }` | PASS — model returns exact shape per contract |
+| **T-064 auth enforcement** | 401 without token | PASS — `router.use(authenticate)` applied |
+| **T-064 user isolation** | Only authenticated user's data | PASS — `getStatsByUser(userId)` scoped |
+| **T-064 recent_activity limit** | Max 10, sorted by performed_at DESC | PASS — `.limit(10).orderBy('performed_at', 'desc')` |
+| **T-065 endpoint call** | `GET /care-actions/stats` via api.js | PASS — `careStats.get()` calls `request('/care-actions/stats')` |
+| **T-065 loading state** | Skeleton with aria-busy | PASS |
+| **T-065 empty state** | Shown when total_care_actions === 0 | PASS |
+| **T-065 error state** | Error message + retry button | PASS |
+| **T-065 populated state** | Stats bar + donut chart + activity feed + plant table | PASS |
+| **T-065 sidebar nav** | /analytics link with ChartBar icon | PASS |
+| **T-065 route wiring** | `/analytics` in React Router, protected | PASS |
+| **T-065 dark mode** | CSS custom properties for backgrounds/text/borders | PASS (minor: StatTile icon colors use hardcoded hex — cosmetic, not functional issue) |
+| **T-065 accessibility** | aria-labels, aria-live, sr-only, semantic headings | PASS |
+| **T-066 pool startup** | Warm-up fires before app.listen() | PASS — verified in server.js |
+| **T-068 confetti** | Botanical palette, prefers-reduced-motion check | PASS |
+
+**Overall Integration:** PASS
+
+---
+
+### Test Type: Config Consistency
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Backend PORT | 3000 | 3000 (.env) | PASS |
+| Vite proxy target | http://localhost:3000 | http://localhost:3000 (vite.config.js line 8) | PASS |
+| SSL consistency | No SSL (dev) | http:// in proxy target | PASS |
+| CORS_ORIGIN includes :5173 | Yes | FRONTEND_URL includes http://localhost:5173 | PASS |
+| CORS_ORIGIN includes :4175 | Yes | FRONTEND_URL includes http://localhost:4175 | PASS |
+| Docker ports | 5432 (dev), 5433 (test) | Matches docker-compose.yml | PASS |
+
+**Config Consistency:** PASS — no mismatches found.
+
+---
+
+### Test Type: Security Scan
+
+**npm audit:**
+| Package | Vulnerabilities |
+|---------|----------------|
+| Backend | 0 |
+| Frontend | 0 |
+
+**Security checklist verification:**
+
+| Item | Status | Notes |
+|------|--------|-------|
+| **Auth & Authorization** | | |
+| All API endpoints require auth | PASS | `authenticate` middleware on all protected routes |
+| Auth tokens have expiration | PASS | JWT_EXPIRES_IN=15m, refresh 7 days |
+| Password hashing (bcrypt) | PASS | bcrypt used |
+| Failed login rate limiting | PASS | AUTH_RATE_LIMIT_MAX=20 per 15min |
+| **Input Validation** | | |
+| Server-side input validation | PASS | Validation middleware present |
+| Parameterized queries (no SQL injection) | PASS | All queries use Knex.js builder, no string concatenation |
+| XSS prevention | PASS | No dangerouslySetInnerHTML, React auto-escapes |
+| **API Security** | | |
+| CORS configured for expected origins | PASS | Comma-separated FRONTEND_URL with all dev/staging origins |
+| Rate limiting on public endpoints | PASS | General 100/15min + auth-specific 20/15min |
+| No internal error leakage | PASS | Error handler returns generic messages, no stack traces |
+| No sensitive data in URLs | PASS | Tokens in headers/cookies only |
+| **Data Protection** | | |
+| Credentials in .env (not source) | PASS | Verified — no hardcoded secrets in source files |
+| Gemini API key not in source | PASS | Only in .env, read via `process.env.GEMINI_API_KEY` |
+| Logs do not contain PII/tokens | PASS | Error handler sanitizes output |
+| **Infrastructure** | | |
+| Dependencies checked | PASS | 0 vulnerabilities in both backend and frontend |
+| No default credentials in source | PASS | Seed data only in staging seeds |
+
+**Minor observation (non-blocking):** The `/api/v1/care-actions/stats` endpoint relies on the general rate limiter (100 req/15min) but does not have endpoint-specific rate limiting. Given it performs multiple JOINs and aggregation, a stricter per-endpoint limit could be beneficial for production. Logged as feedback (FB-073).
+
+**Security Scan:** PASS — 0 P1 issues.
+
+---
+
+### Test Type: Product-Perspective Testing
+
+Tested the product from a user's perspective against the project brief:
+
+| Scenario | Result | Notes |
+|----------|--------|-------|
+| New user with zero care actions visits /analytics | PASS | Empty state: "No care actions recorded yet" — clear and friendly |
+| User with multiple plants and care actions | PASS | Stats bar, chart, activity feed, and plant table all render |
+| Analytics page accessible from sidebar | PASS | ChartBar icon, correct active state |
+| Direct navigation to /analytics | PASS | Protected route, redirects to login if unauthenticated |
+| Dark mode toggle on analytics page | PASS | All backgrounds, text, and borders use CSS variables; chart readable |
+| Confetti animation in dark mode | PASS | Warm botanical hues (green, amber, rose, terracotta) visible against dark background |
+| Confetti with prefers-reduced-motion | PASS | No animation fires |
+| Pool cold start (T-066) | PASS | No 500s on fresh login attempts per smoke tests |
+| Cookie flow (T-067) | PASS | Code-level: credentials: 'include' on all fetches, HttpOnly cookie set/cleared correctly |
+
+**Positive feedback:**
+- Analytics empty state is well-designed and actionable — encourages users to start caring for plants
+- Donut chart with accessible text table is a good a11y pattern
+- Confetti botanical palette feels cohesive with the Japandi dark mode aesthetic
+
+---
+
+### Sprint 15 Final QA Verdict
+
+| Task | Status | Verdict |
+|------|--------|---------|
+| T-064 (Care stats API) | Done | PASS |
+| T-065 (Analytics page) | Done | PASS |
+| T-066 (Pool startup hardening) | Done | PASS |
+| T-067 (Cookie flow verification) | Done | PASS |
+| T-068 (Confetti dark mode) | Done | PASS |
+
+**All 5 Sprint 15 tasks: PASS**
+**Regressions: None** — 88/88 backend, 142/142 frontend (above Sprint 14 baseline of 83/135)
+**Security: PASS** — 0 vulnerabilities, full checklist verified
+**Ready for deployment: YES**
+
+---
+
+## Sprint 15 — Deploy Engineer: Staging Environment Verification (2026-04-01, Day 2)
+
+**Date:** 2026-04-01
+**Agent:** Deploy Engineer (Orchestrator Sprint #15 — day-2 continuity verification)
+**Sprint:** 15
+**Environment:** Staging (localhost)
+**Purpose:** Day-2 re-verification that staging services are healthy, tests pass, and Sprint 15 features remain live.
+
+### Pre-Deploy Gates (re-confirmed)
+
+| Gate | Result |
+|------|--------|
+| QA sign-off | ✅ H-184 (2026-03-31) + H-189 (2026-04-01) — both confirm all clear |
+| All Sprint 15 tasks Done | ✅ T-064, T-065, T-066, T-067, T-068 |
+| Backend tests | ✅ 88/88 PASS |
+| Frontend tests | ✅ 142/142 PASS |
+| npm audit | ✅ 0 vulnerabilities (confirmed in H-184/H-189) |
+
+### Build Status
+
+| Environment | Build | Status |
+|-------------|-------|--------|
+| Staging | Sprint 15 | ✅ Success — deployed 2026-03-31, confirmed live 2026-04-01 |
+
+### Service Status
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ RUNNING |
+| Frontend | http://localhost:4175 | ✅ RUNNING |
+
+### Smoke Test Results
+
+| Check | Expected | Result |
+|-------|----------|--------|
+| `GET /api/health` | `{"status":"ok"}` | ✅ `{"status":"ok","timestamp":"2026-04-01T14:23:22.991Z"}` |
+| `GET /api/v1/care-actions/stats` (no auth) | 401 | ✅ 401 — T-064 endpoint live and auth-gated |
+| `GET http://localhost:4175/` (frontend root) | 200 | ✅ 200 |
+| `GET http://localhost:4175/analytics` (T-065) | 200 | ✅ 200 — analytics page live |
+| `POST /api/v1/auth/login` ×5 rapid (T-066) | 401 or 200, no 500s | ✅ All HTTP 401, zero 500s |
+| Rate limiter (security) | 429 after threshold | ✅ Auth rate limiter triggered correctly after sustained attempts |
+| Backend unit tests | 88/88 PASS | ✅ 88/88 PASS |
+| Frontend unit tests | 142/142 PASS | ✅ 142/142 PASS |
+
+### Notes
+
+- Auth rate limiter (15-min window) triggered during pool warm-up rapid-login smoke test — this is **expected and correct** security behaviour. Monitor Agent should use a fresh IP or wait for the 15-minute window before testing authenticated flows, or use a dedicated staging bypass header if configured.
+- All five Sprint 15 features (T-064 stats endpoint, T-065 analytics page, T-066 pool hardening, T-067 cookie flow, T-068 confetti dark mode) are confirmed live.
+- No new migrations required for Sprint 15 (all 5 DB migrations remain at "up to date").
+- Monitor Agent health check (H-185/H-187) is still pending — this entry confirms staging remains healthy as of 2026-04-01 14:23 UTC.
+
+---
+
+## Sprint 15 — QA Engineer: Full Re-Verification (2026-04-01)
+
+**Date:** 2026-04-01
+**Agent:** QA Engineer (Orchestrator Sprint #15 — final verification)
+**Sprint:** 15
+**Environment:** Staging (localhost)
+**Purpose:** Comprehensive re-verification of all Sprint 15 tasks — unit tests, integration tests, config consistency, security scan, and product-perspective testing.
+
+---
+
+### Test Type: Unit Test
+
+| Suite | Result | Count |
+|-------|--------|-------|
+| Backend (Jest) | ✅ ALL PASS | 88/88 |
+| Frontend (Vitest) | ✅ ALL PASS | 142/142 |
+
+**Backend breakdown:** 9 test suites, 88 tests — careActionsStats (5 tests for T-064: happy path, empty state, 401, user isolation, recent_activity limit), auth, plants, careActions, careDue, account, profile, ai, careHistory all pass.
+
+**Frontend breakdown:** 24 test suites, 142 tests — AnalyticsPage (7 tests for T-065: loading, empty, error, populated, retry, a11y table, plant table), PlantDetailPage (T-068 confetti), Sidebar (analytics nav), plus all existing tests pass.
+
+**Test coverage assessment:**
+- T-064 (care-actions/stats): ✅ 5 tests — happy path, empty, 401, isolation, limit
+- T-065 (analytics page): ✅ 7 tests — all 4 states, retry, a11y table, plant table
+- T-066 (pool warm-up): ✅ Regression test (5 rapid logins → all 200, live test confirmed)
+- T-068 (confetti dark mode): ✅ Tests pass, snapshot/color updates included
+
+---
+
+### Test Type: Integration Test
+
+**API Contract Verification (T-064 → T-065):**
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Frontend fetches correct endpoint | ✅ PASS | `careStats.get()` calls `/care-actions/stats` via `api.js` |
+| Response shape matches contract | ✅ PASS | `{ data: { total_care_actions, by_plant[], by_care_type[], recent_activity[] } }` verified |
+| Auth enforced (no token → 401) | ✅ PASS | Returns `{"error":{"message":"Missing or invalid authorization header.","code":"UNAUTHORIZED"}}` |
+| Auth enforced (valid token → 200) | ✅ PASS | Returns correct stats shape with real data |
+| User isolation | ✅ PASS | Unit test + code review: queries scoped by `user_id` |
+| credentials: 'include' on all fetches | ✅ PASS | Verified in `api.js` line 66 — all requests, refresh, logout |
+| Empty state handling | ✅ PASS | Frontend renders `EmptyState()` when `total_care_actions === 0` |
+| Loading skeleton | ✅ PASS | `LoadingSkeleton()` component with `aria-busy="true"` |
+| Error state with retry | ✅ PASS | `ErrorState()` with retry button (non-401) and login redirect (401) |
+| Populated state | ✅ PASS | StatTiles, CareDonutChart, RecentActivityFeed, PlantFrequencyTable render |
+| Dark mode chart colors | ✅ PASS | Dual palettes (LIGHT_COLORS/DARK_COLORS), CSS custom properties |
+| Accessibility (a11y) | ✅ PASS | SVG aria-hidden, sr-only data table, aria-live regions, aria-labels |
+| Sidebar analytics nav item | ✅ PASS | ChartBar icon, NavLink to `/analytics` |
+
+**Pool Warm-up Verification (T-066):**
+
+| Check | Result |
+|-------|--------|
+| `db.raw('SELECT 1')` before `app.listen()` | ✅ PASS |
+| Pool min read from knexfile (fallback ≥ 2) | ✅ PASS |
+| Keepalive `.unref()` called | ✅ PASS |
+| Startup failure → `process.exit(1)` | ✅ PASS |
+| 5 rapid logins → all 200 (live test) | ✅ PASS |
+
+**Confetti Dark Mode (T-068):**
+
+| Check | Result |
+|-------|--------|
+| Dark mode palette (warm botanical hues) | ✅ PASS |
+| `prefers-reduced-motion` check | ✅ PASS |
+| try/catch degradation | ✅ PASS |
+| Light mode palette still functional | ✅ PASS |
+
+**Cookie Flow Verification (T-067):**
+
+| Check | Result |
+|-------|--------|
+| `credentials: 'include'` on all fetch calls | ✅ PASS |
+| HttpOnly cookie set on login (code verified) | ✅ PASS |
+| Auto-refresh on 401 (code verified) | ✅ PASS |
+| Logout clears cookie (code verified) | ✅ PASS |
+| Access token in memory only | ✅ PASS |
+
+---
+
+### Test Type: Config Consistency
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Backend PORT (3000) matches vite proxy target | ✅ PASS | `vite.config.js` → `http://localhost:3000` |
+| No SSL → vite proxy uses http:// | ✅ PASS | Proxy target is `http://localhost:3000` (not https) |
+| CORS_ORIGIN includes frontend dev origin | ✅ PASS | `FRONTEND_URL` includes `http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` |
+| Docker postgres port matches .env | ✅ PASS | docker-compose default 5432, .env uses 5432 |
+| `.env` in `.gitignore` | ✅ PASS | Line 5 of `.gitignore` |
+
+**No config mismatches found.**
+
+---
+
+### Test Type: Security Scan
+
+**npm audit:**
+
+| Package | Vulnerabilities |
+|---------|----------------|
+| Backend | 0 vulnerabilities |
+| Frontend | 0 vulnerabilities |
+
+**Security Checklist Verification:**
+
+| Category | Item | Status | Evidence |
+|----------|------|--------|----------|
+| Auth | All endpoints require auth | ✅ PASS | `router.use(authenticate)` on all protected routes |
+| Auth | Password hashing (bcrypt, 12 rounds) | ✅ PASS | `User.js` uses `bcrypt` with `SALT_ROUNDS = 12` |
+| Auth | Rate limiting on auth endpoints | ✅ PASS | `authLimiter` (20/15min) on `/api/v1/auth/` |
+| Auth | Token expiration (15m access, 7d refresh) | ✅ PASS | JWT_EXPIRES_IN=15m, REFRESH_TOKEN_EXPIRES_DAYS=7 |
+| Input | Parameterized queries (Knex.js) | ✅ PASS | No string concatenation in SQL — all use query builder |
+| Input | Server-side validation | ✅ PASS | `validation.js` middleware: email, UUID, datetime, length, enum |
+| Input | File upload validation (type + size) | ✅ PASS | MIME whitelist (jpeg/png/webp), 5MB limit, UUID filenames |
+| API | CORS whitelist only expected origins | ✅ PASS | Dynamic whitelist from `FRONTEND_URL` env var |
+| API | Error responses safe (no stack traces) | ✅ PASS | `errorHandler.js` returns generic "An unexpected error occurred" |
+| API | Security headers (Helmet) | ✅ PASS | `helmet()` middleware in `app.js` |
+| Data | Secrets in env vars, not code | ✅ PASS | `.env` file, `.gitignore` includes `.env` |
+| Data | Refresh tokens as HttpOnly cookies | ✅ PASS | `httpOnly: true, secure: true, sameSite: 'strict'` |
+| Infra | Dependencies checked (npm audit) | ✅ PASS | 0 vulnerabilities in both packages |
+
+**Security notes (non-blocking, pre-production recommendations):**
+- GEMINI_API_KEY in `.env` is a real key — ensure rotation before production
+- Test user seed (`test@plantguardians.local`) should be environment-gated for production
+- HTTPS enforcement should be handled at reverse proxy level in production
+
+**No P1 security issues found.**
+
+---
+
+### Test Type: Product-Perspective Testing
+
+**Live endpoint tests against staging (http://localhost:3000):**
+
+| Test | Result | Details |
+|------|--------|---------|
+| Stats without auth → 401 | ✅ PASS | Returns structured error, no info leakage |
+| Login with seeded account → 200 | ✅ PASS | Returns user data + access token |
+| Stats with valid auth → 200 | ✅ PASS | Returns correct shape with real data (3 actions, 1 plant) |
+| 5 rapid logins → all 200 | ✅ PASS | No 500s, pool warm-up confirmed |
+| Empty email → 400 validation error | ✅ PASS | "email is required" |
+| Very long email (500 chars) → safe error | ✅ PASS | "Invalid email or password" (no crash) |
+| XSS attempt in email → safe error | ✅ PASS | "Invalid email or password" (no reflection) |
+| Frontend analytics page → 200 | ✅ PASS | Page loads correctly |
+
+**Overall Assessment:** All Sprint 15 features function correctly from a user perspective. The care analytics endpoint returns well-structured data. Edge cases are handled gracefully. No crashes, no information leakage.
+
+---
+
+### Sprint 15 QA Final Verdict
+
+| Task | Status | Test Results |
+|------|--------|-------------|
+| T-064 (care-actions/stats API) | ✅ PASS | 88/88 BE tests, contract verified, auth + isolation confirmed |
+| T-065 (analytics page) | ✅ PASS | 142/142 FE tests, all states, dark mode, a11y verified |
+| T-066 (pool warm-up hardening) | ✅ PASS | 88/88 BE tests, 5 rapid logins all 200 |
+| T-067 (cookie flow verification) | ✅ PASS | Code-level verification complete |
+| T-068 (confetti dark mode) | ✅ PASS | 142/142 FE tests, dark palette + motion check verified |
+| Security scan | ✅ PASS | 0 npm vulnerabilities, checklist verified |
+| Config consistency | ✅ PASS | No mismatches |
+
+**✅ Sprint 15 is QA-approved. All tasks Done. Ready for Monitor Agent health check confirmation.**
+
+---
+
 ## Sprint 15 — Deploy Engineer: Staging Continuity Verification (2026-04-01)
 
 **Date:** 2026-04-01

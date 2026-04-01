@@ -20,6 +20,51 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-073 — QA: Stats endpoint lacks endpoint-specific rate limiting
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-073 |
+| **Source** | QA Engineer |
+| **Sprint** | 15 |
+| **Date** | 2026-04-01 |
+| **Category** | Suggestion |
+| **Severity** | Minor |
+| **Description** | `GET /api/v1/care-actions/stats` performs multiple JOINs and aggregation queries. It is only protected by the general rate limiter (100 req/15min). For production, consider adding endpoint-specific rate limiting (e.g., 30 req/15min) to prevent abuse of this resource-intensive endpoint. |
+| **Status** | New |
+
+---
+
+## FB-074 — QA: StatTile icon colors use hardcoded hex values instead of CSS custom properties
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-074 |
+| **Source** | QA Engineer |
+| **Sprint** | 15 |
+| **Date** | 2026-04-01 |
+| **Category** | UX Issue |
+| **Severity** | Cosmetic |
+| **Description** | In `AnalyticsPage.jsx`, StatTile components pass hardcoded hex colors (`#5C7A5C`, `#C4921F`) as `iconColor` props. While these mid-tone botanical colors work adequately in both light and dark modes, they bypass the CSS custom property theming system. The StatTile component already has a fallback to `var(--color-accent-primary)`. Consider using CSS variables for full theme consistency. |
+| **Status** | New |
+
+---
+
+## FB-075 — QA: Positive — Analytics empty state and accessibility patterns are excellent
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-075 |
+| **Source** | QA Engineer |
+| **Sprint** | 15 |
+| **Date** | 2026-04-01 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The analytics page empty state is well-crafted and actionable — it encourages users to start caring for plants rather than showing a blank page. The donut chart with a hidden accessible data table is an excellent a11y pattern. The confetti botanical palette in dark mode feels cohesive with the Japandi aesthetic. Overall, Sprint 15 features add strong user-facing value. |
+| **Status** | Acknowledged |
+
+---
+
 ## FB-001 — Monitor Alert: CORS Origin Mismatch Blocks Staging Browser Testing
 
 | Field | Value |
@@ -1636,6 +1681,24 @@ T-068 resolves FB-061 (confetti colors washed out in dark mode). The new dark pa
 ### Description
 
 The analytics empty state says "No care actions recorded yet. Mark a plant as cared for to start tracking." While accurate, the copy could be warmer for a feature that's meant to feel affirming. Consider something like "Your care journey starts here — water, fertilize, or repot a plant and watch your progress grow." The CTA button "Go to my plants" is good. Not blocking — cosmetic polish for a future sprint.
+
+---
+
+## FB-072 — QA Product-Perspective: Edge Case Handling is Robust Across All Sprint 15 Endpoints (Positive)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-072 |
+| **Source** | QA Engineer |
+| **Sprint** | 15 |
+| **Date** | 2026-04-01 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Status** | Acknowledged |
+
+### Description
+
+Re-verified Sprint 15 endpoints with adversarial inputs on 2026-04-01: empty strings, 500-character emails, XSS payloads (`<script>alert(1)</script>` in email field), and 5 rapid sequential logins. All cases returned structured JSON errors with safe messages — no stack traces, no input reflection, no 500s. The validation layer catches bad input before it reaches the database. The rate limiter is in place on auth endpoints. The care-actions/stats endpoint correctly returns 401 without auth and proper data with auth. This confirms the application handles real-world abuse scenarios gracefully.
 
 ---
 
