@@ -4,6 +4,176 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-208 — QA Engineer: Sprint #16 Independent Re-Verification — All Clear (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-208 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer, Monitor Agent (informational) |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | Sprint #16 independent re-verification pass — all tests pass, security clear, integration confirmed, product-perspective tested |
+| **Status** | Complete |
+
+### Summary
+
+QA Engineer ran an independent re-verification of all Sprint 16 deliverables. This confirms the original QA sign-off (H-205).
+
+### Results
+
+| Check | Result |
+|-------|--------|
+| Backend unit tests | ✅ 100/100 pass (12 suites) |
+| Frontend unit tests | ✅ 148/148 pass (24 suites) |
+| npm audit (backend + frontend) | ✅ 0 vulnerabilities |
+| Security checklist | ✅ All items pass — no P1 issues |
+| Config consistency | ✅ Ports, CORS, proxy all aligned |
+| Integration contracts | ✅ All 7 tasks verified against api-contracts.md |
+| Product-perspective testing | ✅ No bugs or UX issues — 3 feedback entries logged (FB-076, FB-077, FB-078) |
+
+### Feedback Filed
+
+- **FB-076** (Positive): Delete Account flow is well-executed and accessible
+- **FB-077** (Suggestion): Consider soft delete with 30-day grace period in future sprint
+- **FB-078** (Positive): Sprint 16 analytics polish completes design system alignment
+
+### Deploy Status
+
+Original QA sign-off (H-205) and staging deploy (H-206) remain valid. Awaiting Monitor Agent post-deploy health check.
+
+---
+
+## H-207 — Manager Agent: Sprint #16 Code Review Pass — No Tasks in "In Review" (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-207 |
+| **From** | Manager Agent |
+| **To** | — (informational) |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | Sprint #16 code review pass — all 7 tasks already Done, no tasks in "In Review" |
+| **Status** | Complete |
+
+### Summary
+
+Manager Agent invoked for code review during Sprint #16. Scanned `dev-cycle-tracker.md` for any tasks in "In Review" status. **Result: zero tasks found in "In Review."**
+
+All 7 Sprint 16 tasks (T-069 through T-075) have already passed code review, QA verification, and been marked **Done**. Staging deploy completed (H-206). Awaiting Monitor Agent post-deploy health check.
+
+No action required from any agent.
+
+---
+
+## H-206 — Deploy Engineer → Monitor Agent: Sprint #16 Staging Deploy Complete — Run Post-Deploy Health Checks (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-206 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | Sprint #16 staging deploy complete — backend + frontend live — run full post-deploy health checks |
+| **Status** | Active |
+
+### Deploy Summary
+
+Sprint #16 has been successfully built and deployed to the staging environment (localhost). QA sign-off H-205 was received and all pre-deploy gates passed.
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| Backend API | http://localhost:3000 | 51315 | ✅ Running |
+| Frontend | http://localhost:4176 | 51386 | ✅ Running |
+
+**Git SHA:** c47646f
+
+### Migrations
+
+No new migrations for Sprint 16. All 5 existing migrations remain up to date.
+
+### Sprint 16 Changes Deployed
+
+| Task | Description | What to Verify |
+|------|-------------|----------------|
+| T-069 | `DELETE /api/v1/account` endpoint | Endpoint returns 401 without auth; with valid auth + correct password → 204 + cookie cleared; wrong password → 400 `INVALID_PASSWORD` |
+| T-070 | Delete Account modal on Profile page | Frontend /profile loads; modal is present; UI states work |
+| T-071 | Endpoint-specific rate limiter on `GET /care-actions/stats` | Rate limiter active; 429 returned after 30 req/15min per IP |
+| T-072 | StatTile icon colors use CSS custom properties | No hardcoded hex in AnalyticsPage; visual check passes |
+| T-073 | Analytics empty state copy updated | "Your care journey starts here" heading; "Water, fertilize, or repot a plant..." subtext |
+| T-074 | Flaky careDue test fixed | Not a runtime concern — test stability fix only |
+| T-075 | Plant name max-length validation (100 chars) | `POST /plants` and `PUT /plants/:id` reject names >100 chars with 400 |
+
+### Monitor Agent Instructions
+
+1. Run full health check on backend: `GET /api/health` → `{"status":"ok"}`
+2. Verify Sprint 16 endpoints are reachable (auth-gated is fine — confirm 401, not 404):
+   - `DELETE /api/v1/account`
+   - `GET /api/v1/care-actions/stats`
+3. Verify frontend pages load: `/` , `/analytics`, `/profile`
+4. If all checks pass: set **Deploy Verified: Yes** and log results in `qa-build-log.md`
+5. If any check fails: log details in `qa-build-log.md` and create a handoff back to Deploy Engineer
+
+Full build log is in `.workflow/qa-build-log.md` — Sprint 16 section.
+
+---
+
+## H-205 — QA Engineer → Deploy Engineer: Sprint #16 QA Sign-Off — All Tasks Pass — Ready for Deploy (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-205 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | Sprint #16 QA sign-off — all 7 tasks pass unit tests, integration tests, config consistency, and security verification — deploy to staging is unblocked |
+| **Status** | Active |
+
+### QA Summary
+
+All Sprint 16 tasks (T-069 through T-075) have been verified and moved to **Done** in `dev-cycle-tracker.md`.
+
+### Test Results
+
+| Suite | Result | Baseline → Current |
+|-------|--------|-------------------|
+| Backend unit tests | ✅ 100/100 pass | 88 → 100 (+12 new tests) |
+| Frontend unit tests | ✅ 148/148 pass | 142 → 148 (+6 new tests) |
+| Integration tests | ✅ All pass | T-069/T-070 end-to-end verified, T-071 rate limiter verified, T-072/T-073/T-074/T-075 verified |
+| npm audit — backend | ✅ 0 vulnerabilities | Clean |
+| npm audit — frontend | ✅ 0 vulnerabilities | Clean |
+| Security checklist | ✅ All applicable items pass | No P1 issues |
+| Config consistency | ✅ No mismatches | PORT, proxy, CORS, Docker all consistent |
+
+### Task-by-Task Status
+
+| Task | Status | Key Verification |
+|------|--------|-----------------|
+| T-069 | ✅ Done | DELETE /account: cascade delete, auth, password verification, cookie clearing, error responses all match contract |
+| T-070 | ✅ Done | Delete Account modal: all UI states, ARIA, dark mode, API integration matches contract |
+| T-071 | ✅ Done | Stats rate limiter: 30 req/15min, 429 response shape matches contract |
+| T-072 | ✅ Done | StatTile icon colors: CSS custom properties only, zero hardcoded hex |
+| T-073 | ✅ Done | Empty state copy: warm, on-brand, test validates heading and CTA |
+| T-074 | ✅ Done | Flaky careDue test: root cause UTC midnight → fix UTC noon, stable |
+| T-075 | ✅ Done | Plant name max-length: 100 chars enforced on POST + PUT, boundary tests pass |
+
+### Deploy Readiness Confirmation
+
+- ✅ All unit tests pass (100 backend + 148 frontend)
+- ✅ All integration tests pass
+- ✅ Security checklist verified — no P1 issues
+- ✅ npm audit: 0 vulnerabilities (both packages)
+- ✅ Config consistency verified
+- ✅ All 7 tasks moved to Done in dev-cycle-tracker.md
+
+**Deploy Engineer: You are cleared to proceed with staging deployment.**
+
+Full test results logged in `.workflow/qa-build-log.md` — Sprint 16 section.
+
+---
+
 ## H-204 — Manager Agent → QA Engineer: All Sprint 16 Tasks Pass Code Review — Ready for QA (2026-04-01)
 
 | Field | Value |

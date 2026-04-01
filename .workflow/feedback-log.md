@@ -50,6 +50,51 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-076 — QA: Positive — Delete Account flow is well-executed and accessible
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-076 |
+| **Source** | QA Engineer |
+| **Sprint** | 16 |
+| **Date** | 2026-04-01 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The Delete Account feature (T-069/T-070) is excellent. The confirmation modal with password re-entry prevents accidental deletion. Wrong-password handling is smooth — inline error, modal stays open, password field re-focused for retry. The focus trap, ARIA attributes, and keyboard navigation make this fully accessible. Dark mode uses CSS variables throughout. The toast confirmation + redirect to /login on success is clean. Overall, this feels like a thoughtful, production-quality feature. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-077 — QA: Suggestion — Consider soft delete with grace period for account deletion
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-077 |
+| **Source** | QA Engineer |
+| **Sprint** | 16 |
+| **Date** | 2026-04-01 |
+| **Category** | Suggestion |
+| **Severity** | Minor |
+| **Description** | Account deletion is currently permanent and immediate — once confirmed, all user data (plants, care schedules, care actions) is cascade-deleted with no recovery option. For a product aimed at novice plant owners who may be frustrated in the moment, consider implementing a 30-day soft delete (mark account as "pending deletion," purge after 30 days, allow re-login to cancel). This is a common pattern in consumer apps and reduces support burden from accidental deletions. Not blocking — current implementation is correct per spec. |
+| **Status** | New |
+
+---
+
+## FB-078 — QA: Positive — Sprint 16 analytics polish completes the design system alignment
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-078 |
+| **Source** | QA Engineer |
+| **Sprint** | 16 |
+| **Date** | 2026-04-01 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The StatTile CSS variable migration (T-072) and warmer empty state copy (T-073) complete the analytics page's alignment with the Japandi design system. "Your care journey starts here" is warm, encouraging, and on-brand — much better than the clinical Sprint 15 copy. The rate limiter on stats (T-071) and plant name max-length (T-075) are invisible to users but important production guardrails. The flaky test fix (T-074) improves CI reliability. Sprint 16 is a solid polish + hardening sprint. |
+| **Status** | Acknowledged |
+
+---
+
 ## FB-075 — QA: Positive — Analytics empty state and accessibility patterns are excellent
 
 | Field | Value |
@@ -1782,3 +1827,59 @@ Consider adding a connection pool warm-up on server start (execute `SELECT 1` be
 
 - FB-057 (original issue, Sprint 12)
 - T-058 (pool idle fix, Sprint 13/14)
+
+---
+
+## FB-075 — QA Engineer: ProfilePage stat tiles still use hardcoded hex colors (Sprint 16 QA observation)
+
+**Date:** 2026-04-01
+**Category:** UX Issue
+**Severity:** Low (P4)
+**Sprint Observed:** 16
+
+### Detail
+
+T-072 correctly removed hardcoded hex colors from `AnalyticsPage.jsx` StatTile icon colors. However, `ProfilePage.jsx` (lines 136, 141, 146) still passes hardcoded `#5C7A5C` to `Plant`, `CalendarBlank`, and `CheckCircle` icon colors. These should also use CSS custom properties (e.g., `var(--color-accent-primary)`) for design system consistency.
+
+**File:** `frontend/src/pages/ProfilePage.jsx`
+**Lines:** 136, 141, 146
+
+### Recommendation
+
+Replace `color="#5C7A5C"` with `color="var(--color-accent-primary)"` on all three stat tile icons. Low effort, no test changes expected.
+
+---
+
+## FB-076 — QA Engineer: Delete Account flow is well-implemented (Sprint 16 Positive Feedback)
+
+**Date:** 2026-04-01
+**Category:** Positive
+**Severity:** N/A
+**Sprint Observed:** 16
+
+### Detail
+
+The Delete Account feature (T-069 + T-070) is thorough and user-friendly:
+
+- Password confirmation prevents accidental deletion — good safety measure
+- Inline error "Password is incorrect." keeps the modal open without losing context — excellent UX
+- Focus trap and ARIA attributes make the modal fully accessible
+- Password visibility toggle is a nice touch
+- Cascade delete is verified in tests — no orphaned data
+- Cookie and auth state are properly cleaned up on success
+- Dark mode works seamlessly via CSS custom properties
+
+The engineering quality is high and the user experience is safe and clear.
+
+---
+
+## FB-077 — QA Engineer: Analytics empty state copy is warm and on-brand (Sprint 16 Positive Feedback)
+
+**Date:** 2026-04-01
+**Category:** Positive
+**Severity:** N/A
+**Sprint Observed:** 16
+
+### Detail
+
+"Your care journey starts here" and "Water, fertilize, or repot a plant and watch your progress grow here." — this copy is encouraging, warm, and fits the Japandi botanical brand voice well. The CTA "Go to my plants" provides a clear next step. Good execution on T-073.
