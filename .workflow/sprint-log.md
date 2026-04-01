@@ -4,6 +4,80 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #16 — 2026-04-01 to 2026-04-01
+
+**Sprint Goal:** Complete the Delete Account feature, harden the stats endpoint with endpoint-specific rate limiting, and deliver three cosmetic polish items from Sprint 15 feedback (CSS variable alignment, warmer empty state copy, flaky test fix).
+
+**Outcome:** ✅ Goal fully met — all 7 tasks completed, Deploy Verified: Yes, zero carry-over. Third consecutive clean sprint.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-069 | Backend: `DELETE /api/v1/account` — password-confirmed cascade deletion; 7 new tests; 100/100 backend tests pass |
+| T-070 | Frontend: Delete Account modal — password input, inline wrong-password error, ARIA focus trap, dark mode, toast + redirect; 16 new tests; 148/148 frontend tests pass |
+| T-071 | Backend: Endpoint-specific rate limiter on `GET /care-actions/stats` — 30 req/15min, 429 on threshold; no regressions |
+| T-072 | Frontend: StatTile icon colors migrated from hardcoded hex to CSS custom properties; all 148/148 tests pass |
+| T-073 | Frontend: Analytics empty state copy updated to "Your care journey starts here" — warmer, Japandi-aligned voice; no regressions |
+| T-074 | QA + Backend: Flaky `careDue` test root cause identified (midnight UTC `daysAgo()` → fix: UTC noon); 13 careDue tests stable across 3 consecutive runs |
+| T-075 | Backend: Plant name max-length validation (100 chars) on `POST` + `PUT /plants`; 400 `VALIDATION_ERROR` on violation; boundary tests added |
+
+#### Tasks Carried Over
+
+None. This is the third consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. Monitor Agent health check returned **Deploy Verified: Yes** (SHA 0eeac26). All Sprint 16 endpoints and existing regressions passed. One non-blocking advisory noted: staging preview port `4176` is absent from `FRONTEND_URL`, but this is functionally safe because Vite's proxy handles all `/api/*` calls server-side. No Sprint 17 action required.
+
+---
+
+#### Key Feedback Themes
+
+- **FB-076** (Positive): Delete Account flow praised as "production-quality" — password re-entry, inline error, focus trap, ARIA, dark mode all excellent
+- **FB-077** (Minor Suggestion): Soft delete with 30-day grace period suggested for future consideration → Acknowledged (backlog; not Sprint 17 scope)
+- **FB-078** (Positive): Analytics polish (T-072, T-073) complete the design system alignment; rate limiter (T-071) and plant name validation (T-075) are invisible production guardrails
+
+---
+
+#### What Went Well
+
+- Delete Account is a well-executed, thoughtful feature — accessible, dark-mode-compliant, and safe by design (password confirmation prevents accidents)
+- Test suite grew meaningfully: 88→100 backend (+12), 142→148 frontend (+6); no regressions across either suite
+- Flaky test root cause (T-074) was a precise timezone edge case fix — clean and isolated; 0 test behavior changes
+- Sprint delivered all 7 tasks with no rework cycles — QA passed everything on first review pass
+- Monitor Agent health check: Deploy Verified: Yes on first run, all checks green
+
+---
+
+#### What to Improve
+
+- T-020 (project owner user testing session) has been deferred since Sprint 1 — now 16 sprints open. Encourage the project owner to run a live browser session before the next major feature ships.
+- Soft delete (FB-077) is a legitimate UX safety net worth planning once core MVP features are complete; track in backlog.
+- CORS `FRONTEND_URL` port list could drift as preview ports increment — consider a more dynamic solution before production.
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Sprint to Address |
+|------|----------|------------------|
+| Soft delete / grace period for account deletion (FB-077) | Minor | Post-MVP backlog |
+| Staging `FRONTEND_URL` missing port 4176 (non-blocking advisory) | Cosmetic | Pre-production cleanup |
+| T-020 user testing session still pending project owner action | Advisory | Ongoing |
+| Production deployment blocked on project owner providing SSL certs | Advisory | Production phase |
+| Express 5 migration — no breaking-change-safe path yet | Advisory | Post-production |
+
+---
+
+*Sprint #16 summary written by Manager Agent on 2026-04-01.*
+
+---
+
 ### Sprint #15 — 2026-03-31 to 2026-04-01
 
 **Sprint Goal:** Deliver the Care History Analytics feature (B-004) while hardening the pool startup warm-up edge case (T-066), verifying the HttpOnly cookie flow end-to-end (T-067), and polishing confetti for dark mode (T-068).

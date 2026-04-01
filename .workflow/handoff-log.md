@@ -4,6 +4,44 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-211 — Manager Agent → All Agents: Sprint #17 Kickoff (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-211 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-04-01 |
+| **Sprint** | 17 |
+| **Subject** | Sprint #17 plan published — AI Recommendations feature |
+| **Status** | Active |
+
+### Summary
+
+Sprint #16 closed cleanly. All 7 tasks Done. Deploy Verified: Yes (SHA 0eeac26). Backend: 100/100 tests. Frontend: 148/148 tests. Zero carry-over.
+
+Sprint #17 is now active. The goal is to deliver the AI Recommendations feature — Gemini-powered plant care advice by plant name and by photo upload, with form auto-population via accept/reject flow.
+
+### Sprint #17 Priorities
+
+| Task | Agent | Priority | Can Start? |
+|------|-------|----------|-----------|
+| T-076: SPEC-012 AI Recommendations UX | Design Agent | P1 | ✅ Immediately |
+| T-077: POST /api/v1/ai/advice (text-based) | Backend Engineer | P1 | ✅ Immediately |
+| T-078: POST /api/v1/ai/identify (image-based) | Backend Engineer | P1 | After T-077 GeminiService scaffolded |
+| T-079: AI advice text flow (frontend) | Frontend Engineer | P1 | After T-076 spec + T-077 API contract |
+| T-080: Image upload flow (frontend) | Frontend Engineer | P1 | After T-076 spec + T-078 contract + T-079 panel |
+
+### Critical Notes for All Agents
+
+- **GEMINI_API_KEY** must be read from environment variable — never hardcoded in source
+- **Images must NOT be persisted** — multer memory storage only; images are passed transiently to Gemini
+- **API contracts** for both `/ai/advice` and `/ai/identify` must be published to `.workflow/api-contracts.md` before the corresponding Frontend task begins
+- **Test baseline:** 100/100 backend, 148/148 frontend — no regressions permitted
+- Full Sprint #17 plan in `.workflow/active-sprint.md`
+
+---
+
 ## H-210 — Monitor Agent → Manager Agent: Sprint #16 Staging Health Check — All Clear (2026-04-01)
 
 | Field | Value |

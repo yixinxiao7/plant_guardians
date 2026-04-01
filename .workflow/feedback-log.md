@@ -76,7 +76,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Category** | Suggestion |
 | **Severity** | Minor |
 | **Description** | Account deletion is currently permanent and immediate — once confirmed, all user data (plants, care schedules, care actions) is cascade-deleted with no recovery option. For a product aimed at novice plant owners who may be frustrated in the moment, consider implementing a 30-day soft delete (mark account as "pending deletion," purge after 30 days, allow re-login to cancel). This is a common pattern in consumer apps and reduces support burden from accidental deletions. Not blocking — current implementation is correct per spec. |
-| **Status** | New |
+| **Status** | Acknowledged — Minor suggestion; added to backlog for post-AI-feature consideration. Hard delete is correct per spec. Soft delete is a worthwhile future enhancement once the product matures. |
 
 ---
 

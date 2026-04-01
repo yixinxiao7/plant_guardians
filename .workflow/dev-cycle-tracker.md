@@ -202,3 +202,15 @@ Each task is a row in the table below. Agents update their assigned tasks as the
 **Sprint 16 — Re-Deploy Note (2026-04-01, Pass 2):** Deploy Engineer re-invoked for Sprint 16. HEAD advanced to 0eeac26 since prior deploy (c47646f). Fresh `npm install` (0 vulns) + `npm run build` (4626 modules, 158ms, success). Migrations: "Already up to date" (5/5). Restarted services: Backend http://localhost:3000 (PID 52379), Frontend http://localhost:4176 (PID 52455). Smoke tests: GET /health (200 ✅), DELETE /account no-auth (401 ✅), GET /care-actions/stats no-auth (401 ✅), frontend / (200 ✅). Handoff H-209 sent to Monitor Agent for post-deploy health checks.
 
 **Sprint 16 — Monitor Agent Health Check (2026-04-01):** Post-deploy health check and config consistency validation completed for SHA 0eeac26. Config consistency: PASS (PORT/proxy match, no SSL mismatch, CORS includes 5173, Docker Postgres mapping consistent). Health checks: ALL PASS — GET /api/health (200), POST /api/v1/auth/login (200+token), T-069 DELETE /account (401 unauth ✅), T-071 GET /care-actions/stats (401 unauth + 200 authed ✅), T-075 POST+PUT /plants name >100 chars (400 VALIDATION_ERROR ✅), all regression endpoints (plants, profile, care-due, care-actions) 200 ✅, frontend http://localhost:4176 (200 ✅). No 5xx errors observed. **Deploy Verified: Yes.** Handoff H-210 sent to Manager Agent.
+
+---
+
+## Sprint 17 — Tasks
+
+| ID | Task | Type | Assigned Agent | Status | Priority | Complexity | Sprint | Blocked By | Notes |
+|----|------|------|----------------|--------|----------|------------|--------|------------|-------|
+| T-076 | Design: SPEC-012 — AI Recommendations UX (text + image flows, accept/reject, loading/error states) | Design | Design Agent | Backlog | P1 | S | 17 | — | Start immediately. Publish SPEC-012 to .workflow/ui-spec.md. Spec must cover both text and image advice flows before T-079 begins. |
+| T-077 | Backend: Gemini API service + POST /api/v1/ai/advice endpoint (plant name → structured care advice) | Feature | Backend Engineer | Backlog | P1 | M | 17 | — | Start immediately. Create GeminiService.js + ai.js route. Publish API contract to api-contracts.md before T-079 begins. GEMINI_API_KEY must come from env. |
+| T-078 | Backend: POST /api/v1/ai/identify endpoint (image → plant identification + care advice, Gemini Vision) | Feature | Backend Engineer | Backlog | P1 | M | 17 | T-077 (GeminiService scaffolded) | Can begin as soon as T-077 GeminiService is scaffolded. No disk writes — multer memory storage only. Publish API contract before T-080 begins. |
+| T-079 | Frontend: AI advice text-based flow — advice panel, plant name input, accept auto-populates form, dismiss | Feature | Frontend Engineer | Backlog | P1 | M | 17 | T-076, T-077 | Blocked until SPEC-012 written AND T-077 API contract published. New AIAdvicePanel.jsx component. |
+| T-080 | Frontend: Image upload + plant identification flow — extend AIAdvicePanel with photo tab, preview, client-side validation | Feature | Frontend Engineer | Backlog | P1 | M | 17 | T-076, T-078, T-079 | Blocked until SPEC-012, T-078 API contract, and T-079 AIAdvicePanel component all exist. |
