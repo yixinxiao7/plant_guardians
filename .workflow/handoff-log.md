@@ -4,6 +4,125 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-198 — Design Agent → Manager Agent: Sprint #16 Design Deliverables Complete (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-198 |
+| **From** | Design Agent |
+| **To** | Manager Agent |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | Sprint #16 design specs complete — all frontend tasks have Approved specs |
+| **Status** | Active |
+
+### Summary
+
+Sprint #16 design work is complete. Three frontend tasks had spec requirements; all are addressed:
+
+| Task | Action | Spec |
+|------|--------|------|
+| T-070 — Delete Account modal | SPEC-007 updated (major revision) | Approved |
+| T-072 — StatTile CSS vars | Code-only; covered by existing design system conventions | No new spec needed |
+| T-073 — Analytics empty state copy | SPEC-011 empty state copy updated | Approved |
+
+The Frontend Engineer may begin T-072 and T-073 immediately (no dependencies). T-070 remains blocked on T-069 (Backend Engineer must publish the `DELETE /api/v1/account` API contract to `api-contracts.md` first).
+
+---
+
+## H-197 — Design Agent → Frontend Engineer: T-072 + T-073 — Code-Only Polish, No New Spec Required (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-197 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | T-072 (StatTile CSS vars) and T-073 (Analytics empty state copy) — design guidance and updated copy |
+| **Status** | Active |
+
+### T-072 — StatTile Icon Colors: Replace Hardcoded Hex Values with CSS Custom Properties
+
+**File:** `frontend/src/pages/AnalyticsPage.jsx`
+
+This is a code-only change aligned with the existing design system conventions in `ui-spec.md`. No structural or visual changes are needed — only the values passed as `iconColor` props to `StatTile` components must change.
+
+**Change:**
+- Replace `iconColor="#5C7A5C"` → `iconColor="var(--color-accent-primary)"`
+- Replace `iconColor="#C4921F"` → `iconColor="var(--color-status-yellow)"`
+
+**Why:** The StatTile component already accepts and renders `iconColor` as a CSS value. By passing CSS custom property references instead of hex literals, the icon colors will automatically respond to the active theme. The visual appearance is equivalent in both light and dark modes because the custom property values resolve to the same hues.
+
+**Verification:** After the change, inspect the rendered `StatTile` icon elements in DevTools — the `color` or `fill` style should show `var(--color-accent-primary)` and `var(--color-status-yellow)` respectively, not raw hex codes.
+
+### T-073 — Analytics Empty State Copy: Warmer, On-Brand Wording
+
+**File:** `frontend/src/pages/AnalyticsPage.jsx`
+
+**Updated copy (replace the existing clinical copy with these exact strings):**
+
+| Element | Old Copy | New Copy |
+|---------|----------|----------|
+| Empty state heading | "No care history yet" | "Your care journey starts here" |
+| Empty state body | "No care actions recorded yet. Mark a plant as cared for to start tracking." | "Water, fertilize, or repot a plant and watch your progress grow here." |
+| CTA button | "Go to my plants" | **unchanged — keep as-is** |
+
+**Why:** The original copy was accurate but clinical. The new copy reflects the encouraging, botanical Japandi voice of Plant Guardians — it frames the empty state as a beginning, not an absence. The CTA is retained because it directly guides users to take action.
+
+**Tone guidance:** The heading uses the Playfair Display font at 24px (existing style). The body uses DM Sans at 15px with `color: var(--color-text-secondary)`. No style changes are needed — only the string values.
+
+**Testing note:** Update any snapshot tests or string matchers in `AnalyticsPage.test.jsx` that reference the old copy. Both strings must be updated.
+
+---
+
+## H-196 — Design Agent → Frontend Engineer: T-070 — Delete Account Modal Spec (SPEC-007 Updated) (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-196 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | SPEC-007 updated for T-070 — Delete Account modal now requires password confirmation field |
+| **Status** | Active — **Blocked until T-069 API contract is published** |
+
+### What Changed in SPEC-007
+
+SPEC-007 (Profile Page) has been updated to reflect Sprint 16's T-070 requirements. The Delete Account Confirmation Modal section has been significantly revised. Key changes from the Sprint 6 spec:
+
+1. **New password input field** — The modal now requires the user to enter their current password before deletion can proceed. This field must be present and non-empty for the "Delete my account" button to be enabled.
+2. **Updated body copy** — New copy: "This will permanently delete your account and all your plant data. This cannot be undone."
+3. **Updated API endpoint** — `DELETE /api/v1/account` (not the old `/api/v1/auth/account`). Wait for the T-069 API contract in `api-contracts.md` before implementing.
+4. **Wrong password (400) error handling** — Show inline error "Password is incorrect." directly below the password input. Do NOT close the modal. Do NOT clear the password field. Focus the password input for easy correction.
+5. **Generic error handling** — For all other non-400 errors (network, 5xx): show a generic error block inside the modal. Do NOT show a toast. Do NOT close the modal.
+6. **Dark mode** — The entire `DeleteAccountModal.jsx` must use CSS custom properties (`var(--color-*)`) throughout. Zero hardcoded hex values. Reference the SPEC-010 token table.
+7. **Default focus** — Focus the password input on modal open (not the Cancel button).
+8. **New component file** — Implement as `frontend/src/components/DeleteAccountModal.jsx` (or `frontend/src/pages/DeleteAccountModal.jsx` per the task spec). Import and render from `ProfilePage.jsx`.
+
+### Implementation Checklist
+
+- [ ] Create `DeleteAccountModal.jsx` — accept `isOpen`, `onClose`, and `onDeleteSuccess` props
+- [ ] Modal overlay: `role="dialog"`, `aria-modal="true"`, `aria-labelledby="delete-modal-heading"`, `aria-describedby="delete-modal-desc"`
+- [ ] Password input with label, visibility toggle, focus on modal open
+- [ ] "Delete my account" button disabled when password field is empty
+- [ ] Loading state: spinner in button, all inputs disabled
+- [ ] Success path: clear auth state → navigate to `/login` → show Danger toast "Your account has been deleted."
+- [ ] 400 path: inline error "Password is incorrect." (role="alert") → do not close modal → refocus password input
+- [ ] Other error path: generic error block in modal → do not close modal
+- [ ] Escape key closes modal (dismisses without action)
+- [ ] Focus trap: Tab cycles only within modal elements
+- [ ] On Cancel: clear password field, close modal, return focus to trigger button
+- [ ] All CSS via `var(--color-*)` — no hardcoded hex values
+- [ ] Unit tests (minimum 5): modal opens on button click; Cancel closes without action; empty password disables submit; wrong password shows inline error and keeps modal open; success clears auth state and navigates
+
+### Dependency
+
+**Do not begin T-070 implementation until the Backend Engineer publishes the `DELETE /api/v1/account` contract to `api-contracts.md`.** The contract will define the exact request shape, success code, and error codes. The spec anticipates `{ "password": "string" }` body and `400 INVALID_PASSWORD` error, but verify against the published contract before coding.
+
+---
+
 ## H-195 — Project Owner → All Agents: Pre-Sprint #16 Validation Complete (2026-04-01)
 
 | Field | Value |

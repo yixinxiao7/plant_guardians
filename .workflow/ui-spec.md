@@ -708,8 +708,8 @@ Fields that are NOT auto-filled:
 
 ### SPEC-007 — Profile Page
 
-**Status:** Approved — Updated 2026-03-25 (T-034: Delete Account button and confirmation modal spec added; Sprint 6)
-**Related Tasks:** T-007 (Profile UI), T-034 (Delete Account UI)
+**Status:** Approved — Updated 2026-04-01 (T-070: Delete Account modal updated with password confirmation field, CSS custom properties, and full error-state handling; Sprint 16)
+**Related Tasks:** T-007 (Profile UI), T-034 (Delete Account UI), T-070 (Delete Account implementation)
 
 #### Description
 
@@ -765,57 +765,92 @@ Below stats, a simple actions card. `background: #FFFFFF`, `border-radius: 12px`
 
 #### Delete Account Confirmation Modal
 
-Triggered by clicking the "Delete Account" button on the Profile page. Uses the standard modal/overlay pattern.
+> **Sprint 16 note (T-070):** This spec supersedes the Sprint 6 placeholder. The modal was previously shown as "coming soon." It is now fully specced for implementation in `DeleteAccountModal.jsx`. The key change from the original spec is the addition of a **password confirmation field** — the API requires `{ "password": "string" }` in the request body to prevent accidental deletion.
 
-**Overlay:** `position: fixed`, full viewport, `background: rgba(44, 44, 44, 0.45)`, `z-index: 1000`. Clicking the backdrop does **not** dismiss the modal (destructive action — explicit Cancel is required).
+Triggered by clicking the "Delete Account" button on the Profile page. Implemented as a separate `DeleteAccountModal.jsx` component imported and rendered by `ProfilePage.jsx`.
 
-**Modal Container:** Centered horizontally and vertically. `max-width: 480px`, `width: calc(100% - 32px)` on mobile, `padding: 32px`, `border-radius: 12px`, `background: #FFFFFF`, `box-shadow: 0 8px 32px rgba(44, 44, 44, 0.18)`.
+**Overlay:** `position: fixed`, full viewport, `background: var(--color-overlay)`, `z-index: 1000`. Clicking the backdrop does **not** dismiss the modal (destructive action — explicit Cancel is required).
+
+**Modal Container:** Centered horizontally and vertically via CSS flexbox on the overlay. `max-width: 480px`, `width: calc(100% - 32px)` on mobile, `padding: 32px`, `border-radius: 12px`, `background: var(--color-modal)`, `box-shadow: 0 8px 32px rgba(0,0,0,0.3)`.
+
+> **Dark mode requirement:** The modal must use CSS custom properties (`var(--color-*)`) throughout — no hardcoded hex color values anywhere in `DeleteAccountModal.jsx`. This ensures automatic light/dark mode compatibility without conditional logic.
 
 **Modal Content (top to bottom):**
 
-1. **Warning Icon:** Phosphor `WarningOctagon` icon, 36px, `color: #B85C38`, centered, `margin-bottom: 16px`.
-2. **Heading:** "Delete your account?" — Playfair Display, 24px, `font-weight: 600`, `color: #2C2C2C`, `text-align: center`.
-3. **Body copy:** "This will permanently delete your account and all your plants. This cannot be undone. Are you sure?" — DM Sans, 15px, `color: #6B6B5F`, `text-align: center`, `line-height: 1.6`, `margin-top: 12px`.
-4. **Error message (conditional):** Shown only when the deletion API call fails. `color: #B85C38`, `font-size: 13px`, `text-align: center`, `margin-top: 12px`, `background: #FAEAE4`, `border-radius: 8px`, `padding: 8px 16px`. Text: "Something went wrong. Please try again."
-5. **Button row:** `margin-top: 24px`, `display: flex`, `gap: 12px`, `justify-content: center`.
-   - **"Cancel"** — Secondary button, `min-width: 120px`. Dismisses modal immediately; no action taken; focus returns to the "Delete Account" trigger button.
-   - **"Delete my account"** — Danger button (`background: #B85C38`, `color: #FFFFFF`), `min-width: 160px`. Triggers the deletion flow (see below).
+1. **Warning Icon:** Phosphor `WarningOctagon` icon, 36px, `color: var(--color-status-red)`, centered, `margin-bottom: 16px`.
 
-**Mobile button layout:** Buttons stack vertically at full width — "Cancel" on top, "Delete my account" below (safer position to reduce accidental taps).
+2. **Heading:** "Delete your account?" — Playfair Display, 24px, `font-weight: 600`, `color: var(--color-text-primary)`, `text-align: center`. Must have `id="delete-modal-heading"` so the overlay's `aria-labelledby` can point to it.
+
+3. **Body copy:** "This will permanently delete your account and all your plant data. This cannot be undone." — DM Sans, 15px, `color: var(--color-text-secondary)`, `text-align: center`, `line-height: 1.6`, `margin-top: 12px`. Must have `id="delete-modal-desc"` so the overlay's `aria-describedby` can point to it.
+
+4. **Password input field:** `margin-top: 20px`. Full width within the modal padding.
+   - **Label:** "Confirm your password" — displayed above the input as a `<label>`. `font-size: 14px`, `font-weight: 500`, `color: var(--color-text-primary)`, `display: block`, `margin-bottom: 6px`.
+   - **Input:** `type="password"`, `name="password"`, `autocomplete="current-password"`, `placeholder="Enter your password"`, full width (`width: 100%`), `height: 44px`, `border: 1.5px solid var(--color-border)`, `border-radius: 8px`, `background: var(--color-surface)`, `color: var(--color-text-primary)`, `padding: 0 44px 0 14px` (right padding makes room for the visibility toggle), `font-size: 15px`.
+   - **Focus state:** `border-color: var(--color-border-focus)`, `box-shadow: 0 0 0 3px rgba(92, 122, 92, 0.15)`, `outline: none`.
+   - **Error state** (when inline error is shown): `border-color: var(--color-status-red)`.
+   - **Password visibility toggle:** Right-side absolute-positioned icon button inside the input wrapper. Phosphor `Eye` (show) / `EyeSlash` (hide), 18px, `color: var(--color-text-secondary)`. `position: absolute`, `right: 12px`, `top: 50%`, `transform: translateY(-50%)`. Clicking toggles input `type` between `"password"` and `"text"`. `aria-label="Show password"` / `"Hide password"` toggled to match current state.
+
+5. **Inline password error (conditional):** Rendered directly below the password input when the API returns `400 INVALID_PASSWORD`. Hidden when there is no password error.
+   - `color: var(--color-status-red)`, `font-size: 13px`, `margin-top: 6px`, `display: block`.
+   - Content: "Password is incorrect."
+   - Must use `role="alert"` so screen readers announce it immediately on appearance. Link to the password input via `aria-describedby` on the `<input>` pointing to this element's ID when it is visible.
+
+6. **Generic error message (conditional):** Shown when a non-400 error occurs (network failure, 5xx). Hidden otherwise.
+   - `color: var(--color-status-red)`, `font-size: 13px`, `text-align: center`, `margin-top: 12px`, `background: var(--color-status-red-bg)`, `border-radius: 8px`, `padding: 8px 16px`.
+   - Content: "Something went wrong. Please try again."
+   - Must use `role="alert"` so screen readers announce it on appearance.
+
+7. **Button row:** `margin-top: 24px`, `display: flex`, `gap: 12px`, `justify-content: center`.
+   - **"Cancel"** — Secondary button variant, `min-width: 120px`. Dismisses modal immediately; clears the password field value; no API call is made; focus returns to the "Delete Account" trigger button on the Profile page.
+   - **"Delete my account"** — Danger button variant (`background: var(--color-status-red)`, `color: #FFFFFF`), `min-width: 160px`. Disabled when the password input is empty (use `disabled` attribute). Triggers the deletion flow on click.
+
+**Mobile button layout:** Buttons stack vertically at full width — "Cancel" on top, "Delete my account" below. This ordering is intentional: the safer action (Cancel) is in the thumb-friendly top position, reducing accidental deletion on touch devices.
 
 **Keyboard Behavior:**
-- `Escape` key → same as clicking "Cancel" (dismisses modal, no action).
-- Tab cycles **only** between "Cancel" and "Delete my account" buttons while the modal is open (focus trap — no tab escape to page behind).
-- **Default focus on open:** "Cancel" button (safest default; prevents accidental deletion via Enter key on open).
+- `Escape` key → same as clicking "Cancel": dismisses modal, clears password field, no API call.
+- Tab order within the modal (focus trap — no tab escape to the page behind): Password input → visibility toggle → Cancel button → "Delete my account" button → (wraps back to Password input).
+- **Default focus on open:** Password input field. This is the natural starting point since the user must enter their password to proceed.
 
-#### Deletion Flow (Post-Confirm)
+#### Deletion Flow
 
-1. User clicks "Delete my account."
-2. "Delete my account" button immediately shows a loading spinner (`border: 2px solid rgba(255,255,255,0.4)`, spinning segment `rgba(255,255,255,1)`, 16px); button label hidden. Both buttons disabled. No close affordance — user must wait.
-3. Frontend calls `DELETE /api/v1/auth/account` with the current access token in the `Authorization: Bearer` header.
+1. User enters their password in the password input and clicks "Delete my account."
+2. "Delete my account" button immediately shows a loading spinner (`border: 2px solid rgba(255,255,255,0.4)`, spinning arc `rgba(255,255,255,1)`, 16px diameter, `animation: spin 0.8s linear infinite`). Button text is visually hidden but the button retains `aria-label="Deleting account, please wait"`. Both buttons are disabled. Password input is disabled. No close affordance is shown — the user must wait.
+3. Frontend calls `DELETE /api/v1/account` with:
+   - `Authorization: Bearer <access-token>` header
+   - Request body: `{ "password": "<entered password>" }`
+   - `Content-Type: application/json`
 4. **On success (204 No Content):**
-   - Clear access token and refresh token from memory (`api.js` module variables).
-   - Clear `pg_user` from `sessionStorage`.
-   - Redirect to `/login`.
-   - Show toast notification (top-right, 4-second auto-dismiss): "Your account has been deleted." Left border: `#B85C38` (use the error/danger variant of the toast).
-5. **On error (network failure, 401, 5xx):**
-   - Remove spinner; re-enable both buttons.
-   - Show the error message below the body copy (see content item 4 above).
-   - If 401 (auth expired during open modal): show "Session expired. Please log in again." and redirect to `/login` after 2 seconds.
+   - Clear access token and refresh token from memory.
+   - Clear all cached user/auth state.
+   - Navigate to `/login`.
+   - Show toast notification (Danger/error variant, top-right, 4-second auto-dismiss): "Your account has been deleted."
+5. **On wrong password (400 INVALID_PASSWORD):**
+   - Remove spinner; re-enable both buttons; re-enable and re-focus the password input.
+   - Show the **inline password error** (item 5 above): "Password is incorrect."
+   - Do **not** close the modal. Do **not** clear the password field (user may just have a typo to correct).
+   - Do **not** show a toast — the inline error is sufficient feedback.
+6. **On other errors (network failure, 5xx, unexpected 4xx):**
+   - Remove spinner; re-enable both buttons; re-enable the password input.
+   - Show the **generic error message** (item 6 above): "Something went wrong. Please try again."
+   - Do **not** close the modal. Do **not** show an error toast.
+7. **On 401 (auth expired while modal is open):**
+   - Show generic error with message: "Session expired. Please log in again."
+   - After 2 seconds, redirect to `/login`.
 
 #### States
 
 | State | Behavior |
 |-------|---------|
-| **Loading** | Skeleton avatar, skeleton name, skeleton stat tiles |
-| **Loaded** | Full profile content; "Delete Account" button visible and enabled |
-| **Error (load)** | "Couldn't load your profile. Refresh to try again." |
+| **Loading (page)** | Skeleton avatar, skeleton name, skeleton stat tiles |
+| **Loaded** | Full profile content visible; "Delete Account" button enabled |
+| **Error (page load)** | "Couldn't load your profile. Refresh to try again." |
 | **Logging out** | Logout button shows spinner; redirects to `/login` on success |
-| **Modal open** | Confirmation modal overlaid; page behind is non-interactive; "Cancel" focused |
-| **Deleting** | Modal stays open; "Delete my account" shows spinner; both buttons disabled; no close |
-| **Delete success** | Redirected to `/login`; toast "Your account has been deleted." displayed |
-| **Delete error** | Modal stays open; error message rendered below body copy; buttons re-enabled |
-| **Delete — session expired** | Show "Session expired. Please log in again."; redirect to `/login` after 2s |
+| **Modal open** | Confirmation modal overlaid; page behind is non-interactive; password input focused |
+| **Deleting** | Modal stays open; "Delete my account" shows spinner; both buttons + password input disabled; no close |
+| **Delete success** | Redirected to `/login`; Danger toast "Your account has been deleted." displayed |
+| **Delete — wrong password** | Modal stays open; inline error "Password is incorrect." under password input; spinner removed; password input re-focused |
+| **Delete — server error** | Modal stays open; generic error message shown below password area; spinner removed; buttons re-enabled |
+| **Delete — session expired** | Generic error "Session expired. Please log in again."; redirect to `/login` after 2 seconds |
 
 #### Responsive Behavior
 
@@ -831,10 +866,14 @@ Triggered by clicking the "Delete Account" button on the Profile page. Uses the 
 - Stat tiles: `role="figure"` with `aria-label="[Number] [Label]"` so screen readers announce the full stat
 - Logout button: no confirm step required (not destructive); redirect should be announced via live region
 - "Delete Account" button: `aria-label="Delete account"`, `aria-haspopup="dialog"`
-- Modal: `role="dialog"`, `aria-modal="true"`, `aria-labelledby` pointing to the modal heading element ID, `aria-describedby` pointing to the body copy element ID
-- Focus trap: keyboard focus is constrained within the modal while open. On close (Cancel or Escape), focus returns to the "Delete Account" trigger button
-- "Delete my account" in loading state: `aria-busy="true"`, `aria-label="Deleting account, please wait"` while spinner is shown
-- Color contrast on all text elements: WCAG AA minimum
+- **Modal overlay:** `role="dialog"`, `aria-modal="true"`, `aria-labelledby="delete-modal-heading"`, `aria-describedby="delete-modal-desc"`
+- **Focus trap:** Keyboard focus is constrained within the modal while open (Tab cycles: password input → visibility toggle → Cancel → Delete button → wraps). On close (Cancel, Escape, or success redirect), focus returns to the "Delete Account" trigger button on the profile page.
+- **Default focus on open:** Password `<input>` element receives focus automatically via `autoFocus` or a `useEffect` ref.
+- **Password input:** `id` set so `<label>` can associate via `htmlFor`. When inline error is visible, `aria-describedby` is updated to include the error element's `id`.
+- **Inline errors:** Both error elements (`role="alert"`) announce to screen readers immediately when they appear; they are conditionally rendered (not just `visibility: hidden`) to prevent phantom announcements.
+- **"Delete my account" in loading state:** `aria-busy="true"`, `aria-label="Deleting account, please wait"` while spinner is shown; `disabled` attribute prevents double-submission.
+- **Password visibility toggle:** `aria-label` updated in sync with toggle state: `"Show password"` when masked, `"Hide password"` when revealed.
+- Color contrast: all text elements meet WCAG AA minimum (4.5:1). Verified against `--color-modal` background in both light (`#FFFFFF`) and dark (`#2C2A26`) modes.
 
 ---
 
@@ -2096,9 +2135,9 @@ All 107+ existing frontend tests must continue to pass.
 
 ### SPEC-011 — Care History Analytics Page
 
-**Status:** Approved
-**Related Tasks:** T-065 (Care Analytics — Design + Frontend)
-**Sprint:** 15
+**Status:** Approved — Updated 2026-04-01 (T-073: Warmer empty state copy; Sprint 16)
+**Related Tasks:** T-065 (Care Analytics — Design + Frontend), T-073 (Analytics empty state copy — Sprint 16)
+**Sprint:** 15 (updated Sprint 16)
 **Date:** 2026-03-31
 
 ---
@@ -2442,8 +2481,8 @@ Hide all three zones. Show a single centered empty state block in the main conte
 - `display: flex`, `flex-direction: column`, `align-items: center`, `text-align: center`
 - `max-width: 420px`, centered horizontally, `margin: 64px auto`
 - Illustration: A simple SVG line-art illustration of a small potted plant with a question mark above it (or Phosphor `Plant` icon at 64px, `color: var(--color-border)`) — represents "no data yet"
-- **Heading:** "No care history yet" — Playfair Display, 24px, `font-weight: 600`, `color: var(--color-text-primary)`, `margin-top: 24px`
-- **Body:** "No care actions recorded yet. Mark a plant as cared for to start tracking." — DM Sans, 15px, `color: var(--color-text-secondary)`, `line-height: 1.6`, `margin-top: 8px`
+- **Heading:** "Your care journey starts here" — Playfair Display, 24px, `font-weight: 600`, `color: var(--color-text-primary)`, `margin-top: 24px`
+- **Body:** "Water, fertilize, or repot a plant and watch your progress grow here." — DM Sans, 15px, `color: var(--color-text-secondary)`, `line-height: 1.6`, `margin-top: 8px`
 - **CTA button:** "Go to my plants" — Primary button, `margin-top: 24px`, navigates to `/` (Inventory)
 
 ##### State 3 — Error State
