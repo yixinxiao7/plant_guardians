@@ -137,7 +137,7 @@ The operational reference for the current development cycle. Refreshed at the st
 - Express 5 migration — advisory backlog; no breaking-change-safe path yet
 - Care streak / gamification features — post-sprint
 - CORS `FRONTEND_URL` port advisory (4176 absent) — non-blocking; no action required this sprint
-- T-020 user testing session — pending project owner action (open since Sprint 1; encourage project owner to run a browser session)
+- T-020 user testing session — **Done (2026-04-01).** Project owner completed browser testing session. All flows validated. Not a blocker.
 
 ---
 
