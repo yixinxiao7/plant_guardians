@@ -31,7 +31,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Category** | Suggestion |
 | **Severity** | Minor |
 | **Description** | `GET /api/v1/care-actions/stats` performs multiple JOINs and aggregation queries. It is only protected by the general rate limiter (100 req/15min). For production, consider adding endpoint-specific rate limiting (e.g., 30 req/15min) to prevent abuse of this resource-intensive endpoint. |
-| **Status** | New |
+| **Status** | Acknowledged — Tasked → T-071 (Sprint 16). Adding endpoint-specific rate limiting to stats endpoint for production hardening. |
 
 ---
 
@@ -46,7 +46,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Category** | UX Issue |
 | **Severity** | Cosmetic |
 | **Description** | In `AnalyticsPage.jsx`, StatTile components pass hardcoded hex colors (`#5C7A5C`, `#C4921F`) as `iconColor` props. While these mid-tone botanical colors work adequately in both light and dark modes, they bypass the CSS custom property theming system. The StatTile component already has a fallback to `var(--color-accent-primary)`. Consider using CSS variables for full theme consistency. |
-| **Status** | New |
+| **Status** | Acknowledged — Tasked → T-072 (Sprint 16). Cosmetic CSS polish to align StatTile icon colors with the CSS custom property theming system. |
 
 ---
 
@@ -1676,7 +1676,7 @@ T-068 resolves FB-061 (confetti colors washed out in dark mode). The new dark pa
 | **Date** | 2026-03-31 |
 | **Category** | UX Issue |
 | **Severity** | Cosmetic |
-| **Status** | New |
+| **Status** | Acknowledged — Tasked → T-073 (Sprint 16). Cosmetic copy improvement for the analytics empty state to feel warmer and more encouraging. |
 
 ### Description
 

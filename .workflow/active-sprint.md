@@ -4,119 +4,119 @@ The operational reference for the current development cycle. Refreshed at the st
 
 ---
 
-## Sprint #15 — 2026-04-01 to 2026-04-05
+## Sprint #16 — 2026-04-01 to 2026-04-06
 
-**Sprint Goal:** Deliver the Care History Analytics feature (B-004) — the most impactful post-MVP user-facing addition — while hardening the pool startup warm-up edge case (T-066), verifying the HttpOnly cookie flow end-to-end in a browser, and polishing confetti for dark mode (B-007). The result: users gain actionable care trend insights, and the platform moves meaningfully toward production readiness.
+**Sprint Goal:** Complete the Delete Account feature (replacing the "coming soon" placeholder with a fully functional, safe account deletion flow), harden the stats endpoint for production with endpoint-specific rate limiting, and polish the Analytics page with CSS variable alignment and warmer empty state copy. The result: users have full control over their data, the backend is production-ready under load, and the UI matches the design system end-to-end.
 
-**Context:** Sprint #14 delivered all six planned tasks with zero carry-over — the first clean sprint in the post-MVP phase. All P1 bugs (pool idle, broken photos, timezone mismatch) are resolved. Dark mode shipped. The test suite stands at 83 backend + 135 frontend tests (all passing), npm audit reports 0 vulnerabilities, and staging is healthy (Deploy Verified: Yes, H-171). The next priority is adding user-facing value through analytics while cleaning up remaining minor technical debt.
+**Context:** Sprint #15 delivered all five planned tasks with zero carry-over — the second clean sprint in a row. Care History Analytics shipped with full dark mode support, accessible charts, and a warm empty state. Deploy Verified: Yes. Test baseline: 88/88 backend, 142/142 frontend, 0 npm vulnerabilities. Sprint 16 turns its attention to completing the account management story (Delete Account), production-hardening the stats endpoint, and resolving three cosmetic feedback items from Sprint 15 (FB-073, FB-074, FB-069).
 
 ---
 
 ## In Scope
 
-### P1 — Post-MVP Feature: Care History Analytics
+### P1 — Delete Account Feature
 
-- [ ] **T-064** — Backend Engineer: Implement `GET /api/v1/care-actions/stats` endpoint **(P1)**
-  - **Description:** Provide aggregated care action statistics per plant and per care type to power frontend charts.
+- [ ] **T-069** — Backend Engineer: Implement `DELETE /api/v1/account` endpoint **(P1)**
+  - **Description:** Allow authenticated users to permanently delete their account. Deleting an account must cascade-delete all user data: plants, care schedules, care actions, refresh tokens. The user is then logged out.
   - **Acceptance Criteria:**
-    - Endpoint: `GET /api/v1/care-actions/stats` (authenticated)
-    - Response shape:
-      ```json
-      {
-        "data": {
-          "total_care_actions": 42,
-          "by_plant": [
-            { "plant_id": "uuid", "plant_name": "Monstera", "count": 15, "last_action_at": "ISO8601" }
-          ],
-          "by_care_type": [
-            { "care_type": "watering", "count": 30 },
-            { "care_type": "fertilizing", "count": 8 },
-            { "care_type": "repotting", "count": 4 }
-          ],
-          "recent_activity": [
-            { "plant_name": "Monstera", "care_type": "watering", "performed_at": "ISO8601" }
-          ]
-        }
-      }
-      ```
-    - `recent_activity` returns the 10 most recent care actions across all plants, sorted by `performed_at` DESC
-    - User isolation enforced — only the authenticated user's data
-    - Auth required — 401 if missing/invalid token
-    - Unit tests: happy path (with data), empty state (no care actions yet), 401, user isolation
-    - All 83/83 backend tests still pass after addition
+    - Endpoint: `DELETE /api/v1/account` (authenticated)
+    - Request body: `{ "password": "string" }` — user must confirm their password to prevent accidental deletion
+    - On success: deletes user row (cascades to all related rows via FK constraints or explicit DELETE), clears refresh token cookie, returns `204 No Content`
+    - On wrong password: returns `400 INVALID_PASSWORD` with message "Password is incorrect."
+    - On missing/invalid auth: returns `401 UNAUTHORIZED`
+    - No orphaned rows — verify cascade behavior in the test
+    - Unit tests: happy path (account + all data deleted), wrong password (400), missing auth (401), user isolation (only deletes requesting user's data)
+    - All 88/88 backend tests still pass; add minimum 4 new tests
   - **API contract:** Add to `.workflow/api-contracts.md` before Frontend Engineer begins
   - **Dependencies:** None — start immediately.
-  - **Fix locations:** `backend/src/routes/careActions.js` or new route file, `backend/src/models/CareAction.js`
+  - **Fix locations:** New route handler in `backend/src/routes/account.js` (or add to existing), `backend/src/models/User.js`
 
 ---
 
-- [ ] **T-065** — Design Agent + Frontend Engineer: Implement Care History Analytics page **(P1)**
-  - **Design Agent must deliver first:** Add SPEC-011 to `.workflow/ui-spec.md` covering the analytics view. The spec must define:
-    - Page layout: summary stats bar (total actions, most-cared-for plant, streak) + care breakdown chart + recent activity feed
-    - Chart type: bar chart or donut chart showing care actions by type (watering / fertilizing / repotting)
-    - Per-plant care frequency table or card list
-    - Empty state: "No care actions recorded yet. Mark a plant as cared for to start tracking."
-    - Loading skeleton and error state
-    - Where the page lives in navigation (sidebar link under Care Due, or new "Analytics" sidebar item)
-    - Dark mode compatibility (use existing CSS custom properties — no new color tokens needed)
-  - **Frontend Engineer (after Design Agent spec is ready):**
-    - Add `/analytics` route to the React router
-    - Add sidebar navigation item for Analytics (chart icon, no badge)
-    - Fetch `GET /api/v1/care-actions/stats` and render the page per SPEC-011
-    - Use a lightweight chart library (e.g., `recharts` — already widely compatible with React + Vite) or pure CSS/SVG if recharts adds too much bundle weight; confirm approach before implementing
-    - Implement all states: loading skeleton, empty state, error state with retry, populated state
-    - Dark mode: all chart elements and text must use CSS custom properties for colors
-    - Accessibility: chart must have an accessible text alternative (aria-label or visually-hidden data table)
-    - Unit tests: all page states (loading, empty, error, populated), sidebar nav item renders
-    - All 135/135 frontend tests still pass; add at least 5 new tests
+- [ ] **T-070** — Frontend Engineer: Implement Delete Account flow — replace "coming soon" placeholder **(P1)**
+  - **Description:** The Profile page currently shows a "Delete Account" button labelled "coming soon" or similar. Replace the placeholder with a functional confirmation modal that calls `DELETE /api/v1/account`, then redirects to the login page on success.
   - **Acceptance Criteria:**
-    - Analytics page accessible via sidebar and direct `/analytics` URL
-    - Stats and chart render correctly with real data from `GET /api/v1/care-actions/stats`
-    - Empty state shown when user has no care actions
-    - Dark mode verified (no invisible text or broken chart colors in dark theme)
-    - WCAG AA: all text and chart labels meet 4.5:1 contrast in both light and dark modes
-    - All 135/135 frontend tests pass (add minimum 5 new tests)
-  - **Blocked By:** T-064 (API contract must be published), Design Agent SPEC-011 must be written first.
+    - "Delete Account" button on Profile page opens a confirmation modal
+    - Modal copy: "This will permanently delete your account and all your plant data. This cannot be undone."
+    - Modal has a password input field (required) and two buttons: "Delete my account" (danger/destructive style) and "Cancel"
+    - On success (204): clear auth state, navigate to `/login`, show toast "Your account has been deleted."
+    - On wrong password (400): show inline error "Password is incorrect." in the modal (do NOT close modal)
+    - On other errors: show generic error toast, do NOT close modal
+    - Loading state while request is in flight (disable button, show spinner)
+    - Dark mode: modal uses CSS custom properties throughout — no hardcoded colors
+    - Accessibility: focus trap in modal, `aria-modal="true"`, `aria-labelledby`, `aria-describedby`
+    - Unit tests: modal opens on click, cancel closes without deleting, wrong password shows inline error, success clears state + navigates, loading state disables button
+    - All 142/142 frontend tests still pass; add minimum 5 new tests
+  - **Blocked By:** T-069 (API contract must be published first)
+  - **Fix locations:** `frontend/src/pages/ProfilePage.jsx`, new `DeleteAccountModal.jsx` component
 
 ---
 
-### P2 — Technical Debt & Hardening
+### P2 — Production Hardening
 
-- [ ] **T-066** — Backend Engineer: Harden pool startup to eliminate residual single transient 500 on first request (FB-065) **(P2)**
-  - **Description:** T-058 resolved the bulk of the pool idle issue. A residual single transient 500 was observed by the Monitor Agent after ~4 hours of server inactivity (FB-065). The likely cause: the keepalive interval (`setInterval` every 5 min) doesn't fire before the very first request if the process was freshly started. Re-verify that the `server.js` startup warm-up (introduced in T-056) still runs and warms the full `min: 2` pool before `app.listen()`. If the warm-up is in place and still produces a single 500, add explicit error handling in the pool `afterCreate` hook to retry once before surfacing the error.
+- [ ] **T-071** — Backend Engineer: Add endpoint-specific rate limiting to `GET /api/v1/care-actions/stats` (FB-073) **(P2)**
+  - **Description:** The stats endpoint performs multiple JOIN + aggregation queries and is currently only covered by the general rate limiter (100 req/15min). Add an endpoint-specific stricter limiter (e.g., 30 req/15min per IP) to prevent abuse of this resource-intensive endpoint.
   - **Acceptance Criteria:**
-    - Root cause confirmed: read `backend/src/server.js` startup sequence; verify `db.raw('SELECT 1')` warm-up fires before `app.listen()`
-    - If warm-up is missing or incomplete after T-058's changes, restore it
-    - Regression test: simulate fresh server start → immediately call `POST /api/v1/auth/login` 3 times → all 3 return 200 (no 500s)
-    - All 83/83 backend tests pass
+    - New rate limiter middleware applied specifically to `GET /care-actions/stats`: max 30 requests per 15-minute window per IP
+    - On rate limit exceeded: returns `429 TOO_MANY_REQUESTS` with structured error body `{ "error": { "message": "Too many requests.", "code": "RATE_LIMIT_EXCEEDED" } }`
+    - General rate limiter (100 req/15min) still applies to all other endpoints
+    - Unit test: verify 429 is returned after threshold exceeded on the stats endpoint
+    - All 88/88 backend tests still pass
   - **Dependencies:** None.
-  - **Fix locations:** `backend/src/server.js` (startup sequence)
+  - **Fix locations:** `backend/src/routes/careActionsStats.js` (or wherever the stats route is registered)
 
 ---
 
-- [ ] **T-067** — QA Engineer: End-to-end browser verification of HttpOnly refresh token cookie flow **(P2)**
-  - **Description:** T-053-frontend (Sprint 12) completed the `credentials: 'include'` migration and removed the in-memory refresh token. The backend sets an HttpOnly refresh token cookie on login. This has never been explicitly verified in a real browser — only via unit tests. QA must verify the full cookie flow in a browser session.
-  - **Acceptance Criteria:**
-    - Open staging frontend in browser (http://localhost:4175)
-    - Log in with seeded account (`test@plantguardians.local`) — verify access token returned, HttpOnly cookie set in browser DevTools → Application → Cookies
-    - Navigate to a protected page, close tab, reopen — verify auto-refresh (silent re-auth) works via the HttpOnly cookie (user stays logged in)
-    - Log out — verify cookie is cleared
-    - Attempt to access protected API route after logout — verify 401
-    - Document results in qa-build-log.md (Sprint 15 section)
-    - If any issues found, file as new feedback entries and block Sprint 15 deploy
-  - **Dependencies:** None (staging environment from Sprint 14 is live).
+### P3 — UX Polish (Sprint 15 Cosmetic Feedback)
 
----
-
-- [ ] **T-068** — Frontend Engineer: Fix confetti colors for dark mode (B-007, FB-061) **(P2)**
-  - **Description:** The confetti animation (fired when a user marks a plant care action as done on the Plant Detail page) uses hardcoded bright colors that look washed out on dark backgrounds. Update the confetti color palette to include warm botanical hues that remain vibrant and celebratory in dark mode.
+- [ ] **T-072** — Frontend Engineer: Update StatTile icon colors to use CSS custom properties (FB-074) **(P3)**
+  - **Description:** `AnalyticsPage.jsx` passes hardcoded hex colors (`#5C7A5C`, `#C4921F`) as `iconColor` props to StatTile components. Replace with CSS custom properties (e.g., `var(--color-accent-primary)`, `var(--color-accent-secondary)`) to align with the theming system.
   - **Acceptance Criteria:**
-    - Confetti colors updated to a warm botanical palette (e.g., deep greens, warm amber, dusty rose, terracotta — matching the Japandi dark mode aesthetic)
-    - Confetti remains visually satisfying in both light and dark modes
-    - `prefers-reduced-motion` check still respected (no confetti if reduced motion is preferred)
-    - All 135/135 frontend tests still pass (update snapshot/color references if needed)
+    - No hardcoded hex color values passed as `iconColor` props in `AnalyticsPage.jsx`
+    - StatTile icon colors use CSS custom property values
+    - Visual appearance equivalent in both light and dark modes
+    - All 142/142 frontend tests still pass (update snapshot references if needed)
   - **Dependencies:** None.
-  - **Fix locations:** `frontend/src/pages/PlantDetailPage.jsx` (or wherever confetti is configured)
+  - **Fix locations:** `frontend/src/pages/AnalyticsPage.jsx`
+
+---
+
+- [ ] **T-073** — Frontend Engineer: Improve analytics empty state copy (FB-069) **(P3)**
+  - **Description:** The current empty state text "No care actions recorded yet. Mark a plant as cared for to start tracking." is accurate but clinical. Update to warmer, more encouraging copy that fits the Japandi botanical brand voice.
+  - **Acceptance Criteria:**
+    - Empty state heading updated to something warmer, e.g.: "Your care journey starts here"
+    - Empty state subtext updated, e.g.: "Water, fertilize, or repot a plant and watch your progress grow here."
+    - CTA button ("Go to my plants") retained
+    - Dark mode: copy color uses CSS custom properties
+    - All 142/142 frontend tests still pass (update any snapshot/copy references)
+  - **Dependencies:** None.
+  - **Fix locations:** `frontend/src/pages/AnalyticsPage.jsx`
+
+---
+
+### P3 — Technical Debt
+
+- [ ] **T-074** — QA Engineer + Backend Engineer: Investigate and fix flaky careDue test (FB-050) **(P3)**
+  - **Description:** A flaky intermittent test failure has been noted on the careDue test suite. Investigate the root cause — likely a timing or ordering issue in the test setup — and apply a fix.
+  - **Acceptance Criteria:**
+    - Root cause identified and documented in the task notes
+    - Fix applied (test setup, teardown, or isolation change — no endpoint behavior changes)
+    - 3 consecutive test runs pass with 0 flaky failures in careDue suite
+    - All 88/88 backend tests pass
+  - **Dependencies:** None.
+  - **Fix locations:** `backend/src/tests/careDue.test.js` (or setup/teardown)
+
+---
+
+- [ ] **T-075** — Backend Engineer: Add max-length validation for plant name field (FB-055) **(P3)**
+  - **Description:** Long plant names are not currently validated for length, which can cause UI overflow issues. Add server-side max-length validation (e.g., 100 characters) to `POST /plants` and `PUT /plants/:id`.
+  - **Acceptance Criteria:**
+    - `POST /plants` and `PUT /plants/:id`: name field validated with max 100 characters
+    - On violation: returns `400 VALIDATION_ERROR` with message "name must be 100 characters or fewer."
+    - Unit test added: name > 100 chars → 400
+    - All 88/88 backend tests pass
+  - **Dependencies:** None.
+  - **Fix locations:** `backend/src/middleware/validation.js` or route handlers for plants
 
 ---
 
@@ -125,11 +125,10 @@ The operational reference for the current development cycle. Refreshed at the st
 - Social auth (Google OAuth) — B-001 — post-sprint
 - Push notifications for care reminders — B-002 — post-sprint
 - Plant sharing / public profiles — B-003 — post-sprint
-- Production deployment execution — runbook exists; blocked on project owner providing SSL certs
+- Production deployment execution — blocked on project owner providing SSL certs
 - Express 5 migration — advisory backlog; no breaking-change-safe path yet
-- Flaky careDue test investigation (FB-050) — P3 backlog
-- Long plant name max-length validation (FB-055) — cosmetic backlog
-- Delete Account "coming soon" placeholder — post-sprint
+- Care streak / gamification features — post-sprint
+- T-020 user testing session — pending project owner action (unblocked since Sprint 11; encourage project owner to run a browser session when available)
 
 ---
 
@@ -137,12 +136,12 @@ The operational reference for the current development cycle. Refreshed at the st
 
 | Agent | Focus Area This Sprint | Key Tasks |
 |-------|----------------------|-----------|
-| Backend Engineer | Care stats endpoint + pool startup hardening | T-064 (P1), T-066 (P2) |
-| Design Agent | Care analytics UI spec (SPEC-011) | T-065 design spec (P1 — write spec before Frontend Engineer begins) |
-| Frontend Engineer | Care analytics page + confetti fix | T-065 frontend impl (P1, after Design + API contract), T-068 (P2) |
-| QA Engineer | Cookie flow browser verification + analytics QA + security check | T-067 (P2), T-064 QA, T-065 QA, T-066 QA |
+| Backend Engineer | Delete Account endpoint + rate limiting + plant name validation | T-069 (P1), T-071 (P2), T-075 (P3) |
+| Frontend Engineer | Delete Account modal + analytics polish | T-070 (P1, after API contract), T-072 (P3), T-073 (P3) |
+| QA Engineer | Delete Account end-to-end QA + flaky test investigation + security check | T-070 QA, T-069 QA, T-071 QA, T-074 (P3) |
 | Deploy Engineer | Staging re-deploy after QA sign-off | After all tasks QA-verified |
-| Monitor Agent | Post-deploy health check — verify `/api/v1/care-actions/stats` endpoint | After Deploy Engineer re-deploy |
+| Monitor Agent | Post-deploy health check — verify DELETE /account + stats rate limiter | After Deploy Engineer re-deploy |
+| Design Agent | No new specs required this sprint — all tasks use existing patterns | — |
 | Manager | Sprint coordination, API contract approval, code review | Ongoing |
 
 ---
@@ -150,59 +149,61 @@ The operational reference for the current development cycle. Refreshed at the st
 ## Dependency Chain (Critical Path)
 
 ```
-T-064 (Care stats API — P1, START IMMEDIATELY)
+T-069 (DELETE /account API — P1, START IMMEDIATELY)
   ↓ (publish API contract to api-contracts.md)
-Design Agent writes SPEC-011 (can happen in parallel with T-064)
-  ↓ (both T-064 contract AND SPEC-011 must be ready)
-T-065-frontend (Analytics page implementation — P1)
+T-070 (Delete Account modal — P1, after T-069 contract)
   ↓
-QA verifies T-064 + T-065 end-to-end
+QA verifies T-069 + T-070 end-to-end
 
 [Parallel — no P1 dependency]
-T-066 (Pool startup hardening — P2, start any time)
-T-067 (Cookie flow browser verification — P2, staging already live)
-T-068 (Confetti dark mode fix — P2, start any time)
+T-071 (Stats rate limiting — P2, start any time)
+T-072 (StatTile CSS vars — P3, start any time)
+T-073 (Empty state copy — P3, start any time)
+T-074 (Flaky careDue test — P3, start any time)
+T-075 (Plant name max-length — P3, start any time)
 
 [After all tasks QA-verified]
 Deploy Engineer re-deploys to staging
   ↓
-Monitor Agent health check — verify all endpoints including /care-actions/stats
+Monitor Agent health check — verify DELETE /account endpoint + stats rate limiting
 ```
 
-**Critical path:** T-064 ∥ SPEC-011 → T-065 → QA → Deploy → Monitor → staging verified.
+**Critical path:** T-069 → T-070 → QA → Deploy → Monitor → staging verified.
 
 ---
 
 ## Definition of Done
 
-Sprint #15 is complete when:
+Sprint #16 is complete when:
 
-- [ ] T-064: `GET /api/v1/care-actions/stats` implemented; API contract published; unit tests pass; 83/83 backend tests pass
-- [ ] T-065 (Design): SPEC-011 in ui-spec.md, approved, covers all states + dark mode + accessibility
-- [ ] T-065 (Frontend): Analytics page at `/analytics`; all states implemented; dark mode verified; 5+ new tests; 135/135 frontend tests pass
-- [ ] T-066: Pool startup warm-up confirmed; regression test passes (3 fresh-start logins → all 200); 83/83 backend tests pass
-- [ ] T-067: Browser cookie flow verified; results documented in qa-build-log.md; no blocking issues found
-- [ ] T-068: Confetti colors updated; looks correct in dark mode; all 135/135 frontend tests pass
+- [ ] T-069: `DELETE /api/v1/account` implemented; API contract published; 4+ new tests; all 88/88 backend tests pass
+- [ ] T-070: Delete Account modal functional; wrong password shows inline error; success navigates to login; dark mode verified; 5+ new tests; all 142/142 frontend tests pass
+- [ ] T-071: Endpoint-specific rate limiter on stats route (30 req/15min); 429 on threshold; all 88/88 backend tests pass
+- [ ] T-072: StatTile icon colors use CSS custom properties; no hardcoded hex values; all 142/142 tests pass
+- [ ] T-073: Warmer analytics empty state copy; all 142/142 tests pass
+- [ ] T-074: Flaky careDue test root cause identified and fixed; 3 consecutive runs pass
+- [ ] T-075: Plant name max-length (100 chars) validated on POST + PUT /plants; 400 on violation; all 88/88 tests pass
 - [ ] Deploy Verified: Yes from Monitor Agent post-deploy health check
-- [ ] No regressions: all backend + frontend tests at or above Sprint #14 baselines (83/83 backend, 135/135 frontend)
+- [ ] No regressions: all backend + frontend tests at or above Sprint #15 baselines (88/88 backend, 142/142 frontend)
 
 ---
 
 ## Success Criteria
 
-- **Care analytics are user-facing and functional** — Users can visit `/analytics` and see how often they've cared for their plants, broken down by plant and care type
-- **Pool startup is hardened** — POST /auth/login returns 200 consistently even on fresh server start (no transient 500s at any point)
-- **Cookie flow browser-verified** — HttpOnly refresh token cookie confirmed working end-to-end in a real browser session
-- **Confetti works in dark mode** — Celebratory animation looks polished and vibrant in both light and dark themes
-- **Zero new vulnerabilities** — npm audit remains at 0 vulnerabilities after any new package additions (e.g., recharts)
+- **Delete Account is fully functional** — Users can permanently delete their account with password confirmation; all data is removed; they are redirected to login
+- **Stats endpoint is production-hardened** — GET /care-actions/stats returns 429 after 30 req/15min, protecting against query abuse
+- **Analytics page is design-system compliant** — No hardcoded hex colors in StatTile props; theming is fully CSS-variable-driven
+- **Empty state is warm and on-brand** — Copy reflects the encouraging, botanical Japandi voice of Plant Guardians
+- **Test suite grows** — Backend adds minimum 5 new tests; frontend adds minimum 5 new tests; no regressions
+- **Zero new vulnerabilities** — npm audit remains at 0 vulnerabilities
 
 ---
 
 ## Blockers
 
-- T-065 (analytics frontend) is blocked until: (1) Design Agent writes SPEC-011 in ui-spec.md, AND (2) Backend Engineer publishes the `GET /api/v1/care-actions/stats` API contract in api-contracts.md.
-- All other Sprint #15 tasks have no blockers — start immediately.
+- T-070 (Delete Account modal) is blocked until Backend Engineer publishes the `DELETE /api/v1/account` API contract in `api-contracts.md`
+- All other Sprint #16 tasks have no blockers — start immediately
 
 ---
 
-*Sprint #15 plan written by Manager Agent on 2026-03-31.*
+*Sprint #16 plan written by Manager Agent on 2026-04-01.*

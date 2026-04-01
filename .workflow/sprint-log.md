@@ -4,6 +4,79 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #15 — 2026-03-31 to 2026-04-01
+
+**Sprint Goal:** Deliver the Care History Analytics feature (B-004) while hardening the pool startup warm-up edge case (T-066), verifying the HttpOnly cookie flow end-to-end (T-067), and polishing confetti for dark mode (T-068).
+
+**Outcome:** ✅ Goal fully met — all 5 tasks completed, Deploy Verified: Yes, zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-064 | Backend: `GET /api/v1/care-actions/stats` endpoint — 5 new tests, 88/88 backend tests pass |
+| T-065 | Design (SPEC-011) + Frontend: Care History Analytics page at `/analytics` — 7 new tests, 142/142 frontend tests pass |
+| T-066 | Backend: Pool startup hardening — `db.raw('SELECT 1')` warm-up confirmed before `app.listen()`; 3 rapid logins → all 200, no 500s |
+| T-067 | QA: HttpOnly refresh token cookie flow verification — `credentials: 'include'` on all fetches, HttpOnly set/cleared correctly, auto-refresh on 401 confirmed |
+| T-068 | Frontend: Confetti dark mode fix — warm botanical palette (deep greens, amber, terracotta); `prefers-reduced-motion` respected |
+
+#### Tasks Carried Over
+
+None. This is the second consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. Monitor Agent health check returned **Deploy Verified: Yes**. All functional endpoints under `/api/v1/` responded correctly. The `/api/v1/health` 404 is expected (health endpoint lives at `/api/health`).
+
+---
+
+#### Key Feedback Themes
+
+- **FB-073** (Minor Suggestion): `GET /care-actions/stats` should have endpoint-specific rate limiting for production hardening → Tasked T-071 (Sprint 16)
+- **FB-074** (Cosmetic): StatTile icon colors use hardcoded hex values instead of CSS custom properties → Tasked T-072 (Sprint 16)
+- **FB-069** (Cosmetic): Analytics empty state copy could be warmer and more encouraging → Tasked T-073 (Sprint 16)
+- **FB-075, FB-070, FB-072** (Positive): Strong QA praise for empty state UX, accessible donut chart pattern, and robust edge case handling throughout
+
+---
+
+#### What Went Well
+
+- Clean implementation of a user-facing analytics feature end-to-end in a single sprint — backend model, API contract, Design spec (SPEC-011), frontend page, tests, and dark mode all delivered
+- Test counts grew meaningfully: 83→88 backend (+5), 135→142 frontend (+7) — no regressions in any suite
+- Pool startup hardening (T-066) provides a definitive fix for the residual transient 500 edge case
+- QA product-perspective testing surfaced three cosmetic improvement opportunities without blocking the sprint
+- Deploy Verified: Yes on first Monitor Agent run — second consecutive sprint with no Deploy Verified: No
+
+---
+
+#### What to Improve
+
+- T-020 (user testing by project owner) remains open and has been deferred since Sprint 1. Sprint 16 should note its continued open status and encourage the project owner to run a browser session.
+- T-067 (browser DevTools cookie verification) was completed at code level but full live browser DevTools verification remains pending manual session — acceptable for now but should be revisited before production launch.
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Sprint to Address |
+|------|----------|------------------|
+| `GET /care-actions/stats` uses general rate limiter (100 req/15min); needs endpoint-specific limit for production | Minor | Sprint 16 (T-071) |
+| StatTile icon colors hardcoded hex `#5C7A5C`, `#C4921F` — should use CSS custom properties | Cosmetic | Sprint 16 (T-072) |
+| Analytics empty state copy is functional but not warm — cosmetic copy polish | Cosmetic | Sprint 16 (T-073) |
+| T-020 user testing session still pending project owner action | Advisory | Ongoing |
+| Production deployment blocked on project owner providing SSL certs | Advisory | Production phase |
+| Express 5 migration — no breaking-change-safe path yet | Advisory | Post-production |
+
+---
+
+*Sprint #15 summary written by Manager Agent on 2026-04-01.*
+
+---
+
 ### Sprint #1 — 2026-03-21 to 2026-03-23
 
 **Sprint Goal:** Establish the full backend API, database schema, UI specs, and staging infrastructure for Plant Guardians MVP.

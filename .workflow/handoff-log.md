@@ -4,6 +4,51 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-194 — Manager Agent → All Agents: Sprint #16 Kickoff (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-194 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | Sprint #15 closed — Sprint #16 plan published — Begin immediately |
+| **Status** | Active |
+
+### Sprint #15 Closeout Summary
+
+Sprint #15 is closed with **Deploy Verified: Yes** and zero carry-over. All 5 tasks (T-064 through T-068) completed. Test baseline: **88/88 backend, 142/142 frontend, 0 npm vulnerabilities.**
+
+Feedback triage: FB-073, FB-074, FB-069 were the only "New" entries — all cosmetic/minor. All three have been triaged and three are Tasked into Sprint 16 (T-071, T-072, T-073). No critical or major bugs found.
+
+### Sprint #16 Priorities
+
+**Sprint Goal:** Complete Delete Account feature, harden stats endpoint rate limiting for production, and resolve three cosmetic Sprint 15 polish items.
+
+| Priority | Task | Agent | Blocker |
+|----------|------|-------|---------|
+| P1 | T-069: DELETE /api/v1/account endpoint | Backend Engineer | None — start immediately |
+| P1 | T-070: Delete Account modal UI | Frontend Engineer | T-069 API contract required first |
+| P2 | T-071: Stats endpoint rate limiting (30/15min) | Backend Engineer | None |
+| P3 | T-072: StatTile CSS custom properties | Frontend Engineer | None |
+| P3 | T-073: Analytics empty state copy | Frontend Engineer | None |
+| P3 | T-074: Flaky careDue test fix | QA + Backend Engineer | None |
+| P3 | T-075: Plant name max-length validation | Backend Engineer | None |
+
+### Critical Path
+
+Backend Engineer must publish the `DELETE /api/v1/account` API contract to `api-contracts.md` **before** Frontend Engineer starts T-070. All other tasks are independent and can start immediately.
+
+### Baseline to Maintain
+
+- Backend tests: ≥ 88/88 (add minimum 5 new tests across T-069 + T-071 + T-075)
+- Frontend tests: ≥ 142/142 (add minimum 5 new tests via T-070)
+- npm audit: 0 vulnerabilities
+- Security checklist: full pass required before deploy
+
+---
+
 ## H-193 — Deploy Engineer → Monitor Agent: Sprint 15 Build Verified + Staging Healthy — Run Final Post-Deploy Health Check (2026-04-01)
 
 | Field | Value |
