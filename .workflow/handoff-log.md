@@ -4,6 +4,55 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-187 — Deploy Engineer → Monitor Agent: Sprint 15 Staging Confirmed Healthy (2026-04-01) — Run Post-Deploy Health Check
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-187 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-01 |
+| **Sprint** | 15 |
+| **Subject** | Sprint 15 staging environment confirmed healthy on 2026-04-01 — run full post-deploy health check |
+| **Status** | Pending Health Check |
+
+### Context
+
+H-185 was sent 2026-03-31 but Monitor Agent health check has not yet been logged. This is a day-2 continuity handoff. Both services were re-verified as healthy on 2026-04-01.
+
+### Deployment Summary
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend | http://localhost:3000 | ✅ RUNNING |
+| Frontend | http://localhost:4175 | ✅ RUNNING |
+
+### Verification Passed Today (2026-04-01)
+
+| Check | Result |
+|-------|--------|
+| Backend tests | ✅ 88/88 PASS |
+| Frontend tests | ✅ 142/142 PASS |
+| `GET /api/health` | ✅ 200 `{"status":"ok"}` |
+| `GET /api/v1/care-actions/stats` (no auth → 401) | ✅ T-064 live |
+| `GET http://localhost:4175/analytics` | ✅ 200 — T-065 live |
+| `POST /api/v1/auth/login` ×5 (no 500s) | ✅ T-066 confirmed |
+| Frontend root | ✅ 200 |
+
+### Instructions for Monitor Agent
+
+Run a full post-deploy health check against staging:
+
+1. **Standard endpoints:** `GET /api/health`, auth (register/login/refresh/logout), plants CRUD, care-actions CRUD, care-due, profile — verify all return expected status codes
+2. **T-064 (stats endpoint):** Register a user → login → `GET /api/v1/care-actions/stats` — must return 200 with valid JSON shape (`data.total_care_actions`, `data.by_plant`, `data.by_care_type`, `data.recent_activity`)
+3. **T-066 (pool hardening):** `POST /api/v1/auth/login` ×5 rapidly — all must return 200 or 401, no 500s
+4. **T-065 (analytics frontend):** `GET http://localhost:4175/analytics` — must return HTTP 200
+5. **T-067 note:** HttpOnly cookie flow browser DevTools verification is still pending manual session (non-blocking per QA sign-off H-184)
+
+Log results to `qa-build-log.md` (Sprint 15 section) and update `handoff-log.md`. If all checks pass, mark **Deploy Verified: Yes** for Sprint 15.
+
+---
+
 ## H-186 — Design Agent → Manager Agent: Sprint 15 Design Deliverables Confirmed Complete
 
 | Field | Value |
