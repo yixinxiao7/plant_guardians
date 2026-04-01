@@ -4,6 +4,59 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-209 — Deploy Engineer → Monitor Agent: Sprint #16 Re-Deploy Complete — Run Full Health Checks (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-209 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | Sprint #16 re-deploy to staging complete (SHA 0eeac26) — run full post-deploy health checks |
+| **Status** | Active |
+
+### Deploy Summary
+
+Sprint #16 services have been rebuilt and redeployed with the latest HEAD (0eeac26), superseding the prior deploy at c47646f. All pre-deploy gates passed (H-205, H-208). Fresh `npm install` + `npm run build` succeeded. All 5 migrations remain up to date.
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| Backend API | http://localhost:3000 | 52379 | ✅ Running |
+| Frontend | http://localhost:4176 | 52455 | ✅ Running |
+
+**Git SHA:** 0eeac26
+
+### Migrations
+
+No new migrations for Sprint 16. All 5 existing migrations remain up to date.
+
+### Sprint 16 Changes Deployed
+
+| Task | Description | What to Verify |
+|------|-------------|----------------|
+| T-069 | `DELETE /api/v1/account` endpoint | 401 without auth; 204 with valid auth + correct password; 400 INVALID_PASSWORD on wrong password |
+| T-070 | Delete Account modal on Profile page | `/profile` loads; modal present; all UI states work |
+| T-071 | Rate limiting on `GET /care-actions/stats` | 30 req/15min limit active; 429 on breach |
+| T-072 | StatTile icon colors → CSS custom properties | No hardcoded hex values in AnalyticsPage |
+| T-073 | Analytics empty state copy update | "Your care journey starts here" heading present |
+| T-074 | Fix flaky careDue test | Care-due endpoint stable, no timing issues |
+| T-075 | Plant name max-length validation (100 chars) | `POST /plants` and `PUT /plants/:id` reject >100-char names with 400 |
+
+### Monitor Agent Instructions
+
+1. Run full health check: `GET /api/health` → `{"status":"ok"}`
+2. Verify Sprint 16 endpoints are reachable (auth-gated is expected — confirm 401, not 404):
+   - `DELETE /api/v1/account`
+   - `GET /api/v1/care-actions/stats`
+3. Verify frontend pages load: `/`, `/analytics`, `/profile`
+4. If all checks pass: set **Deploy Verified: Yes** in `qa-build-log.md`
+5. If any check fails: log details in `qa-build-log.md` and create a handoff back to Deploy Engineer
+
+Full build log is in `.workflow/qa-build-log.md` — Sprint 16 section (Pass 2).
+
+---
+
 ## H-208 — QA Engineer: Sprint #16 Independent Re-Verification — All Clear (2026-04-01)
 
 | Field | Value |

@@ -4,6 +4,79 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 16 — Deploy Engineer: Re-Deploy to Staging (2026-04-01) [Pass 2]
+
+**Date:** 2026-04-01
+**Agent:** Deploy Engineer (Orchestrator Sprint #16 — re-invocation)
+**Sprint:** 16
+**Environment:** Staging (localhost)
+**Git SHA:** 0eeac26
+
+---
+
+### Pre-Deploy Gates
+
+| Gate | Result |
+|------|--------|
+| QA confirmation (handoff-log.md) | ✅ H-205 + H-208 — all 7 tasks Done, independent re-verification passed |
+| All Sprint 16 tasks Done | ✅ T-069, T-070, T-071, T-072, T-073, T-074, T-075 |
+| Pending migrations | ✅ None — `npm run migrate` → "Already up to date" (5/5 migrations current) |
+
+### Dependency Install
+
+| Package | Command | Result |
+|---------|---------|--------|
+| Backend | `cd backend && npm install` | ✅ 0 vulnerabilities |
+| Frontend | `cd frontend && npm install` | ✅ 0 vulnerabilities |
+
+### Frontend Build
+
+| Step | Result |
+|------|--------|
+| `npm run build` | ✅ Success — 4626 modules, 414.91 kB JS (119.67 kB gzip), built in 158ms |
+| Build artifacts | `dist/index.html`, `dist/assets/index-CfgONG1I.js`, `dist/assets/index-DVLgQVRz.css` |
+
+### Migration Status
+
+| Migration | Status |
+|-----------|--------|
+| 20260323_01_create_users | ✅ Already up to date |
+| 20260323_02_create_refresh_tokens | ✅ Already up to date |
+| 20260323_03_create_plants | ✅ Already up to date |
+| 20260323_04_create_care_schedules | ✅ Already up to date |
+| 20260323_05_create_care_actions | ✅ Already up to date |
+| **New migrations** | None — no schema changes in Sprint 16 |
+
+### Service Restart
+
+Previous deploy (PID 51315 backend, PID 51386 frontend) was running SHA c47646f. Restarted with current HEAD (0eeac26).
+
+| Service | URL | PID | HTTP Status | Response |
+|---------|-----|-----|-------------|----------|
+| Backend API | http://localhost:3000 | 52379 | ✅ Running | `{"status":"ok","timestamp":"2026-04-01T16:27:16.811Z"}` |
+| Frontend | http://localhost:4176 | 52455 | ✅ 200 | HTML served |
+
+### Staging Deployment
+
+| Environment | Build | Status |
+|-------------|-------|--------|
+| Staging | Sprint 16 (SHA 0eeac26) | ✅ Success |
+
+### Sprint 16 Smoke Tests
+
+| Check | Expected | Result |
+|-------|----------|--------|
+| `GET /api/health` | 200 `{"status":"ok"}` | ✅ PASS |
+| `DELETE /api/v1/account` (no auth) | 401 UNAUTHORIZED | ✅ PASS |
+| `GET /api/v1/care-actions/stats` (no auth) | 401 UNAUTHORIZED | ✅ PASS |
+| Frontend `/` | 200 HTML | ✅ PASS |
+
+**Build Status: ✅ SUCCESS**
+**Environment: Staging**
+**Deploy Verified: Pending Monitor Agent health check**
+
+---
+
 ## Sprint 16 — Deploy Engineer: Build + Staging Deployment (2026-04-01)
 
 **Date:** 2026-04-01
