@@ -1932,3 +1932,48 @@ The following Sprint 14 changes are present in the working tree (unstaged) and a
 **Sprint 14 QA Re-Verification: ✅ COMPLETE — ALL PASS**
 
 All 6 tasks (T-058, T-059, T-060, T-061, T-062, T-063) confirmed Done. Staging deploy already complete (H-167). Awaiting Monitor Agent post-deploy health check.
+
+---
+## Sprint 15 — Post-Deploy Health Check
+**Date:** 2026-04-01
+**Environment:** Staging (local)
+**Test Type:** Post-Deploy Health Check + Config Consistency
+**Performed By:** Monitor Agent
+
+### Config Consistency
+| Check | Result | Details |
+|-------|--------|---------|
+| Port match (backend PORT vs vite proxy) | PASS | backend PORT=3000; vite proxy target=http://localhost:3000 — exact match |
+| Protocol match (SSL config vs vite proxy) | N/A | No SSL_KEY_PATH or SSL_CERT_PATH in backend/.env; vite proxy uses http:// — consistent |
+| CORS_ORIGIN includes frontend dev origin | PASS | FRONTEND_URL includes http://localhost:5173 (vite default dev port) and http://localhost:5174; vite.config.js has no explicit port configured (defaults to 5173) — match |
+| Docker port mapping | N/A | docker-compose.yml only maps PostgreSQL ports (5432 dev, 5433 test); backend API port not containerized — no mismatch |
+
+### Health Checks
+| Check | Status Code | Result | Notes |
+|-------|------------|--------|-------|
+| GET /api/health | 200 | PASS | Returns `{"status":"ok","timestamp":"..."}` — backend is live |
+| GET /api/v1/health | 404 | FAIL | Route not registered under /api/v1/health — health endpoint lives at /api/health (no versioned prefix) |
+| POST /api/v1/auth/login | 200 | PASS | Returns user object + access_token for test@plantguardians.local |
+| GET /api/v1/plants | 200 | PASS | Returns 3 plants with care_schedules and pagination |
+| POST /api/v1/plants | 201 | PASS | Plant created successfully |
+| GET /api/v1/plants/:id | 200 | PASS | Returns single plant with care_schedules |
+| GET /api/v1/care-actions | 200 | PASS | Returns 3 care actions with pagination |
+| GET /api/v1/care-actions/stats (T-064) | 200 | PASS | Returns `{total_care_actions, by_plant[], by_care_type[], recent_activity[]}` — all 4 fields present |
+| GET /api/v1/care-due?utcOffset=0 | 200 | PASS | Returns `{overdue[], due_today[], upcoming[]}` — correct shape |
+| GET /api/v1/profile | 200 | PASS | Returns user object + stats (plant_count, days_as_member, total_care_actions) |
+| POST /api/v1/auth/logout | 200 | PASS | Returns `{"data":{"message":"Logged out successfully."}}` |
+| T-066 pool hardening (3x rapid login) | 200 | PASS | All 3 attempts returned 200 — no 500s |
+| T-065 analytics frontend (GET http://localhost:4175/analytics) | 200 | PASS | Frontend preview server live; /analytics returns HTTP 200 |
+| Frontend dist accessible | N/A | PASS | dist/ directory exists: assets/, favicon.svg, icons.svg, index.html |
+
+### Note on Health Endpoint Path
+The health check endpoint is registered at `GET /api/health` (not `/api/v1/health`). This is intentional — health checks are infrastructure-level and are not versioned. The 404 on `/api/v1/health` is expected behaviour, not a bug. All Sprint 15 functional endpoints under `/api/v1/` respond correctly.
+
+### Summary
+**Deploy Verified:** Yes
+**Error Summary:** None — all functional endpoints pass. The `/api/v1/health` 404 is expected (health endpoint lives at `/api/health` outside the versioned prefix).
+**T-064 (stats endpoint):** PASS — all 4 response fields confirmed present
+**T-065 (analytics page):** PASS — HTTP 200, frontend preview serving correctly
+**T-066 (pool hardening):** PASS — 3 rapid logins, all 200, zero 500s
+**T-067 (cookie flow):** Not testable via curl (HttpOnly cookies require browser DevTools); documented as non-blocking per QA sign-off H-184/H-189/H-192
+**T-068 (confetti dark mode):** Not directly observable via health check curl; verified as Done per QA sign-off H-192 (142/142 frontend tests pass)
