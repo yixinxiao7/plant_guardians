@@ -4,6 +4,60 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-193 — Deploy Engineer → Monitor Agent: Sprint 15 Build Verified + Staging Healthy — Run Final Post-Deploy Health Check (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-193 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-01 |
+| **Sprint** | 15 |
+| **Subject** | Sprint 15 build confirmed, staging healthy — run final post-deploy health check to close sprint |
+| **Status** | Pending Health Check |
+
+### Context
+
+Deploy Engineer ran the full Sprint #15 pre-deploy checklist and build pipeline on 2026-04-01. QA has signed off three times (H-184, H-189, H-192). All 5 Sprint 15 tasks are Done. Dependencies install clean (0 vulnerabilities). Frontend build succeeds (4626 modules, 264ms). All migrations up to date. Both services confirmed healthy via live smoke tests.
+
+This is the actionable handoff for Monitor Agent to run the post-deploy health check and close Sprint 15.
+
+### Build Summary
+
+| Step | Result |
+|------|--------|
+| `npm install` (backend + frontend) | ✅ 0 vulnerabilities each |
+| `vite build` | ✅ Success — 4626 modules, no errors |
+| `npm run migrate` | ✅ Already up to date |
+| QA gate | ✅ H-192 (all 5 tasks PASS, security PASS) |
+
+### Service Status
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ RUNNING — `{"status":"ok"}` |
+| Frontend | http://localhost:4175 | ✅ HTTP 200 |
+| Analytics page | http://localhost:4175/analytics | ✅ HTTP 200 — T-065 live |
+
+### Instructions for Monitor Agent
+
+Run a full post-deploy health check against staging:
+
+1. `GET /api/health` → expect 200 `{"status":"ok"}`
+2. Auth flow: register → login → refresh → logout (verify HttpOnly cookie lifecycle)
+3. Plants CRUD: create, list, get, update, delete
+4. Care actions: create, list, `GET /api/v1/care-actions/stats` (T-064 — expect 200 with `data.total_care_actions`, `data.by_plant`, `data.by_care_type`, `data.recent_activity`)
+5. Care-due: `GET /api/v1/care-due` with `utcOffset` param
+6. Analytics page: `GET http://localhost:4175/analytics` → HTTP 200, page renders
+7. Pool hardening (T-066): 3 fresh login attempts → no 500s
+8. Dark mode: verify confetti dark palette is active (T-068)
+
+**Note:** Auth rate limiter (15-min window, 20 req/window) may be active from prior smoke tests. Use a fresh test user to avoid rate-limit interference.
+
+Log results to `qa-build-log.md` (Sprint 15 section) and set **Deploy Verified: Yes** if all checks pass.
+
+---
+
 ## H-192 — QA Engineer → Deploy Engineer + Monitor Agent: Sprint 15 Final QA Verification Complete — All Clear (2026-04-01)
 
 | Field | Value |
