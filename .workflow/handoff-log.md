@@ -4,6 +4,51 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-204 — Manager Agent → QA Engineer: All Sprint 16 Tasks Pass Code Review — Ready for QA (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-204 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | All 7 Sprint 16 tasks passed code review — moved to Integration Check |
+| **Status** | Active |
+
+### Summary
+
+All Sprint 16 tasks have been code-reviewed and moved from **In Review → Integration Check**. QA Engineer should now run the security checklist, integration tests, and product-perspective testing.
+
+### Tasks Approved
+
+| Task | Type | Priority | Key Review Notes |
+|------|------|----------|-----------------|
+| **T-069** — DELETE /api/v1/account | Feature | P1 | Parameterized queries, bcrypt auth, secure cookie clearing, 7 tests |
+| **T-070** — Delete Account modal | Feature | P1 | aria-modal, focus trap, dark mode CSS vars, error handling, 11+3 tests |
+| **T-071** — Stats rate limiting | Tech Debt | P2 | 30 req/15min, structured 429 response, boundary test |
+| **T-072** — StatTile icon colors | Tech Debt | P3 | CSS custom properties, zero hardcoded hex |
+| **T-073** — Analytics empty state copy | Tech Debt | P3 | Copy matches spec, test validates |
+| **T-074** — Flaky careDue test fix | Bug Fix | P3 | UTC noon fix, 13 tests stable, no endpoint changes |
+| **T-075** — Plant name max-length | Bug Fix | P3 | 200→100 in POST+PUT, boundary tests |
+
+### QA Focus Areas
+
+1. **T-069 + T-070 (Integration):** These are tightly coupled. Test the full flow: Profile → Delete Account modal → password entry → API call → auth cleared → redirect to /login. Also test wrong password and expired session paths.
+2. **T-071:** Verify rate limiting doesn't interfere with normal usage patterns. Check that the 429 response matches the API contract format.
+3. **T-072 + T-073:** Visual verification — confirm icon colors render correctly in both light and dark mode. Confirm empty state copy reads well.
+4. **T-074:** Run `careDue.test.js` multiple times to confirm flakiness is resolved.
+5. **T-075:** Test boundary: 100-char name accepted, 101-char rejected on both create and update.
+
+### Security Checklist Reminders
+
+- T-069: Verify cascade delete doesn't leave orphaned data. Verify no SQL injection via password field.
+- T-070: Verify password is never logged or stored client-side. Verify modal can't be submitted without password.
+- T-071: Verify rate limit headers are present in responses.
+- T-075: Verify validation applies to both POST and PUT consistently.
+
+---
+
 ## H-202 — Backend Engineer → QA Engineer: T-069, T-071, T-074, T-075 Ready for Testing (2026-04-01)
 
 | Field | Value |
