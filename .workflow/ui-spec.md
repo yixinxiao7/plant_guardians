@@ -2634,6 +2634,482 @@ Minimum 5 new tests required. All 135/135 existing frontend tests must continue 
 
 ---
 
+---
+
+### SPEC-012 — AI Recommendations Panel (Add/Edit Plant Page)
+
+**Status:** Approved
+**Related Tasks:** T-076 (Design), T-079 (Frontend — text flow), T-080 (Frontend — image upload flow)
+**Sprint:** 17
+
+---
+
+#### Description
+
+The AI Recommendations feature is the heart of Plant Guardians' value proposition: novice users who don't know their plant species or care schedules get expert-level guidance via Gemini AI in seconds. The feature lives on the **Add Plant page** and **Edit Plant page** as an optional AI assist — non-intrusive to users who already know their care schedule, immediately accessible to users who don't.
+
+The experience is a **slide-in side panel** (desktop) or **bottom sheet** (mobile) called the **AI Advice Panel**. It is triggered by a single "Get AI Advice" button on the form. Inside the panel, the user chooses between two input modes:
+
+- **Text mode:** Enter a plant type name (e.g., "spider plant")
+- **Image mode:** Upload a plant photo for visual identification
+
+Both modes return the same structured advice response, rendered identically. After reviewing the advice, the user can **Accept** (auto-populates the form) or **Dismiss** (closes the panel, no changes).
+
+The panel must feel calm and botanical — not clinical or chatbot-like. It is a helpful companion, not a chat interface.
+
+---
+
+#### Placement on Add/Edit Plant Page
+
+The **"Get AI Advice" button** sits immediately below the plant type / species field (or, if no species field exists, immediately above the watering schedule section). It is a **Secondary button variant** (transparent background, `#5C7A5C` text and border) with a small leaf or sparkle icon to its left.
+
+```
+┌─────────────────────────────────────┐
+│  Plant Name *           [input]     │
+│                                     │
+│  Plant Type / Species   [input]     │
+│  ✦ Get AI Advice         ← button  │
+│                                     │
+│  Watering Schedule      [input]     │
+│  Fertilizing Schedule   [input]     │
+│  Repotting Schedule     [input]     │
+│  ...                                │
+└─────────────────────────────────────┘
+```
+
+- Button label: `✦ Get AI Advice`
+- Button variant: Secondary (see Design System Conventions)
+- Button size: standard (`padding: 10px 20px`)
+- On click: opens the AI Advice Panel (see below)
+
+---
+
+#### AI Advice Panel — Layout
+
+**Desktop (≥ 768px):** Slide-in panel from the right edge, overlapping the page with a semi-transparent backdrop. Panel width: **480px**. Panel height: full viewport height (100vh). The rest of the page is dimmed using the overlay color (`rgba(44, 44, 44, 0.45)`). The form behind remains visible but non-interactive while the panel is open.
+
+**Mobile (< 768px):** Bottom sheet. Slides up from the bottom of the screen. Height: up to 90vh, scrollable if content overflows. Has a drag handle at the top center (4px × 32px pill, `#E0DDD6`).
+
+**Panel anatomy (top to bottom):**
+
+```
+┌────────────────────────────────────────┐
+│  Panel header                          │
+│  ← Close (X) icon button    [right]   │
+│  "AI Plant Advisor"  [title]           │
+│  "Identify your plant and get         │
+│   personalized care tips."  [subtitle]│
+├────────────────────────────────────────┤
+│  Mode Toggle (Tab bar)                 │
+│  [ ✎ Enter plant name ] [ 📷 Upload ] │
+├────────────────────────────────────────┤
+│  Input Area (changes per mode)         │
+│  ... (see below for each mode)         │
+├────────────────────────────────────────┤
+│  Advice Results Area                   │
+│  (hidden until response received)      │
+├────────────────────────────────────────┤
+│  CTA Footer (Accept / Dismiss)         │
+│  (hidden until response received)      │
+└────────────────────────────────────────┘
+```
+
+**Panel background:** `#FFFFFF` (surface)
+**Panel box-shadow:** `0 8px 40px rgba(44, 44, 44, 0.18)` (left-side shadow on desktop, top-shadow on mobile)
+**Panel border-radius:** `16px 0 0 16px` (desktop), `16px 16px 0 0` (mobile)
+**Panel padding:** 24px (desktop), 20px (mobile)
+
+**Panel Header:**
+- Title: "AI Plant Advisor" — `font-family: 'Playfair Display'`, `font-size: 22px`, `font-weight: 600`, `color: #2C2C2C`
+- Subtitle: "Identify your plant and get personalized care tips." — `font-size: 14px`, `color: #6B6B5F`
+- Close button (×): Icon button variant, top-right corner of the header, `aria-label="Close AI advice panel"`. Clicking it dismisses the panel without any form changes.
+
+---
+
+#### Mode Toggle (Tab Bar)
+
+A two-tab toggle bar below the header, spanning the full panel width. Tabs are pill-shaped buttons.
+
+| State | Style |
+|-------|-------|
+| Active tab | Background `#5C7A5C`, text `#FFFFFF`, `border-radius: 24px` |
+| Inactive tab | Background `#F0EDE6`, text `#6B6B5F`, `border-radius: 24px` |
+
+- Tab 1: `✎ Enter plant name` — defaults to active on panel open
+- Tab 2: `📷 Upload a photo`
+- Switching tabs resets the input area and clears any previous advice results
+- `role="tablist"`, each tab has `role="tab"`, `aria-selected`, and `aria-controls` pointing to its panel content area
+
+---
+
+#### Mode 1 — Text Input ("Enter plant name")
+
+The input area shows:
+
+1. **Label:** "What type of plant is this?" — `font-size: 14px`, `font-weight: 500`, `color: #2C2C2C`
+2. **Text input:**
+   - `placeholder="e.g., spider plant, peace lily, monstera"`
+   - Full-width, standard input styling (`border: 1.5px solid #E0DDD6`, `border-radius: 8px`, `padding: 10px 14px`, `font-size: 16px`)
+   - Max length: 200 characters (matching backend validation)
+   - `aria-label="Plant type name"`
+   - On focus: border becomes `#5C7A5C` (focus ring)
+3. **"Get Advice" button:**
+   - Primary button variant, full-width, `margin-top: 12px`
+   - Label: "Get Advice"
+   - `type="submit"` within a `<form>` element (supports Enter key)
+   - Disabled state: when input is empty or whitespace-only
+
+**Character counter (optional, visible at 150+ chars):** `12px`, `color: #B0ADA5`, right-aligned below the input: "143 / 200"
+
+---
+
+#### Mode 2 — Image Upload ("Upload a photo")
+
+The input area shows:
+
+1. **Upload Zone:**
+   - Dashed border box, `border: 2px dashed #E0DDD6`, `border-radius: 12px`, `background: #F7F4EF`, `padding: 32px 24px`
+   - Center-aligned content: a camera/leaf icon (`40px`, `color: #B0ADA5`), then "Drop a photo here" (`font-size: 16px`, `color: #6B6B5F`), then "or" (`font-size: 14px`, `color: #B0ADA5`), then a **"Browse files"** Ghost button
+   - Accepts: `image/jpeg, image/png, image/webp`
+   - Supports drag-and-drop onto the zone (highlight border to `#5C7A5C` on drag-over)
+   - Hidden `<input type="file" accept=".jpg,.jpeg,.png,.webp">` behind the "Browse files" button
+   - `aria-label="Upload a plant photo"` on the file input
+
+2. **Image Preview (after file selected):**
+   - The upload zone is replaced by:
+     - A thumbnail of the selected image — `80px × 80px`, `border-radius: 8px`, `object-fit: cover`
+     - File name and size: `font-size: 13px`, `color: #6B6B5F` — e.g., "plant.jpg · 2.3 MB"
+     - A small ×  "Remove" ghost button next to the file info (removes selection, restores upload zone)
+   - Preview container: `display: flex`, `align-items: center`, `gap: 12px`, `padding: 12px`, `background: #F0EDE6`, `border-radius: 8px`
+
+3. **Client-side validation (before submit):**
+   - **Wrong file type:** Inline error below the upload zone — "Please upload a JPEG, PNG, or WebP image." — `color: #B85C38`, `font-size: 13px`, shown with an `aria-live="polite"` region
+   - **File too large (> 5MB):** Inline error — "Image must be 5MB or smaller." — same styling as above
+   - Validation fires on file selection (not on submit); the "Get Advice" button remains disabled if validation fails
+
+4. **"Get Advice" button (upload mode):**
+   - Primary button, full-width, `margin-top: 16px`
+   - Label: "Identify & Get Advice"
+   - Disabled until a valid file is selected (no errors)
+
+---
+
+#### Loading State
+
+When the user submits either mode, the panel enters loading state:
+
+- "Get Advice" button becomes disabled and shows an inline spinner (16px spinner replacing the button label text, centered)
+- The text input / file upload zone becomes disabled/read-only
+- The mode toggle tabs become disabled (non-clickable)
+- A subtle pulsing skeleton block appears in the results area to hint that content is incoming (3 skeleton rows, `background: #F0EDE6`, `border-radius: 4px`, animated with a shimmer from left to right — use `@keyframes shimmer`)
+- `aria-busy="true"` set on the results container
+- `aria-live="polite"` region announces "Loading plant advice…"
+- Duration limit: if the request takes > 10 seconds, the loading state should not freeze the UI — the error state (502) will fire instead
+
+---
+
+#### Success State — Advice Results
+
+On a successful API response, the loading skeleton is replaced by the structured advice panel. Render all sections listed below in order:
+
+**1. Plant Identification Banner**
+
+Full-width banner at the top of the results area:
+
+- Background: `#E8F4EC` (light sage)
+- Left side: A plant icon (outlined leaf) in `#4A7C59`
+- Main content:
+  - "Identified as" label (`font-size: 12px`, `color: #6B6B5F`, uppercase, letter-spacing)
+  - Plant name: `identified_plant` value — `font-size: 18px`, `font-weight: 600`, `color: #2C2C2C`, `font-family: 'Playfair Display'`
+- Right side: Confidence badge (pill)
+  - `confidence: "high"` → background `#E8F4EC`, text `#4A7C59`, label "High confidence"
+  - `confidence: "medium"` → background `#FDF4E3`, text `#C4921F`, label "Medium confidence"
+  - `confidence: "low"` → background `#FAEAE4`, text `#B85C38`, label "Low confidence"
+- Banner `border-radius: 10px`, `padding: 14px 16px`
+- If confidence is "low", show a small disclaimer below the banner: "Results may be approximate. Verify with a plant expert." — `font-size: 12px`, `color: #B0ADA5`, italic
+
+**2. Care Schedule Section**
+
+Section heading: "Recommended Care Schedule" — `font-size: 14px`, `font-weight: 600`, `color: #2C2C2C`, `margin-top: 20px`
+
+Three care schedule rows, each using the same row component:
+
+```
+[icon]  [label]             [value]
+💧     Watering            Every 7 days
+🌱     Fertilizing         Every 30 days        (or "Not typically needed" if null)
+🪴     Repotting           Every 365 days       (or "Not typically needed" if null)
+```
+
+Row styling:
+- Full-width row, `display: flex`, `align-items: center`, `gap: 12px`, `padding: 10px 0`, `border-bottom: 1px solid #F0EDE6`
+- Icon: 20px emoji or Phosphor icon, `color: #5C7A5C`
+- Label: `font-size: 14px`, `font-weight: 500`, `color: #6B6B5F`
+- Value: `font-size: 14px`, `font-weight: 500`, `color: #2C2C2C`, right-aligned / pushed to the end via `margin-left: auto`
+- If the interval value is `null`: display "Not typically needed" in `color: #B0ADA5`, `font-style: italic`
+
+**3. Growing Conditions Section**
+
+Section heading: "Growing Conditions" — same heading style, `margin-top: 20px`
+
+Two rows using the same row component format:
+
+```
+☀️   Light                Full indirect sunlight
+💦   Humidity             Moderate to high
+```
+
+Values come from `light_requirement` and `humidity_preference`.
+
+**4. Care Tips Section**
+
+Section heading: "Care Tips" — same heading style, `margin-top: 20px`
+
+A text block with `care_tips` value:
+- `font-size: 14px`, `line-height: 1.6`, `color: #2C2C2C`
+- Background: `#F7F4EF`, `border-radius: 8px`, `padding: 14px`
+- Left border accent: `3px solid #5C7A5C`
+
+**5. Divider + CTA Footer**
+
+`margin-top: 24px`, a `1px solid #E0DDD6` divider, then the CTA buttons (see below).
+
+---
+
+#### CTA Footer — Accept / Dismiss
+
+Displayed only when advice results are showing (not during loading, not during input-only state).
+
+Two buttons, full-width stacked (not side-by-side) to avoid accidental taps:
+
+```
+[ ✓  Accept Advice   ]   ← Primary button (full-width)
+[    Dismiss          ]   ← Ghost button (full-width, margin-top: 8px)
+```
+
+**Accept Advice button:**
+- Variant: Primary
+- Label: "✓ Accept Advice"
+- Full-width (`width: 100%`)
+- On click:
+  1. Maps AI response fields to the plant form fields (see Field Mapping below)
+  2. Closes the AI Advice Panel
+  3. Shows a brief toast: "AI advice applied! Review and save your plant." — success toast (green left border)
+  4. Focus returns to the first populated field in the form
+
+**Dismiss button:**
+- Variant: Ghost
+- Label: "Dismiss"
+- Full-width
+- On click: closes the panel; **no changes** to the form; no toast
+
+Both buttons are `font-size: 14px`, `font-weight: 600`, `border-radius: 8px`.
+
+---
+
+#### Field Mapping — Accept Advice
+
+When the user clicks "Accept Advice," the frontend maps the API response to form inputs:
+
+| API Response Field | Form Field | Notes |
+|--------------------|-----------|-|
+| `identified_plant` | Plant type/species field (if present in form) | Only if the field exists and is currently empty |
+| `care.watering_interval_days` | Watering schedule field | Always applied (overwrites existing value) |
+| `care.fertilizing_interval_days` | Fertilizing schedule field | Only if non-null; skip if null |
+| `care.repotting_interval_days` | Repotting schedule field | Only if non-null; skip if null |
+
+**Fields NOT mapped:**
+- Plant name (user-defined, intentionally not overwritten)
+- Plant photo (user's own photo is not replaced)
+- Any fields not listed above
+
+**Format:** Interval fields expect a number (days). Map directly: `watering_interval_days` (integer) → the watering schedule interval input. Do not convert units; the form should accept "days" as the unit.
+
+---
+
+#### Error States
+
+**1. Gemini Unavailable (502 from `/ai/advice` or `/ai/identify`)**
+
+Display inline within the results area (not a toast — the user is in a focused panel context):
+
+```
+┌─────────────────────────────────────────┐
+│  ⚠  AI advice is temporarily            │
+│     unavailable. Please try again.      │
+│                                         │
+│     [ Try Again ]                       │
+└─────────────────────────────────────────┘
+```
+
+- Container: `background: #FAEAE4`, `border-radius: 10px`, `padding: 16px`, `border: 1px solid #F5C4B4`
+- Icon: warning triangle, `color: #B85C38`, 20px
+- Text: "AI advice is temporarily unavailable. Please try again." — `font-size: 14px`, `color: #B85C38`
+- "Try Again" button: Secondary variant, `margin-top: 12px`; re-submits the last request
+- `aria-live="assertive"` on the error container so screen readers announce it immediately
+
+**2. Empty / No Plant Name (400 from `/ai/advice`)**
+
+Shown inline below the text input field (not the full error container):
+
+- Text: "Please enter a plant name." — `font-size: 13px`, `color: #B85C38`, `margin-top: 6px`
+- `aria-live="polite"` region
+
+This should ideally be caught client-side (button disabled when input is empty) so this error is a fallback only.
+
+**3. Unrecognized Plant in Image (502 from `/ai/identify` with plant-specific message)**
+
+Same visual treatment as the Gemini Unavailable error (502 container), but message:
+"We couldn't identify this plant from the photo. Try a clearer photo or enter the plant name instead."
+- Include a "Switch to text mode" ghost button that switches the panel to Mode 1.
+
+**4. Client-side file validation errors (wrong type / too large)**
+
+Described in Mode 2 above. Shown inline below the upload zone.
+
+---
+
+#### Empty / Initial State (Panel Just Opened)
+
+When the panel first opens (no query submitted yet):
+
+- Header and mode toggle visible
+- Input area is in its default state (empty text input or upload zone)
+- Results area: **hidden** (not rendered, not just invisible)
+- CTA footer: **hidden**
+- No skeleton, no loading
+- Focus is placed on the text input (Mode 1 default) upon panel open — `autoFocus` on the text input
+
+---
+
+#### Asking Again (Reset Flow)
+
+After advice is shown, the user can modify their query and re-submit:
+- "Search again" ghost button appears above the Plant Identification Banner (`font-size: 13px`, `color: #6B6B5F`, label "← Try a different plant")
+- Clicking it clears the results area and returns focus to the input
+- The CTA footer hides again
+- The mode toggle re-enables
+
+---
+
+#### Responsive Behavior
+
+| Breakpoint | Panel Behavior |
+|-----------|---------------|
+| Desktop (≥ 1024px) | Side panel, 480px wide, slides in from right, full viewport height |
+| Tablet (768px–1023px) | Side panel, 400px wide (slightly narrower), same slide-in behavior |
+| Mobile (< 768px) | Bottom sheet, 100% wide, max 90vh height, drag-handle at top |
+
+On mobile bottom sheet:
+- The drag handle is decorative only (no drag-to-dismiss required, but the × close button must be visible)
+- Content scrolls internally within the sheet if it overflows
+- The "Get AI Advice" button on the form scrolls with the form normally; pressing it triggers the bottom sheet
+
+---
+
+#### Dark Mode
+
+All panel elements must use CSS custom properties. Define dark-mode overrides for:
+
+| Token | Light | Dark |
+|-------|-------|------|
+| Panel background | `#FFFFFF` | `#1E1E1A` |
+| Panel header text | `#2C2C2C` | `#F0EDE6` |
+| Subtitle text | `#6B6B5F` | `#9E9B92` |
+| Input background | `#FFFFFF` | `#2A2A25` |
+| Input border | `#E0DDD6` | `#3A3A34` |
+| Input text | `#2C2C2C` | `#F0EDE6` |
+| Results section background | `#F7F4EF` | `#252520` |
+| Plant ID banner background | `#E8F4EC` | `#1E2E22` |
+| Plant ID banner text | `#4A7C59` | `#7DBF91` |
+| Care row border | `#F0EDE6` | `#2E2E28` |
+| Care tips background | `#F7F4EF` | `#252520` |
+| Care tips left border | `#5C7A5C` | `#5C7A5C` |
+| Error container background | `#FAEAE4` | `#2E1E1A` |
+| Error container border | `#F5C4B4` | `#5A2E24` |
+| Overlay backdrop | `rgba(44, 44, 44, 0.45)` | `rgba(0, 0, 0, 0.65)` |
+| Skeleton shimmer | `#F0EDE6` → `#E0DDD6` | `#2A2A25` → `#333330` |
+
+Dark mode is toggled via `data-theme="dark"` on the `<html>` element.
+
+---
+
+#### Accessibility
+
+- **Focus trap:** When the panel opens, focus is trapped inside it. Tab cycles through: close button → mode tabs → input(s) → submit button → (after results) accept button → dismiss button → close button.
+- **Focus restore:** When the panel closes (via X, Dismiss, or Accept), focus returns to the "Get AI Advice" trigger button on the form.
+- **ARIA roles:**
+  - Panel container: `role="dialog"`, `aria-modal="true"`, `aria-label="AI Plant Advisor"`
+  - Mode toggle: `role="tablist"`, tabs have `role="tab"` and `aria-selected`
+  - Results area: `role="tabpanel"`, `aria-labelledby` pointing to the active tab
+  - Loading region: `aria-busy="true"` + `aria-live="polite"` announcing "Loading plant advice…"
+  - Error regions: `aria-live="assertive"` (502 errors), `aria-live="polite"` (validation errors)
+  - Plant identification banner: `aria-label="Identified as [plant name], [confidence] confidence"`
+- **Keyboard navigation:**
+  - Escape key closes the panel (same as clicking X) without changes
+  - Enter in text input submits the form
+  - Tab/Shift+Tab cycles through all interactive elements
+  - Enter/Space on mode toggle tabs switches modes
+- **Screen reader text:** The confidence badge should have a visually hidden label so screen readers say "High confidence" not just "High"
+- **Color contrast:** All text meets WCAG AA minimum (4.5:1 for body text, 3:1 for large text)
+- **File input label:** The file input must have a visible label ("Upload a plant photo") — never use aria-label alone without a visual label
+
+---
+
+#### Animation & Motion
+
+- **Panel slide-in (desktop):** Translate from `translateX(480px)` to `translateX(0)`, duration 280ms, easing `cubic-bezier(0.4, 0, 0.2, 1)`
+- **Panel slide-out (desktop):** Translate from `translateX(0)` to `translateX(480px)`, duration 240ms
+- **Bottom sheet slide-up (mobile):** Translate from `translateY(100%)` to `translateY(0)`, duration 300ms
+- **Results fade-in:** When advice results replace the skeleton, the results container fades in: `opacity 0 → 1`, 200ms
+- **Backdrop:** Fades in at `opacity 0 → 0.45` over 200ms alongside panel entrance; fades out on close
+- **Reduced motion:** All animations wrapped in `@media (prefers-reduced-motion: reduce)` — if prefers-reduced-motion is set, skip translate animations (show/hide instantly) but still fade results in (300ms opacity only, as opacity changes are generally acceptable)
+
+---
+
+#### Edge Cases
+
+| Scenario | Behavior |
+|----------|----------|
+| User opens panel, submits, then navigates away (back button) | Panel closes, form resets or retains in-progress data per existing form behavior; no AI data applied |
+| User accepts advice but then manually edits a field | The manually edited value takes precedence; Accept does not re-overwrite after closing |
+| API returns `null` for all interval fields | Care Schedule section still renders with all three rows showing "Not typically needed" |
+| `identified_plant` is an empty string | Skip rendering the plant ID banner; show "Plant identified" without a name (edge case fallback) |
+| Image file selected, then user switches to text mode | Previous file selection is discarded; upload zone resets |
+| Very long `care_tips` string | Text block scrolls within its container; the panel itself is scrollable |
+| Network timeout (no response within 15s) | Treat as 502 error; show the "AI advice is temporarily unavailable" error state |
+| User opens panel, switches mode tabs rapidly | Debounce tab switching by 100ms to prevent flicker |
+
+---
+
+#### Unit Test Requirements (T-079 and T-080)
+
+**T-079 (text-based flow) — minimum 6 new tests:**
+
+| Test # | Scenario | Expected Result |
+|--------|----------|----------------|
+| 1 | "Get AI Advice" button renders on Add Plant page | Button is visible and clickable |
+| 2 | Clicking button opens AI Advice Panel | Panel renders with `role="dialog"`, focus moves to text input |
+| 3 | Text input submit calls `POST /api/v1/ai/advice` | API called with `{ plant_type: "spider plant" }` |
+| 4 | Successful response renders advice results | Plant name, confidence badge, care rows, and CTAs are visible |
+| 5 | "Accept Advice" maps fields to form | Watering/fertilizing/repotting inputs updated; panel closes |
+| 6 | "Dismiss" closes panel without changes | Form fields unchanged; panel unmounted |
+| 7 (bonus) | 502 error shows inline error with retry | Error container visible; "Try Again" button rerenders |
+| 8 (bonus) | Loading state disables input and button | Spinner visible; input and button have `disabled` attribute |
+
+**T-080 (image upload flow) — minimum 6 new tests:**
+
+| Test # | Scenario | Expected Result |
+|--------|----------|----------------|
+| 1 | Switching to "Upload a photo" tab shows upload zone | Upload zone renders; text input hidden |
+| 2 | Selecting a valid image shows preview | Thumbnail, file name, and file size rendered |
+| 3 | Selecting wrong file type shows inline error | "Please upload a JPEG, PNG, or WebP image." message visible |
+| 4 | Selecting file > 5MB shows inline error | "Image must be 5MB or smaller." message visible |
+| 5 | Valid image submit calls `POST /api/v1/ai/identify` | API called with multipart FormData containing the image |
+| 6 | Accept Advice in image mode maps form fields | Same field mapping as text mode applied correctly |
+
+---
+
 ### Font Loading
 Both fonts from Google Fonts:
 ```html

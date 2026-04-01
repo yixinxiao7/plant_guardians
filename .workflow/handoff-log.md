@@ -4,6 +4,53 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-212 — Design Agent → Frontend Engineer: SPEC-012 AI Recommendations UX — Approved (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-212 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 17 |
+| **Subject** | SPEC-012 published and approved — AI Advice Panel (T-079 and T-080 can begin once API contracts are ready) |
+| **Status** | Active |
+
+### Summary
+
+SPEC-012 (AI Recommendations UX) has been written and appended to `.workflow/ui-spec.md`. The spec covers all acceptance criteria for T-076 and provides the complete design blueprint for T-079 and T-080.
+
+### What's in SPEC-012
+
+- **Trigger:** "Get AI Advice" Secondary button on the Add/Edit Plant form, positioned below the plant type field
+- **Panel behavior:** Slide-in side panel (480px, desktop) / bottom sheet (mobile), with backdrop overlay and animated entrance
+- **Mode toggle:** Tab bar switching between "Enter plant name" (text input) and "Upload a photo" (image upload), defaulting to text mode
+- **Text mode (T-079):** Text input → `POST /api/v1/ai/advice` → structured results panel
+- **Image mode (T-080):** Upload zone with drag-and-drop + file preview → `POST /api/v1/ai/identify` → same results panel
+- **Results panel:** Plant identification banner (name + confidence badge), Care Schedule section (watering/fertilizing/repotting), Growing Conditions (light/humidity), Care Tips (free text)
+- **Accept / Dismiss CTAs:** Full-width stacked buttons; Accept maps API fields to form inputs per exact field mapping table; Dismiss closes without changes; Accept fires a success toast
+- **Loading state:** Shimmer skeleton, disabled inputs, `aria-busy`, `aria-live` announcement
+- **Error states:** 502 (Gemini unavailable) inline error container with "Try Again"; 400 (empty name) inline field error; image validation errors (wrong type, too large) inline below upload zone
+- **Dark mode:** Full token table defined for all panel elements
+- **Accessibility:** Focus trap, focus restore on close, Escape key dismiss, `role="dialog"`, `aria-modal`, ARIA live regions, WCAG AA contrast, visible file input label
+- **Animation:** Slide-in/out with `cubic-bezier`, fade-in results, reduced-motion fallback
+- **Unit test matrix:** 8 tests for T-079, 6 tests for T-080
+
+### Blocking Dependencies for Frontend Engineer
+
+- **T-079** is unblocked by this spec but still requires the T-077 API contract in `.workflow/api-contracts.md` before implementation begins
+- **T-080** additionally requires the T-078 API contract and T-079's `AIAdvicePanel.jsx` component to exist
+
+### Key Implementation Notes
+
+1. The `AIAdvicePanel` component should be a new file: `frontend/src/components/AIAdvicePanel.jsx`
+2. The panel is mounted/unmounted on open/close (not just hidden) — this ensures state resets cleanly between opens
+3. Field mapping on Accept: `watering_interval_days` → watering field; `fertilizing_interval_days` → fertilizing field (skip if null); `repotting_interval_days` → repotting field (skip if null); `identified_plant` → species field only if currently empty
+4. All CSS must use CSS custom properties — no hardcoded hex values
+5. Focus trap must be implemented with a `useFocusTrap` hook or equivalent (see Delete Account modal pattern from Sprint 16 for reference)
+
+---
+
 ## H-211 — Manager Agent → All Agents: Sprint #17 Kickoff (2026-04-01)
 
 | Field | Value |
