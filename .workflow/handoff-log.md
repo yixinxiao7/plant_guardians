@@ -5389,3 +5389,122 @@ Monitor Agent completed the Sprint 15 post-deploy health check on 2026-04-01.
 **T-068 (confetti dark mode):** Confirmed Done per QA (142/142 frontend tests pass, H-192).
 
 **Deploy Verified: Yes.** Sprint 15 is fully closed. All 5 tasks (T-064, T-065, T-066, T-067, T-068) are live on staging and functioning correctly.
+
+---
+
+## H-199 — Backend Engineer → Manager Agent: Sprint #16 API Contracts Published — Schema Change Proposal (None) (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-199 |
+| **From** | Backend Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | Sprint #16 API contracts published; schema change proposal: none required |
+| **Status** | Auto-approved (automated sprint) |
+
+### Summary
+
+Sprint #16 API contracts have been written and published to `.workflow/api-contracts.md` (Sprint 16 section). Three contracts are documented:
+
+| Task | Contract | Type |
+|------|----------|------|
+| T-069 | `DELETE /api/v1/account` | New endpoint |
+| T-071 | `GET /api/v1/care-actions/stats` — rate-limit amendment | Amendment (middleware only) |
+| T-075 | `POST /api/v1/plants` + `PUT /api/v1/plants/:id` — name max-length amendment | Amendment (validation layer only) |
+
+### Schema Changes
+
+**None.** No new tables, columns, or migrations are needed for Sprint 16:
+
+- `DELETE /api/v1/account` operates on existing tables with existing FK relationships. The implementation will use cascading DELETEs within a transaction if FK `ON DELETE CASCADE` constraints are not already in place — no migration required.
+- T-071 is a middleware config change only.
+- T-075 is an application-level validation change only — the PostgreSQL `TEXT` column already accepts any length.
+
+**Manager approval required for schema changes:** N/A — no schema changes proposed.
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+## H-200 — Backend Engineer → Frontend Engineer: Sprint #16 API Contracts Ready — T-070 Unblocked (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-200 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | DELETE /api/v1/account contract published — T-070 (Delete Account modal) is now unblocked |
+| **Status** | Active |
+
+### Contracts Ready for Frontend Consumption
+
+**T-070 dependency resolved.** The `DELETE /api/v1/account` API contract is published in `.workflow/api-contracts.md` under "Sprint 16 Contracts — GROUP 1". You may now begin implementing the Delete Account modal.
+
+#### Key integration points for T-070:
+
+| Detail | Value |
+|--------|-------|
+| Method + Path | `DELETE /api/v1/account` |
+| Auth | Bearer token (standard `Authorization` header) |
+| Request body | `{ "password": "string" }` |
+| Success | **204 No Content** — no response body; refresh token cookie is cleared server-side |
+| Wrong password | **400** `INVALID_PASSWORD` — message: `"Password is incorrect."` — show inline error in modal, do NOT close |
+| Missing/invalid token | **401** `UNAUTHORIZED` — treat as session expired, redirect to login |
+| Other errors | **500** `INTERNAL_ERROR` — show generic error toast, do NOT close modal |
+
+**On success (204):** Clear client-side auth state, navigate to `/login`, show toast "Your account has been deleted."
+
+**On 400 INVALID_PASSWORD:** Display `"Password is incorrect."` inline in the modal (below the password field). Keep modal open.
+
+**Cookie:** The server clears the `refreshToken` cookie automatically on success — no client-side cookie manipulation needed beyond clearing your in-memory auth state.
+
+T-072 and T-073 have no Backend Engineer dependencies — you may proceed with those immediately per H-197.
+
+---
+
+## H-201 — Backend Engineer → QA Engineer: Sprint #16 API Contracts Ready for Test Planning (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-201 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | Sprint #16 API contracts published — reference for T-069, T-071, T-075 test planning |
+| **Status** | Active |
+
+### Contracts Published (Sprint 16 section of `api-contracts.md`)
+
+**T-069 — DELETE /api/v1/account** (new endpoint):
+
+| Test Case | Expected |
+|-----------|----------|
+| Happy path — correct password, authenticated | 204 No Content; user row deleted; all plants/care_schedules/care_actions/refresh_tokens for that user deleted; no orphaned rows; refreshToken cookie cleared |
+| Wrong password | 400 `INVALID_PASSWORD`, message: `"Password is incorrect."` |
+| Missing `password` field | 400 `VALIDATION_ERROR` |
+| No auth token | 401 `UNAUTHORIZED` |
+| Expired/tampered token | 401 `UNAUTHORIZED` |
+| User isolation | Only requesting user's data deleted; another user's data untouched |
+
+**T-071 — GET /api/v1/care-actions/stats rate-limit amendment:**
+
+| Test Case | Expected |
+|-----------|----------|
+| 30th request in 15-min window | 200 OK (within limit) |
+| 31st request in 15-min window | 429 `RATE_LIMIT_EXCEEDED`, message: `"Too many requests."` |
+| Other endpoints not affected by the stats-specific limiter | Still governed by global 100 req/15min limiter only |
+
+**T-075 — POST /api/v1/plants + PUT /api/v1/plants/:id name max-length:**
+
+| Test Case | Expected |
+|-----------|----------|
+| `name` exactly 100 characters | 201 / 200 (valid) |
+| `name` 101 characters | 400 `VALIDATION_ERROR`, message: `"name must be 100 characters or fewer."` |
+| `name` very long string (e.g., 255+ chars) | 400 `VALIDATION_ERROR` |
+
+Full contract details (request/response shapes, all error codes) are in `.workflow/api-contracts.md` — Sprint 16 section.

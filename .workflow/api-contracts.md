@@ -2417,3 +2417,177 @@ This is a valid 200 response — not an error. The frontend renders the empty st
 ---
 
 *Sprint 15 contract written by Backend Engineer — 2026-03-31. One new endpoint: GET /api/v1/care-actions/stats (T-064). Zero schema changes. T-066 has no API contract impact. All prior sprint contracts remain authoritative.*
+
+---
+
+## Sprint 16 Contracts
+
+---
+
+### GROUP 1 — Account Deletion (T-069)
+
+---
+
+#### DELETE /api/v1/account
+
+**Auth:** Required — Bearer token in `Authorization: Bearer <access_token>` header
+
+**Description:** Permanently deletes the authenticated user's account and all associated data (plants, care schedules, care actions, refresh tokens). The user is immediately logged out: the refresh token cookie is cleared on success.
+
+**Request Body:**
+
+```json
+{
+  "password": "string"   // required; user's current password — confirms intentional deletion
+}
+```
+
+**Validation Rules:**
+- `password`: required, non-empty string — must match the stored bcrypt hash for the authenticated user
+
+**Success Response — 204 No Content:**
+
+No response body. The refresh token `HttpOnly` cookie is cleared (Set-Cookie with `Max-Age=0`).
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `INVALID_PASSWORD` | `password` field is present but does not match the user's stored password hash. Message: `"Password is incorrect."` |
+| 400 | `VALIDATION_ERROR` | `password` field is missing or not a string. Message describes which field. |
+| 401 | `UNAUTHORIZED` | Missing, expired, or invalid Bearer token — auth middleware rejects before any DB query |
+| 500 | `INTERNAL_ERROR` | Unexpected server or database error |
+
+**Error Response Shape (example — wrong password):**
+
+```json
+{
+  "error": {
+    "message": "Password is incorrect.",
+    "code": "INVALID_PASSWORD"
+  }
+}
+```
+
+**Cascade Behavior:**
+
+All user-owned rows must be deleted. Preferred approach: rely on PostgreSQL `ON DELETE CASCADE` FK constraints already in place on `plants`, `care_schedules`, `care_actions`, and `refresh_tokens` tables (all reference `users.id`). Deleting the `users` row cascades automatically.
+
+If any FK does not currently have `ON DELETE CASCADE`, explicit DELETEs in the following order must be used instead:
+1. `DELETE FROM care_actions WHERE plant_id IN (SELECT id FROM plants WHERE user_id = :userId)`
+2. `DELETE FROM care_schedules WHERE plant_id IN (SELECT id FROM plants WHERE user_id = :userId)`
+3. `DELETE FROM refresh_tokens WHERE user_id = :userId`
+4. `DELETE FROM plants WHERE user_id = :userId`
+5. `DELETE FROM users WHERE id = :userId`
+
+All executed within a single database transaction.
+
+**User Isolation:** Only the authenticated user's own data may be deleted. The `userId` is sourced exclusively from the verified JWT payload — never from the request body or URL params.
+
+**Implementation Notes (for T-069):**
+- Route: `DELETE /account` in `backend/src/routes/account.js` (new file, or add to existing accounts route)
+- Model method: `User.deleteWithAllData(userId)` in `backend/src/models/User.js`
+- Auth middleware: `requireAuth` applied to this route
+- After successful deletion, clear the refresh token cookie: `res.clearCookie('refreshToken')` (same options as the cookie was set with)
+- Return `res.status(204).send()` — no body
+
+---
+
+### GROUP 2 — Stats Rate Limiter Amendment (T-071)
+
+---
+
+#### GET /api/v1/care-actions/stats — Rate Limit Amendment
+
+**Existing contract:** See Sprint 15, GROUP 1 — `GET /api/v1/care-actions/stats`.
+
+**Amendment (T-071):** An endpoint-specific rate limiter is added on top of the existing global limiter. This is a middleware-only change; the request/response schema is unchanged.
+
+**New Rate Limit:**
+- **Limit:** 30 requests per 15-minute window, per IP address
+- **Scope:** Applied only to `GET /api/v1/care-actions/stats`; the global limiter (100 req/15min) continues to apply to all other endpoints
+
+**On Rate Limit Exceeded — 429 Too Many Requests:**
+
+```json
+{
+  "error": {
+    "message": "Too many requests.",
+    "code": "RATE_LIMIT_EXCEEDED"
+  }
+}
+```
+
+**Updated Error Responses for GET /api/v1/care-actions/stats:**
+
+| HTTP | Code | Scenario |
+|------|------|----------|
+| 401 | `UNAUTHORIZED` | Missing, expired, or invalid Bearer token |
+| 429 | `RATE_LIMIT_EXCEEDED` | More than 30 requests in a 15-minute window from the same IP |
+| 500 | `INTERNAL_ERROR` | Unexpected server or database error |
+
+**Implementation Notes (for T-071):**
+- Create a dedicated `express-rate-limit` instance: `max: 30`, `windowMs: 15 * 60 * 1000`
+- Apply it as middleware immediately before the `GET /care-actions/stats` route handler
+- The `handler` option must return the structured `{ error: { message, code } }` body above with status 429
+
+---
+
+### GROUP 3 — Plant Name Max-Length Validation Amendment (T-075)
+
+---
+
+#### POST /api/v1/plants — Validation Amendment
+
+**Existing contract:** See Sprint 1, GROUP 3 — `POST /api/v1/plants`.
+
+**Amendment (T-075):** The `name` field now enforces a maximum length of 100 characters server-side.
+
+**Updated Validation Rule:**
+- `name`: required, string, **1–100 characters** (previously no upper bound enforced)
+
+**New Error Case:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `name` exceeds 100 characters. Message: `"name must be 100 characters or fewer."` |
+
+---
+
+#### PUT /api/v1/plants/:id — Validation Amendment
+
+**Existing contract:** See Sprint 1, GROUP 3 — `PUT /api/v1/plants/:id`.
+
+**Amendment (T-075):** The `name` field now enforces a maximum length of 100 characters server-side.
+
+**Updated Validation Rule:**
+- `name`: optional on PUT, but if provided must be a string of **1–100 characters** (previously no upper bound enforced)
+
+**New Error Case:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `name` exceeds 100 characters. Message: `"name must be 100 characters or fewer."` |
+
+**Implementation Notes (for T-075):**
+- Add the max-length check in `backend/src/middleware/validation.js` (or wherever plant field validation lives)
+- The check must apply to both `POST /plants` and `PUT /plants/:id` route handlers
+- Use parameterized Knex for all queries — this change is validation-layer only; no DB schema migration needed (PostgreSQL `TEXT` column already accepts any length; the constraint is application-level)
+
+---
+
+### Schema Changes — Sprint 16
+
+**None.** No new tables, columns, or migrations are required for Sprint 16.
+
+- `DELETE /api/v1/account` (T-069): operates on existing `users`, `plants`, `care_schedules`, `care_actions`, and `refresh_tokens` tables — all created in Sprint 1 migrations. If FK `ON DELETE CASCADE` constraints are not yet in place, the model uses explicit ordered DELETEs in a transaction (no schema change needed).
+- T-071 (stats rate limiter): middleware-only change — no DB schema impact.
+- T-075 (plant name max-length): application-level validation — no DB schema migration required.
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+*Sprint 16 contracts written by Backend Engineer — 2026-04-01. One new endpoint: DELETE /api/v1/account (T-069). Two amendments to existing endpoints: GET /api/v1/care-actions/stats rate-limit amendment (T-071), POST+PUT /api/v1/plants name max-length amendment (T-075). Zero schema changes. All prior sprint contracts remain authoritative.*
