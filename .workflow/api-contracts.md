@@ -2591,3 +2591,200 @@ All executed within a single database transaction.
 ---
 
 *Sprint 16 contracts written by Backend Engineer — 2026-04-01. One new endpoint: DELETE /api/v1/account (T-069). Two amendments to existing endpoints: GET /api/v1/care-actions/stats rate-limit amendment (T-071), POST+PUT /api/v1/plants name max-length amendment (T-075). Zero schema changes. All prior sprint contracts remain authoritative.*
+
+---
+
+## Sprint 17 Contracts
+
+**Tasks:** T-077 — `POST /api/v1/ai/advice` (Gemini text-based advice), T-078 — `POST /api/v1/ai/identify` (Gemini image-based identification)
+**Written by:** Backend Engineer — 2026-04-01
+**Status:** Ready for implementation — Frontend Engineer may begin T-079 (text flow) immediately; T-080 (image flow) may begin once T-078 contract is acknowledged.
+
+---
+
+### GROUP 17A — AI Recommendations: Text-Based Advice (T-077)
+
+---
+
+#### POST /api/v1/ai/advice *(Breaking Shape Update — Sprint 17)*
+
+> **⚠️ BREAKING CHANGE** — The response shape of this endpoint is being updated in Sprint 17 (T-077) to align with the structured form-field mapping required by the AI Recommendations feature. The prior shape (Sprint 1 / Sprint 9) used nested `care_advice` with `frequency_value`/`frequency_unit` sub-objects. The new shape uses a flat `care` object with direct `*_interval_days` integers. Frontend integrations from prior sprints used the old `/ai/advice` endpoint in a different context; this sprint's T-079 is the first consumer of the new shape.
+
+**Auth:** Bearer token (required)
+
+**Description:** Accepts a plant type name (text string) and calls the Gemini API to return structured care recommendations. The response maps directly to Add/Edit Plant form fields so the frontend can auto-populate them on "Accept Advice". The `GeminiService` handles the Gemini API call with the existing 429 fallback chain (Sprint 9 behavior).
+
+**Request:** `Content-Type: application/json`
+
+```json
+{
+  "plant_type": "string"   // required; the plant's common or scientific name; max 200 chars
+}
+```
+
+**Validation Rules:**
+- `plant_type`: required, non-empty string, max 200 characters
+- Missing, null, empty string, or only-whitespace value → `400 VALIDATION_ERROR`
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "identified_plant": "string",        // matched/normalized plant name returned by Gemini
+    "confidence": "high | medium | low", // Gemini's identification confidence
+    "care": {
+      "watering_interval_days": 7,       // integer; number of days between watering
+      "fertilizing_interval_days": 14,   // integer | null; null if not applicable
+      "repotting_interval_days": 365,    // integer | null; null if not applicable
+      "light_requirement": "string",     // display-only; e.g. "Bright indirect light"
+      "humidity_preference": "string",   // display-only; e.g. "Moderate"
+      "care_tips": "string"              // free-text care advice, 1–3 sentences
+    }
+  }
+}
+```
+
+**Field Mapping to Add/Edit Plant Form (for Frontend — T-079):**
+
+| Response Field | Form Field |
+|---|---|
+| `identified_plant` | species/name field (only if currently empty) |
+| `care.watering_interval_days` | watering schedule interval |
+| `care.fertilizing_interval_days` | fertilizing schedule interval (skip if `null`) |
+| `care.repotting_interval_days` | repotting schedule interval (skip if `null`) |
+| `care.light_requirement` | display-only in advice panel; not mapped to form |
+| `care.humidity_preference` | display-only in advice panel; not mapped to form |
+| `care.care_tips` | display-only in advice panel; not mapped to form |
+
+**Error Responses:**
+
+| HTTP | Code | Message | Scenario |
+|------|------|---------|---------|
+| 400 | `VALIDATION_ERROR` | `"plant_type is required."` | `plant_type` missing, null, empty, or whitespace-only |
+| 400 | `VALIDATION_ERROR` | `"plant_type must be 200 characters or fewer."` | `plant_type` exceeds 200 chars |
+| 401 | `UNAUTHORIZED` | `"Authentication required."` | Missing or invalid Bearer token |
+| 502 | `EXTERNAL_SERVICE_ERROR` | `"AI advice is temporarily unavailable. Please try again."` | Gemini API error, timeout, unrecognized plant, or all 429 fallback models exhausted |
+| 500 | `INTERNAL_ERROR` | `"An unexpected error occurred."` | Unhandled server error |
+
+**Rate Limiting:** Reuses the general rate limiter (100 req / 15 min per IP). No endpoint-specific limit.
+
+**Environment Variables:**
+- `GEMINI_API_KEY` — Gemini API key. Must never be hardcoded. Read via `process.env.GEMINI_API_KEY`.
+
+**Implementation Notes:**
+- `GeminiService.js` (new) handles all Gemini communication and the Sprint 9 429-fallback chain
+- Route file: `backend/src/routes/ai.js`
+- Mount point: `backend/src/server.js` → `app.use('/api/v1/ai', aiRouter)`
+- Gemini model primary: `gemini-2.0-flash`; fallback chain: `gemini-2.5-flash` → `gemini-2.5-flash-lite` → `gemini-2.5-pro`
+- Parse Gemini's JSON response server-side and validate all required fields are present before returning 200; if fields are missing/malformed, surface as 502
+
+**Test Requirements (T-077 — minimum 4 new tests):**
+1. Happy path: valid `plant_type` → 200 with correct response shape
+2. Missing `plant_type` → 400 `VALIDATION_ERROR`
+3. Gemini API error mocked → 502 `EXTERNAL_SERVICE_ERROR`
+4. Missing auth header → 401 `UNAUTHORIZED`
+
+---
+
+### GROUP 17B — AI Recommendations: Image-Based Identification (T-078)
+
+---
+
+#### POST /api/v1/ai/identify
+
+**Auth:** Bearer token (required)
+
+**Description:** Accepts a plant photo upload (JPEG, PNG, or WebP, max 5MB) and calls the Gemini Vision API to identify the plant and return structured care recommendations. Returns the same response shape as `POST /api/v1/ai/advice`. The image is **never persisted** — it is held in memory only and forwarded transiently to Gemini.
+
+**Request:** `Content-Type: multipart/form-data`
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `image` | file | Yes | JPEG, PNG, or WebP; max 5MB |
+
+**Validation Rules (server-side):**
+- `image` field must be present → otherwise `400 VALIDATION_ERROR` with `"An image is required."`
+- MIME type must be `image/jpeg`, `image/png`, or `image/webp` → otherwise `400 VALIDATION_ERROR` with `"Image must be JPEG, PNG, or WebP."`
+- File size must be ≤ 5MB (5,242,880 bytes) → otherwise `400 VALIDATION_ERROR` with `"Image must be 5MB or smaller."`
+- Validation enforced via `multer` memory storage with `fileFilter` and `limits.fileSize`
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "identified_plant": "string",        // plant name identified from the image by Gemini Vision
+    "confidence": "high | medium | low", // Gemini's identification confidence
+    "care": {
+      "watering_interval_days": 7,       // integer; number of days between watering
+      "fertilizing_interval_days": 14,   // integer | null; null if not applicable
+      "repotting_interval_days": 365,    // integer | null; null if not applicable
+      "light_requirement": "string",     // display-only; e.g. "Bright indirect light"
+      "humidity_preference": "string",   // display-only; e.g. "Moderate"
+      "care_tips": "string"              // free-text care advice, 1–3 sentences
+    }
+  }
+}
+```
+
+*The response shape is **identical** to `POST /api/v1/ai/advice`. The frontend `AIAdvicePanel` can use the same result-rendering and accept/field-mapping logic for both endpoints.*
+
+**Field Mapping to Add/Edit Plant Form (for Frontend — T-080):**
+*Identical to T-077 mapping table above.*
+
+**Error Responses:**
+
+| HTTP | Code | Message | Scenario |
+|------|------|---------|---------|
+| 400 | `VALIDATION_ERROR` | `"An image is required."` | `image` field missing from request |
+| 400 | `VALIDATION_ERROR` | `"Image must be JPEG, PNG, or WebP."` | Uploaded file is not a supported image type |
+| 400 | `VALIDATION_ERROR` | `"Image must be 5MB or smaller."` | Uploaded file exceeds 5MB |
+| 401 | `UNAUTHORIZED` | `"Authentication required."` | Missing or invalid Bearer token |
+| 502 | `EXTERNAL_SERVICE_ERROR` | `"AI advice is temporarily unavailable. Please try again."` | Gemini Vision API error, timeout, unidentifiable plant, or all 429 fallback models exhausted |
+| 500 | `INTERNAL_ERROR` | `"An unexpected error occurred."` | Unhandled server error |
+
+**Rate Limiting:** Reuses the general rate limiter (100 req / 15 min per IP). No endpoint-specific limit.
+
+**Storage Policy:**
+- Image is parsed into memory (Buffer) by `multer` with `memoryStorage()`
+- Image Buffer is base64-encoded and passed directly to Gemini Vision API
+- **No file system writes. No database writes. No S3/cloud storage uploads.**
+- Buffer is garbage-collected after the request completes
+
+**Environment Variables:**
+- `GEMINI_API_KEY` — same key used by T-077. No additional env variables required.
+
+**Implementation Notes:**
+- Extends `GeminiService.js` (created in T-077) with a `identifyFromImage(imageBuffer, mimeType)` method
+- `multer` configured with `memoryStorage()`, `limits: { fileSize: 5 * 1024 * 1024 }`, and a `fileFilter` rejecting non-image MIME types
+- When multer's `limits.fileSize` is exceeded, multer emits a `LIMIT_FILE_SIZE` error — catch in the route's error handler and convert to `400 VALIDATION_ERROR` with the correct message
+- Route file: `backend/src/routes/ai.js` (same file as T-077, second route)
+- Gemini Vision prompt: include the image as an inline base64 part; instruct Gemini to identify the plant and return the same JSON structure as the text-based endpoint
+- Parse and validate Gemini's JSON response; if fields are missing/malformed, surface as 502
+
+**Test Requirements (T-078 — minimum 6 new tests):**
+1. Happy path: valid image upload → 200 with correct response shape
+2. Missing `image` field → 400 `VALIDATION_ERROR` `"An image is required."`
+3. Unsupported MIME type (e.g., `image/gif`) → 400 `VALIDATION_ERROR` `"Image must be JPEG, PNG, or WebP."`
+4. Image > 5MB → 400 `VALIDATION_ERROR` `"Image must be 5MB or smaller."`
+5. Gemini Vision API error mocked → 502 `EXTERNAL_SERVICE_ERROR`
+6. Missing auth header → 401 `UNAUTHORIZED`
+
+---
+
+### Schema Changes — Sprint 17
+
+**None.** No new tables, columns, or indexes are required for Sprint 17.
+
+- `POST /api/v1/ai/advice` (T-077): calls `GeminiService` — no database interaction
+- `POST /api/v1/ai/identify` (T-078): calls `GeminiService` — no database interaction; images not persisted
+- No Knex migrations required this sprint
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+*Sprint 17 contracts written by Backend Engineer — 2026-04-01. One endpoint shape update: POST /api/v1/ai/advice (T-077, breaking response shape change). One new endpoint: POST /api/v1/ai/identify (T-078). Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*

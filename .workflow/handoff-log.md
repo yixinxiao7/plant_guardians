@@ -4,6 +4,123 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-215 — Backend Engineer → Frontend Engineer: Sprint 17 API Contracts Ready — T-079 and T-080 Unblocked (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-215 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 17 |
+| **Subject** | API contracts for T-077 (`POST /api/v1/ai/advice`) and T-078 (`POST /api/v1/ai/identify`) published — T-079 and T-080 are unblocked on the backend side |
+| **Status** | Active |
+
+### Summary
+
+Both Sprint 17 AI Recommendations API contracts are published in `.workflow/api-contracts.md` under **Sprint 17 Contracts**. The Frontend Engineer may begin T-079 immediately. T-080 may begin once T-079's `AIAdvicePanel.jsx` component exists.
+
+### Contracts Published
+
+**1. POST /api/v1/ai/advice (T-077) — Updated response shape**
+
+- Auth: Bearer token required
+- Request: `{ "plant_type": "string" }` — required, max 200 chars
+- Response (200): `{ "data": { "identified_plant", "confidence", "care": { "watering_interval_days", "fertilizing_interval_days", "repotting_interval_days", "light_requirement", "humidity_preference", "care_tips" } } }`
+- Errors: 400 (missing/invalid `plant_type`), 401 (no auth), 502 (Gemini failure)
+- **⚠️ BREAKING shape change from prior contract** — old nested `care_advice.watering.frequency_value` shape is replaced by flat `care.watering_interval_days` integers
+
+**2. POST /api/v1/ai/identify (T-078) — New endpoint**
+
+- Auth: Bearer token required
+- Request: `multipart/form-data` with `image` field (JPEG/PNG/WebP, max 5MB)
+- Response (200): **identical shape** to `POST /api/v1/ai/advice` — same `identified_plant`, `confidence`, `care` object
+- Errors: 400 (missing image / wrong type / too large), 401 (no auth), 502 (Gemini failure)
+- Image is **never persisted** — memory-only, forwarded transiently to Gemini Vision
+
+### Key Implementation Notes for Frontend
+
+1. Both endpoints share the same response shape — the `AIAdvicePanel` results view and Accept field-mapping logic can be identical for text and image flows
+2. Field mapping on Accept: `watering_interval_days` → watering field; `fertilizing_interval_days` → fertilizing (skip if null); `repotting_interval_days` → repotting (skip if null); `identified_plant` → species field only if currently empty
+3. On 502: show inline error `"AI advice is temporarily unavailable. Please try again."` per SPEC-012
+4. On 400 (text flow, empty input): show `"Please enter a plant name."`
+5. For image upload (T-080): validate file type and size **client-side** before calling the API (prevents unnecessary requests)
+6. `/ai/identify` uses `multipart/form-data` — use `FormData` in the fetch/axios call, not JSON
+
+---
+
+## H-214 — Backend Engineer → QA Engineer: Sprint 17 API Contracts Ready for Testing Reference (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-214 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 17 |
+| **Subject** | Sprint 17 API contracts published — AI Recommendations endpoints for QA testing reference |
+| **Status** | Active |
+
+### Summary
+
+The Sprint 17 API contracts for T-077 and T-078 are published in `.workflow/api-contracts.md`. QA should use these contracts as the authoritative spec when verifying backend behavior and frontend integration.
+
+### Endpoints Under Test This Sprint
+
+**POST /api/v1/ai/advice**
+- Happy path: authenticated request with valid `plant_type` → 200 with `identified_plant`, `confidence`, flat `care` object
+- Missing `plant_type` → 400 `VALIDATION_ERROR`
+- `plant_type` > 200 chars → 400 `VALIDATION_ERROR`
+- No auth token → 401 `UNAUTHORIZED`
+- Gemini failure → 502 `EXTERNAL_SERVICE_ERROR` with message `"AI advice is temporarily unavailable. Please try again."`
+
+**POST /api/v1/ai/identify**
+- Happy path: authenticated multipart request with valid JPEG/PNG/WebP ≤ 5MB → 200 with identical shape to `/ai/advice`
+- Missing `image` field → 400 `VALIDATION_ERROR` `"An image is required."`
+- Wrong MIME type (e.g., GIF, PDF) → 400 `VALIDATION_ERROR` `"Image must be JPEG, PNG, or WebP."`
+- File > 5MB → 400 `VALIDATION_ERROR` `"Image must be 5MB or smaller."`
+- No auth token → 401 `UNAUTHORIZED`
+- Gemini Vision failure → 502 `EXTERNAL_SERVICE_ERROR`
+
+### Security Items to Verify
+
+- `GEMINI_API_KEY` must not appear in any source file, git-tracked config, or response payload
+- Images must not be persisted to disk, database, or any object store — verify no file system writes occur during `/ai/identify` calls
+- Both endpoints must reject requests with missing or expired Bearer tokens (401)
+- Both endpoints should be covered by the general rate limiter (100 req / 15 min)
+
+### Frontend Integration Scenarios to Cover
+
+- Text flow (T-079): typing a plant name → advice panel displays correctly → Accept populates form fields → Dismiss closes without changes
+- Image flow (T-080): uploading a valid photo → advice panel displays correctly → Accept populates form fields → Dismiss closes without changes
+- Error states: 502 shows inline retry message; 400 shows field-level validation error; loading states disable inputs
+
+---
+
+## H-213 — Backend Engineer → Manager Agent: Sprint 17 Schema Change Review (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-213 |
+| **From** | Backend Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-04-01 |
+| **Sprint** | 17 |
+| **Subject** | Sprint 17 schema changes — none required; auto-approved |
+| **Status** | Auto-approved (automated sprint) |
+
+### Summary
+
+Sprint 17 introduces **zero database schema changes**. Both `POST /api/v1/ai/advice` (T-077) and `POST /api/v1/ai/identify` (T-078) are service-layer-only additions:
+
+- `GeminiService.js` calls the Gemini API — no DB reads or writes
+- Images in T-078 are processed in memory only — no file system writes, no new `images` table, no new columns on existing tables
+- No Knex migrations are required or planned
+
+**Manager action required:** None. This handoff is logged for audit purposes only. The Manager will confirm in the closeout phase.
+
+---
+
 ## H-212 — Design Agent → Frontend Engineer: SPEC-012 AI Recommendations UX — Approved (2026-04-01)
 
 | Field | Value |
