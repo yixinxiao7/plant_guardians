@@ -139,7 +139,7 @@ router.get('/', async (req, res, next) => {
 router.post(
   '/',
   validateBody([
-    { field: 'name', required: true, type: 'string', min: 1, max: 200 },
+    { field: 'name', required: true, type: 'string', min: 1, max: 100 },
     { field: 'type', required: false, type: 'string', max: 200 },
     { field: 'notes', required: false, type: 'string', max: 2000 },
     { field: 'photo_url', required: false, type: 'string' },
@@ -189,7 +189,7 @@ router.put(
   '/:id',
   validateUUIDParam('id'),
   validateBody([
-    { field: 'name', required: true, type: 'string', min: 1, max: 200 },
+    { field: 'name', required: true, type: 'string', min: 1, max: 100 },
     { field: 'type', required: false, type: 'string', max: 200 },
     { field: 'notes', required: false, type: 'string', max: 2000 },
     { field: 'photo_url', required: false, type: 'string' },

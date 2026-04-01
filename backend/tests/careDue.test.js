@@ -31,11 +31,17 @@ async function recordCareAction(accessToken, plantId, careType, performedAt) {
 }
 
 /**
- * Helper: build an ISO date string N days ago from today (UTC midnight).
+ * Helper: build an ISO date string N days ago from today (UTC noon).
+ *
+ * Uses noon (12:00 UTC) instead of midnight to avoid flakiness when tests
+ * run near the UTC midnight boundary. Both the helper and the careDue route
+ * truncate timestamps to the start-of-day, so the exact hour doesn't affect
+ * categorisation — but using noon ensures the truncated day is always the
+ * same even when there's a few-second gap between setup and request.
  */
 function daysAgo(n) {
   const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCHours(12, 0, 0, 0);
   d.setUTCDate(d.getUTCDate() - n);
   return d.toISOString();
 }

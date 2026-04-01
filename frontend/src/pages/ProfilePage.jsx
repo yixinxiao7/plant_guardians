@@ -46,10 +46,10 @@ export default function ProfilePage() {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    // This is called from the modal's onConfirm
+  const handleDeleteAccount = async (password) => {
+    // This is called from the modal's onConfirm with the entered password
     // If it throws, the modal catches it and shows inline error
-    const err = await authApi.deleteAccount().then(() => null, (e) => e);
+    const err = await authApi.deleteAccount(password).then(() => null, (e) => e);
 
     if (err) {
       if (err.status === 401) {
@@ -66,7 +66,7 @@ export default function ProfilePage() {
     // Success: clear everything and redirect
     clearTokens();
     sessionStorage.removeItem('pg_user');
-    addToast('Your account has been deleted.', 'info');
+    addToast('Your account has been deleted.', 'danger');
     navigate('/login');
   };
 
@@ -172,8 +172,8 @@ export default function ProfilePage() {
 
       <DeleteAccountModal
         isOpen={showDeleteModal}
-        onCancel={() => setShowDeleteModal(false)}
-        onConfirm={handleDeleteAccount}
+        onClose={() => setShowDeleteModal(false)}
+        onDeleteSuccess={handleDeleteAccount}
       />
     </div>
   );

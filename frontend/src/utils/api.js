@@ -117,21 +117,23 @@ export const auth = {
       method: 'POST',
     });
   },
-  async deleteAccount() {
-    const url = `${API_BASE}/auth/account`;
-    const headers = {};
+  async deleteAccount(password) {
+    const url = `${API_BASE}/account`;
+    const headers = { 'Content-Type': 'application/json' };
     if (accessToken) {
       headers['Authorization'] = `Bearer ${accessToken}`;
     }
 
-    let res = await fetch(url, { method: 'DELETE', headers, credentials: 'include' });
+    const body = JSON.stringify({ password });
+
+    let res = await fetch(url, { method: 'DELETE', headers, body, credentials: 'include' });
 
     // Auto-refresh on 401
     if (res.status === 401) {
       try {
         await refreshAccessToken();
         headers['Authorization'] = `Bearer ${accessToken}`;
-        res = await fetch(url, { method: 'DELETE', headers, credentials: 'include' });
+        res = await fetch(url, { method: 'DELETE', headers, body, credentials: 'include' });
       } catch {
         throw new ApiError('Session expired. Please log in again.', 'UNAUTHORIZED', 401);
       }

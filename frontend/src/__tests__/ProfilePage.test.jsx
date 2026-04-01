@@ -16,6 +16,8 @@ vi.mock('@phosphor-icons/react', () => ({
   Monitor: (props) => <span data-testid="icon-monitor" {...props} />,
   Sun: (props) => <span data-testid="icon-sun" {...props} />,
   Moon: (props) => <span data-testid="icon-moon" {...props} />,
+  Eye: (props) => <span data-testid="icon-eye" {...props} />,
+  EyeSlash: (props) => <span data-testid="icon-eye-slash" {...props} />,
 }));
 
 vi.mock('../components/ThemeToggle.jsx', () => ({
@@ -103,16 +105,18 @@ describe('ProfilePage', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    it('calls deleteAccount API and redirects on success', async () => {
+    it('calls deleteAccount API with password and redirects on success', async () => {
       mockDeleteAccount.mockResolvedValue(null);
       render(<ProfilePage />);
       await waitFor(() => screen.getByRole('button', { name: /delete account/i }));
       fireEvent.click(screen.getByRole('button', { name: /delete account/i }));
+      const passwordInput = screen.getByLabelText('Confirm your password');
+      fireEvent.change(passwordInput, { target: { value: 'mypassword' } });
       fireEvent.click(screen.getByText('Delete my account'));
       await waitFor(() => {
-        expect(mockDeleteAccount).toHaveBeenCalledTimes(1);
+        expect(mockDeleteAccount).toHaveBeenCalledWith('mypassword');
         expect(mockNavigate).toHaveBeenCalledWith('/login');
-        expect(mockAddToast).toHaveBeenCalledWith('Your account has been deleted.', 'info');
+        expect(mockAddToast).toHaveBeenCalledWith('Your account has been deleted.', 'danger');
       });
     });
 
@@ -123,6 +127,8 @@ describe('ProfilePage', () => {
       render(<ProfilePage />);
       await waitFor(() => screen.getByRole('button', { name: /delete account/i }));
       fireEvent.click(screen.getByRole('button', { name: /delete account/i }));
+      const passwordInput = screen.getByLabelText('Confirm your password');
+      fireEvent.change(passwordInput, { target: { value: 'mypassword' } });
       fireEvent.click(screen.getByText('Delete my account'));
       await waitFor(() => {
         expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument();
@@ -136,6 +142,8 @@ describe('ProfilePage', () => {
       render(<ProfilePage />);
       await waitFor(() => screen.getByRole('button', { name: /delete account/i }));
       fireEvent.click(screen.getByRole('button', { name: /delete account/i }));
+      const passwordInput = screen.getByLabelText('Confirm your password');
+      fireEvent.change(passwordInput, { target: { value: 'mypassword' } });
       fireEvent.click(screen.getByText('Delete my account'));
       await waitFor(() => {
         expect(screen.getByText('Session expired. Please log in again.')).toBeInTheDocument();

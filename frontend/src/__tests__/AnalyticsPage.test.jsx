@@ -83,7 +83,7 @@ describe('AnalyticsPage', () => {
     render(<AnalyticsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('No care history yet')).toBeInTheDocument();
+      expect(screen.getByText('Your care journey starts here')).toBeInTheDocument();
     });
 
     expect(screen.getByText('Go to my plants')).toBeInTheDocument();

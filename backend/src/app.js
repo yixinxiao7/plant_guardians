@@ -15,6 +15,7 @@ const profileRoutes = require('./routes/profile');
 const careHistoryRoutes = require('./routes/careHistory');
 const careActionsStatsRoutes = require('./routes/careActionsStats');
 const careDueRoutes = require('./routes/careDue');
+const accountRoutes = require('./routes/account');
 
 const app = express();
 
@@ -89,6 +90,7 @@ app.use('/api/v1/care-actions/stats', careActionsStatsRoutes);
 app.use('/api/v1/care-actions', careHistoryRoutes);
 app.use('/api/v1/care-due', careDueRoutes);
 app.use('/api/v1/profile', profileRoutes);
+app.use('/api/v1/account', accountRoutes);
 
 // 404 handler for unknown routes
 app.use('/api/*', (req, res) => {

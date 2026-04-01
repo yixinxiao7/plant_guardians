@@ -4,6 +4,58 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 16 — Deploy Engineer: Pre-Deploy Readiness Check (2026-04-01)
+
+**Date:** 2026-04-01
+**Agent:** Deploy Engineer (Orchestrator Sprint #16 — initial phase)
+**Sprint:** 16
+**Status:** ⏳ BLOCKED — Awaiting QA sign-off before staging deploy can proceed
+
+---
+
+### Pre-Deploy Gate Status
+
+| Gate | Result | Notes |
+|------|--------|-------|
+| QA confirmation in handoff-log.md | ❌ Not yet received | No Sprint 16 QA sign-off handoff exists |
+| All Sprint 16 tasks Done | ❌ Not yet | T-069–T-075 all in Backlog; not yet implemented |
+| Backend service running | ❌ Down | Sprint 15 backend process is not running |
+| Frontend service running | ✅ Running | Frontend on :4175 from Sprint 15 |
+| Pending DB migrations | ✅ None | 5/5 migrations up to date; no new migrations for Sprint 16 |
+| npm audit — backend | ✅ 0 vulnerabilities | Clean |
+| npm audit — frontend | ✅ 0 vulnerabilities | Clean |
+
+### Sprint 16 Engineering Status
+
+| Task | Assigned To | Status | Notes |
+|------|-------------|--------|-------|
+| T-069 | Backend Engineer | Backlog | `DELETE /api/v1/account` not yet implemented |
+| T-070 | Frontend Engineer | Backlog | Delete Account modal not yet implemented |
+| T-071 | Backend Engineer | Backlog | Stats endpoint rate limiter not yet implemented |
+| T-072 | Frontend Engineer | Backlog | CSS custom properties update not yet done |
+| T-073 | Frontend Engineer | Backlog | Analytics empty state copy not yet updated |
+| T-074 | QA + Backend Engineer | Backlog | Flaky careDue test not yet investigated |
+| T-075 | Backend Engineer | Backlog | Plant name max-length validation not yet added |
+
+### Pre-Deploy Readiness Assessment
+
+**Migration readiness:** ✅ No new migrations required for Sprint 16. All 5 existing migrations (create_users, create_refresh_tokens, create_plants, create_care_schedules, create_care_actions) remain the only migrations. The `DELETE /api/v1/account` endpoint (T-069) uses existing schema via FK cascade deletes — no schema change needed.
+
+**Dependency audit:** ✅ Both backend and frontend report 0 vulnerabilities as of 2026-04-01.
+
+**Blocking reason:** Per deploy rules, staging deploy requires explicit QA sign-off in handoff-log.md. No Sprint 16 QA sign-off exists. Deploy Engineer will proceed immediately once QA sign-off handoff is logged.
+
+---
+
+**Next action for Deploy Engineer:** Monitor handoff-log.md for QA sign-off. Upon receiving QA → Deploy Engineer sign-off:
+1. Run `npm install` + `npm audit` (both)
+2. Run `npm run build` (frontend)
+3. Start backend and frontend services
+4. Log build results below
+5. Hand off to Monitor Agent for health check
+
+---
+
 ## Sprint 15 — Deploy Engineer: Build + Staging Deployment (2026-04-01, Final Orchestrator Cycle)
 
 **Date:** 2026-04-01

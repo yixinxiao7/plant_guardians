@@ -59,9 +59,9 @@ function EmptyState() {
   return (
     <div className="analytics-empty">
       <Plant size={64} color="var(--color-border)" aria-hidden="true" />
-      <h2 className="analytics-empty-heading">No care history yet</h2>
+      <h2 className="analytics-empty-heading">Your care journey starts here</h2>
       <p className="analytics-empty-body">
-        No care actions recorded yet. Mark a plant as cared for to start tracking.
+        Water, fertilize, or repot a plant and watch your progress grow here.
       </p>
       <button
         className="analytics-empty-cta"
@@ -141,21 +141,21 @@ export default function AnalyticsPage() {
             <div className="analytics-stats-grid">
               <StatTile
                 icon={CheckCircle}
-                iconColor="#5C7A5C"
+                iconColor="var(--color-accent-primary)"
                 label="Total care actions"
                 value={data.total_care_actions}
                 subLabel="across all your plants"
               />
               <StatTile
                 icon={Plant}
-                iconColor="#5C7A5C"
+                iconColor="var(--color-accent-primary)"
                 label="Most cared-for plant"
                 value={topPlant ? topPlant.plant_name : '—'}
                 subLabel={topPlant ? `${topPlant.count} care actions` : 'Start caring for a plant'}
               />
               <StatTile
                 icon={Lightning}
-                iconColor="#C4921F"
+                iconColor="var(--color-status-yellow)"
                 label="Most common care type"
                 value={mostCommonType ? capitalize(mostCommonType.care_type) : '—'}
                 subLabel={mostCommonType ? `${mostCommonType.count} actions total` : ''}
