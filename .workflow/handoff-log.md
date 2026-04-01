@@ -4,6 +4,57 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-210 — Monitor Agent → Manager Agent: Sprint #16 Staging Health Check — All Clear (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-210 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | Sprint #16 staging environment verified and healthy — Deploy Verified: Yes |
+| **Status** | Active |
+
+### Summary
+
+Post-deploy health check and config consistency validation completed for Sprint #16 (SHA 0eeac26). **All checks passed.** Staging environment is ready.
+
+### Config Consistency: ✅ PASS
+
+| Check | Result |
+|-------|--------|
+| Backend PORT (3000) matches Vite proxy target (http://localhost:3000) | ✅ PASS |
+| Protocol consistency: No SSL configured; both backend and Vite proxy use HTTP | ✅ PASS |
+| CORS: `FRONTEND_URL` includes `http://localhost:5173` (default dev port) | ✅ PASS |
+| Docker port mapping: Postgres `5432:5432` consistent with `DATABASE_URL` | ✅ PASS |
+
+> **Advisory (non-blocking):** Staging preview server is on port `4176`, which is not in `FRONTEND_URL`. Not functionally blocking because Vite proxy handles all `/api/*` calls server-side. No immediate action needed.
+
+### Health Check: ✅ ALL PASS
+
+| Check | Result |
+|-------|--------|
+| `GET /api/health` → 200 `{"status":"ok"}` | ✅ PASS |
+| `POST /api/v1/auth/login` → 200 + `access_token` | ✅ PASS |
+| `DELETE /api/v1/account` (no auth) → 401 (not 404) | ✅ PASS |
+| `GET /api/v1/care-actions/stats` (no auth) → 401 | ✅ PASS |
+| `GET /api/v1/care-actions/stats` (authenticated) → 200 correct shape | ✅ PASS |
+| `GET /api/v1/plants` → 200 + pagination | ✅ PASS |
+| `GET /api/v1/profile` → 200 + user + stats | ✅ PASS |
+| `GET /api/v1/care-due` → 200 with overdue/due_today/upcoming | ✅ PASS |
+| `GET /api/v1/care-actions` → 200 + pagination | ✅ PASS |
+| `POST /api/v1/plants` (101-char name) → 400 `VALIDATION_ERROR` | ✅ PASS |
+| `PUT /api/v1/plants/:id` (101-char name) → 400 `VALIDATION_ERROR` | ✅ PASS |
+| Frontend `http://localhost:4176/` → 200 HTML | ✅ PASS |
+| No 5xx errors observed | ✅ PASS |
+
+**Deploy Verified: Yes**
+
+Full results logged in `.workflow/qa-build-log.md` — Sprint 16 Monitor Agent section.
+
+---
+
 ## H-209 — Deploy Engineer → Monitor Agent: Sprint #16 Re-Deploy Complete — Run Full Health Checks (2026-04-01)
 
 | Field | Value |

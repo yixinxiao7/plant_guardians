@@ -4,6 +4,122 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 16 — Monitor Agent: Post-Deploy Health Check (2026-04-01)
+
+**Test Type:** Post-Deploy Health Check + Config Consistency Validation
+**Date:** 2026-04-01T16:30:00Z
+**Agent:** Monitor Agent (Orchestrator Sprint #16)
+**Sprint:** 16
+**Environment:** Staging (localhost)
+**Git SHA:** 0eeac26
+**Trigger:** H-209 — Deploy Engineer re-deploy complete
+
+---
+
+### Config Consistency Validation
+
+#### Extracted Configuration
+
+| Source | Key | Value |
+|--------|-----|-------|
+| `backend/.env` | `PORT` | `3000` |
+| `backend/.env` | `SSL_KEY_PATH` | *(not set)* |
+| `backend/.env` | `SSL_CERT_PATH` | *(not set)* |
+| `backend/.env` | `FRONTEND_URL` (CORS origins) | `http://localhost:5173, http://localhost:5174, http://localhost:4173, http://localhost:4175` |
+| `frontend/vite.config.js` | Proxy target | `http://localhost:3000` |
+| `frontend/vite.config.js` | Dev server default port | `5173` |
+| `infra/docker-compose.yml` | Backend container | *(not defined — only postgres services)* |
+| `infra/docker-compose.yml` | Postgres port mapping | `${POSTGRES_PORT:-5432}:5432` |
+
+#### Config Checks
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Port match: backend PORT vs Vite proxy | Same port | Both `3000` (`PORT=3000`, proxy target `http://localhost:3000`) | ✅ PASS |
+| Protocol match: SSL configured? | If SSL certs set → Vite uses https:// | No `SSL_KEY_PATH` / `SSL_CERT_PATH` in `.env` → backend serves HTTP; Vite proxy uses `http://` | ✅ PASS |
+| CORS match: `FRONTEND_URL` includes dev server origin | `http://localhost:5173` present | `http://localhost:5173` is in the list | ✅ PASS |
+| Docker port consistency | Postgres port mapping consistent with `DATABASE_URL` | `DATABASE_URL` uses port `5432`; docker-compose maps `5432:5432` | ✅ PASS |
+
+**Config Consistency: ✅ PASS**
+
+> **Advisory (non-blocking):** Staging frontend is serving on port `4176` (per H-209), but `FRONTEND_URL` includes only 5173, 5174, 4173, and 4175 — port `4176` is absent. Because `vite.config.js` configures the `preview` proxy to forward all `/api/*` requests server-side to `localhost:3000`, browser-originated CORS requests to the backend do not occur in normal app usage. This is functionally safe for staging. However, if any direct (non-proxied) API call is ever made from the frontend at `4176`, the backend will reject it with `403 CORS`. No action required this sprint — flagged for awareness.
+
+---
+
+### Token Acquisition
+
+| Method | Endpoint | Credentials | Result |
+|--------|----------|-------------|--------|
+| Login (seeded test account) | `POST /api/v1/auth/login` | `test@plantguardians.local` / `TestPass123!` | ✅ HTTP 200 — `access_token` received |
+
+Token acquired via `POST /api/v1/auth/login` (NOT `/auth/register` — rate limit preserved).
+
+---
+
+### Health Check Results
+
+#### Core Checks
+
+| Check | Endpoint | Auth | Expected | Actual | Result |
+|-------|----------|------|----------|--------|--------|
+| App responds | `GET /api/health` | None | 200 `{"status":"ok"}` | 200 `{"status":"ok","timestamp":"2026-04-01T16:29:47.079Z"}` | ✅ PASS |
+| Auth works | `POST /api/v1/auth/login` | None | 200 with `access_token` | 200 `{"data":{"user":{...},"access_token":"eyJ..."}}` | ✅ PASS |
+| Database connected | Implied by `/api/health` + login success | — | No 5xx | No errors observed | ✅ PASS |
+
+#### Sprint 16 Endpoints
+
+| Check | Endpoint | Auth | Expected | Actual | Result |
+|-------|----------|------|----------|--------|--------|
+| T-069: Delete Account — unauth guard | `DELETE /api/v1/account` | None | 401 (not 404) | HTTP 401 | ✅ PASS |
+| T-071: Care stats — unauth guard | `GET /api/v1/care-actions/stats` | None | 401 (not 404) | HTTP 401 | ✅ PASS |
+| T-071: Care stats — authenticated | `GET /api/v1/care-actions/stats` | Bearer token | 200 with `{total_care_actions, by_plant, by_care_type, recent_activity}` | 200 — all fields present, correct shape | ✅ PASS |
+| T-075: Plant name max-length (POST) | `POST /api/v1/plants` (101-char name) | Bearer token | 400 `VALIDATION_ERROR` | 400 `{"error":{"message":"name must be 100 characters or fewer.","code":"VALIDATION_ERROR"}}` | ✅ PASS |
+| T-075: Plant name max-length (PUT) | `PUT /api/v1/plants/:id` (101-char name) | Bearer token | 400 `VALIDATION_ERROR` | 400 `{"error":{"message":"name must be 100 characters or fewer.","code":"VALIDATION_ERROR"}}` | ✅ PASS |
+
+#### Existing Endpoint Regression Checks
+
+| Endpoint | Auth | Expected | Actual | Result |
+|----------|------|----------|--------|--------|
+| `GET /api/v1/plants` | Bearer token | 200 with `{data:[...], pagination:{...}}` | 200 — 4 plants returned, pagination present | ✅ PASS |
+| `GET /api/v1/profile` | Bearer token | 200 with `{user:{...}, stats:{...}}` | 200 — user + stats (`plant_count`, `days_as_member`, `total_care_actions`) present | ✅ PASS |
+| `GET /api/v1/care-due` | Bearer token | 200 with `{overdue:[...], due_today:[...], upcoming:[...]}` | 200 — all three buckets present | ✅ PASS |
+| `GET /api/v1/care-actions` | Bearer token | 200 with `{data:[...], pagination:{...}}` | 200 — 3 care actions returned, pagination present | ✅ PASS |
+
+#### Frontend Check
+
+| Check | URL | Expected | Actual | Result |
+|-------|-----|----------|--------|--------|
+| Frontend serves | `http://localhost:4176/` | HTTP 200 | HTTP 200 — HTML served | ✅ PASS |
+| Build artifacts exist | `frontend/dist/` | `index.html` + assets present | `index.html`, `assets/`, `favicon.svg`, `icons.svg` present | ✅ PASS |
+
+---
+
+### Error Check
+
+| Check | Result |
+|-------|--------|
+| Any 5xx errors observed | ✅ None — all endpoints returned expected 2xx or 4xx |
+| Any unexpected 4xx (e.g., 404 on expected routes) | ✅ None |
+
+---
+
+### Summary
+
+| Category | Result |
+|----------|--------|
+| Config Consistency | ✅ PASS (1 non-blocking advisory noted) |
+| Core Health (app responds, auth, DB) | ✅ PASS |
+| Sprint 16 New Endpoints | ✅ PASS (T-069, T-071, T-075 all verified) |
+| Existing Endpoint Regression | ✅ PASS |
+| Frontend Accessible | ✅ PASS |
+| No 5xx Errors | ✅ PASS |
+
+**Deploy Verified: Yes**
+
+All checks passed. Staging environment is healthy at SHA 0eeac26. Handoff logged to Manager Agent (H-210).
+
+---
+
 ## Sprint 16 — Deploy Engineer: Re-Deploy to Staging (2026-04-01) [Pass 2]
 
 **Date:** 2026-04-01
