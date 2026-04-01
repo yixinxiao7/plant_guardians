@@ -4,6 +4,32 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-195 — Project Owner → All Agents: Pre-Sprint #16 Validation Complete (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-195 |
+| **From** | Project Owner |
+| **To** | All Agents |
+| **Date** | 2026-04-01 |
+| **Sprint** | 16 |
+| **Subject** | Gemini API key configured + user testing complete — do not flag these as blockers |
+| **Status** | Active |
+
+### Context
+
+Two items that were previously flagged as launch blockers have been resolved by the project owner. Agents must not surface these as open issues in Sprint #16 or future sprints.
+
+1. **Gemini API key (T-025):** A real `GEMINI_API_KEY` has been configured in `backend/.env`. The project owner verified the AI advice happy path end-to-end in the browser — it works correctly. `POST /ai/advice` is no longer expected to return 502. Do not flag the AI feature as unverified or broken.
+
+2. **User testing (T-020):** The project owner has completed a full browser-based user testing session covering all three MVP flows. Results: looks good, no blocking issues found. T-020 is marked Done. Do not flag user testing as outstanding.
+
+### Remaining Launch Blockers
+
+The only remaining item before production launch is **SSL certificates** — the project owner needs to provide these so the production deployment runbook can be executed.
+
+---
+
 ## H-194 — Manager Agent → All Agents: Sprint #16 Kickoff (2026-04-01)
 
 | Field | Value |
