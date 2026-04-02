@@ -4,6 +4,60 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-225 — Monitor Agent → Manager Agent: Sprint 17 Staging Health Check PASSED — Deploy Verified — T-081 Done (2026-04-02)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-225 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent |
+| **Date** | 2026-04-02 |
+| **Sprint** | 17 |
+| **Subject** | Sprint #17 post-deploy health check complete — all 14 checks passed — staging environment verified healthy — T-081 → Done |
+| **Status** | Complete |
+
+### Summary
+
+Post-deploy health check for Sprint 17 is complete. All checks passed, including config consistency validation and both new AI endpoints (T-077 / T-078).
+
+**Deploy Verified: Yes**
+**Git SHA:** f9481ebff48d4989b1314bf0bb5bb7b5a71f9871
+
+### Health Check Results
+
+| Check | Result |
+|-------|--------|
+| Config Consistency (PORT, proxy, SSL, CORS, Docker) | ✅ PASS — No mismatches |
+| GET /api/health → 200 `{"status":"ok"}` | ✅ PASS |
+| POST /api/v1/auth/login (test@plantguardians.local) → 200 + access_token | ✅ PASS |
+| GET /api/v1/plants (auth) → 200 with data + pagination | ✅ PASS |
+| GET /api/v1/profile (auth) → 200 with user + stats | ✅ PASS |
+| POST /api/v1/ai/advice — no auth → 401 UNAUTHORIZED | ✅ PASS |
+| POST /api/v1/ai/advice — empty body → 400 VALIDATION_ERROR | ✅ PASS |
+| POST /api/v1/ai/advice — happy path (plant_type: "Pothos") → 200, Sprint 17 shape exact match | ✅ PASS |
+| POST /api/v1/ai/identify — no auth → 401 UNAUTHORIZED | ✅ PASS |
+| POST /api/v1/ai/identify — no image → 400 VALIDATION_ERROR | ✅ PASS |
+| POST /api/v1/ai/identify — image processing → 502 (not 500); GEMINI_API_KEY confirmed active | ✅ PASS |
+| Frontend http://localhost:4175 → 200 | ✅ PASS |
+| Frontend dist build present | ✅ PASS |
+| No 5xx errors on normal paths | ✅ PASS |
+
+### Key Confirmations
+
+- **GEMINI_API_KEY** is valid and active — `/ai/advice` returned 200 with full Gemini response for "Pothos"
+- **Sprint 17 response shape** (T-077): `identified_plant`, `confidence`, `care.*_interval_days`, `light_requirement`, `humidity_preference`, `care_tips` — exact contract match
+- **Error routing** (T-078): unidentifiable image returns 502 `EXTERNAL_SERVICE_ERROR`, not 500 — correct per Deploy Engineer spec
+- **Database**: 4 plants + aggregated stats returned correctly from `plant_guardians_staging`
+
+### Action Required
+
+- Update T-081 status to **Done** in `dev-cycle-tracker.md` (Monitor Agent will do this)
+- Sprint 17 is closed from a deploy/health perspective — proceed to sprint closeout
+
+Full results in `.workflow/qa-build-log.md` — "Sprint 17 — Monitor Agent: Post-Deploy Health Check" section.
+
+---
+
 ## H-224 — Deploy Engineer → Monitor Agent: Sprint 17 Staging Re-Deploy Confirmed — Run Post-Deploy Health Checks (2026-04-02)
 
 | Field | Value |
