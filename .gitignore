@@ -33,8 +33,12 @@ coverage/
 test-results/
 playwright-report/
 
-# TLS certificates (T-044 — never commit private keys)
+# TLS certificates — never commit private keys or certs (T-044, T-032)
 infra/certs/
+infra/ssl/
+
+# Production environment secrets (T-032 — use .env.production.example as template)
+.env.production
 
 # Application logs (T-050 — pm2 logs)
 logs/

@@ -1,38 +1,44 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+// In local dev and staging the Vite proxy forwards /api/* to the backend on
+// port 3000, so a relative base URL is correct and avoids CORS entirely.
+// In production, set VITE_API_BASE_URL to the absolute backend origin.
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 let accessToken = null;
-let refreshToken = null;
 let onAuthFailure = null;
 
-export function setTokens(access, refresh) {
-  accessToken = access;
-  refreshToken = refresh;
+export function setAccessToken(token) {
+  accessToken = token;
 }
 
 export function getAccessToken() {
   return accessToken;
 }
 
-export function getRefreshToken() {
-  return refreshToken;
-}
-
 export function clearTokens() {
   accessToken = null;
-  refreshToken = null;
+}
+
+// Legacy alias — some existing code passes (access, refresh).
+// We only store the access token now; refresh token lives in HttpOnly cookie.
+export function setTokens(access, _refresh) {
+  accessToken = access;
 }
 
 export function setOnAuthFailure(callback) {
   onAuthFailure = callback;
 }
 
-async function refreshAccessToken() {
-  if (!refreshToken) throw new Error('No refresh token');
-
+/**
+ * Silent re-auth: call POST /auth/refresh with credentials: 'include'.
+ * The browser sends the HttpOnly refresh_token cookie automatically.
+ * On success, stores the new access_token in memory and returns it.
+ * On failure, clears local auth state and throws.
+ */
+export async function refreshAccessToken() {
   const res = await fetch(`${API_BASE}/auth/refresh`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
   });
 
   if (!res.ok) {
@@ -42,7 +48,6 @@ async function refreshAccessToken() {
 
   const json = await res.json();
   accessToken = json.data.access_token;
-  refreshToken = json.data.refresh_token;
   return accessToken;
 }
 
@@ -58,14 +63,14 @@ async function request(path, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  let res = await fetch(url, { ...options, headers });
+  let res = await fetch(url, { ...options, headers, credentials: 'include' });
 
   // Auto-refresh on 401
-  if (res.status === 401 && refreshToken && !options._retried) {
+  if (res.status === 401 && !options._retried) {
     try {
       await refreshAccessToken();
       headers['Authorization'] = `Bearer ${accessToken}`;
-      res = await fetch(url, { ...options, headers, _retried: true });
+      res = await fetch(url, { ...options, headers, credentials: 'include', _retried: true });
     } catch {
       if (onAuthFailure) onAuthFailure();
       throw new ApiError('Session expired. Please log in again.', 'UNAUTHORIZED', 401);
@@ -79,7 +84,7 @@ async function request(path, options = {}) {
     throw new ApiError(err.message || 'Something went wrong.', err.code || 'UNKNOWN', res.status);
   }
 
-  return json.data;
+  return options._returnFull ? json : json.data;
 }
 
 export class ApiError extends Error {
@@ -107,17 +112,60 @@ export const auth = {
     });
   },
   logout() {
+    // No body needed — refresh token is read from HttpOnly cookie by backend
     return request('/auth/logout', {
       method: 'POST',
-      body: JSON.stringify({ refresh_token: refreshToken }),
     });
+  },
+  async deleteAccount(password) {
+    const url = `${API_BASE}/account`;
+    const headers = { 'Content-Type': 'application/json' };
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
+    const body = JSON.stringify({ password });
+
+    let res = await fetch(url, { method: 'DELETE', headers, body, credentials: 'include' });
+
+    // Auto-refresh on 401
+    if (res.status === 401) {
+      try {
+        await refreshAccessToken();
+        headers['Authorization'] = `Bearer ${accessToken}`;
+        res = await fetch(url, { method: 'DELETE', headers, body, credentials: 'include' });
+      } catch {
+        throw new ApiError('Session expired. Please log in again.', 'UNAUTHORIZED', 401);
+      }
+    }
+
+    if (res.status === 204) {
+      return null; // Success — no content
+    }
+
+    // Handle errors
+    let err = {};
+    try {
+      const json = await res.json();
+      err = json.error || {};
+    } catch {
+      // Response may not have a JSON body
+    }
+    throw new ApiError(err.message || 'Something went wrong.', err.code || 'UNKNOWN', res.status);
   },
 };
 
 // Plant endpoints
 export const plants = {
-  list(page = 1, limit = 50) {
-    return request(`/plants?page=${page}&limit=${limit}`);
+  list(params = {}) {
+    const query = new URLSearchParams();
+    query.set('page', String(params.page || 1));
+    query.set('limit', String(params.limit || 50));
+    if (params.search) query.set('search', params.search);
+    if (params.status) query.set('status', params.status);
+    const utcOffset = new Date().getTimezoneOffset() * -1;
+    query.set('utcOffset', String(utcOffset));
+    return request(`/plants?${query.toString()}`, { _returnFull: true });
   },
   get(id) {
     return request(`/plants/${id}`);
@@ -162,6 +210,29 @@ export const careActions = {
       method: 'DELETE',
     });
   },
+  list(params = {}) {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.plant_id) query.set('plant_id', params.plant_id);
+    const qs = query.toString();
+    return request(`/care-actions${qs ? `?${qs}` : ''}`, { _returnFull: true });
+  },
+};
+
+// Care action stats (analytics)
+export const careStats = {
+  get() {
+    return request('/care-actions/stats');
+  },
+};
+
+// Care due dashboard
+export const careDue = {
+  get() {
+    const utcOffset = new Date().getTimezoneOffset() * -1;
+    return request(`/care-due?utcOffset=${utcOffset}`);
+  },
 };
 
 // AI advice
@@ -170,6 +241,14 @@ export const ai = {
     return request('/ai/advice', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+  identify(imageFile) {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+    return request('/ai/identify', {
+      method: 'POST',
+      body: formData,
     });
   },
 };

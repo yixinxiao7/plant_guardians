@@ -107,8 +107,12 @@ validate_platform
 
 # ── Run a Single Sprint ─────────────────────────────────────────────
 run_sprint() {
-    local sprint_num
-    sprint_num=$(state_get "SPRINT_NUMBER" "1")
+    # Capture sprint number at start and export it — post-sprint functions
+    # (print_final_summary, send_sprint_email) need this because the Manager
+    # overwrites active-sprint.md with the next sprint plan during closeout,
+    # making get_current_sprint() unreliable after closeout completes.
+    CURRENT_SPRINT_NUM=$(state_get "SPRINT_NUMBER" "1")
+    local sprint_num="$CURRENT_SPRINT_NUM"
     timer_start
 
     log_phase "Starting Sprint #${sprint_num}"
@@ -132,7 +136,7 @@ run_sprint() {
     fi
 
     # Phase execution with checkpoint tracking
-    local phases=("plan" "design" "contracts" "build" "review" "qa" "deploy" "verify" "test" "closeout")
+    local phases=("plan" "design" "contracts" "build" "review" "qa" "deploy" "verify" "closeout")
     local started=false
 
     for phase in "${phases[@]}"; do
@@ -157,7 +161,6 @@ run_sprint() {
             qa)        run_phase_qa ;;
             deploy)    run_phase_deploy ;;
             verify)    run_phase_verify ;;
-            test)      run_phase_test ;;
             closeout)  run_phase_closeout ;;
         esac
 
@@ -184,7 +187,7 @@ run_sprint() {
 # ── Sprint Result Summary ────────────────────────────────────────────
 print_final_summary() {
     local sprint_num
-    sprint_num=$(get_current_sprint)
+    sprint_num="${CURRENT_SPRINT_NUM:-$(get_current_sprint)}"
 
     echo ""
     log_phase "Sprint #${sprint_num} — Final Report"

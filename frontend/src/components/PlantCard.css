@@ -30,10 +30,14 @@
 .plant-card-placeholder {
   width: 100%;
   height: 100%;
-  background: #E8F0E8;
+  background: var(--color-status-green-bg);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+[data-theme="dark"] .plant-card-placeholder {
+  background: #1A2F22;
 }
 
 .plant-card-body {

@@ -16,7 +16,7 @@ What to do when a deployment breaks. Follow these steps in order.
 
 ## Rollback Steps
 
-1. **Deploy Engineer** identifies the issue (via Monitor Agent alert or User Agent report)
+1. **Deploy Engineer** identifies the issue (via Monitor Agent alert or QA Engineer report)
 2. **Deploy Engineer** reverts to the last known-good deployment on the affected environment
 3. **Deploy Engineer** logs the rollback in qa-build-log.md with Build Status = Failed and a detailed Error Summary
 4. **Manager Agent** creates a Hotfix task in dev-cycle-tracker.md (Type = Hotfix, Priority = P0 or P1)

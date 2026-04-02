@@ -118,21 +118,13 @@ phase_verify_complete() {
     grep -qE 'Deploy Verified.*Yes' "$qa_log" 2>/dev/null
 }
 
-phase_testing_complete() {
-    local feedback="${WORKFLOW_DIR}/feedback-log.md"
-    local handoff="${WORKFLOW_DIR}/handoff-log.md"
-    local sprint_num
-    sprint_num=$(get_current_sprint)
-
-    # User testing is complete if feedback entries exist for this sprint
-    grep -qE "Sprint.*${sprint_num}|Sprint ${sprint_num}" "$feedback" 2>/dev/null && \
-    grep -qE '\*\*From\*\*.*User Agent|User Agent.*Manager' "$handoff" 2>/dev/null
-}
-
 phase_closeout_complete() {
     local sprint_log="${WORKFLOW_DIR}/sprint-log.md"
+    # Use sprint number from .state (not active-sprint.md) because the Manager
+    # writes the next sprint plan to active-sprint.md during closeout, which
+    # would cause get_current_sprint() to return the NEXT sprint number.
     local sprint_num
-    sprint_num=$(get_current_sprint)
+    sprint_num=$(state_get "SPRINT_NUMBER" "$(get_current_sprint)")
 
     # Closeout is complete if sprint summary header exists (### Sprint #N —)
     # Uses anchored pattern to avoid matching references like "Sprint 3 Recommendations"
@@ -150,7 +142,7 @@ phase_closeout_complete() {
 # for Sprint 3).
 
 determine_next_phase() {
-    local phases=("plan" "design" "contracts" "build" "review" "qa" "deploy" "verify" "test" "closeout")
+    local phases=("plan" "design" "contracts" "build" "review" "qa" "deploy" "verify" "closeout")
     for phase in "${phases[@]}"; do
         if [[ "$(sprint_state_get "${phase}_completed")" != "true" ]]; then
             echo "$phase"

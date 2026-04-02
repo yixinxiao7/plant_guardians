@@ -58,11 +58,15 @@ export default function PlantDetailPage() {
         const confetti = (await import('canvas-confetti')).default;
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (!prefersReducedMotion) {
+          const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+          const confettiColors = isDark
+            ? ['#2D5A3D', '#D4A76A', '#C2956A', '#7EAF7E', '#B87A5A']
+            : ['#5C7A5C', '#A67C5B', '#C4921F', '#4A7C59', '#D4A76A'];
           confetti({
             particleCount: 35,
             spread: 60,
             origin: { y: 0.7 },
-            colors: ['#5C7A5C', '#A67C5B', '#C4921F', '#4A7C59'],
+            colors: confettiColors,
           });
         }
       } catch {}

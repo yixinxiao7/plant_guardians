@@ -1,9 +1,9 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Plant, User, SignOut, List, X } from '@phosphor-icons/react';
+import { Plant, User, SignOut, List, X, ClockCounterClockwise, BellSimple, ChartBar } from '@phosphor-icons/react';
 import { useAuth } from '../hooks/useAuth.jsx';
 import './Sidebar.css';
 
-export default function Sidebar({ isOpen, onClose }) {
+export default function Sidebar({ isOpen, onClose, careDueBadge = 0 }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -16,6 +16,8 @@ export default function Sidebar({ isOpen, onClose }) {
     if (!name) return '?';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
+
+  const badgeDisplay = careDueBadge >= 100 ? '99+' : String(careDueBadge);
 
   return (
     <>
@@ -39,7 +41,39 @@ export default function Sidebar({ isOpen, onClose }) {
             onClick={onClose}
           >
             <Plant size={20} />
-            <span>Inventory</span>
+            <span>My Plants</span>
+          </NavLink>
+          <NavLink
+            to="/due"
+            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+            onClick={onClose}
+          >
+            <BellSimple size={20} />
+            <span>Care Due</span>
+            {careDueBadge > 0 && (
+              <span
+                className="sidebar-badge"
+                aria-label={`${careDueBadge} plant${careDueBadge !== 1 ? 's' : ''} overdue or due today`}
+              >
+                {badgeDisplay}
+              </span>
+            )}
+          </NavLink>
+          <NavLink
+            to="/analytics"
+            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+            onClick={onClose}
+          >
+            <ChartBar size={20} />
+            <span>Analytics</span>
+          </NavLink>
+          <NavLink
+            to="/history"
+            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+            onClick={onClose}
+          >
+            <ClockCounterClockwise size={20} />
+            <span>History</span>
           </NavLink>
           <NavLink
             to="/profile"

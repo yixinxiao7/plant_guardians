@@ -44,6 +44,32 @@ const User = {
   async verifyPassword(plainText, hash) {
     return bcrypt.compare(plainText, hash);
   },
+
+  /**
+   * Delete a user by ID.
+   * Due to ON DELETE CASCADE on all child tables (refresh_tokens, plants,
+   * care_schedules via plants, care_actions via plants), a single DELETE
+   * on users cascades to all associated data.
+   *
+   * Photo file cleanup should be done by the caller before invoking this.
+   *
+   * Returns the number of rows deleted (0 or 1).
+   */
+  async deleteById(id) {
+    return db('users').where('id', id).del();
+  },
+
+  /**
+   * Find all photo_urls for plants owned by a given user.
+   * Used before account deletion to clean up uploaded files.
+   */
+  async findPhotoUrlsByUserId(userId) {
+    const rows = await db('plants')
+      .select('photo_url')
+      .where('user_id', userId)
+      .whereNotNull('photo_url');
+    return rows.map((r) => r.photo_url);
+  },
 };
 
 module.exports = User;

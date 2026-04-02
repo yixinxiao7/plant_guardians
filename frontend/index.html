@@ -8,6 +8,23 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
     <title>Plant Guardians</title>
+    <script>
+      (function() {
+        document.documentElement.classList.add('no-transition');
+        var stored = localStorage.getItem('plant-guardians-theme');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (stored === 'dark' || (!stored && prefersDark) || (stored === 'system' && prefersDark)) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else if (stored === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+        requestAnimationFrame(function() {
+          requestAnimationFrame(function() {
+            document.documentElement.classList.remove('no-transition');
+          });
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

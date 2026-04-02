@@ -36,10 +36,9 @@ infra/            → Docker, CI/CD, and deployment configs
 | Design Agent | `.agents/design-agent.md` | UI specs and screen descriptions |
 | Backend Engineer | `.agents/backend-engineer.md` | API, database, server-side logic |
 | Frontend Engineer | `.agents/frontend-engineer.md` | UI components, pages, client-side logic |
-| QA Engineer | `.agents/qa-engineer.md` | Testing, security checklist, integration checks |
+| QA Engineer | `.agents/qa-engineer.md` | Testing, security checklist, product-perspective testing |
 | Deploy Engineer | `.agents/deploy-engineer.md` | Build, deploy, environment management |
 | Monitor Agent | `.agents/monitor-agent.md` | Post-deploy health checks, error monitoring |
-| User Agent | `.agents/user-agent.md` | Product testing and structured feedback |
 
 ## Workflow Cycle
 
@@ -49,10 +48,9 @@ Manager plans sprint
   → Backend Engineer publishes API contracts
   → Engineers build in parallel
   → Manager reviews code
-  → QA runs integration check + security checklist
+  → QA runs tests, security checks, and product-perspective testing
   → Deploy ships to staging
   → Monitor verifies health
-  → User Agent tests and submits feedback
   → Manager triages feedback → next sprint
 ```
 
@@ -62,7 +60,7 @@ Agents do NOT talk to each other directly. All coordination happens through file
 - `.workflow/dev-cycle-tracker.md` — Task assignments and status
 - `.workflow/handoff-log.md` — Context passed between agents
 - `.workflow/api-contracts.md` — Backend ↔ Frontend interface agreements
-- `.workflow/feedback-log.md` — User Agent and Monitor Agent observations
+- `.workflow/feedback-log.md` — QA Engineer and Monitor Agent observations
 
 ## Git Credentials & Commit Permissions
 

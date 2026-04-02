@@ -13,6 +13,8 @@ vi.mock('@phosphor-icons/react', () => ({
   PencilSimple: (props) => <span data-testid="icon-pencil" {...props} />,
   TrashSimple: (props) => <span data-testid="icon-trash" {...props} />,
   X: (props) => <span data-testid="icon-x" {...props} />,
+  Drop: (props) => <span data-testid="icon-drop" {...props} />,
+  PottedPlant: (props) => <span data-testid="icon-potted-plant" {...props} />,
 }));
 
 vi.mock('../hooks/usePlants.js', () => ({

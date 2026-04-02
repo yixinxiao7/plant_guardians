@@ -21,7 +21,7 @@ Your task RIGHT NOW is ONLY to write API contracts — do NOT implement any code
    - Success response shape (following the { data: ... } convention)
    - Error response shapes for each error case
    - Pagination details if applicable
-5. If any schema changes (new tables, columns) are needed, propose them in .workflow/technical-context.md and log a handoff to Manager for approval. For this automated flow, include the approval note yourself.
+5. If any schema changes (new tables, columns) are needed, propose them in .workflow/technical-context.md. Log a handoff to Manager in .workflow/handoff-log.md with the proposal. Since this is an automated flow without a live Manager review step, mark the proposal as 'Auto-approved (automated sprint)' — the Manager will review in the closeout phase.
 6. Log a handoff in .workflow/handoff-log.md to the Frontend Engineer noting which contracts are ready
 7. Log a handoff in .workflow/handoff-log.md to the QA Engineer with the contracts for testing reference
 

@@ -23,7 +23,8 @@ Your task:
    - Accessibility considerations
 6. Mark each spec as 'Approved' (since this is automated, specs are auto-approved)
 7. Log a handoff entry in .workflow/handoff-log.md for each spec, directed to the Frontend Engineer
-8. Update your tasks in .workflow/dev-cycle-tracker.md to 'Done'
+
+Do NOT update task statuses in dev-cycle-tracker.md — the Manager Agent handles status transitions.
 
 Platform: ${PLATFORM:-web}. Design for ${PLATFORM:-web} conventions and patterns.
 

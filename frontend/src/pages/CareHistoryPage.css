@@ -1,0 +1,254 @@
+/* Care History Page — SPEC-008 */
+
+.care-history-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 32px;
+}
+
+.care-history-title {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 8px;
+}
+
+.care-history-subtitle {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  margin-bottom: 24px;
+}
+
+/* Filter Bar */
+.care-history-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.care-history-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.care-history-filter-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.care-history-filter-select {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: 8px;
+  padding: 8px 32px 8px 12px;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  min-width: 200px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%236B6B5F' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.care-history-filter-select:focus {
+  border-color: var(--color-accent);
+  outline: 2px solid rgba(92, 122, 92, 0.2);
+  outline-offset: 2px;
+}
+
+.care-history-result-count {
+  font-size: 13px;
+  color: var(--color-text-disabled);
+  white-space: nowrap;
+}
+
+/* Action List */
+.care-history-list {
+  margin-top: 16px;
+}
+
+.care-history-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+}
+
+.care-history-item + .care-history-item {
+  border-top: 1px solid var(--color-border);
+}
+
+.care-history-icon-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.care-history-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.care-history-plant-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.care-history-action-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+.care-history-timestamp {
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+/* Load More */
+.care-history-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+/* Centered States (Empty, Filtered Empty, Error) */
+.care-history-centered-state {
+  text-align: center;
+  padding: 64px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.care-history-empty-illustration {
+  margin-bottom: 0;
+}
+
+.care-history-state-heading {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-top: 24px;
+}
+
+.care-history-state-heading--filtered {
+  font-size: 20px;
+}
+
+.care-history-state-body {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  margin-top: 8px;
+  line-height: 1.6;
+}
+
+.care-history-centered-state .btn {
+  margin-top: 24px;
+}
+
+/* Loading Skeleton */
+.care-history-skeleton-list {
+  margin-top: 16px;
+}
+
+.care-history-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+}
+
+.care-history-skeleton-row + .care-history-skeleton-row {
+  border-top: 1px solid var(--color-border);
+}
+
+.skeleton-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton-text-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.skeleton-line {
+  height: 14px;
+  border-radius: 4px;
+}
+
+.skeleton-line-sm {
+  height: 12px;
+  border-radius: 4px;
+}
+
+.skeleton-timestamp {
+  width: 72px;
+  height: 12px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* Shimmer animation */
+.care-history-skeleton-list .skeleton {
+  background: linear-gradient(90deg, var(--color-skeleton-base) 25%, var(--color-skeleton-highlight) 50%, var(--color-skeleton-base) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Responsive */
+@media (max-width: 767px) {
+  .care-history-page {
+    padding: 24px 16px;
+  }
+
+  .care-history-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .care-history-result-count {
+    order: -1;
+  }
+
+  .care-history-filter-group {
+    width: 100%;
+  }
+
+  .care-history-filter-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .care-history-plant-name {
+    max-width: 150px;
+  }
+}
