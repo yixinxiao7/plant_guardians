@@ -1,5 +1,9 @@
 /**
  * Computes next_due_at, status, and days_overdue for a care schedule.
+ *
+ * @param {number} [utcOffsetMinutes=0] — caller's UTC offset in minutes.
+ *   Positive = ahead of UTC (e.g. UTC+5:30 → 330).
+ *   Used to compute "local today" for status bucketing.
  */
 
 function computeNextDueAt(lastDoneAt, frequencyValue, frequencyUnit) {
@@ -22,9 +26,11 @@ function computeNextDueAt(lastDoneAt, frequencyValue, frequencyUnit) {
   return base;
 }
 
-function computeCareStatus(schedule) {
+function computeCareStatus(schedule, utcOffsetMinutes = 0) {
   const now = new Date();
-  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  // Shift "now" by utcOffset to get the user's local clock time
+  const localNow = new Date(now.getTime() + utcOffsetMinutes * 60 * 1000);
+  const today = new Date(Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate()));
 
   const nextDueAt = computeNextDueAt(
     schedule.last_done_at,
@@ -73,9 +79,11 @@ function computeCareStatus(schedule) {
 
 /**
  * Enrich an array of care schedule rows with computed fields.
+ * @param {Array} schedules
+ * @param {number} [utcOffsetMinutes=0] — caller's UTC offset in minutes
  */
-function enrichSchedules(schedules) {
-  return schedules.map(computeCareStatus);
+function enrichSchedules(schedules, utcOffsetMinutes = 0) {
+  return schedules.map((s) => computeCareStatus(s, utcOffsetMinutes));
 }
 
 module.exports = { computeCareStatus, enrichSchedules, computeNextDueAt };

@@ -1,0 +1,67 @@
+# Render Infrastructure-as-Code Blueprint
+# Deploy: https://render.com/deploy → connect repo → Render detects this file
+#
+# Services:
+#   1. PostgreSQL database (free tier)
+#   2. Backend API (Node.js web service)
+#   3. Frontend (static site)
+
+databases:
+  - name: plant-guardians-db
+    plan: free
+    databaseName: plant_guardians
+    user: plant_guardians
+
+services:
+  # --- Backend API ---
+  - type: web
+    name: plant-guardians-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run migrate
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: RENDER
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: plant-guardians-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: REFRESH_TOKEN_EXPIRES_DAYS
+        value: "7"
+      - key: FRONTEND_URL
+        sync: false  # Set manually after frontend deploys (its .onrender.com URL)
+      - key: GEMINI_API_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "5"
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "900000"
+      - key: RATE_LIMIT_MAX
+        value: "100"
+      - key: AUTH_RATE_LIMIT_MAX
+        value: "20"
+
+  # --- Frontend Static Site ---
+  - type: web
+    name: plant-guardians
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false  # Set to backend URL: https://plant-guardians-api.onrender.com/api/v1

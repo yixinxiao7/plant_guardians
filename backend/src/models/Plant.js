@@ -18,19 +18,37 @@ const Plant = {
   },
 
   /**
-   * Find all plants for a user, with pagination.
+   * Find all plants for a user, with pagination and optional search filter.
+   * @param {string} userId
+   * @param {Object} options
+   * @param {number} [options.page=1]
+   * @param {number} [options.limit=50]
+   * @param {string} [options.search] — case-insensitive substring match on name
+   * @param {boolean} [options.noPagination=false] — if true, returns all matching plants (for app-level filtering)
    */
-  async findByUserId(userId, { page = 1, limit = 50 } = {}) {
+  async findByUserId(userId, { page = 1, limit = 50, search, noPagination = false } = {}) {
     const offset = (page - 1) * limit;
 
+    function applyFilters(query) {
+      query.where('user_id', userId);
+      if (search) {
+        query.whereRaw('LOWER(name) LIKE ?', [`%${search.toLowerCase()}%`]);
+      }
+      return query;
+    }
+
+    if (noPagination) {
+      const plants = await applyFilters(db('plants'))
+        .orderBy('created_at', 'desc');
+      return { plants, total: plants.length };
+    }
+
     const [plants, [{ count }]] = await Promise.all([
-      db('plants')
-        .where('user_id', userId)
+      applyFilters(db('plants').clone())
         .orderBy('created_at', 'desc')
         .limit(limit)
         .offset(offset),
-      db('plants')
-        .where('user_id', userId)
+      applyFilters(db('plants').clone())
         .count('id as count'),
     ]);
 

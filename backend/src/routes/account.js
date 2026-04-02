@@ -12,18 +12,7 @@ const { authenticate } = require('../middleware/auth');
 const { validateBody } = require('../middleware/validation');
 const User = require('../models/User');
 const { AppError } = require('../utils/errors');
-
-/**
- * Clear the refresh token cookie (same attributes as auth.js).
- */
-function clearRefreshTokenCookie(res) {
-  res.clearCookie('refresh_token', {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'strict',
-    path: '/api/v1/auth',
-  });
-}
+const { clearRefreshTokenCookie } = require('../utils/cookieConfig');
 
 // All routes require authentication
 router.use(authenticate);

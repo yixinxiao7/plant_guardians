@@ -1,5 +1,15 @@
 require('dotenv').config();
 
+// Render (and most managed PostgreSQL providers) require SSL connections.
+// When DATABASE_URL contains "render.com" or RENDER=true env is set, enable SSL
+// with rejectUnauthorized: false (Render uses self-signed certs on free tier).
+const isRender = process.env.RENDER === 'true' ||
+  (process.env.DATABASE_URL || '').includes('render.com');
+
+const productionConnection = isRender
+  ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
+  : process.env.DATABASE_URL;
+
 module.exports = {
   development: {
     client: 'pg',
@@ -68,13 +78,14 @@ module.exports = {
   },
   production: {
     client: 'pg',
-    connection: process.env.DATABASE_URL,
+    connection: productionConnection,
     migrations: {
       directory: './src/migrations',
     },
     pool: {
-      min: 2,
-      max: 20,
+      // Render free tier has limited connections — keep pool small
+      min: 1,
+      max: isRender ? 5 : 20,
       afterCreate(conn, done) {
         conn.query('SELECT 1', (err) => {
           done(err, conn);

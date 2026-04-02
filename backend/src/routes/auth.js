@@ -13,6 +13,7 @@ const {
   InvalidRefreshTokenError,
   ConflictError,
 } = require('../utils/errors');
+const { setRefreshTokenCookie, clearRefreshTokenCookie } = require('../utils/cookieConfig');
 
 /**
  * Generate a JWT access token.
@@ -33,35 +34,6 @@ async function generateRefreshToken(userId) {
   const expiresInDays = parseInt(process.env.REFRESH_TOKEN_EXPIRES_DAYS || '7', 10);
   await RefreshToken.create({ userId, rawToken, expiresInDays });
   return rawToken;
-}
-
-/**
- * Set the refresh token as an HttpOnly cookie on the response.
- * Cookie attributes: HttpOnly, Secure, SameSite=Strict, Path=/api/v1/auth
- */
-function setRefreshTokenCookie(res, rawToken) {
-  const expiresInDays = parseInt(process.env.REFRESH_TOKEN_EXPIRES_DAYS || '7', 10);
-  const maxAgeSeconds = expiresInDays * 86400;
-
-  res.cookie('refresh_token', rawToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'strict',
-    path: '/api/v1/auth',
-    maxAge: maxAgeSeconds * 1000, // Express expects milliseconds
-  });
-}
-
-/**
- * Clear the refresh token cookie.
- */
-function clearRefreshTokenCookie(res) {
-  res.clearCookie('refresh_token', {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'strict',
-    path: '/api/v1/auth',
-  });
 }
 
 // POST /api/v1/auth/register

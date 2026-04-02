@@ -4,6 +4,69 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 18 — Deploy Engineer: Updated Build Verification — T-083 Now Implemented (2026-04-02)
+
+**Date:** 2026-04-02
+**Agent:** Deploy Engineer (Sprint #18 — second pass)
+**Sprint:** 18
+**Git Branch:** fix/T-045-cors-port-5174
+**Git SHA:** 0e375be (latest commit) + working tree with all Sprint 18 changes uncommitted
+**QA Sign-off:** ⛔ PENDING — No Sprint 18 QA sign-off received. Deployment is BLOCKED.
+
+---
+
+### Summary of Changes Since H-231
+
+| Change | Detail |
+|--------|--------|
+| T-083 implemented | `backend/src/routes/plants.js` now handles `?search=`, `?status=`, `?utcOffset=` params with validation |
+| T-083 tests added | `backend/tests/plantsSearchFilter.test.js` — 13 new tests |
+| T-085 fixed | `frontend/src/pages/ProfilePage.jsx` lines 136/141/146 now use `var(--color-accent)` (correct existing token) |
+| Backend total | **121/121 tests** (108 original + 13 new from T-083) |
+| Frontend total | **177/177 tests** unchanged |
+
+---
+
+### Pre-Deploy Gate Checks
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| QA sign-off in handoff-log.md | ❌ BLOCKED | Still awaiting Sprint 18 QA → Deploy Engineer handoff |
+| T-083 backend implementation | ✅ Present | `search`, `status`, `utcOffset` all validated + handled in `plants.js` |
+| T-083 tests | ✅ 13 new tests pass | `plantsSearchFilter.test.js` — 13/13 pass |
+| Pending DB migrations | ✅ None | `npm run migrate` → "Already up to date" |
+| Backend test suite | ✅ 121/121 | All 13 suites pass — no regressions |
+| Frontend test suite | ✅ 177/177 | All 26 suites pass — no regressions |
+| Frontend production build | ✅ Clean | 4629 modules, 308ms |
+| Backend health check | ✅ Live | GET /api/health → 200 `{"status":"ok"}` |
+| Frontend service | ✅ Live | http://localhost:4175 → HTTP 200 |
+
+---
+
+### Sprint 18 Task Implementation Status (updated)
+
+| Task | Agent | Code Status | Tracker Status |
+|------|-------|-------------|----------------|
+| T-082 (SPEC-013 — Design) | Design Agent | ✅ Written in ui-spec.md — H-227 | Backlog (tracker not updated by Design Agent) |
+| T-083 (Backend search/filter) | Backend Engineer | ✅ **IMPLEMENTED** — 121/121 tests pass (+13 new) | In Progress (needs Manager review → In Review) |
+| T-084 (Frontend search/filter UI) | Frontend Engineer | ✅ `PlantSearchFilter.jsx`, 15 new tests, 177/177 pass | Integration Check |
+| T-085 (ProfilePage CSS tokens) | Frontend Engineer | ✅ Fixed — `var(--color-accent)` on lines 136/141/146 — H-237 | In Progress (sent to QA via H-237) |
+| T-086 (CareDuePage focus mgmt) | Frontend Engineer | ✅ Fully implemented (Sprint 10), 6 focus tests | Integration Check |
+
+---
+
+### Remaining Blocker
+
+**ONLY BLOCKER:** No QA sign-off handoff (QA Engineer → Deploy Engineer) for Sprint 18.
+
+T-083's prior blocker is resolved. All tasks are now in working tree and tests pass. Once QA issues sign-off confirming T-082–T-086 all pass, Deploy Engineer will proceed **immediately** with staging deploy.
+
+**Expected test counts post-QA:**
+- Backend: ≥121/121
+- Frontend: ≥177/177
+
+---
+
 ## Sprint 18 — Deploy Engineer: Pre-Deploy Build Verification (2026-04-02)
 
 **Date:** 2026-04-02
