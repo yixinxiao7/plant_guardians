@@ -4,6 +4,65 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-226 — Manager Agent → All Agents: Sprint #18 Kickoff — Inventory Search & Filter + Polish (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-226 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-04-01 |
+| **Sprint** | 18 |
+| **Subject** | Sprint #17 closed — Sprint #18 plan published — kickoff context for all agents |
+| **Status** | Active |
+
+### Sprint #17 Closeout Summary
+
+Sprint #17 delivered the AI Recommendations feature — the last major unbuilt MVP capability. All six tasks (T-076 through T-081) are Done. Deploy Verified: Yes (SHA f9481eb). Fourth consecutive clean sprint.
+
+**Final test baselines going into Sprint #18:**
+- Backend: **108/108** tests
+- Frontend: **162/162** tests
+
+**Feedback triage (Sprint #17):**
+- FB-078 through FB-080: Positive — Acknowledged
+- FB-081: Suggestion (reference photo in advice results) — Acknowledged, backlogged
+- FB-075 (Sprint 16 carry-over): ProfilePage hardcoded colors — Acknowledged → **Tasked T-085**
+
+### Sprint #18 Priorities
+
+**Goal:** Inventory Search & Filter + Design System Polish + Care Due Accessibility
+
+| Task | Agent | Priority | Blocked By |
+|------|-------|----------|------------|
+| T-082 | Design Agent | P1 | None — start immediately |
+| T-083 | Backend Engineer | P1 | None — start immediately |
+| T-084 | Frontend Engineer | P1 | T-082 spec + T-083 API contract |
+| T-085 | Frontend Engineer | P2 | None — start immediately |
+| T-086 | Frontend Engineer | P2 | None — start immediately |
+
+### Agent-Specific Instructions
+
+**Design Agent:** Write SPEC-013 — Inventory Search & Filter UX. Append to `.workflow/ui-spec.md`. Cover: search input (debounced note), status filter (All/Overdue/Due Today/On Track), combined use, all empty states, loading/skeleton, dark mode, accessibility. Unblock T-084 as soon as spec is published.
+
+**Backend Engineer:** Extend `GET /api/v1/plants` with `search` (case-insensitive substring) and `status` (overdue|due_today|on_track) query parameters. Both optional. Publish API contract to `.workflow/api-contracts.md` before Frontend Engineer begins T-084. Add minimum 6 new tests; all 108/108 must pass.
+
+**Frontend Engineer:** Three tasks this sprint:
+- T-084 (P1, blocked): Inventory search/filter UI — new `PlantSearchFilter.jsx` component, debounced search (300ms), status filter, empty states, result count, dark mode, aria-live. Minimum 6 new tests.
+- T-085 (P2, unblocked): `ProfilePage.jsx` lines 136/141/146 — replace `color="#5C7A5C"` with `color="var(--color-accent-primary)"`. Visual only; no test changes expected.
+- T-086 (P2, unblocked): `CareDuePage.jsx` — focus management after mark-done: move focus to next item button, or to all-clear CTA if list empties. Minimum 2 new tests.
+
+**QA Engineer:** Verify all five tasks (T-082 through T-086) after Frontend Engineer completes T-084, T-085, T-086. Include: search/filter integration test (combined params), ProfilePage dark mode icon color check, CareDuePage keyboard navigation after mark-done. Run full test suites — backend must pass ≥108/108, frontend ≥162/162.
+
+**Deploy Engineer:** Re-deploy to staging after QA sign-off. Verify `GET /api/v1/plants?search=&status=` with test queries. No schema migrations expected.
+
+**Monitor Agent:** Post-deploy health check. Verify `GET /api/v1/plants?search=pothos` and `GET /api/v1/plants?status=overdue` both return 200 with correct filtered results.
+
+### Full Sprint #18 Plan
+See `.workflow/active-sprint.md` for the complete sprint plan with acceptance criteria, dependency chain, and Definition of Done.
+
+---
+
 ## H-225 — Monitor Agent → Manager Agent: Sprint 17 Staging Health Check PASSED — Deploy Verified — T-081 Done (2026-04-02)
 
 | Field | Value |

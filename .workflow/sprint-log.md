@@ -4,6 +4,86 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #17 — 2026-04-01 to 2026-04-02
+
+**Sprint Goal:** Deliver the AI Recommendations feature — Gemini-powered care advice via plant name text input and photo upload, wired into the Add/Edit Plant form with accept/reject flow.
+
+**Outcome:** ✅ Goal fully met — all 6 tasks completed (T-076 through T-081), Deploy Verified: Yes (SHA f9481eb), zero carry-over. Fourth consecutive clean sprint.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-076 | Design: SPEC-012 — AI Recommendations UX spec covering text + image flows, accept/reject, loading/error states, dark mode, and accessibility |
+| T-077 | Backend: `POST /api/v1/ai/advice` — GeminiService with 429 model fallback chain, Sprint 17 response shape; 11 new tests; 108/108 backend tests pass |
+| T-078 | Backend: `POST /api/v1/ai/identify` — Gemini Vision multipart image endpoint, multer memory storage (images never persisted), file type + size validation; 8 new tests; 108/108 pass |
+| T-079 | Frontend: AI advice text-based flow — `AIAdvicePanel.jsx` slide-in panel, text input, loading skeleton, confidence badge, accept auto-populates form, dismiss closes cleanly; 8 new tests; 162/162 frontend tests pass |
+| T-080 | Frontend: Image upload flow — extends AIAdvicePanel with upload tab, drag-and-drop zone, file preview, client-side MIME + size validation, calls `/ai/identify`; 6 new tests; 162/162 pass |
+| T-081 | Deploy: Sprint 17 staging re-deploy after QA sign-off — backend 108/108 ✅, frontend 162/162 ✅, both AI endpoints live, health check 200 ✅ |
+
+#### Tasks Carried Over
+
+None. This is the fourth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. Monitor Agent health check returned **Deploy Verified: Yes** (SHA f9481eb, 2026-04-02). All 14 health checks passed, including:
+- `POST /api/v1/ai/advice` happy path → 200 with exact Sprint 17 response shape ✅
+- `POST /api/v1/ai/identify` → 502 `EXTERNAL_SERVICE_ERROR` (not 500; correct error routing) ✅
+- Auth protection (401) on both AI endpoints ✅
+- Input validation (400) on both AI endpoints ✅
+- No 5xx errors on normal paths ✅
+
+---
+
+#### Key Feedback Themes
+
+- **FB-078** (Positive): AI Advice Panel praised as "standout feature" — two-tab design, confidence badge, smart accept behaviour make the app feel like a true companion for novice plant owners
+- **FB-079** (Positive): Client-side file validation (type + size) before API call reduces round-trips and user frustration
+- **FB-080** (Positive): Tab toggle disabled during loading state — good defensive UX preventing mid-request race conditions
+- **FB-081** (Suggestion): Reference photo alongside AI identification results would help novice users; botanical image API integration backlogged for post-MVP
+
+---
+
+#### What Went Well
+
+- The largest remaining MVP feature shipped in a single clean sprint — five tasks (design, two backend endpoints, two frontend components) all delivered and QA-verified with zero rework cycles
+- Test suite grew substantially: 100→108 backend (+8), 148→162 frontend (+14); no regressions in either suite
+- GEMINI_API_KEY confirmed active in staging — Monitor Agent verified `/ai/advice` happy path returned a real Gemini response for "Pothos"
+- Images are never persisted (multer memoryStorage) — security requirement met cleanly; confirmed by QA security scan
+- Model fallback chain (429 handling across 4 Gemini models) from Sprint 9 (T-048) worked correctly with the new Sprint 17 endpoints
+- Four consecutive clean sprints with Deploy Verified: Yes — team is executing at a high, consistent level
+
+---
+
+#### What to Improve
+
+- `POST /api/v1/ai/identify` correctly returns 502 when an image is unidentifiable (real API call returns an error rather than a structured plant response). This is acceptable behavior per spec, but the UX message could be more specific ("We couldn't identify this plant — try a clearer photo or enter the plant name instead"). Tracked for Sprint 18 UX polish.
+- ProfilePage stat tile icons still use hardcoded `#5C7A5C` (missed by T-072 which only fixed AnalyticsPage). Small but incomplete design system alignment. Tasked → T-085 (Sprint 18).
+
+---
+
+#### Technical Debt Noted
+
+| Item | Severity | Sprint to Address |
+|------|----------|------------------|
+| ProfilePage stat tile icon colors hardcoded `#5C7A5C` (FB-075) | Cosmetic | Sprint 18 (T-085) |
+| `/ai/identify` 502 message not specific enough for unidentifiable plants | Minor UX | Sprint 18 backlog |
+| Reference photo in AI advice results (FB-081) — botanical image API integration | Minor | Post-MVP backlog |
+| Express 5 migration — no breaking-change-safe path yet | Advisory | Post-production |
+| Production deployment blocked on project owner providing SSL certs | Advisory | Production phase |
+| Focus management after mark-done on Care Due Dashboard (FB-033) | Minor a11y | Sprint 18 (T-086) |
+
+---
+
+*Sprint #17 summary written by Manager Agent on 2026-04-01.*
+
+---
+
 ### Sprint #16 — 2026-04-01 to 2026-04-01
 
 **Sprint Goal:** Complete the Delete Account feature, harden the stats endpoint with endpoint-specific rate limiting, and deliver three cosmetic polish items from Sprint 15 feedback (CSS variable alignment, warmer empty state copy, flaky test fix).

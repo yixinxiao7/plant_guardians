@@ -1836,6 +1836,7 @@ Consider adding a connection pool warm-up on server start (execute `SELECT 1` be
 **Category:** UX Issue
 **Severity:** Low (P4)
 **Sprint Observed:** 16
+**Status:** Acknowledged — Cosmetic backlog. Tasked → T-085 (Sprint 18). Low-effort design system consistency fix: replace `color="#5C7A5C"` with `color="var(--color-accent-primary)"` in `frontend/src/pages/ProfilePage.jsx` lines 136, 141, 146.
 
 ### Detail
 
@@ -1856,6 +1857,7 @@ Replace `color="#5C7A5C"` with `color="var(--color-accent-primary)"` on all thre
 **Category:** Positive
 **Severity:** N/A
 **Sprint Observed:** 16
+**Status:** Acknowledged — Positive feedback shared with team. Noted as internal quality benchmark for destructive-action UX patterns.
 
 ### Detail
 
@@ -1879,6 +1881,7 @@ The engineering quality is high and the user experience is safe and clear.
 **Category:** Positive
 **Severity:** N/A
 **Sprint Observed:** 16
+**Status:** Acknowledged — Positive feedback. T-073 copy confirmed on-brand and aligned with Japandi botanical voice.
 
 ### Detail
 
@@ -1892,6 +1895,7 @@ The engineering quality is high and the user experience is safe and clear.
 **Category:** Positive
 **Severity:** N/A
 **Sprint Observed:** 17
+**Status:** Acknowledged — Sprint 17 highlight. Two-tab design, confidence badge, and smart accept behaviour praised as production-quality companion-app UX. Shared with team.
 
 ### Detail
 
@@ -1905,6 +1909,7 @@ The AI Advice Panel (T-079 + T-080) is the highlight of this sprint. The two-tab
 **Category:** Positive
 **Severity:** N/A
 **Sprint Observed:** 17
+**Status:** Acknowledged — Positive UX pattern. Instant client-side validation reduces round-trips and user frustration. Noted as quality benchmark.
 
 ### Detail
 
@@ -1918,6 +1923,7 @@ The image upload flow validates file type and size on the client side before mak
 **Category:** Positive
 **Severity:** N/A
 **Sprint Observed:** 17
+**Status:** Acknowledged — Positive edge-case handling. Disabled tab toggle during loading state prevents confusing mid-request state. Good defensive UX.
 
 ### Detail
 
@@ -1931,6 +1937,7 @@ When an AI advice request is in-flight (loading state), the tab toggle buttons a
 **Category:** Suggestion
 **Severity:** Minor
 **Sprint Observed:** 17
+**Status:** Acknowledged — Minor backlog suggestion. Reference image alongside AI identification results would help novice users build confidence. Requires botanical image API integration (out of current scope). Tracked for post-MVP consideration.
 
 ### Detail
 
