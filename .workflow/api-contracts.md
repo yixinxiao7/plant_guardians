@@ -2787,4 +2787,157 @@ All executed within a single database transaction.
 
 ---
 
+## Sprint 18 Contracts
+
+---
+
+### T-083 — GET /api/v1/plants (Updated — Sprint 18)
+
+**Contract status:** UPDATED. The original Sprint 1 contract added `page` and `limit` query parameters. Sprint 18 extends it with two new optional filter parameters: `search` and `status`. All other fields (auth, response shape, error codes for auth/server errors) are unchanged from Sprint 1.
+
+---
+
+#### GET /api/v1/plants *(Updated — Sprint 18)*
+
+**Auth:** Bearer token (required)
+
+**Description:** Returns all plants belonging to the authenticated user, with pagination. **Sprint 18 update:** Accepts two new optional query parameters — `search` (case-insensitive name substring filter) and `status` (care-status filter: `overdue | due_today | on_track`). Both can be used simultaneously. Omitting either param restores the original unfiltered behaviour. An optional `utcOffset` parameter enables timezone-aware status bucketing (same semantics as `GET /api/v1/care-due` from Sprint 14).
+
+**Query Parameters:**
+
+| Param | Type | Default | Required | Description |
+|-------|------|---------|----------|-------------|
+| `page` | integer | `1` | no | Page number for pagination |
+| `limit` | integer | `50` | no | Records per page (max 100) |
+| `search` | string | — | no | Case-insensitive substring match against the plant's `name` field. Trimmed of leading/trailing whitespace before matching. Max 200 characters. Omit to return all plants (no name filter). |
+| `status` | string (enum) | — | no | Filter by computed care status. Must be one of: `overdue`, `due_today`, `on_track`. A plant matches the requested status if **at least one** of its care schedules has that status. Omit to return plants of all statuses. |
+| `utcOffset` | integer | `0` (UTC) | no | The caller's UTC offset in minutes. Used to compute "local today" for status calculations. Positive = ahead of UTC (e.g. UTC+5:30 → `330`). Negative = behind UTC (e.g. UTC-5 → `-300`). Omit to default to UTC. Same semantics as `GET /api/v1/care-due`. |
+
+**Validation Rules:**
+
+- `page`: optional; positive integer; defaults to `1`
+- `limit`: optional; positive integer; max `100`; defaults to `50`
+- `search`: optional; string; trimmed of whitespace; max **200** characters after trim; returns `400 VALIDATION_ERROR` if trimmed length exceeds 200
+- `status`: optional; if provided, must be exactly one of `overdue`, `due_today`, `on_track` (case-sensitive); returns `400 VALIDATION_ERROR` for any other value
+- `utcOffset`: optional; if provided, must be an integer in the range `[-840, 840]` (valid UTC offset range in minutes); returns `400 VALIDATION_ERROR` if out of range or non-integer
+
+**Status Computation Logic (timezone-aware, same as GET /api/v1/care-due):**
+
+- If `utcOffset` is provided: "local today" = `[UTC midnight + utcOffset minutes, UTC midnight + utcOffset minutes + 24 hours)`
+- If `utcOffset` is omitted: "local today" = UTC calendar day (existing behaviour — no regression)
+- `overdue`: `next_due_at` is before the start of local today
+- `due_today`: `next_due_at` falls within local today
+- `on_track`: `next_due_at` is after the end of local today
+- A plant matches `?status=overdue` if **at least one** of its care schedules is `overdue`
+- A plant matches `?status=due_today` if **at least one** schedule is `due_today` (and none are `overdue`)
+- A plant matches `?status=on_track` if **all** of its care schedules are `on_track`
+- Plants with zero care schedules are excluded from all `status` filter results (no computable status)
+
+**Combined Filter Behaviour:**
+
+- `search` and `status` are ANDed: a plant must satisfy **both** conditions to appear in results
+- Pagination (`page`, `limit`) applies to the already-filtered set; `pagination.total` reflects the **filtered** count, not the user's total plant count
+
+**Success Response — 200 OK:**
+
+Response shape is **identical** to the Sprint 1 contract. No new fields added.
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "name": "string",
+      "type": "string | null",
+      "notes": "string | null",
+      "photo_url": "string | null",
+      "created_at": "ISO8601",
+      "updated_at": "ISO8601",
+      "care_schedules": [
+        {
+          "id": "uuid",
+          "care_type": "watering | fertilizing | repotting",
+          "frequency_value": 7,
+          "frequency_unit": "days | weeks | months",
+          "last_done_at": "ISO8601 | null",
+          "next_due_at": "ISO8601",
+          "status": "on_track | due_today | overdue",
+          "days_overdue": 0
+        }
+      ]
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 50,
+    "total": 3
+  }
+}
+```
+
+**Notes:**
+
+- Empty filtered result returns `"data": []` with `"pagination": { "page": 1, "limit": 50, "total": 0 }` — **not** a 404
+- `care_schedules` array continues to contain 0–3 entries per plant regardless of which filter is active
+- Plants are ordered by `created_at DESC` within the filtered set (unchanged)
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `search` exceeds 200 characters (after trim) |
+| 400 | `VALIDATION_ERROR` | `status` is not one of `overdue`, `due_today`, `on_track` |
+| 400 | `VALIDATION_ERROR` | `utcOffset` provided but not an integer in range `[-840, 840]` |
+| 401 | `UNAUTHORIZED` | Missing or invalid access token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Example Requests:**
+
+```bash
+# Search by name (case-insensitive substring)
+GET /api/v1/plants?search=pothos
+
+# Filter by status only
+GET /api/v1/plants?status=overdue
+
+# Combined search + status + timezone offset
+GET /api/v1/plants?search=spider&status=due_today&utcOffset=-300
+
+# Paginated with search and status
+GET /api/v1/plants?search=monstera&status=on_track&page=1&limit=20
+
+# No filters — existing behaviour unchanged
+GET /api/v1/plants?page=2&limit=20
+
+# 400 — invalid status value
+GET /api/v1/plants?status=healthy
+
+# 400 — search exceeds 200 chars
+GET /api/v1/plants?search=[201-char string]
+```
+
+**Backward Compatibility:**
+
+Any existing consumer calling `GET /api/v1/plants` without the new parameters receives the same unfiltered paginated results as before. **No breaking change.**
+
+---
+
+### Schema Changes — Sprint 18
+
+**None.** No new tables, columns, or indexes are required for Sprint 18.
+
+- `GET /api/v1/plants` (T-083): query-parameter extension only — all status computation is derived from existing `care_schedules` data already present in the database
+- No Knex migrations required this sprint
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+*Sprint 18 contract written by Backend Engineer — 2026-04-01. One endpoint updated: GET /api/v1/plants (new optional `search`, `status`, and `utcOffset` query params). Response shape unchanged. No schema changes. All prior sprint contracts remain authoritative.*
+
+---
+
 *Sprint 17 contracts written by Backend Engineer — 2026-04-01. One endpoint shape update: POST /api/v1/ai/advice (T-077, breaking response shape change). One new endpoint: POST /api/v1/ai/identify (T-078). Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*

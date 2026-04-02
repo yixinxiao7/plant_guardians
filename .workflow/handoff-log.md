@@ -4,6 +4,119 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-229 — Backend Engineer → QA Engineer: Sprint 18 API Contract Published — T-083 (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-229 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 18 |
+| **Subject** | Sprint 18 API contract for T-083 published — `GET /api/v1/plants` search+filter params — reference for test planning |
+| **Status** | Active |
+
+### Summary
+
+The Sprint 18 API contract for T-083 has been published to `.workflow/api-contracts.md` (section: **Sprint 18 Contracts → T-083**). This handoff provides QA with the contract spec ahead of implementation so test cases can be planned in parallel.
+
+### Contract: GET /api/v1/plants (Updated)
+
+**New optional query parameters added:**
+
+| Param | Type | Constraints | Error |
+|-------|------|-------------|-------|
+| `search` | string | trimmed; max 200 chars; case-insensitive substring on `name` | 400 `VALIDATION_ERROR` if >200 chars |
+| `status` | enum | one of `overdue`, `due_today`, `on_track` | 400 `VALIDATION_ERROR` for any other value |
+| `utcOffset` | integer | range `-840` to `840` (minutes) | 400 `VALIDATION_ERROR` if out of range or non-integer |
+
+**Response shape:** Unchanged from Sprint 1 — same `{ data: [...], pagination: {...} }` structure.
+
+### QA Test Scenarios to Cover (T-083)
+
+Per the acceptance criteria in T-083, QA should verify **at minimum** the following:
+
+| # | Test Case | Expected |
+|---|-----------|----------|
+| 1 | `?search=pothos` (matching plant exists) | Returns only plants whose name contains "pothos" (case-insensitive) |
+| 2 | `?search=POTHOS` (uppercase) | Same result as lowercase — case-insensitive match |
+| 3 | `?search=xyznonexistent` | `data: []`, `pagination.total: 0` — not a 404 |
+| 4 | `?status=overdue` | Returns only plants with ≥1 overdue care schedule |
+| 5 | `?status=on_track` | Returns only plants where all schedules are on track |
+| 6 | `?search=spider&status=due_today` | Both filters applied simultaneously (AND logic) |
+| 7 | `?status=healthy` (invalid value) | 400 `VALIDATION_ERROR` |
+| 8 | `?search=[201-char string]` | 400 `VALIDATION_ERROR` |
+| 9 | `?page=1&limit=20` (no filters) | Existing behaviour unchanged — no regressions |
+| 10 | `?status=overdue&utcOffset=-300` | Overdue computed using US Eastern timezone |
+| 11 | Plants with zero care schedules + `?status=overdue` | Not included in results |
+| 12 | Auth header missing | 401 `UNAUTHORIZED` |
+
+### Schema Changes
+
+None — no migrations, no new tables or columns.
+
+### Implementation Status
+
+API contract is complete. Implementation (code in `backend/src/routes/plants.js`) will follow in the next phase. QA testing should occur after implementation is complete and in review.
+
+---
+
+## H-228 — Backend Engineer → Frontend Engineer: Sprint 18 API Contract Published — T-083 Unblocked (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-228 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 18 |
+| **Subject** | T-083 API contract published — `GET /api/v1/plants` search+filter — T-084 now fully unblocked |
+| **Status** | Active |
+
+### Summary
+
+Both blockers for T-084 are now resolved:
+- [x] **SPEC-013** written by Design Agent (H-227)
+- [x] **T-083 API contract** published by Backend Engineer (this handoff — H-228)
+
+**T-084 is fully unblocked. You may begin the Plant Inventory Search & Filter UI.**
+
+### Contract: GET /api/v1/plants — What Changed
+
+**Location:** `.workflow/api-contracts.md` → `Sprint 18 Contracts → T-083`
+
+Three new **optional** query parameters:
+
+```
+GET /api/v1/plants?search=<string>&status=<enum>&utcOffset=<int>
+```
+
+| Param | Notes for Frontend |
+|-------|-------------------|
+| `search` | Send debounced (300ms) input value. Clear param (omit it) when the search input is empty — do NOT send `?search=`. Trimming is done server-side too, but trim client-side as well before sending. |
+| `status` | Send on immediate filter-strip click. Values: `overdue`, `due_today`, `on_track`. Send nothing (omit param) when "All" is selected. |
+| `utcOffset` | Include on every request: `new Date().getTimezoneOffset() * -1`. This ensures status bucketing matches the user's local timezone. |
+
+**Response shape is unchanged.** Same `{ data: [...], pagination: { page, limit, total } }` as before. `pagination.total` now reflects the filtered count when filters are active — use it for the "Showing N plants" result count label per SPEC-013.
+
+### Empty State Handling
+
+| Scenario | API Returns | Frontend Action |
+|----------|-------------|-----------------|
+| No matching plants | `data: []`, `total: 0` | Show appropriate empty state per SPEC-013 |
+| Invalid status (shouldn't happen if strip is hardcoded) | 400 | Show error banner |
+| Network error | non-200 | Show inline error banner with retry |
+
+### Backward Compatibility
+
+Calling `GET /api/v1/plants` without the new params continues to work exactly as before. Your existing inventory fetch (no filters active) does not need to change — just omit `search` and `status`.
+
+### Implementation Timing
+
+Implementation code will be written in the next phase. The contract is the source of truth — if anything in the implementation diverges from this spec, that is a backend bug, not a frontend concern. Build your UI against this contract.
+
+---
+
 ## H-227 — Design Agent → Frontend Engineer: SPEC-013 Approved — Inventory Search & Filter (2026-04-01)
 
 | Field | Value |
