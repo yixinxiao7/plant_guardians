@@ -4,6 +4,153 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-218 — Deploy Engineer → QA Engineer: Sprint 17 Pre-Deploy Build Verified — Awaiting QA Sign-Off (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-218 |
+| **From** | Deploy Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 17 |
+| **Subject** | Sprint 17 pre-deploy build preparation complete — QA sign-off required before staging deploy proceeds |
+| **Status** | Blocked — Waiting for QA |
+
+### Summary
+
+Deploy Engineer completed all pre-deploy build verification checks for Sprint 17. **Staging deployment is blocked** — no QA sign-off handoff (QA → Deploy Engineer) exists in this log for Sprint 17. Per standing rules, deployment cannot proceed without QA confirmation.
+
+All build artifacts are ready and verified. Once QA posts sign-off, Deploy Engineer will proceed immediately with staging deployment.
+
+### Pre-Deploy Checks Passed
+
+| Check | Result |
+|-------|--------|
+| Backend `npm install` | ✅ Clean |
+| Frontend `npm install` | ✅ 0 vulnerabilities |
+| Frontend production build | ✅ 4627 modules, 288ms |
+| Backend tests | ✅ 108/108 |
+| Frontend tests | ✅ 162/162 |
+| DB migrations | ✅ 5/5 complete, 0 pending |
+| GEMINI_API_KEY hardcoded? | ✅ Clean — env only |
+| `.env.example` updated | ✅ GEMINI_API_KEY documented |
+| Images persisted? | ✅ Clean — memory-only |
+
+### ⚠️ Item for QA Attention: npm audit — Backend (1 high finding)
+
+`npm audit` in `backend/` reports **1 high-severity finding**:
+- **Package:** `lodash <=4.17.23` (transitive: `knex@3.2.4 → lodash@4.18.1`)
+- **CVEs:** GHSA-r5fr-rjxr-66jc (code injection via `_.template`), GHSA-f23m-r3pf-42rh (prototype pollution)
+- **Installed version:** `lodash@4.18.1`
+- **Advisory ranges:** `>=4.0.0 <=4.17.23` (code injection), `<=4.17.23` (prototype pollution)
+- **Assessment:** The installed version (4.18.1) is above both advisory ceilings (4.17.23). This is likely a **false positive** from a stale npm advisory that has not yet been updated. Sprint 16 shipped with 0 backend vulnerabilities; this finding appears to be newly published against an existing dep, not introduced by Sprint 17 code.
+- **Action requested:** QA to verify whether `npm audit` reported 0 or 1 vulnerabilities on the Sprint 16 codebase. If pre-existing, log as non-blocking advisory for a future sprint. If newly introduced, create a remediation task (upgrade knex or override lodash).
+
+### What QA Should Test
+
+All Sprint 17 tasks (T-076 through T-080) are In Review and ready for QA:
+
+- **T-077:** `POST /api/v1/ai/advice` — text-based AI advice (108 backend tests pass)
+- **T-078:** `POST /api/v1/ai/identify` — image-based plant ID (108 backend tests pass)
+- **T-079:** Frontend AI advice text flow — AIAdvicePanel, accept/dismiss (162 frontend tests pass)
+- **T-080:** Frontend image upload flow — photo tab, preview, client-side validation (162 frontend tests pass)
+
+See H-217 (Backend → QA) for detailed test matrix.
+
+### After QA Signs Off
+
+QA should post a handoff to Deploy Engineer confirming all Sprint 17 tasks pass and clearing deployment. Deploy Engineer will then:
+1. Commit all Sprint 17 changes
+2. Restart backend and frontend staging services
+3. Send handoff H-219 to Monitor Agent for post-deploy health checks on `/api/v1/ai/advice` and `/api/v1/ai/identify`
+
+---
+
+## H-217 — Backend Engineer → QA Engineer: T-077 and T-078 Implementation Complete — Ready for QA (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-217 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 17 |
+| **Subject** | T-077 (`POST /api/v1/ai/advice`) and T-078 (`POST /api/v1/ai/identify`) implementation complete — ready for QA |
+| **Status** | Active |
+
+### Summary
+
+Both Sprint 17 AI Recommendations backend endpoints are implemented and passing all tests (108/108).
+
+### What Changed
+
+**T-077 — `POST /api/v1/ai/advice` (Breaking shape update)**
+- New file: `backend/src/services/GeminiService.js` — extracted Gemini communication into a dedicated service class with `getAdvice(plantType)` and `identifyFromImage(imageBuffer, mimeType)` methods. Preserves 429 fallback chain (T-048).
+- Updated: `backend/src/routes/ai.js` — rewrote `/advice` route with new validation (plant_type required, non-empty, max 200 chars, whitespace-only rejected) and new response shape (`identified_plant`, `confidence`, `care.watering_interval_days` etc.)
+- **⚠️ BREAKING**: Response shape changed from nested `care_advice.watering.frequency_value/frequency_unit` to flat `care.watering_interval_days` integers. Old shape is gone.
+
+**T-078 — `POST /api/v1/ai/identify` (New endpoint)**
+- Added `/identify` route in `backend/src/routes/ai.js` — accepts `multipart/form-data` with `image` field
+- Multer configured with `memoryStorage()` — **no disk writes, no DB writes**
+- File validation: JPEG/PNG/WebP only, max 5MB
+- Calls `GeminiService.identifyFromImage()` with base64-encoded image buffer
+- Returns **identical** response shape to `/advice`
+
+### What to Test
+
+1. **T-077 `/advice` endpoint:**
+   - Happy path: `POST /api/v1/ai/advice` with `{ "plant_type": "Pothos" }` → 200 with new shape
+   - Missing/empty/whitespace `plant_type` → 400 `VALIDATION_ERROR`
+   - `plant_type` > 200 chars → 400 `VALIDATION_ERROR` with correct message
+   - No auth → 401
+   - Gemini API failure → 502 `EXTERNAL_SERVICE_ERROR`
+
+2. **T-078 `/identify` endpoint:**
+   - Happy path: upload valid JPEG → 200 with same response shape as `/advice`
+   - No `image` field → 400 `"An image is required."`
+   - GIF upload → 400 `"Image must be JPEG, PNG, or WebP."`
+   - File > 5MB → 400 `"Image must be 5MB or smaller."`
+   - No auth → 401
+   - Gemini failure → 502 `EXTERNAL_SERVICE_ERROR`
+
+3. **Regression:** Confirm all 108 backend tests pass, no regressions on existing endpoints.
+
+4. **Security:**
+   - GEMINI_API_KEY read from env, never hardcoded
+   - Images never persisted to disk or DB (memory-only)
+   - All user input validated server-side
+   - Error responses don't leak internal details
+
+### Files Changed
+- `backend/src/services/GeminiService.js` (new)
+- `backend/src/routes/ai.js` (rewritten)
+- `backend/tests/ai.test.js` (rewritten — 19 tests)
+
+---
+
+## H-216 — Backend Engineer → Frontend Engineer: T-077 and T-078 APIs Ready for Integration (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-216 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 17 |
+| **Subject** | T-077 and T-078 backend endpoints implemented — T-079 and T-080 fully unblocked |
+| **Status** | Active |
+
+### Summary
+
+Both AI endpoints are implemented and match the published API contracts exactly. The Frontend Engineer may proceed with T-079 (text flow) and T-080 (image flow).
+
+- `POST /api/v1/ai/advice` — text-based, JSON body `{ "plant_type": "string" }`, returns `{ data: { identified_plant, confidence, care: { watering_interval_days, ... } } }`
+- `POST /api/v1/ai/identify` — image-based, `multipart/form-data` with `image` field, returns **identical** response shape
+
+Both endpoints require Bearer token auth. See `.workflow/api-contracts.md` Sprint 17 section for full contract details.
+
+---
+
 ## H-215 — Backend Engineer → Frontend Engineer: Sprint 17 API Contracts Ready — T-079 and T-080 Unblocked (2026-04-01)
 
 | Field | Value |

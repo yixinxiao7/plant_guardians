@@ -1,155 +1,70 @@
+/**
+ * AI routes — Sprint 17 (T-077, T-078)
+ *
+ * POST /api/v1/ai/advice   — text-based care advice (plant name → structured recommendations)
+ * POST /api/v1/ai/identify — image-based plant identification (photo → ID + recommendations)
+ *
+ * Both endpoints return the same response shape (Sprint 17 contract).
+ */
 const express = require('express');
+const multer = require('multer');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
-const { ValidationError, ExternalServiceError, UnprocessableError } = require('../utils/errors');
+const { ValidationError, ExternalServiceError } = require('../utils/errors');
+const GeminiService = require('../services/GeminiService');
 
 router.use(authenticate);
 
-/**
- * Model fallback chain for 429 rate-limit responses (T-048).
- * If a model returns 429, the next model in the chain is tried.
- */
-const MODEL_FALLBACK_CHAIN = [
-  'gemini-2.0-flash',
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.5-pro',
-];
+// --- Multer config for /identify (memory storage, no disk writes) ---
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 
-/**
- * Detect whether an error is a 429 rate-limit error.
- */
-function isRateLimitError(err) {
-  if (err && err.status === 429) return true;
-  if (err && typeof err.message === 'string' && err.message.includes('429')) return true;
-  return false;
-}
-
-/**
- * Build a prompt for Gemini based on the input.
- */
-function buildPrompt(plantType, photoUrl) {
-  let prompt = `You are a plant care expert. `;
-
-  if (plantType && photoUrl) {
-    prompt += `The user says the plant is "${plantType}" and has provided a photo at this URL: ${photoUrl}. `;
-  } else if (plantType) {
-    prompt += `The user has a "${plantType}" plant. `;
-  } else if (photoUrl) {
-    prompt += `The user has provided a photo of their plant at this URL: ${photoUrl}. Please identify the plant. `;
-  }
-
-  prompt += `
-Please provide structured care recommendations in the following JSON format. Respond ONLY with valid JSON, no additional text:
-{
-  "identified_plant_type": "string or null (only if identifying from photo)",
-  "confidence": "high | medium | low | null (only if identifying from photo)",
-  "care_advice": {
-    "watering": {
-      "frequency_value": <integer>,
-      "frequency_unit": "days | weeks | months",
-      "notes": "string or null"
-    },
-    "fertilizing": {
-      "frequency_value": <integer>,
-      "frequency_unit": "days | weeks | months",
-      "notes": "string or null"
-    },
-    "repotting": {
-      "frequency_value": <integer>,
-      "frequency_unit": "months",
-      "notes": "string or null"
-    },
-    "light": "string or null",
-    "humidity": "string or null",
-    "additional_tips": "string or null"
-  }
-}`;
-
-  return prompt;
-}
-
-/**
- * Parse the Gemini response text into our structured format.
- */
-function parseGeminiResponse(text) {
-  try {
-    // Extract JSON from the response (might be wrapped in markdown code blocks)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-    return JSON.parse(jsonMatch[0]);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Try generating content with the model fallback chain (T-048).
- * On 429, falls through to the next model. Non-429 errors throw immediately.
- * If all models return 429, throws ExternalServiceError.
- */
-async function generateWithFallback(genAI, prompt) {
-  for (let i = 0; i < MODEL_FALLBACK_CHAIN.length; i++) {
-    const modelName = MODEL_FALLBACK_CHAIN[i];
-    try {
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const response = await model.generateContent(prompt);
-      return response.response.text();
-    } catch (err) {
-      if (isRateLimitError(err) && i < MODEL_FALLBACK_CHAIN.length - 1) {
-        // 429 — try next model in the chain
-        console.warn(`Gemini model ${modelName} returned 429, falling back to next model.`);
-        continue;
-      }
-      // Non-429 error or last model in chain — rethrow
-      throw err;
+const memoryUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_IMAGE_SIZE },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+      return cb(new ValidationError('Image must be JPEG, PNG, or WebP.'));
     }
+    cb(null, true);
+  },
+});
+
+/**
+ * Create a GeminiService instance, validating the API key is configured.
+ * @throws {ExternalServiceError} If GEMINI_API_KEY is missing or placeholder
+ */
+function createGeminiService() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'your-gemini-api-key') {
+    throw new ExternalServiceError(
+      'AI advice is temporarily unavailable. Please try again.',
+      'EXTERNAL_SERVICE_ERROR'
+    );
   }
+  return new GeminiService(apiKey);
 }
 
-// POST /api/v1/ai/advice
+// POST /api/v1/ai/advice (T-077)
 router.post('/advice', async (req, res, next) => {
   try {
-    const { plant_type, photo_url } = req.body;
+    const { plant_type } = req.body;
 
-    if (!plant_type && !photo_url) {
-      throw new ValidationError('At least one of plant_type or photo_url must be provided.');
+    // Validation: plant_type required, non-empty, max 200 chars
+    if (!plant_type || (typeof plant_type === 'string' && plant_type.trim() === '')) {
+      throw new ValidationError('plant_type is required.');
     }
 
-    if (plant_type && typeof plant_type === 'string' && plant_type.length > 200) {
-      throw new ValidationError('plant_type must be at most 200 characters.');
+    if (typeof plant_type !== 'string') {
+      throw new ValidationError('plant_type is required.');
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || apiKey === 'your-gemini-api-key') {
-      throw new ExternalServiceError(
-        'AI service is not configured.',
-        'AI_SERVICE_UNAVAILABLE'
-      );
+    if (plant_type.length > 200) {
+      throw new ValidationError('plant_type must be 200 characters or fewer.');
     }
 
-    let result;
-    try {
-      const { GoogleGenerativeAI } = require('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(apiKey);
-
-      const prompt = buildPrompt(plant_type, photo_url);
-      const text = await generateWithFallback(genAI, prompt);
-      result = parseGeminiResponse(text);
-    } catch (err) {
-      console.error('Gemini API error:', err.message);
-      throw new ExternalServiceError(
-        'AI service returned an error or timed out.',
-        'AI_SERVICE_UNAVAILABLE'
-      );
-    }
-
-    if (!result || !result.care_advice) {
-      throw new UnprocessableError(
-        'Could not identify the plant or generate care advice. Try again with a clearer photo or enter the plant type manually.',
-        'PLANT_NOT_IDENTIFIABLE'
-      );
-    }
+    const service = createGeminiService();
+    const result = await service.getAdvice(plant_type);
 
     res.status(200).json({ data: result });
   } catch (err) {
@@ -157,9 +72,34 @@ router.post('/advice', async (req, res, next) => {
   }
 });
 
-module.exports = router;
+// POST /api/v1/ai/identify (T-078)
+router.post('/identify', (req, res, next) => {
+  memoryUpload.single('image')(req, res, async (uploadErr) => {
+    try {
+      // Handle multer errors
+      if (uploadErr) {
+        if (uploadErr.code === 'LIMIT_FILE_SIZE') {
+          throw new ValidationError('Image must be 5MB or smaller.');
+        }
+        if (uploadErr instanceof ValidationError) {
+          throw uploadErr;
+        }
+        throw uploadErr;
+      }
 
-// Exported for testing
-module.exports.MODEL_FALLBACK_CHAIN = MODEL_FALLBACK_CHAIN;
-module.exports.isRateLimitError = isRateLimitError;
-module.exports.generateWithFallback = generateWithFallback;
+      // Validate image was provided
+      if (!req.file) {
+        throw new ValidationError('An image is required.');
+      }
+
+      const service = createGeminiService();
+      const result = await service.identifyFromImage(req.file.buffer, req.file.mimetype);
+
+      res.status(200).json({ data: result });
+    } catch (err) {
+      next(err);
+    }
+  });
+});
+
+module.exports = router;

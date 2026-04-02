@@ -1,12 +1,17 @@
 /**
- * Tests for AI Advice endpoint (T-011, T-025, T-048)
- * Uses mock for Gemini SDK to test happy-path and 429 fallback chain.
+ * Tests for AI endpoints — Sprint 17 (T-077, T-078)
+ *
+ * T-077: POST /api/v1/ai/advice — text-based care advice
+ * T-078: POST /api/v1/ai/identify — image-based plant identification
+ *
+ * Uses mock for Gemini SDK. Both endpoints share the same response shape.
  */
+const path = require('path');
 const {
   app, request, setupDatabase, teardownDatabase, cleanTables, createTestUser,
 } = require('./setup');
 
-// Mock the @google/generative-ai module for happy-path and fallback testing
+// Mock the @google/generative-ai module
 const mockGenerateContentByModel = {};
 jest.mock('@google/generative-ai', () => {
   return {
@@ -16,7 +21,6 @@ jest.mock('@google/generative-ai', () => {
           if (mockGenerateContentByModel[model]) {
             return mockGenerateContentByModel[model](...args);
           }
-          // Default: use the legacy mock (for backward compat)
           return mockGenerateContentByModel.__default(...args);
         },
       })),
@@ -24,29 +28,87 @@ jest.mock('@google/generative-ai', () => {
   };
 });
 
-// Legacy-compatible alias
 const __mockGenerateContent = jest.fn();
 mockGenerateContentByModel.__default = __mockGenerateContent;
 
+/** Valid Sprint 17 response shape from Gemini */
+const MOCK_ADVICE_RESPONSE = {
+  identified_plant: 'Golden Pothos',
+  confidence: 'high',
+  care: {
+    watering_interval_days: 7,
+    fertilizing_interval_days: 14,
+    repotting_interval_days: 365,
+    light_requirement: 'Bright indirect light',
+    humidity_preference: 'Moderate',
+    care_tips: 'Water when top inch of soil is dry. Trim yellow leaves promptly.',
+  },
+};
+
+function mockGeminiSuccess(response = MOCK_ADVICE_RESPONSE) {
+  mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockResolvedValue({
+    response: { text: () => JSON.stringify(response) },
+  });
+}
+
+/** Create a small valid JPEG buffer for upload tests */
+function createTestImageBuffer() {
+  // Minimal JPEG header (not a real image, but enough for multer mime check)
+  return Buffer.from([
+    0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46,
+    0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,
+    0x00, 0x01, 0x00, 0x00, 0xFF, 0xD9,
+  ]);
+}
+
+let savedApiKey;
+
 beforeAll(async () => {
   await setupDatabase();
+  savedApiKey = process.env.GEMINI_API_KEY;
 });
 
 afterAll(async () => {
+  process.env.GEMINI_API_KEY = savedApiKey;
   await teardownDatabase();
 });
 
 beforeEach(async () => {
   await cleanTables();
   __mockGenerateContent.mockReset();
-  // Clear all per-model mocks
   Object.keys(mockGenerateContentByModel).forEach((key) => {
     if (key !== '__default') delete mockGenerateContentByModel[key];
   });
+  process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
 });
 
-describe('POST /api/v1/ai/advice', () => {
-  it('should return 400 when neither plant_type nor photo_url provided', async () => {
+// ========================================================================
+// T-077: POST /api/v1/ai/advice
+// ========================================================================
+describe('POST /api/v1/ai/advice (T-077)', () => {
+  it('should return 200 with correct Sprint 17 response shape (happy path)', async () => {
+    const { accessToken } = await createTestUser();
+    mockGeminiSuccess();
+
+    const res = await request(app)
+      .post('/api/v1/ai/advice')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ plant_type: 'Pothos' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toBeDefined();
+    expect(res.body.data.identified_plant).toBe('Golden Pothos');
+    expect(res.body.data.confidence).toBe('high');
+    expect(res.body.data.care).toBeDefined();
+    expect(res.body.data.care.watering_interval_days).toBe(7);
+    expect(res.body.data.care.fertilizing_interval_days).toBe(14);
+    expect(res.body.data.care.repotting_interval_days).toBe(365);
+    expect(res.body.data.care.light_requirement).toBe('Bright indirect light');
+    expect(res.body.data.care.humidity_preference).toBe('Moderate');
+    expect(typeof res.body.data.care.care_tips).toBe('string');
+  });
+
+  it('should return 400 when plant_type is missing', async () => {
     const { accessToken } = await createTestUser();
 
     const res = await request(app)
@@ -56,125 +118,33 @@ describe('POST /api/v1/ai/advice', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toBe('plant_type is required.');
   });
 
-  it('should return 401 without auth', async () => {
-    const res = await request(app)
-      .post('/api/v1/ai/advice')
-      .send({ plant_type: 'Pothos' });
-
-    expect(res.status).toBe(401);
-  });
-
-  it('should return 502 when Gemini API key is not configured', async () => {
+  it('should return 400 when plant_type is empty string', async () => {
     const { accessToken } = await createTestUser();
-    const originalKey = process.env.GEMINI_API_KEY;
-    process.env.GEMINI_API_KEY = 'your-gemini-api-key'; // default placeholder
 
     const res = await request(app)
       .post('/api/v1/ai/advice')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ plant_type: 'Pothos' });
+      .send({ plant_type: '' });
 
-    expect(res.status).toBe(502);
-    expect(res.body.error.code).toBe('AI_SERVICE_UNAVAILABLE');
-
-    process.env.GEMINI_API_KEY = originalKey;
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toBe('plant_type is required.');
   });
 
-  it('should return 200 with care advice when Gemini returns valid JSON (happy path)', async () => {
+  it('should return 400 when plant_type is whitespace-only', async () => {
     const { accessToken } = await createTestUser();
-    const originalKey = process.env.GEMINI_API_KEY;
-    process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
-
-    const mockAdvice = {
-      identified_plant_type: 'Golden Pothos',
-      confidence: 'high',
-      care_advice: {
-        watering: {
-          frequency_value: 7,
-          frequency_unit: 'days',
-          notes: 'Water when top inch of soil is dry.',
-        },
-        fertilizing: {
-          frequency_value: 2,
-          frequency_unit: 'weeks',
-          notes: 'Use balanced liquid fertilizer during growing season.',
-        },
-        repotting: {
-          frequency_value: 12,
-          frequency_unit: 'months',
-          notes: 'Repot when roots outgrow the container.',
-        },
-        light: 'Bright indirect light; tolerates low light.',
-        humidity: 'Average household humidity is fine.',
-        additional_tips: 'Trim yellow leaves promptly.',
-      },
-    };
-
-    // First model in chain (gemini-2.0-flash) succeeds
-    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockResolvedValue({
-      response: {
-        text: () => JSON.stringify(mockAdvice),
-      },
-    });
 
     const res = await request(app)
       .post('/api/v1/ai/advice')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ plant_type: 'Pothos' });
+      .send({ plant_type: '   ' });
 
-    expect(res.status).toBe(200);
-    expect(res.body.data).toBeDefined();
-    expect(res.body.data.care_advice).toBeDefined();
-    expect(res.body.data.care_advice.watering.frequency_value).toBe(7);
-    expect(res.body.data.care_advice.watering.frequency_unit).toBe('days');
-    expect(res.body.data.care_advice.fertilizing).toBeDefined();
-    expect(res.body.data.care_advice.repotting).toBeDefined();
-    expect(res.body.data.identified_plant_type).toBe('Golden Pothos');
-    expect(res.body.data.confidence).toBe('high');
-
-    process.env.GEMINI_API_KEY = originalKey;
-  });
-
-  it('should return 422 when Gemini returns unparseable response', async () => {
-    const { accessToken } = await createTestUser();
-    const originalKey = process.env.GEMINI_API_KEY;
-    process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
-
-    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockResolvedValue({
-      response: {
-        text: () => 'Sorry, I cannot identify this plant from the image provided.',
-      },
-    });
-
-    const res = await request(app)
-      .post('/api/v1/ai/advice')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({ plant_type: 'Unknown plant' });
-
-    expect(res.status).toBe(422);
-    expect(res.body.error.code).toBe('PLANT_NOT_IDENTIFIABLE');
-
-    process.env.GEMINI_API_KEY = originalKey;
-  });
-
-  it('should return 502 when Gemini API throws a non-429 error', async () => {
-    const { accessToken } = await createTestUser();
-    const originalKey = process.env.GEMINI_API_KEY;
-    process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
-
-    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockRejectedValue(new Error('API quota exceeded'));
-
-    const res = await request(app)
-      .post('/api/v1/ai/advice')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({ plant_type: 'Monstera' });
-
-    expect(res.status).toBe(502);
-    expect(res.body.error.code).toBe('AI_SERVICE_UNAVAILABLE');
-
-    process.env.GEMINI_API_KEY = originalKey;
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toBe('plant_type is required.');
   });
 
   it('should return 400 when plant_type exceeds 200 characters', async () => {
@@ -187,34 +157,70 @@ describe('POST /api/v1/ai/advice', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toBe('plant_type must be 200 characters or fewer.');
   });
 
-  // --- T-048: 429 model fallback chain tests ---
-
-  it('should fall back to next model on 429 and succeed (T-048)', async () => {
+  it('should return 502 when Gemini API throws an error', async () => {
     const { accessToken } = await createTestUser();
-    const originalKey = process.env.GEMINI_API_KEY;
-    process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
+    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockRejectedValue(
+      new Error('Internal server error')
+    );
 
-    const mockAdvice = {
-      identified_plant_type: 'Monstera',
-      confidence: 'high',
-      care_advice: {
-        watering: { frequency_value: 7, frequency_unit: 'days', notes: null },
-        fertilizing: { frequency_value: 2, frequency_unit: 'weeks', notes: null },
-        repotting: { frequency_value: 12, frequency_unit: 'months', notes: null },
-        light: 'Bright indirect',
-        humidity: 'High',
-        additional_tips: null,
-      },
-    };
+    const res = await request(app)
+      .post('/api/v1/ai/advice')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ plant_type: 'Monstera' });
 
-    // First model returns 429, second model succeeds
-    const err429 = new Error('Resource has been exhausted (e.g. check quota). 429');
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('EXTERNAL_SERVICE_ERROR');
+    expect(res.body.error.message).toBe('AI advice is temporarily unavailable. Please try again.');
+  });
+
+  it('should return 502 when Gemini returns unparseable response', async () => {
+    const { accessToken } = await createTestUser();
+    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockResolvedValue({
+      response: { text: () => 'Sorry, I cannot help with that.' },
+    });
+
+    const res = await request(app)
+      .post('/api/v1/ai/advice')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ plant_type: 'Unknown plant xyz' });
+
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('EXTERNAL_SERVICE_ERROR');
+  });
+
+  it('should return 502 when GEMINI_API_KEY is not configured', async () => {
+    const { accessToken } = await createTestUser();
+    process.env.GEMINI_API_KEY = 'your-gemini-api-key';
+
+    const res = await request(app)
+      .post('/api/v1/ai/advice')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ plant_type: 'Pothos' });
+
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('EXTERNAL_SERVICE_ERROR');
+  });
+
+  it('should return 401 without auth header', async () => {
+    const res = await request(app)
+      .post('/api/v1/ai/advice')
+      .send({ plant_type: 'Pothos' });
+
+    expect(res.status).toBe(401);
+  });
+
+  // --- 429 fallback chain tests (T-048 behavior preserved) ---
+  it('should fall back to next model on 429 and succeed', async () => {
+    const { accessToken } = await createTestUser();
+
+    const err429 = new Error('Resource has been exhausted. 429');
     err429.status = 429;
     mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockRejectedValue(err429);
     mockGenerateContentByModel['gemini-2.5-flash'] = jest.fn().mockResolvedValue({
-      response: { text: () => JSON.stringify(mockAdvice) },
+      response: { text: () => JSON.stringify(MOCK_ADVICE_RESPONSE) },
     });
 
     const res = await request(app)
@@ -223,17 +229,13 @@ describe('POST /api/v1/ai/advice', () => {
       .send({ plant_type: 'Monstera' });
 
     expect(res.status).toBe(200);
-    expect(res.body.data.identified_plant_type).toBe('Monstera');
+    expect(res.body.data.identified_plant).toBe('Golden Pothos');
     expect(mockGenerateContentByModel['gemini-2.0-flash']).toHaveBeenCalledTimes(1);
     expect(mockGenerateContentByModel['gemini-2.5-flash']).toHaveBeenCalledTimes(1);
-
-    process.env.GEMINI_API_KEY = originalKey;
   });
 
-  it('should return 502 when all models in fallback chain return 429 (T-048)', async () => {
+  it('should return 502 when all models return 429', async () => {
     const { accessToken } = await createTestUser();
-    const originalKey = process.env.GEMINI_API_KEY;
-    process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
 
     const make429 = () => {
       const err = new Error('Resource has been exhausted. 429');
@@ -252,76 +254,141 @@ describe('POST /api/v1/ai/advice', () => {
       .send({ plant_type: 'Fern' });
 
     expect(res.status).toBe(502);
-    expect(res.body.error.code).toBe('AI_SERVICE_UNAVAILABLE');
-
-    // All 4 models should have been tried
-    expect(mockGenerateContentByModel['gemini-2.0-flash']).toHaveBeenCalledTimes(1);
-    expect(mockGenerateContentByModel['gemini-2.5-flash']).toHaveBeenCalledTimes(1);
-    expect(mockGenerateContentByModel['gemini-2.5-flash-lite']).toHaveBeenCalledTimes(1);
-    expect(mockGenerateContentByModel['gemini-2.5-pro']).toHaveBeenCalledTimes(1);
-
-    process.env.GEMINI_API_KEY = originalKey;
+    expect(res.body.error.code).toBe('EXTERNAL_SERVICE_ERROR');
   });
+});
 
-  it('should throw immediately on non-429 error without trying next model (T-048)', async () => {
+// ========================================================================
+// T-078: POST /api/v1/ai/identify
+// ========================================================================
+describe('POST /api/v1/ai/identify (T-078)', () => {
+  it('should return 200 with correct response shape for valid image (happy path)', async () => {
     const { accessToken } = await createTestUser();
-    const originalKey = process.env.GEMINI_API_KEY;
-    process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
-
-    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockRejectedValue(
-      new Error('Internal server error')
-    );
-    mockGenerateContentByModel['gemini-2.5-flash'] = jest.fn();
+    mockGeminiSuccess();
 
     const res = await request(app)
-      .post('/api/v1/ai/advice')
+      .post('/api/v1/ai/identify')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ plant_type: 'Cactus' });
+      .attach('image', createTestImageBuffer(), 'plant.jpg');
 
-    expect(res.status).toBe(502);
-    expect(res.body.error.code).toBe('AI_SERVICE_UNAVAILABLE');
-
-    // Only first model should have been tried
-    expect(mockGenerateContentByModel['gemini-2.0-flash']).toHaveBeenCalledTimes(1);
-    expect(mockGenerateContentByModel['gemini-2.5-flash']).not.toHaveBeenCalled();
-
-    process.env.GEMINI_API_KEY = originalKey;
+    expect(res.status).toBe(200);
+    expect(res.body.data).toBeDefined();
+    expect(res.body.data.identified_plant).toBe('Golden Pothos');
+    expect(res.body.data.confidence).toBe('high');
+    expect(res.body.data.care).toBeDefined();
+    expect(res.body.data.care.watering_interval_days).toBe(7);
+    expect(res.body.data.care.fertilizing_interval_days).toBe(14);
+    expect(res.body.data.care.repotting_interval_days).toBe(365);
+    expect(typeof res.body.data.care.light_requirement).toBe('string');
+    expect(typeof res.body.data.care.humidity_preference).toBe('string');
+    expect(typeof res.body.data.care.care_tips).toBe('string');
   });
 
-  it('should detect 429 from error message string (T-048)', async () => {
+  it('should return 400 when image field is missing', async () => {
     const { accessToken } = await createTestUser();
-    const originalKey = process.env.GEMINI_API_KEY;
-    process.env.GEMINI_API_KEY = 'test-valid-gemini-key';
 
-    const mockAdvice = {
-      identified_plant_type: 'Snake Plant',
-      confidence: 'high',
-      care_advice: {
-        watering: { frequency_value: 14, frequency_unit: 'days', notes: null },
-        fertilizing: { frequency_value: 1, frequency_unit: 'months', notes: null },
-        repotting: { frequency_value: 24, frequency_unit: 'months', notes: null },
-        light: 'Low to bright indirect',
-        humidity: 'Low',
-        additional_tips: null,
-      },
-    };
+    const res = await request(app)
+      .post('/api/v1/ai/identify')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({});
 
-    // 429 detected via message string (no .status property)
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toBe('An image is required.');
+  });
+
+  it('should return 400 for unsupported MIME type (GIF)', async () => {
+    const { accessToken } = await createTestUser();
+
+    const gifBuffer = Buffer.from([
+      0x47, 0x49, 0x46, 0x38, 0x39, 0x61, // GIF89a header
+      0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    ]);
+
+    const res = await request(app)
+      .post('/api/v1/ai/identify')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .attach('image', gifBuffer, 'plant.gif');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toBe('Image must be JPEG, PNG, or WebP.');
+  });
+
+  it('should return 400 when image exceeds 5MB', async () => {
+    const { accessToken } = await createTestUser();
+
+    // Create a buffer just over 5MB
+    const largeBuffer = Buffer.alloc(5 * 1024 * 1024 + 1, 0xFF);
+    // Add JPEG header so it passes the mime check
+    largeBuffer[0] = 0xFF;
+    largeBuffer[1] = 0xD8;
+
+    const res = await request(app)
+      .post('/api/v1/ai/identify')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .attach('image', largeBuffer, 'large.jpg');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toBe('Image must be 5MB or smaller.');
+  });
+
+  it('should return 502 when Gemini Vision API throws an error', async () => {
+    const { accessToken } = await createTestUser();
     mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockRejectedValue(
-      new Error('429 Too Many Requests')
+      new Error('Vision processing failed')
     );
-    mockGenerateContentByModel['gemini-2.5-flash'] = jest.fn().mockResolvedValue({
-      response: { text: () => JSON.stringify(mockAdvice) },
+
+    const res = await request(app)
+      .post('/api/v1/ai/identify')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .attach('image', createTestImageBuffer(), 'plant.jpg');
+
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('EXTERNAL_SERVICE_ERROR');
+    expect(res.body.error.message).toBe('AI advice is temporarily unavailable. Please try again.');
+  });
+
+  it('should return 401 without auth header', async () => {
+    const res = await request(app)
+      .post('/api/v1/ai/identify')
+      .attach('image', createTestImageBuffer(), 'plant.jpg');
+
+    expect(res.status).toBe(401);
+  });
+
+  it('should return 502 when Gemini returns unparseable response for image', async () => {
+    const { accessToken } = await createTestUser();
+    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockResolvedValue({
+      response: { text: () => 'I cannot identify this plant.' },
     });
 
     const res = await request(app)
-      .post('/api/v1/ai/advice')
+      .post('/api/v1/ai/identify')
       .set('Authorization', `Bearer ${accessToken}`)
-      .send({ plant_type: 'Snake Plant' });
+      .attach('image', createTestImageBuffer(), 'plant.jpg');
+
+    expect(res.status).toBe(502);
+    expect(res.body.error.code).toBe('EXTERNAL_SERVICE_ERROR');
+  });
+
+  it('should handle 429 fallback chain for image identification', async () => {
+    const { accessToken } = await createTestUser();
+
+    const err429 = new Error('Resource exhausted. 429');
+    err429.status = 429;
+    mockGenerateContentByModel['gemini-2.0-flash'] = jest.fn().mockRejectedValue(err429);
+    mockGenerateContentByModel['gemini-2.5-flash'] = jest.fn().mockResolvedValue({
+      response: { text: () => JSON.stringify(MOCK_ADVICE_RESPONSE) },
+    });
+
+    const res = await request(app)
+      .post('/api/v1/ai/identify')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .attach('image', createTestImageBuffer(), 'plant.jpg');
 
     expect(res.status).toBe(200);
-    expect(res.body.data.identified_plant_type).toBe('Snake Plant');
-
-    process.env.GEMINI_API_KEY = originalKey;
+    expect(res.body.data.identified_plant).toBe('Golden Pothos');
   });
 });

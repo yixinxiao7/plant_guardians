@@ -236,6 +236,14 @@ export const ai = {
       body: JSON.stringify(data),
     });
   },
+  identify(imageFile) {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+    return request('/ai/identify', {
+      method: 'POST',
+      body: formData,
+    });
+  },
 };
 
 // Profile

@@ -4,6 +4,86 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 17 — Deploy Engineer: Pre-Deploy Build Verification (2026-04-01)
+
+**Test Type:** Pre-Deploy Build Verification
+**Date:** 2026-04-01
+**Agent:** Deploy Engineer (Orchestrator Sprint #17)
+**Sprint:** 17
+**Environment:** Staging (localhost — pre-deploy preparation)
+**Git HEAD:** 24da6fc (Sprint 16 checkpoint) — Sprint 17 changes uncommitted, pending QA sign-off
+**Trigger:** Orchestrator Sprint #17 deploy phase — QA sign-off not yet received
+
+---
+
+### Pre-Deploy Status: ⚠️ BLOCKED — Awaiting QA Sign-Off
+
+Deploy Engineer completed all pre-deploy preparation checks. **Staging deployment is blocked until QA Engineer provides sign-off in handoff-log.md.** No QA → Deploy Engineer handoff exists for Sprint 17 as of this check. The most recent QA sign-off on record is H-205 (Sprint 16).
+
+---
+
+### Pre-Deploy Checklist
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| Backend dependency install (`npm install`) | ✅ PASS | Clean install |
+| Frontend dependency install (`npm install`) | ✅ PASS | 0 vulnerabilities |
+| Frontend production build (`npm run build`) | ✅ PASS | 4627 modules, 288ms, no errors |
+| Backend test suite | ✅ PASS | 108/108 tests pass (12 suites) |
+| Frontend test suite | ✅ PASS | 162/162 tests pass (25 suites) |
+| Database migrations | ✅ PASS | 5/5 complete, 0 pending (Sprint 17 has no schema changes) |
+| GEMINI_API_KEY hardcoded? | ✅ CLEAN | `process.env.GEMINI_API_KEY` only — no literal key in source |
+| `.env.example` GEMINI_API_KEY documented | ✅ PASS | `GEMINI_API_KEY=your-gemini-api-key` present with obtain URL |
+| Images persisted to disk? | ✅ CLEAN | Multer uses `memoryStorage()` — no disk writes confirmed |
+| Backend npm audit | ⚠️ FLAG | 1 high-severity finding: `lodash <=4.17.23` (transitive via `knex@3.2.4 → lodash@4.18.1`). Installed version 4.18.1 is technically above the advisory range ceiling (4.17.23) — likely a false positive / stale advisory. Flagged for QA investigation. Sprint 16 shipped with 0 vulns; this may be a newly published advisory against an existing dep. |
+| QA sign-off in handoff-log.md | ❌ MISSING | No Sprint 17 QA → Deploy Engineer handoff found. Last QA sign-off: H-205 (Sprint 16). |
+
+---
+
+### Build Artifact Summary
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| Frontend (`npm run build`) | ✅ SUCCESS | `dist/assets/index-BsRn6qnx.js` (413 kB / 119 kB gzip), `dist/assets/index-DbYUVAS7.css` (59.7 kB / 9.8 kB gzip) |
+| Backend | ✅ READY | Express server; no compilation step required |
+| Database | ✅ UP TO DATE | 5 migrations applied; 0 pending |
+
+---
+
+### Test Suite Results
+
+| Suite | Passed | Total | Status |
+|-------|--------|-------|--------|
+| Backend (Jest) | 108 | 108 | ✅ |
+| Frontend (Vitest) | 162 | 162 | ✅ |
+
+---
+
+### Security Self-Check (Deploy Engineer)
+
+| Item | Status |
+|------|--------|
+| GEMINI_API_KEY read from env only | ✅ |
+| No hardcoded secrets in Sprint 17 changes | ✅ |
+| Images not persisted (memory-only in multer) | ✅ |
+| `.env.example` documents all new env vars | ✅ |
+| npm audit — frontend | ✅ 0 vulnerabilities |
+| npm audit — backend | ⚠️ 1 high (lodash via knex — likely false positive, see above) |
+
+---
+
+### Next Step
+
+Deployment is on hold. QA Engineer must complete Sprint 17 verification and post handoff to Deploy Engineer before staging deployment proceeds. Once QA sign-off is received, Deploy Engineer will:
+1. Commit Sprint 17 changes
+2. Install dependencies (already verified clean)
+3. Run `npm run build` (already verified passing)
+4. Confirm 0 pending migrations
+5. Restart backend and frontend staging services
+6. Send handoff to Monitor Agent for post-deploy health checks
+
+---
+
 ## Sprint 16 — Monitor Agent: Post-Deploy Health Check (2026-04-01)
 
 **Test Type:** Post-Deploy Health Check + Config Consistency Validation
