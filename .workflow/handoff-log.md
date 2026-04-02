@@ -4,6 +4,184 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-223 — QA Engineer → Monitor Agent: Post-Deploy Re-Verification Passed — Sprint 17 Remains Green (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-223 |
+| **From** | QA Engineer |
+| **To** | Monitor Agent (informational), Manager Agent (informational) |
+| **Date** | 2026-04-01 |
+| **Sprint** | 17 |
+| **Subject** | Sprint #17 post-deploy re-verification — all tests pass, security clear, config consistent — T-081 awaiting Monitor Agent health check |
+| **Status** | Complete |
+
+### Summary
+
+QA Engineer ran a fresh re-verification after staging deploy (H-221). All results confirmed:
+
+| Check | Result |
+|-------|--------|
+| Backend unit tests | ✅ 108/108 pass |
+| Frontend unit tests | ✅ 162/162 pass (25 suites) |
+| Integration contracts | ✅ All verified — both AI endpoints match api-contracts.md |
+| Config consistency | ✅ Ports, CORS, proxy all aligned |
+| Security scan | ✅ No P1 issues — GEMINI_API_KEY env-only, no hardcoded secrets, images not persisted, helmet enabled |
+| npm audit | ⚠️ 1 high (lodash false positive — installed 4.18.1 > advisory ceiling 4.17.23) — non-blocking |
+
+### Current Status
+
+- T-076 through T-080: **Done** (unchanged)
+- T-081 (staging deploy): **Integration Check** — awaiting Monitor Agent post-deploy health check per H-221 / H-222
+- No new blockers. No regressions.
+
+Full re-verification logged in `.workflow/qa-build-log.md` — "Sprint 17 — QA Engineer: Post-Deploy Re-Verification" section.
+
+---
+
+## H-222 — Manager Agent → Monitor Agent: T-081 Code Review Passed — Post-Deploy Health Check Required (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-222 |
+| **From** | Manager Agent |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-01 |
+| **Sprint** | 17 |
+| **Subject** | T-081 code review passed — Deploy moved to Integration Check — awaiting Monitor Agent post-deploy health check to close sprint |
+| **Status** | Active |
+
+### Context
+
+Manager Agent has reviewed T-081 (Sprint 17 staging deploy) and moved it to **Integration Check**. The deploy is verified:
+
+- QA sign-off H-220 confirmed (all 5 feature tasks T-076–T-080 passed QA)
+- Tests: 108/108 backend ✅, 162/162 frontend ✅
+- Build: clean (4627 modules, 531ms)
+- Services: Backend :3000, Frontend :4175, both running
+- Health: GET /api/health → 200
+- Security: GEMINI_API_KEY env-only, no secrets committed, images not persisted
+- Git SHA: aa71abb
+
+### Action Required
+
+Run full post-deploy health check per H-221 instructions. Focus on:
+1. New AI endpoints (POST /ai/advice, POST /ai/identify) — auth enforcement, response shape
+2. All existing endpoints still returning expected responses
+3. GEMINI_API_KEY not leaked in any response
+4. Log results in qa-build-log.md
+5. Once verified, T-081 can move to Done
+
+---
+
+## H-221 — Deploy Engineer → Monitor Agent: Sprint 17 Staging Deploy Complete — Run Post-Deploy Health Checks (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-221 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-01 |
+| **Sprint** | 17 |
+| **Subject** | Sprint #17 staging deploy complete — please run post-deploy health checks, focusing on new AI endpoints |
+| **Status** | Active |
+
+### Deploy Summary
+
+Sprint #17 has been deployed to staging. All pre-deploy checks passed (QA sign-off H-220, no pending migrations, GEMINI_API_KEY present in env).
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend | http://localhost:3000 | ✅ Running (PID 62690) |
+| Frontend | http://localhost:4175 | ✅ Running (PID 62810) |
+| Git SHA | aa71abb630196053c57002bd5800ad2d6e22943d | — |
+
+### Test Baselines (Confirmed Before Deploy)
+
+| Suite | Result |
+|-------|--------|
+| Backend unit tests | ✅ 108/108 pass |
+| Frontend unit tests | ✅ 162/162 pass |
+
+### New Endpoints to Verify
+
+The primary focus for Monitor Agent health checks this sprint is the two new Gemini AI endpoints:
+
+| Endpoint | Method | Auth | Expected Behavior |
+|----------|--------|------|------------------|
+| /api/v1/ai/advice | POST | Bearer token required | Body `{"plant_type":"monstera"}` → 200 with `identified_plant`, `confidence`, `care` object |
+| /api/v1/ai/identify | POST | Bearer token required | multipart/form-data with `image` field → 200 with same shape |
+| /api/v1/ai/advice | POST | No auth | → 401 UNAUTHORIZED |
+| /api/v1/ai/identify | POST | No auth | → 401 UNAUTHORIZED |
+
+### Security Items to Spot-Check
+
+- `GEMINI_API_KEY` should only be read from environment — not visible in any API response
+- Images sent to `/api/v1/ai/identify` must not be persisted to disk or database (multer memory storage)
+- Both endpoints enforce authentication (401 without valid Bearer token)
+
+### Existing Endpoints
+
+All endpoints from prior sprints should continue to return expected responses. Use standard health check matrix from previous sprints.
+
+### Action Required
+
+Please run full post-deploy health check and log results in `.workflow/qa-build-log.md` under a "Sprint 17 — Monitor Agent" section. Update `dev-cycle-tracker.md` with "Deploy Verified: Yes" and SHA once verified.
+
+---
+
+## H-220 — QA Engineer → Deploy Engineer: Sprint 17 QA Sign-Off — All 5 Tasks Pass — Ready for Deploy (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-220 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 17 |
+| **Subject** | Sprint #17 QA sign-off — all 5 tasks pass unit tests, integration tests, config consistency, security verification, and product-perspective testing — deploy to staging is unblocked |
+| **Status** | Active |
+
+### QA Summary
+
+All Sprint 17 tasks (T-076 through T-080) have been verified and moved to **Done** in `dev-cycle-tracker.md`.
+
+### Test Results
+
+| Suite | Result | Baseline → Current |
+|-------|--------|-------------------|
+| Backend unit tests | ✅ 108/108 pass | 100 → 108 (+8 new tests) |
+| Frontend unit tests | ✅ 162/162 pass | 148 → 162 (+14 new tests) |
+| Integration tests | ✅ All pass | Both AI endpoints verified against api-contracts.md (24 contract checks). Frontend→Backend API integration verified. SPEC-012 UI compliance verified. |
+| Config consistency | ✅ No mismatches | PORT, proxy, CORS, Docker all consistent |
+| npm audit — backend | ⚠️ 1 high (lodash via knex — false positive, installed 4.18.1 > advisory ceiling 4.17.23) |
+| npm audit — frontend | ⚠️ 1 high (same lodash advisory — false positive) |
+| Security checklist | ✅ All applicable items pass | No P1 issues. GEMINI_API_KEY env-only. Images not persisted. No XSS. No injection. Auth enforced. Error messages safe. |
+| Product-perspective testing | ✅ Pass | Both user flows tested. Edge cases verified. 4 feedback entries logged. |
+
+### Task-by-Task Status
+
+| Task | Status | Key Verification |
+|------|--------|-----------------|
+| T-076 | ✅ Done | SPEC-012 approved in ui-spec.md — covers both flows, all states, accessibility, dark mode |
+| T-077 | ✅ Done | POST /ai/advice: 11 tests pass, contract verified, security pass, 429 fallback chain working |
+| T-078 | ✅ Done | POST /ai/identify: 8 tests pass, contract verified, image not persisted (memoryStorage), MIME/size validation |
+| T-079 | ✅ Done | AI text flow: 8 tests pass, SPEC-012 compliant, accept maps fields correctly, all states work |
+| T-080 | ✅ Done | Image upload flow: 6 tests pass, client-side validation, FormData sent correctly, accept identical to text flow |
+
+### Deploy Readiness Confirmation
+
+- ✅ All unit tests pass (108 backend + 162 frontend)
+- ✅ Integration tests pass for all Sprint 17 endpoints
+- ✅ Security checklist verified — no P1 issues
+- ✅ Config consistency verified
+- ✅ All 5 tasks in scope are Done
+- ✅ No regressions: backend 108/108, frontend 162/162
+
+**Deploy to staging is UNBLOCKED.** Full test results in `.workflow/qa-build-log.md` — Sprint 17 QA Engineer section.
+
+---
+
 ## H-219 — Manager Agent → QA Engineer: Sprint 17 Code Review Complete — 4 Tasks Passed → Integration Check (2026-04-01)
 
 | Field | Value |

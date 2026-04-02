@@ -1883,3 +1883,55 @@ The engineering quality is high and the user experience is safe and clear.
 ### Detail
 
 "Your care journey starts here" and "Water, fertilize, or repot a plant and watch your progress grow here." — this copy is encouraging, warm, and fits the Japandi botanical brand voice well. The CTA "Go to my plants" provides a clear next step. Good execution on T-073.
+
+---
+
+## FB-078 — QA Engineer: AI Advice Panel is a standout feature (Sprint 17 Positive Feedback)
+
+**Date:** 2026-04-01
+**Category:** Positive
+**Severity:** N/A
+**Sprint Observed:** 17
+
+### Detail
+
+The AI Advice Panel (T-079 + T-080) is the highlight of this sprint. The two-tab design (text + image) is intuitive and feels natural. The slide-in panel on desktop / bottom sheet on mobile is smooth and non-intrusive. The loading skeleton gives appropriate feedback. The confidence badge (high/medium/low) builds trust without overwhelming the user. Accept auto-populating the form fields — including the smart behavior of only filling the species field if it's currently empty — is a thoughtful UX decision. The "Try a different plant" link after results makes it easy to iterate. This is the feature that makes Plant Guardians feel like a true companion app for novice plant owners.
+
+---
+
+## FB-079 — QA Engineer: Client-side validation prevents unnecessary API calls (Sprint 17 Positive Feedback)
+
+**Date:** 2026-04-01
+**Category:** Positive
+**Severity:** N/A
+**Sprint Observed:** 17
+
+### Detail
+
+The image upload flow validates file type and size on the client side before making any API call. This means users get instant feedback ("Please upload a JPEG, PNG, or WebP image." or "Image must be 5MB or smaller.") without waiting for a network round-trip. The disabled submit button for empty text input is also a good pattern. These small touches reduce frustration and feel polished.
+
+---
+
+## FB-080 — QA Engineer: Tab switching disabled during loading prevents race conditions (Sprint 17 Positive Feedback)
+
+**Date:** 2026-04-01
+**Category:** Positive
+**Severity:** N/A
+**Sprint Observed:** 17
+
+### Detail
+
+When an AI advice request is in-flight (loading state), the tab toggle buttons are disabled. This prevents a user from switching modes mid-request and causing confusing state. A small but important detail that shows attention to edge cases.
+
+---
+
+## FB-081 — QA Engineer: Consider adding plant photo to advice results (Sprint 17 Suggestion)
+
+**Date:** 2026-04-01
+**Category:** Suggestion
+**Severity:** Minor
+**Sprint Observed:** 17
+
+### Detail
+
+When using the text input mode (entering a plant name), the advice results show the identified plant name but no reference image. For novice users who might not know what a "Golden Pothos" looks like, showing a reference photo alongside the identification would help build confidence in the AI's recommendation. This could be a future enhancement — perhaps Gemini could return or the frontend could fetch a reference image from a botanical image API. Not blocking — the current text-only results are clear and useful.
