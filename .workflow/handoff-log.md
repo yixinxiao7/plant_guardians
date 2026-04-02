@@ -4,6 +4,64 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-227 — Design Agent → Frontend Engineer: SPEC-013 Approved — Inventory Search & Filter (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-227 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 18 |
+| **Subject** | SPEC-013 written and approved — Inventory Search & Filter UX — T-084 unblocked (spec side) |
+| **Status** | Active |
+
+### Summary
+
+SPEC-013 — Inventory Search & Filter has been written and appended to `.workflow/ui-spec.md`. The spec is marked **Approved** and covers all acceptance criteria from T-082. T-084 is now unblocked from the design side (still waiting on T-083 API contract from Backend Engineer before you start building).
+
+### What's in SPEC-013
+
+**Location:** `.workflow/ui-spec.md` → `### SPEC-013 — Inventory Search & Filter`
+
+| Section | Covered |
+|---------|---------|
+| Search input placement and anatomy | ✅ Full width up to 480px, left-aligned, above filter strip |
+| Search debounce | ✅ 300ms debounce; ✕ clear button cancels pending debounce |
+| Status filter strip | ✅ Segmented pill tabs: All / Overdue / Due Today / On Track; immediate fetch on click |
+| Combined search + filter | ✅ Both params sent simultaneously; clearing either preserves the other |
+| Empty State A — no plants | ✅ Existing state preserved; only shown when no filters active |
+| Empty State B — no search match | ✅ "No plants match your search." + Clear search ghost button |
+| Empty State C — no filter match | ✅ Dynamic message per filter (Overdue/Due Today/On Track) + "Show all plants" button |
+| Empty State D — no combined match | ✅ Two reset buttons side-by-side (Clear search / Reset filter) |
+| Loading / skeleton state | ✅ 6 skeleton cards with shimmer animation; `aria-busy` on grid |
+| Result count label | ✅ "Showing N plants" — hidden when no filters active; `aria-live="polite"` |
+| Clear/reset controls | ✅ ✕ on search input; "All" pill resets status filter |
+| Error state (fetch failure) | ✅ Inline alert banner with retry, `role="alert"` |
+| Dark mode | ✅ All tokens listed; no hardcoded hex anywhere in spec |
+| Accessibility | ✅ `aria-label`, `role="tablist"`, roving tabindex, `aria-live`, `aria-busy`, WCAG AA contrast |
+| Responsive | ✅ Desktop / Tablet / Mobile breakpoints defined |
+| URL param persistence | ✅ Optional enhancement — `replaceState` pattern described |
+| Unit test requirements | ✅ 8 test scenarios defined (6 required + 2 bonus) |
+
+### Key Implementation Notes
+
+1. **New component:** `PlantSearchFilter.jsx` — contains both the search input and the filter strip. Export them separately or as a composed component; your call.
+2. **Search debounce:** 300ms using `setTimeout`/`clearTimeout` or a `useDebounce` hook. The ✕ button must cancel the pending debounce and fire immediately.
+3. **Filter strip keyboard nav:** Roving tabindex pattern (`tabindex="0"` on active, `tabindex="-1"` on others). `←`/`→` arrows navigate; `Enter`/`Space` activates. The entire strip is a single tab stop.
+4. **Result count:** Wrap in `<span role="status" aria-live="polite" aria-atomic="true">`. Only render when at least one filter is active.
+5. **Skeleton cards:** Render 6 by default. Add shimmer via CSS keyframe animation. Guard with `@media (prefers-reduced-motion: reduce)`.
+6. **Empty states:** Four distinct states — check the spec carefully. Empty State A (no plants at all) must only show when no filters are active.
+7. **Error banner:** `role="alert"` — screen readers announce it immediately. Auto-dismiss on next successful fetch.
+
+### Dependency Reminder
+
+T-084 is **still blocked** on T-083 (Backend Engineer publishing the `GET /api/v1/plants?search=&status=` API contract to `.workflow/api-contracts.md`). Do not begin T-084 until both:
+- [x] SPEC-013 exists (this handoff — done)
+- [ ] T-083 API contract published in `api-contracts.md`
+
+---
+
 ## H-226 — Manager Agent → All Agents: Sprint #18 Kickoff — Inventory Search & Filter + Polish (2026-04-01)
 
 | Field | Value |

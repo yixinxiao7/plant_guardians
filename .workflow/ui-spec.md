@@ -3122,3 +3122,359 @@ Use a top-right positioned toast stack. Toasts auto-dismiss after 4 seconds. Sty
 
 ### Reduced Motion
 Wrap all animations in `@media (prefers-reduced-motion: reduce)` checks. For confetti, skip the particle animation but still update the UI state (badge, text) immediately.
+
+---
+
+### SPEC-013 — Inventory Search & Filter
+
+**Status:** Approved
+**Related Tasks:** T-082 (Design), T-084 (Frontend)
+**Sprint:** #18
+**Date:** 2026-04-01
+
+---
+
+#### Description
+
+An enhanced Plant Inventory page (`/`) that allows users to find specific plants within a growing collection using a real-time search input and a status filter strip. This feature is critical for users who have accumulated more than ~8 plants and find scrolling unwieldy. The controls must feel native to the existing Japandi aesthetic — quiet and purposeful, not noisy.
+
+The search and filter controls live at the top of the plant grid, below the page title bar. They do not replace the existing "Add Plant" button or page heading — they integrate into the existing action bar row.
+
+---
+
+#### Layout
+
+**Desktop (≥1024px):**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  My Plants              [3 plants]                    [+ Add Plant] │
+├─────────────────────────────────────────────────────────────────────┤
+│  [🔍 Search plants...                          ✕]                   │
+│  [All] [Overdue] [Due Today] [On Track]           Showing 3 plants  │
+├─────────────────────────────────────────────────────────────────────┤
+│  [Card] [Card] [Card]                                               │
+│  [Card] [Card] [Card]                                               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+- Search input: full-width row, `max-width: 480px`, left-aligned, `margin-bottom: 12px`
+- Filter strip + result count: single flex row, `justify-content: space-between`, `align-items: center`, `margin-bottom: 24px`
+- Filter strip (left): pill tabs for All / Overdue / Due Today / On Track
+- Result count (right): muted label, hidden when no filters are active
+
+**Tablet (768–1023px):**
+- Search input: full width
+- Filter strip: full width, scrollable horizontally if needed (no wrap), result count below strip on its own line
+
+**Mobile (<768px):**
+- Search input: full width, `margin-bottom: 12px`
+- Filter strip: horizontally scrollable, no wrapping, result count below on its own line, `font-size: 12px`
+- "Add Plant" button: remains fixed at top right of page title bar (icon-only on mobile — `+` icon, 40px circle)
+
+---
+
+#### User Flow
+
+1. User arrives at `/` and sees their plant grid as normal (no filters active).
+2. **Search path:**
+   a. User clicks the search input and types a plant name (e.g., "pothos").
+   b. After 300ms of inactivity (debounce), a `GET /api/v1/plants?search=pothos` request is fired.
+   c. The grid updates to show only matching plants. A result count label appears: "Showing 2 plants".
+   d. If 0 results, the grid is replaced by the no-search-match empty state.
+   e. User clicks the ✕ clear button (or clears the input manually). The query is cleared and the full plant list re-fetches. Result count disappears.
+3. **Status filter path:**
+   a. User clicks "Overdue" in the filter strip.
+   b. Immediately (no debounce), a `GET /api/v1/plants?status=overdue` request is fired.
+   c. The grid updates. Result count appears: "Showing 1 plant".
+   d. If 0 results, the no-filter-match empty state is shown.
+   e. User clicks "All" to reset the status filter to no filter. Full list re-fetches.
+4. **Combined path:**
+   a. User has typed "spider" in the search input AND clicked "Due Today" in the filter.
+   b. Request fired: `GET /api/v1/plants?search=spider&status=due_today`
+   c. Only plants matching both criteria are shown.
+   d. Clearing the search input (✕) removes the `search` param; the status filter remains active. Result re-fetches with status only.
+   e. Clicking "All" in the filter strip removes the `status` param; if a search query is present, it stays. Result re-fetches with search only.
+5. User clicks a plant card → navigates to plant detail page. Back navigation returns to inventory with filters still active (preserve state via React state or URL params).
+
+---
+
+#### Components
+
+##### 1. Search Input (`PlantSearchInput`)
+
+**Anatomy:**
+- Container: `position: relative`, full width up to `max-width: 480px`
+- Left icon: magnifier (`MagnifyingGlass` from Phosphor, 18px, `color: var(--color-text-secondary)`) — positioned absolutely inside the input, `left: 14px`, vertically centered, not interactive
+- `<input type="search">`: `height: 44px`, `border: 1.5px solid var(--color-border)`, `border-radius: 8px`, `background: var(--color-surface)`, `padding: 0 40px 0 42px`, `font-size: 15px`, `color: var(--color-text-primary)`, `font-family: DM Sans`
+  - `placeholder`: "Search plants…" (`color: var(--color-text-disabled)`)
+  - `aria-label`: "Search plants"
+  - `autocomplete="off"`, `spellcheck="false"`
+- Clear button (✕): appears only when the input has a non-empty value
+  - Positioned absolutely, `right: 12px`, vertically centered
+  - Icon button variant, 24px circle, `X` icon (Phosphor `X`, 14px)
+  - `aria-label="Clear search"`
+  - Clicking clears the input value and re-triggers fetch with no search param
+- Focus state: `border-color: var(--color-border-focus)`, `box-shadow: 0 0 0 3px rgba(92,122,92,0.15)`
+- Typing: debounce 300ms before calling the fetch. During the debounce window, the clear button is still visible and clicking it cancels any pending debounce and fires immediately.
+
+**States:**
+| State | Visual |
+|-------|--------|
+| Default (empty) | Border `var(--color-border)`, no ✕ button |
+| Focused (empty) | Sage focus ring, no ✕ button |
+| Typing | ✕ button visible, no fetch yet (within debounce window) |
+| Searching | ✕ visible; skeleton grid shown (debounce fired, awaiting response) |
+| Has results | ✕ visible; grid shows filtered results |
+| Cleared | ✕ disappears; grid reloads all plants |
+
+---
+
+##### 2. Status Filter Strip (`PlantStatusFilter`)
+
+A horizontal row of pill-shaped tab buttons for filtering by care status.
+
+**Anatomy:**
+- Container: `display: flex`, `gap: 8px`, `flex-wrap: nowrap`, `overflow-x: auto`
+- 4 tab pills: **All**, **Overdue**, **Due Today**, **On Track**
+- Each pill:
+  - `height: 36px`, `padding: 0 16px`, `border-radius: 24px`, `font-size: 14px`, `font-weight: 500`, `white-space: nowrap`
+  - `border: 1.5px solid var(--color-border)`
+  - Default (inactive): `background: var(--color-surface)`, `color: var(--color-text-secondary)`, `border-color: var(--color-border)`
+  - Hover: `background: var(--color-surface-alt)`, `border-color: var(--color-accent-primary)`, `color: var(--color-text-primary)`
+  - Active (selected): see color table below
+  - Transition: `all 0.15s ease`
+  - `role="tab"` per pill; container has `role="tablist"`, `aria-label="Filter by care status"`
+
+**Active pill colors by status:**
+
+| Pill | Active Background | Active Text | Active Border |
+|------|-------------------|-------------|---------------|
+| All | `var(--color-accent-primary)` `#5C7A5C` | `#FFFFFF` | none |
+| Overdue | `#FAEAE4` | `#B85C38` | `1.5px solid #B85C38` |
+| Due Today | `#FDF4E3` | `#C4921F` | `1.5px solid #C4921F` |
+| On Track | `#E8F4EC` | `#4A7C59` | `1.5px solid #4A7C59` |
+
+- Default selected tab on page load: **All**
+- Clicking any tab triggers an immediate fetch (no debounce)
+- Clicking the already-active tab does nothing (no extra fetch)
+- Keyboard: `←`/`→` arrow keys navigate between tabs (roving tabindex pattern); `Enter`/`Space` activates; tab strip is a single tab stop
+
+---
+
+##### 3. Result Count Label (`PlantResultCount`)
+
+A single line of muted text shown to the right of the filter strip (desktop) or below it (mobile/tablet).
+
+- **Content:** "Showing N plant" / "Showing N plants" (pluralize correctly)
+- **Hidden:** when no search query AND filter is "All" (i.e., no filters active — showing the default full list)
+- **Visible:** whenever either a search query OR a non-All filter is active
+- Typography: `font-size: 14px`, `color: var(--color-text-secondary)`, `font-style: normal`
+- `aria-live="polite"` — screen readers announce count changes after each fetch
+- `aria-atomic="true"` — full text is announced, not just the changed portion
+- The count reflects the total number of items returned by the API (not paginated results, but total)
+- Container: `<span role="status">` wrapping the text
+
+---
+
+##### 4. Skeleton Grid (loading state)
+
+Shown while a fetch is in progress (after debounce fires or filter clicked).
+
+- Render the same grid layout (3-col desktop, 2-col tablet, 1-col mobile) with 6 skeleton cards
+- Each skeleton card matches the plant card dimensions and layout:
+  - Photo area: `height: 180px`, `border-radius: 12px 12px 0 0`, `background: var(--color-surface-alt)`, animated shimmer
+  - Body lines: two horizontal bars (name: 60% width, type: 40% width), `height: 14px`, `border-radius: 4px`, `background: var(--color-surface-alt)`, shimmer
+  - Badge area: one bar at 30% width, `height: 20px`, `border-radius: 24px`
+- Shimmer animation: `background: linear-gradient(90deg, var(--color-surface-alt) 25%, rgba(255,255,255,0.6) 50%, var(--color-surface-alt) 75%)`, `background-size: 200% 100%`, `animation: shimmer 1.4s infinite`
+- `aria-busy="true"` on the grid container while loading; `aria-busy="false"` when done
+- Respect `prefers-reduced-motion`: if reduced motion is preferred, use `opacity: 0.5` pulse instead of shimmer slide
+- Number of skeletons shown: 6 (or the number of plants from the previous fetch, whichever is smaller — use 6 as default)
+
+---
+
+#### Empty States
+
+There are three distinct empty states. Each must be distinguishable in message and visual from the others.
+
+---
+
+##### Empty State A — No Plants Yet (baseline, existing)
+
+**Trigger:** User has zero plants in their account (API returns empty array with no filters active).
+
+**Visual:**
+- Centered in content area (vertically + horizontally)
+- SVG illustration: small potted plant, line art, `color: var(--color-accent-primary)` at reduced opacity (30%)
+- Heading: "Your garden is waiting." (`Playfair Display`, 24px, `var(--color-text-primary)`)
+- Subtext: "Add your first plant to start tracking your care schedule." (14px, `var(--color-text-secondary)`)
+- CTA: "Add Your First Plant" — Primary button, links to `/plants/new`
+
+*This state is unchanged from SPEC-002. It must be preserved and rendered when there are truly no plants at all — do not show this state if filters are active.*
+
+---
+
+##### Empty State B — No Search Match
+
+**Trigger:** A search query is active AND the API returns an empty array.
+
+**Visual:**
+- Centered in content area
+- SVG illustration: magnifying glass with a small leaf inside, outlined, `color: var(--color-text-disabled)`, size 80px — or use Phosphor `MagnifyingGlass` icon at 64px
+- Heading: "No plants match your search." (DM Sans, 18px, `font-weight: 600`, `var(--color-text-primary)`)
+- Subtext: "Try a different name or clear your search to see all plants." (14px, `var(--color-text-secondary)`)
+- Clear button: Ghost variant, "Clear search" — clicking clears the search input and re-fetches all plants
+- Do NOT show the "Add Plant" CTA here (it would be confusing)
+
+---
+
+##### Empty State C — No Status Filter Match
+
+**Trigger:** A status filter (Overdue, Due Today, or On Track) is active AND the API returns an empty array. No search query is active.
+
+**Visual:**
+- Centered in content area
+- SVG illustration: a small checkmark or leaf with a subtle glow — use Phosphor `CheckCircle` icon at 64px, `color: var(--color-text-disabled)`
+- Heading (dynamic by filter):
+  - Overdue: "No plants are overdue." 
+  - Due Today: "Nothing is due today."
+  - On Track: "No plants are fully on track yet."
+- Subtext (dynamic by filter):
+  - Overdue: "Great work — all your plants are cared for." (`var(--color-status-green)` tint on heading if desired)
+  - Due Today: "You're all caught up for now."
+  - On Track: "Try adding care schedules to your plants."
+- Reset button: Secondary variant, "Show all plants" — clicking sets filter back to "All" and re-fetches
+- Heading `font-size`: 18px, `font-weight: 600`, DM Sans
+
+---
+
+##### Empty State D — No Combined Match
+
+**Trigger:** Both a search query AND a non-All status filter are active AND the API returns an empty array.
+
+**Visual:**
+- Same icon as Empty State B (magnifying glass)
+- Heading: "No plants match your search and filter."
+- Subtext: "Try adjusting your search or filter to find your plants."
+- Two buttons side by side (flex row, `gap: 12px`):
+  - Ghost: "Clear search" — clears search query, keeps filter active
+  - Secondary: "Reset filter" — resets filter to All, keeps search query active
+- On mobile: stack buttons vertically
+
+---
+
+#### Dark Mode
+
+All new components must use CSS custom properties exclusively. No hardcoded hex values. The following token mappings apply in dark mode (assumed defined in `:root[data-theme="dark"]`):
+
+| Token | Light value | Dark value |
+|-------|------------|------------|
+| `--color-surface` | `#FFFFFF` | `#1E1E1A` |
+| `--color-surface-alt` | `#F0EDE6` | `#2A2A25` |
+| `--color-border` | `#E0DDD6` | `#3A3A34` |
+| `--color-border-focus` | `#5C7A5C` | `#7A9E7A` |
+| `--color-text-primary` | `#2C2C2C` | `#E8E5DE` |
+| `--color-text-secondary` | `#6B6B5F` | `#9E9B92` |
+| `--color-text-disabled` | `#B0ADA5` | `#5A5A52` |
+| `--color-accent-primary` | `#5C7A5C` | `#7A9E7A` |
+| `--color-background` | `#F7F4EF` | `#141410` |
+
+Filter strip pill active states in dark mode follow the same color logic but with slightly reduced saturation to avoid harshness. The shimmer animation in dark mode uses darker surface values.
+
+The search input in dark mode: `background: var(--color-surface)`, `border-color: var(--color-border)`, placeholder text `var(--color-text-disabled)`.
+
+---
+
+#### Responsive Behavior
+
+| Breakpoint | Search Input | Filter Strip | Result Count | Grid |
+|-----------|--------------|--------------|--------------|------|
+| Desktop ≥1024px | Max-width 480px, left-aligned | Flex row, no scroll | Right of filter strip, same line | 3 columns |
+| Tablet 768–1023px | Full width | Flex row, `overflow-x: auto`, no wrap | Below filter strip | 2 columns |
+| Mobile <768px | Full width | `overflow-x: auto`, `padding-bottom: 4px` (for scroll indicator) | Below filter strip, `font-size: 12px` | 1 column |
+
+On tablet and mobile, the filter strip scrollbar should be hidden visually (`::-webkit-scrollbar { display: none }`) while still being scrollable. Provide a fade-out gradient on the right edge of the strip container to hint at hidden pills.
+
+---
+
+#### Accessibility
+
+| Requirement | Implementation |
+|-------------|---------------|
+| Search input label | `aria-label="Search plants"` on `<input>` |
+| Clear button | `aria-label="Clear search"` on the ✕ button |
+| Filter strip keyboard nav | `role="tablist"` on container, `role="tab"` on each pill, `aria-selected="true/false"`, roving tabindex (active pill: `tabindex="0"`, others: `tabindex="-1"`), `←`/`→` arrow key navigation |
+| Loading state | `aria-busy="true"` on grid container during fetch; `aria-busy="false"` on completion |
+| Result count live region | `<span role="status" aria-live="polite" aria-atomic="true">Showing N plants</span>` |
+| Empty states | Each empty state container has `role="status"` and descriptive text that is read aloud |
+| Focus on filter change | Focus remains on the clicked filter pill — do not move focus programmatically after filter fires |
+| Focus on search clear | After clicking ✕, move focus back to the search input |
+| Color contrast | All text and interactive states must meet WCAG AA (4.5:1 for normal text, 3:1 for large text) |
+| Keyboard tab order | Page title → Search input → Filter strip (single tab stop) → Plant grid cards → Add Plant button |
+| Touch targets | All interactive elements ≥44×44px touch target, even if visually smaller |
+
+---
+
+#### States Summary
+
+| State | Trigger | Behavior |
+|-------|---------|----------|
+| **Default** | Page load, no filters | Full plant list, no result count, "All" filter active |
+| **Typing** | User types in search | ✕ button appears, no fetch yet (within 300ms debounce window) |
+| **Loading** | Debounce fires or filter clicked | Skeleton grid shown, `aria-busy="true"` on grid |
+| **Results** | Fetch completes with ≥1 result | Grid updates, result count visible |
+| **No search match** | Fetch returns empty (search active) | Empty State B shown |
+| **No filter match** | Fetch returns empty (status filter, no search) | Empty State C shown |
+| **No combined match** | Fetch returns empty (both filters active) | Empty State D shown |
+| **No plants (baseline)** | Fetch returns empty, no filters active | Empty State A shown |
+| **Error** | Fetch fails (network error / 5xx) | Inline error banner: "Could not load plants. Try again." with retry button; existing content stays visible |
+| **Clear search** | User clicks ✕ or empties input | Query cleared, fetch fires immediately with remaining active filters |
+| **Reset filter** | User clicks "All" pill | Status param cleared, fetch fires immediately with remaining search query |
+| **Reset all** | No search + filter = All | Result count hidden, full list shown |
+
+---
+
+#### Error State (Fetch Failure)
+
+If the `GET /api/v1/plants` request fails:
+- Do not clear the existing grid — keep whatever was last rendered
+- Show an inline alert banner below the filter strip (above the grid):
+  - Background: `#FAEAE4`, border: `1px solid #B85C38`, `border-radius: 8px`, `padding: 12px 16px`
+  - Icon: `WarningCircle` (Phosphor, 18px, `color: #B85C38`) + text: "Could not load plants. Please try again."
+  - Retry button (Ghost): "Try again" — retriggers the last fetch with the same params
+  - `role="alert"` on the banner so screen readers announce it immediately
+- Auto-dismiss the error banner once a successful fetch completes
+
+---
+
+#### URL Parameter Persistence (Optional Enhancement)
+
+For improved UX on page refresh and back-navigation: sync search and filter state to URL params.
+
+- Search query → `?search=pothos`
+- Status filter → `?status=overdue`
+- Combined → `?search=pothos&status=overdue`
+- On page load: read URL params and pre-populate the search input and filter strip accordingly, then fire the initial fetch with those params
+
+This is optional but recommended. If implemented, use `replaceState` (not `pushState`) so each keystroke does not create a new browser history entry. Only update URL on filter strip changes and on search debounce fire (not on every keystroke).
+
+---
+
+#### Unit Test Requirements (T-084)
+
+Minimum 6 new tests:
+
+| Test # | Scenario | Expected Result |
+|--------|----------|----------------|
+| 1 | Search input typed → debounce fires after 300ms | `GET /api/v1/plants?search=pothos` called after 300ms delay |
+| 2 | Status filter clicked → immediate fetch | `GET /api/v1/plants?status=overdue` called without debounce |
+| 3 | Combined search + filter | Request fired with both `search` and `status` params simultaneously |
+| 4 | Empty state (no search match) | Empty State B component rendered when API returns `[]` with search active |
+| 5 | Clear button (✕) clears search, re-fetches | Input clears, fetch fires with no `search` param, focus returns to input |
+| 6 | Skeleton cards shown during fetch | Skeleton grid renders while request is pending; disappears when resolved |
+| 7 (bonus) | Clicking "All" resets filter, re-fetches | `status` param removed from request; result count disappears |
+| 8 (bonus) | Result count label pluralizes correctly | "Showing 1 plant" vs "Showing 3 plants" |
+
+---
+
+*SPEC-013 written by Design Agent on 2026-04-01 for Sprint #18.*
