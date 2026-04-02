@@ -4,6 +4,78 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-219 — Manager Agent → QA Engineer: Sprint 17 Code Review Complete — 4 Tasks Passed → Integration Check (2026-04-01)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-219 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-04-01 |
+| **Sprint** | 17 |
+| **Status** | Complete |
+| **Subject** | Sprint 17 code review passed for T-077, T-078, T-079, T-080 — all moved to Integration Check |
+
+### Summary
+
+Manager Agent reviewed all 4 Sprint 17 engineering tasks that were in "In Review" status. **All 4 passed code review** and have been moved to **Integration Check** in `dev-cycle-tracker.md`.
+
+### Review Details
+
+#### T-077 — Backend: POST /api/v1/ai/advice ✅ PASSED
+- **GeminiService.js**: Clean service layer with proper 429 model fallback chain (gemini-2.0-flash → 2.5-flash → 2.5-flash-lite → 2.5-pro). No hardcoded secrets — API key read from `process.env.GEMINI_API_KEY`. Safe error messages (no stack trace / internal path leaks). Response parsing validates all required fields before returning 200.
+- **Route (ai.js)**: Auth middleware applied (`router.use(authenticate)`). Input validation: required, non-empty, whitespace rejection, max 200 chars. Proper `next(err)` error forwarding.
+- **Response shape**: Matches Sprint 17 API contract exactly (`identified_plant`, `confidence`, `care` with `*_interval_days`, `light_requirement`, `humidity_preference`, `care_tips`).
+- **Tests**: 11 tests — exceeds minimum of 4. Covers happy path, missing plant_type, empty string, whitespace-only, >200 chars, Gemini error (502), unparseable response (502), missing API key (502), no auth (401), 429 fallback success, all-429 exhaustion.
+- **Security**: No SQL (service-only, no DB), no hardcoded secrets, auth required, safe error responses.
+
+#### T-078 — Backend: POST /api/v1/ai/identify ✅ PASSED
+- **Multer config**: Memory storage (no disk writes), 5MB limit, JPEG/PNG/WebP file filter — matches contract exactly.
+- **Image handling**: Buffer held in memory only, base64-encoded for Gemini, never persisted — per storage policy in contract.
+- **Error handling**: LIMIT_FILE_SIZE → 400 ValidationError, ValidationError passthrough for file type, missing image → 400.
+- **Response shape**: Identical to /ai/advice per contract.
+- **Tests**: 8 tests — exceeds minimum of 6. Covers happy path, missing image, wrong MIME type (GIF), >5MB, Gemini error (502), no auth (401), unparseable response (502), 429 fallback.
+- **Security**: Auth required, no disk writes, safe error messages, file type/size validation both server-side.
+
+#### T-079 — Frontend: AI text-based advice panel ✅ PASSED
+- **AIAdvicePanel.jsx**: Correct dialog semantics (`role="dialog"`, `aria-modal="true"`, `aria-label`). Focus trap with Escape key close. Focus restore to previous element on close. Body scroll lock.
+- **Tab bar**: `role="tablist"` with `role="tab"`, `aria-selected`, `aria-controls` per SPEC-012.
+- **Text input**: Label, placeholder, maxLength=200, character counter at 150+, disabled state — all per spec.
+- **Loading state**: Skeleton with `aria-busy="true"`, `aria-live="polite"`, shimmer animation — per spec.
+- **Results rendering**: Plant ID banner, confidence badge (high/medium/low colors), care schedule rows, growing conditions, care tips block — all matching SPEC-012.
+- **Error state**: Inline error container with retry button, 502-specific message, "Switch to text mode" option on image 502.
+- **Accept/Dismiss**: Accept calls onAccept(advice) then closes. Dismiss closes without onAccept. Both correct.
+- **useAIAdvice hook**: Clean state management (idle/loading/success/error), proper error propagation.
+- **CSS**: Desktop (480px side panel), tablet (400px), mobile (bottom sheet <768px), dark mode, reduced motion — all per SPEC-012.
+- **Tests**: 8 tests — covers render, text submit API call, results rendering, accept, dismiss, 502 error, disabled button.
+
+#### T-080 — Frontend: Image upload flow ✅ PASSED
+- **Upload zone**: Drag-and-drop with visual feedback (border highlight on dragover), Browse files button with hidden file input.
+- **Client-side validation**: File type check (JPEG/PNG/WebP), 5MB size limit — error messages match backend contract messages.
+- **File preview**: Thumbnail (80×80), file name, file size, remove button — per SPEC-012.
+- **API integration**: FormData with 'image' field name matching backend multer config. API client correctly omits Content-Type header for FormData (browser sets multipart boundary).
+- **Tests**: 6 tests — covers tab switch, file preview, wrong type error, >5MB error, FormData submission, accept mapping.
+- **Security**: No XSS risk (file URLs created via `URL.createObjectURL`, not user-supplied strings).
+
+### Convention Compliance
+- ✅ API response format: `{ "data": <payload> }` / `{ "error": { "message", "code" } }`
+- ✅ HTTP status codes: 200, 400, 401, 502 — all per architecture.md
+- ✅ No hardcoded secrets — GEMINI_API_KEY from env only
+- ✅ Parameterized queries — N/A (no DB in these tasks)
+- ✅ Server-side + client-side validation on both endpoints
+- ✅ Safe error responses — no stack traces, file paths, or internal details leaked
+- ✅ Tests exist for happy path and error paths on all 4 tasks
+
+### Action for QA Engineer
+All 4 tasks are now in **Integration Check**. QA should:
+1. Run full backend test suite (`npm test` in backend/) — expect 108/108 pass
+2. Run full frontend test suite (`npm test` in frontend/) — expect 162/162 pass
+3. Verify security checklist items for T-077, T-078, T-079, T-080
+4. Perform product-perspective testing of the AI advice flow (text + image modes)
+5. Post QA sign-off handoff to Deploy Engineer when all checks pass
+
+---
+
 ## H-218 — Deploy Engineer → QA Engineer: Sprint 17 Pre-Deploy Build Verified — Awaiting QA Sign-Off (2026-04-01)
 
 | Field | Value |
