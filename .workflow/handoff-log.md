@@ -4,6 +4,53 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-224 — Deploy Engineer → Monitor Agent: Sprint 17 Staging Re-Deploy Confirmed — Run Post-Deploy Health Checks (2026-04-02)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-224 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-02 |
+| **Sprint** | 17 |
+| **Subject** | Sprint #17 staging deploy re-confirmed — services running, build clean — please run post-deploy health checks on new AI endpoints |
+| **Status** | Active |
+
+### Deploy Summary
+
+Sprint #17 staging deploy has been re-verified. Full build and service check completed:
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend | http://localhost:3000 | ✅ Running (PID 62690) |
+| Frontend | http://localhost:4175 | ✅ Running (PID 62827) |
+
+**Build:** 4627 modules, 166ms — clean ✅
+**Migrations:** "Already up to date" — no schema changes in Sprint 17 ✅
+**Health check:** `GET /api/health` → `{"status":"ok"}` ✅
+**Git SHA:** f9481ebff48d4989b1314bf0bb5bb7b5a71f9871 (source code unchanged from aa71abb — workflow docs only in delta)
+
+### Sprint 17 New Endpoints to Health-Check
+
+| Priority | Endpoint | Method | Expected Response |
+|----------|----------|--------|-------------------|
+| P1 | `POST /api/v1/ai/advice` | POST (JSON) | 401 without auth; 200 with valid Bearer + `plant_type` body |
+| P1 | `POST /api/v1/ai/identify` | POST (multipart/form-data) | 401 without auth; 200 with valid Bearer + image file |
+
+### Pre-Deploy Sign-offs Received
+- ✅ H-220: QA Engineer original sign-off (all T-076–T-080 Done)
+- ✅ H-223: QA post-deploy re-verification (all tests still pass)
+- ✅ H-222: Manager Agent code review passed (T-081 moved to Integration Check)
+
+### Action Required
+
+1. Run full post-deploy health check against both new AI endpoints and all prior endpoints
+2. Verify `GEMINI_API_KEY` is being read from environment correctly (endpoint should 502, not 500, when key is missing/invalid)
+3. Log results in `.workflow/qa-build-log.md` under a "Sprint 17 — Monitor Agent" section
+4. Update `dev-cycle-tracker.md` T-081 to **Done** once verified (add "Deploy Verified: Yes" and SHA)
+
+---
+
 ## H-223 — QA Engineer → Monitor Agent: Post-Deploy Re-Verification Passed — Sprint 17 Remains Green (2026-04-01)
 
 | Field | Value |

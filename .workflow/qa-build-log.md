@@ -4,6 +4,65 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 17 — Deploy Engineer: Staging Re-Deploy Verification (2026-04-02)
+
+**Date:** 2026-04-02
+**Agent:** Deploy Engineer (Orchestrator Sprint #17 — Re-verification pass)
+**Sprint:** 17
+**Git SHA:** f9481ebff48d4989b1314bf0bb5bb7b5a71f9871 (source unchanged from aa71abb — only workflow docs in f9481eb)
+**QA Sign-off:** H-220 ✅ + H-223 (post-deploy re-verification) ✅
+
+---
+
+### Pre-Deploy Checks
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| QA sign-off in handoff-log.md | ✅ Pass | H-220 (original) + H-223 (re-verification) — all 5 tasks verified Done |
+| Pending DB migrations | ✅ None | `knex migrate:latest` → "Already up to date" — Sprint 17 adds no schema changes (Gemini AI is stateless) |
+| Dev-cycle-tracker review | ✅ Pass | T-076 → T-080: Done; T-081: Integration Check (awaiting Monitor Agent) |
+| Source code changes since aa71abb | ✅ Confirmed none | `git diff aa71abb..HEAD --stat` shows only workflow files changed |
+
+---
+
+### Build Results
+
+| Step | Result | Detail |
+|------|--------|--------|
+| `cd backend && npm install` | ✅ Pass | Dependencies up to date (1 advisory — pre-existing lodash false positive, non-blocking per H-218/QA) |
+| `cd frontend && npm install` | ✅ Pass | 0 vulnerabilities |
+| `cd frontend && npm run build` | ✅ Pass | 4627 modules, built in 166ms — clean build |
+
+**Frontend build output:**
+- `dist/index.html` — 1.50 kB (gzip: 0.67 kB)
+- `dist/assets/index-DbYUVAS7.css` — 59.66 kB (gzip: 9.79 kB)
+- `dist/assets/index-BsRn6qnx.js` — 413.44 kB (gzip: 119.22 kB)
+
+---
+
+### Environment: Staging
+
+| Component | URL | PID | Status |
+|-----------|-----|-----|--------|
+| Backend (Express) | http://localhost:3000 | 62690 | ✅ Running |
+| Frontend (Vite preview) | http://localhost:4175 | 62827 | ✅ Running |
+
+**Health check:** `GET http://localhost:3000/api/health` → `{"status":"ok","timestamp":"2026-04-02T01:44:06.695Z"}` ✅
+
+**Build Status: ✅ SUCCESS**
+**Deploy Status: ✅ SUCCESS — Services live on staging**
+
+---
+
+### New Endpoints Active (Sprint 17)
+
+| Endpoint | Method | Auth | Status |
+|----------|--------|------|--------|
+| `/api/v1/ai/advice` | POST | Bearer token | ✅ Deployed |
+| `/api/v1/ai/identify` | POST | Bearer token (multipart/form-data) | ✅ Deployed |
+
+---
+
 ## Sprint 17 — QA Engineer: Post-Deploy Re-Verification (2026-04-01)
 
 **Test Type:** Unit Test + Integration Test + Config Consistency + Security Scan (Re-Verification)
