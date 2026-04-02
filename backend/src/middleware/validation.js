@@ -63,7 +63,7 @@ function validateBody(rules) {
           errors.push(`${rule.field} must be at least ${rule.min} characters.`);
         }
         if (rule.max !== undefined && value.length > rule.max) {
-          errors.push(`${rule.field} must be at most ${rule.max} characters.`);
+          errors.push(`${rule.field} must be ${rule.max} characters or fewer.`);
         }
       }
 

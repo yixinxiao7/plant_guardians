@@ -23,7 +23,7 @@ You are invoked directly by the human project owner when something goes wrong wi
 | `orchestrator/lib/common.sh` | Shared utilities: logging, state management, git checkpoint |
 | `orchestrator/lib/run-agent.sh` | How `claude --print` is invoked for each agent |
 | `orchestrator/lib/parse-workflow.sh` | Phase completion detection logic |
-| `orchestrator/phases/0*.sh` | Per-phase scripts (plan, design, contracts, build, review, qa, deploy, verify, test, closeout) |
+| `orchestrator/phases/0*.sh` | Per-phase scripts (plan, design, contracts, build, review, qa, deploy, verify, closeout) |
 | `orchestrator/config.sh` | Platform, max turns, AUTO_CONTINUE, MAX_SPRINTS |
 | `orchestrator/.state` | Sprint number (`SPRINT_NUMBER=N`) |
 | `orchestrator/.sprint-state` | Current phase completion flags |
@@ -215,7 +215,7 @@ count=$(grep -c 'pattern' file 2>/dev/null || true)
 count="${count:-0}"
 ```
 
-**Affected files:** `common.sh`, `parse-workflow.sh`, `phases/02-design.sh`, `phases/03-contracts.sh`, `phases/04-build.sh`, `phases/09-test.sh`, `orchestrate.sh`.
+**Affected files:** `common.sh`, `parse-workflow.sh`, `phases/02-design.sh`, `phases/03-contracts.sh`, `phases/04-build.sh`, `orchestrate.sh`.
 
 **Verify any file that counts tasks:**
 ```bash

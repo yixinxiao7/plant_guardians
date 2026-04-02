@@ -1,118 +1,105 @@
+/**
+ * AI routes — Sprint 17 (T-077, T-078)
+ *
+ * POST /api/v1/ai/advice   — text-based care advice (plant name → structured recommendations)
+ * POST /api/v1/ai/identify — image-based plant identification (photo → ID + recommendations)
+ *
+ * Both endpoints return the same response shape (Sprint 17 contract).
+ */
 const express = require('express');
+const multer = require('multer');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
-const { ValidationError, ExternalServiceError, UnprocessableError } = require('../utils/errors');
+const { ValidationError, ExternalServiceError } = require('../utils/errors');
+const GeminiService = require('../services/GeminiService');
 
 router.use(authenticate);
 
-/**
- * Build a prompt for Gemini based on the input.
- */
-function buildPrompt(plantType, photoUrl) {
-  let prompt = `You are a plant care expert. `;
+// --- Multer config for /identify (memory storage, no disk writes) ---
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 
-  if (plantType && photoUrl) {
-    prompt += `The user says the plant is "${plantType}" and has provided a photo at this URL: ${photoUrl}. `;
-  } else if (plantType) {
-    prompt += `The user has a "${plantType}" plant. `;
-  } else if (photoUrl) {
-    prompt += `The user has provided a photo of their plant at this URL: ${photoUrl}. Please identify the plant. `;
-  }
-
-  prompt += `
-Please provide structured care recommendations in the following JSON format. Respond ONLY with valid JSON, no additional text:
-{
-  "identified_plant_type": "string or null (only if identifying from photo)",
-  "confidence": "high | medium | low | null (only if identifying from photo)",
-  "care_advice": {
-    "watering": {
-      "frequency_value": <integer>,
-      "frequency_unit": "days | weeks | months",
-      "notes": "string or null"
-    },
-    "fertilizing": {
-      "frequency_value": <integer>,
-      "frequency_unit": "days | weeks | months",
-      "notes": "string or null"
-    },
-    "repotting": {
-      "frequency_value": <integer>,
-      "frequency_unit": "months",
-      "notes": "string or null"
-    },
-    "light": "string or null",
-    "humidity": "string or null",
-    "additional_tips": "string or null"
-  }
-}`;
-
-  return prompt;
-}
+const memoryUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_IMAGE_SIZE },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+      return cb(new ValidationError('Image must be JPEG, PNG, or WebP.'));
+    }
+    cb(null, true);
+  },
+});
 
 /**
- * Parse the Gemini response text into our structured format.
+ * Create a GeminiService instance, validating the API key is configured.
+ * @throws {ExternalServiceError} If GEMINI_API_KEY is missing or placeholder
  */
-function parseGeminiResponse(text) {
-  try {
-    // Extract JSON from the response (might be wrapped in markdown code blocks)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-    return JSON.parse(jsonMatch[0]);
-  } catch {
-    return null;
+function createGeminiService() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'your-gemini-api-key') {
+    throw new ExternalServiceError(
+      'AI advice is temporarily unavailable. Please try again.',
+      'EXTERNAL_SERVICE_ERROR'
+    );
   }
+  return new GeminiService(apiKey);
 }
 
-// POST /api/v1/ai/advice
+// POST /api/v1/ai/advice (T-077)
 router.post('/advice', async (req, res, next) => {
   try {
-    const { plant_type, photo_url } = req.body;
+    const { plant_type } = req.body;
 
-    if (!plant_type && !photo_url) {
-      throw new ValidationError('At least one of plant_type or photo_url must be provided.');
+    // Validation: plant_type required, non-empty, max 200 chars
+    if (!plant_type || (typeof plant_type === 'string' && plant_type.trim() === '')) {
+      throw new ValidationError('plant_type is required.');
     }
 
-    if (plant_type && typeof plant_type === 'string' && plant_type.length > 200) {
-      throw new ValidationError('plant_type must be at most 200 characters.');
+    if (typeof plant_type !== 'string') {
+      throw new ValidationError('plant_type is required.');
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || apiKey === 'your-gemini-api-key') {
-      throw new ExternalServiceError(
-        'AI service is not configured.',
-        'AI_SERVICE_UNAVAILABLE'
-      );
+    if (plant_type.length > 200) {
+      throw new ValidationError('plant_type must be 200 characters or fewer.');
     }
 
-    let result;
-    try {
-      const { GoogleGenerativeAI } = require('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-
-      const prompt = buildPrompt(plant_type, photo_url);
-      const response = await model.generateContent(prompt);
-      const text = response.response.text();
-      result = parseGeminiResponse(text);
-    } catch (err) {
-      console.error('Gemini API error:', err.message);
-      throw new ExternalServiceError(
-        'AI service returned an error or timed out.',
-        'AI_SERVICE_UNAVAILABLE'
-      );
-    }
-
-    if (!result || !result.care_advice) {
-      throw new UnprocessableError(
-        'Could not identify the plant or generate care advice. Try again with a clearer photo or enter the plant type manually.',
-        'PLANT_NOT_IDENTIFIABLE'
-      );
-    }
+    const service = createGeminiService();
+    const result = await service.getAdvice(plant_type);
 
     res.status(200).json({ data: result });
   } catch (err) {
     next(err);
   }
+});
+
+// POST /api/v1/ai/identify (T-078)
+router.post('/identify', (req, res, next) => {
+  memoryUpload.single('image')(req, res, async (uploadErr) => {
+    try {
+      // Handle multer errors
+      if (uploadErr) {
+        if (uploadErr.code === 'LIMIT_FILE_SIZE') {
+          throw new ValidationError('Image must be 5MB or smaller.');
+        }
+        if (uploadErr instanceof ValidationError) {
+          throw uploadErr;
+        }
+        throw uploadErr;
+      }
+
+      // Validate image was provided
+      if (!req.file) {
+        throw new ValidationError('An image is required.');
+      }
+
+      const service = createGeminiService();
+      const result = await service.identifyFromImage(req.file.buffer, req.file.mimetype);
+
+      res.status(200).json({ data: result });
+    } catch (err) {
+      next(err);
+    }
+  });
 });
 
 module.exports = router;

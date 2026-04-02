@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const errorHandler = require('./middleware/errorHandler');
@@ -11,27 +12,44 @@ const plantsRoutes = require('./routes/plants');
 const careActionsRoutes = require('./routes/careActions');
 const aiRoutes = require('./routes/ai');
 const profileRoutes = require('./routes/profile');
+const careHistoryRoutes = require('./routes/careHistory');
+const careActionsStatsRoutes = require('./routes/careActionsStats');
+const careDueRoutes = require('./routes/careDue');
+const accountRoutes = require('./routes/account');
 
 const app = express();
 
 // Security headers
 app.use(helmet());
 
-// CORS
+// CORS — supports comma-separated list of origins for staging (e.g., :5173 dev + :4173 preview)
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(o => o.trim());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, health checks, same-origin)
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS policy: origin ${origin} not allowed`));
+  },
   credentials: true,
 }));
+
+// Cookie parsing — must be before auth routes so req.cookies is populated
+app.use(cookieParser());
 
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files in development
-if (process.env.NODE_ENV !== 'production') {
-  const uploadDir = process.env.UPLOAD_DIR || './uploads';
-  app.use('/uploads', express.static(path.resolve(uploadDir)));
+// Serve uploaded files as static assets (T-059).
+// In production, a reverse proxy (nginx) would typically handle this,
+// but the Express fallback ensures photo_url is always browser-accessible.
+const uploadDir = path.resolve(process.env.UPLOAD_DIR || './uploads');
+// Ensure the uploads directory exists at startup
+const fs = require('fs');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
 }
+app.use('/uploads', express.static(uploadDir));
 
 // Rate limiting
 const generalLimiter = rateLimit({
@@ -68,7 +86,11 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/plants', plantsRoutes);
 app.use('/api/v1/plants', careActionsRoutes);  // care-actions are nested under plants
 app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/care-actions/stats', careActionsStatsRoutes);
+app.use('/api/v1/care-actions', careHistoryRoutes);
+app.use('/api/v1/care-due', careDueRoutes);
 app.use('/api/v1/profile', profileRoutes);
+app.use('/api/v1/account', accountRoutes);
 
 // 404 handler for unknown routes
 app.use('/api/*', (req, res) => {

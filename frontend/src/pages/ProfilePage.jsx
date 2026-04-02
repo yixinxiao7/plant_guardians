@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Plant, CalendarBlank, CheckCircle, SignOut } from '@phosphor-icons/react';
-import { profile as profileApi } from '../utils/api.js';
+import { profile as profileApi, auth as authApi, clearTokens } from '../utils/api.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useToast } from '../hooks/useToast.jsx';
 import { formatMonthYear } from '../utils/formatDate.js';
 import Button from '../components/Button.jsx';
+import DeleteAccountModal from '../components/DeleteAccountModal.jsx';
+import ThemeToggle from '../components/ThemeToggle.jsx';
 import './ProfilePage.css';
 
 export default function ProfilePage() {
@@ -17,6 +19,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -41,6 +44,30 @@ export default function ProfilePage() {
       addToast('Logout failed.', 'error');
       setLoggingOut(false);
     }
+  };
+
+  const handleDeleteAccount = async (password) => {
+    // This is called from the modal's onConfirm with the entered password
+    // If it throws, the modal catches it and shows inline error
+    const err = await authApi.deleteAccount(password).then(() => null, (e) => e);
+
+    if (err) {
+      if (err.status === 401) {
+        // Session expired — redirect after 2s
+        setTimeout(() => {
+          clearTokens();
+          sessionStorage.removeItem('pg_user');
+          navigate('/login');
+        }, 2000);
+      }
+      throw err;
+    }
+
+    // Success: clear everything and redirect
+    clearTokens();
+    sessionStorage.removeItem('pg_user');
+    addToast('Your account has been deleted.', 'danger');
+    navigate('/login');
   };
 
   const getInitials = (name) => {
@@ -106,31 +133,48 @@ export default function ProfilePage() {
       {/* Stats */}
       <div className="profile-stats">
         <div className="stat-tile" role="figure" aria-label={`${stats.plant_count || 0} Plants in care`}>
-          <Plant size={32} color="#5C7A5C" />
+          <Plant size={32} color="var(--color-accent)" />
           <span className="stat-number">{stats.plant_count ?? 0}</span>
           <span className="stat-label">Plants in care</span>
         </div>
         <div className="stat-tile" role="figure" aria-label={`${stats.days_as_member || 0} Days as a Guardian`}>
-          <CalendarBlank size={32} color="#5C7A5C" />
+          <CalendarBlank size={32} color="var(--color-accent)" />
           <span className="stat-number">{stats.days_as_member ?? 0}</span>
           <span className="stat-label">Days as a Guardian</span>
         </div>
         <div className="stat-tile" role="figure" aria-label={`${stats.total_care_actions || 0} Care actions completed`}>
-          <CheckCircle size={32} color="#5C7A5C" />
+          <CheckCircle size={32} color="var(--color-accent)" />
           <span className="stat-number">{stats.total_care_actions ?? 0}</span>
           <span className="stat-label">Care actions completed</span>
         </div>
       </div>
 
+      {/* Appearance */}
+      <div className="profile-appearance-card">
+        <ThemeToggle />
+      </div>
+
       {/* Account Actions */}
       <div className="profile-actions-card">
+        <Link to="/history" className="profile-history-link">View care history →</Link>
         <Button variant="secondary" onClick={handleLogout} loading={loggingOut}>
           <SignOut size={18} /> Log Out
         </Button>
-        <button className="profile-delete-link" disabled>
-          Delete Account (coming soon)
+        <button
+          className="profile-delete-btn"
+          onClick={() => setShowDeleteModal(true)}
+          aria-label="Delete account"
+          aria-haspopup="dialog"
+        >
+          Delete Account
         </button>
       </div>
+
+      <DeleteAccountModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onDeleteSuccess={handleDeleteAccount}
+      />
     </div>
   );
 }

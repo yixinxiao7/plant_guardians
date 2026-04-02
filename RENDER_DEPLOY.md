@@ -1,52 +1,134 @@
 # Deploying Plant Guardians to Render
 
-## Quick Start (Blueprint Deploy)
+## Prerequisites
 
-1. Push this repo to GitHub
-2. In the Render dashboard, click **New → Blueprint**
-3. Connect your GitHub repo — Render reads `render.yaml` and creates all 3 services
-4. After the initial deploy finishes, set two env vars manually (see below)
-5. Rebuild both services to pick up the new values
+- A [Render](https://render.com) account
+- This repo pushed to GitHub
+- A Google Gemini API key (from [Google AI Studio](https://makersuite.google.com/app/apikey)) — optional, AI features will gracefully degrade without it
 
-## Post-Deploy: Set Environment Variables
+## Option A: One-Click Deploy (Recommended)
 
-### Backend (plant-guardians-api) → Environment tab
+1. Push this branch to GitHub
+2. Go to [https://render.com/deploy](https://render.com/deploy)
+3. Connect your GitHub repo — Render will detect `render.yaml` automatically
+4. Render creates 3 resources: PostgreSQL database, backend web service, frontend static site
+5. **After deploy, set these env vars manually** (marked `sync: false` in render.yaml):
 
-| Variable | Value |
-|----------|-------|
-| `FRONTEND_URL` | Your frontend URL, e.g. `https://plant-guardians.onrender.com` |
-| `GEMINI_API_KEY` | Your Google Gemini API key (optional — AI features degrade gracefully without it) |
-
-Then click **Manual Deploy → Deploy latest commit**.
-
-### Frontend (plant-guardians) → Environment tab
+### Backend service → Environment tab:
 
 | Variable | Value |
 |----------|-------|
-| `VITE_API_BASE_URL` | Your backend URL + `/api/v1`, e.g. `https://plant-guardians-api.onrender.com/api/v1` |
+| `FRONTEND_URL` | Your frontend's URL, e.g. `https://plant-guardians.onrender.com` |
+| `GEMINI_API_KEY` | Your Google Gemini API key (optional) |
 
-Then click **Manual Deploy → Deploy latest commit** (this is a build-time variable, so a rebuild is required).
+### Frontend static site → Environment tab:
 
-## Verify
+| Variable | Value |
+|----------|-------|
+| `VITE_API_BASE_URL` | Your backend's URL + `/api/v1`, e.g. `https://plant-guardians-api.onrender.com/api/v1` |
+
+6. **Trigger a rebuild** of the frontend after setting `VITE_API_BASE_URL` (it's a build-time variable)
+7. **Trigger a redeploy** of the backend after setting `FRONTEND_URL` and `GEMINI_API_KEY`
+
+## Option B: Manual Setup
+
+### Step 1: Create PostgreSQL Database
+
+1. Render Dashboard → New → PostgreSQL
+2. Name: `plant-guardians-db`
+3. Plan: Free
+4. Region: Choose closest to your users (e.g., Oregon for US West)
+5. Click Create Database
+6. Copy the **Internal Database URL** from the database info page
+
+### Step 2: Create Backend Web Service
+
+1. Render Dashboard → New → Web Service
+2. Connect your GitHub repo
+3. Configure:
+   - **Name:** `plant-guardians-api`
+   - **Root Directory:** `backend`
+   - **Runtime:** Node
+   - **Build Command:** `npm install && npm run migrate`
+   - **Start Command:** `npm start`
+   - **Plan:** Free
+4. Add environment variables:
+
+| Variable | Value |
+|----------|-------|
+| `NODE_ENV` | `production` |
+| `RENDER` | `true` |
+| `DATABASE_URL` | (paste Internal Database URL from Step 1) |
+| `JWT_SECRET` | (generate: `openssl rand -hex 64`) |
+| `JWT_EXPIRES_IN` | `15m` |
+| `REFRESH_TOKEN_EXPIRES_DAYS` | `7` |
+| `FRONTEND_URL` | (set after frontend deploys — e.g., `https://plant-guardians.onrender.com`) |
+| `GEMINI_API_KEY` | (your Google Gemini key, optional) |
+| `MAX_UPLOAD_SIZE_MB` | `5` |
+| `RATE_LIMIT_WINDOW_MS` | `900000` |
+| `RATE_LIMIT_MAX` | `100` |
+| `AUTH_RATE_LIMIT_MAX` | `20` |
+
+5. Under Advanced → Health Check Path: `/api/health`
+6. Click Create Web Service
+
+### Step 3: Create Frontend Static Site
+
+1. Render Dashboard → New → Static Site
+2. Connect same GitHub repo
+3. Configure:
+   - **Name:** `plant-guardians`
+   - **Root Directory:** `frontend`
+   - **Build Command:** `npm install && npm run build`
+   - **Publish Directory:** `dist`
+4. Add environment variable:
+
+| Variable | Value |
+|----------|-------|
+| `VITE_API_BASE_URL` | `https://plant-guardians-api.onrender.com/api/v1` (use your actual backend URL) |
+
+5. Under Redirects/Rewrites, add a catch-all rewrite:
+   - Source: `/*`
+   - Destination: `/index.html`
+   - Action: Rewrite
+6. Click Create Static Site
+
+### Step 4: Wire Up FRONTEND_URL
+
+1. Go back to the **backend** service → Environment tab
+2. Set `FRONTEND_URL` to the frontend's live URL (e.g., `https://plant-guardians.onrender.com`)
+3. Click Save Changes — this triggers a redeploy
+
+## Verify Deployment
+
+Once both services are live:
 
 ```bash
-# Backend health check
+# Health check
 curl https://plant-guardians-api.onrender.com/api/health
+# Expected: {"status":"ok","timestamp":"..."}
 
-# Visit the app
+# Visit the frontend
 open https://plant-guardians.onrender.com
 ```
 
-## Free Tier Notes
+## Important Notes
 
-- **Cold starts:** The backend spins down after 15 min of inactivity. First request after idle takes ~30-60s.
-- **Database expiry:** Free PostgreSQL expires after 90 days. Recreate or upgrade when prompted.
-- **Ephemeral disk:** Uploaded plant photos are lost on redeploy. For persistence, upgrade to a paid plan with a persistent disk or integrate cloud storage (S3, Cloudflare R2).
+### Free Tier Limitations
+- **Backend spins down after 15 minutes of inactivity.** First request after idle takes ~30-60 seconds (cold start). This is normal on Render's free tier.
+- **Free PostgreSQL expires after 90 days.** You'll need to recreate it or upgrade to a paid plan.
+- **File uploads are ephemeral.** Render's free tier uses an ephemeral filesystem — uploaded plant photos will be lost on redeploy. For persistent uploads, consider upgrading to a paid plan with a persistent disk, or integrating a cloud storage service (S3, Cloudflare R2, etc.).
 
-## Custom Domain (Optional)
+### Custom Domain (Optional)
+1. Purchase a domain (e.g., from Namecheap, Cloudflare, Google Domains)
+2. In Render, go to your frontend static site → Settings → Custom Domains
+3. Add your domain and follow Render's DNS instructions
+4. Repeat for the backend if you want a subdomain like `api.yourdomain.com`
+5. Update `FRONTEND_URL` on the backend and `VITE_API_BASE_URL` on the frontend accordingly
+6. Rebuild both services
 
-1. Purchase a domain
-2. In Render → your service → Settings → Custom Domains → add it
-3. Follow Render's DNS instructions (CNAME record)
-4. Update `FRONTEND_URL` on the backend and `VITE_API_BASE_URL` on the frontend to use the new domain
-5. Rebuild both services
+### Security Notes
+- `JWT_SECRET` is auto-generated by Render when using the blueprint (render.yaml). For manual setup, generate a strong secret.
+- CORS is configured to only allow requests from the `FRONTEND_URL` origin.
+- Cookies use `sameSite: 'none'` on Render (detected automatically via `RENDER=true` env var) to support cross-origin auth between the frontend and backend subdomains.
+- All cookies are `secure: true` and `httpOnly: true`.

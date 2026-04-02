@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkle } from '@phosphor-icons/react';
 import { plants as plantsApi } from '../utils/api.js';
@@ -8,7 +8,7 @@ import Input from '../components/Input.jsx';
 import Button from '../components/Button.jsx';
 import PhotoUpload from '../components/PhotoUpload.jsx';
 import CareScheduleForm from '../components/CareScheduleForm.jsx';
-import AIAdviceModal from '../components/AIAdviceModal.jsx';
+import AIAdvicePanel from '../components/AIAdvicePanel.jsx';
 import './PlantFormPage.css';
 
 export default function AddPlantPage() {
@@ -36,7 +36,7 @@ export default function AddPlantPage() {
   const [showAI, setShowAI] = useState(false);
   const [aiFilledFields, setAiFilledFields] = useState([]);
 
-  const canAI = type.trim() || photoUrl;
+  const aiButtonRef = useRef(null);
 
   const validate = () => {
     const errs = {};
@@ -133,45 +133,32 @@ export default function AddPlantPage() {
 
   const handleAIAccept = (advice) => {
     const filled = [];
-    if (advice.identified_plant_type && !type.trim()) {
-      setType(advice.identified_plant_type);
+
+    // New Sprint 17 response shape: flat care object with *_interval_days
+    if (advice.identified_plant && !type.trim()) {
+      setType(advice.identified_plant);
       filled.push('type');
     }
 
-    if (advice.care_advice?.watering) {
-      const w = advice.care_advice.watering;
-      setWatering({ value: String(w.frequency_value), unit: w.frequency_unit });
+    if (advice.care?.watering_interval_days != null) {
+      setWatering({ value: String(advice.care.watering_interval_days), unit: 'days' });
       filled.push('watering');
     }
 
-    if (advice.care_advice?.fertilizing) {
-      const f = advice.care_advice.fertilizing;
-      let unit = f.frequency_unit;
-      let val = f.frequency_value;
-      // Convert years to months for storage
-      if (unit === 'years') {
-        unit = 'months';
-        val = val * 12;
-      }
-      setFertilizing({ value: String(val), unit });
+    if (advice.care?.fertilizing_interval_days != null) {
+      setFertilizing({ value: String(advice.care.fertilizing_interval_days), unit: 'days' });
       setFertilizingExpanded(true);
       filled.push('fertilizing');
     }
 
-    if (advice.care_advice?.repotting) {
-      const r = advice.care_advice.repotting;
-      let unit = r.frequency_unit;
-      let val = r.frequency_value;
-      if (unit === 'years') {
-        unit = 'months';
-        val = val * 12;
-      }
-      setRepotting({ value: String(val), unit });
+    if (advice.care?.repotting_interval_days != null) {
+      setRepotting({ value: String(advice.care.repotting_interval_days), unit: 'days' });
       setRepottingExpanded(true);
       filled.push('repotting');
     }
 
     setAiFilledFields(filled);
+    addToast('AI advice applied! Review and save your plant.', 'success');
     // Clear AI badges after 5 seconds
     setTimeout(() => setAiFilledFields([]), 5000);
   };
@@ -232,26 +219,18 @@ export default function AddPlantPage() {
           </div>
         </section>
 
-        {/* AI Advice card */}
-        <section className="ai-advice-card-section">
-          <div className="ai-advice-prompt">
-            <div>
-              <h3 className="ai-advice-heading">
-                <Sparkle size={18} color="#5C7A5C" /> Get AI Care Advice
-              </h3>
-              <p className="ai-advice-desc">Upload a photo or enter the plant type above, then let our AI recommend a care schedule.</p>
-            </div>
-            <Button
-              variant="secondary"
-              onClick={() => setShowAI(true)}
-              disabled={!canAI || saving}
-              title={!canAI ? 'Add a photo or plant type first' : undefined}
-            >
-              <Sparkle size={16} />
-              Get AI Advice
-            </Button>
-          </div>
-        </section>
+        {/* AI Advice trigger */}
+        <div className="ai-advice-trigger">
+          <Button
+            ref={aiButtonRef}
+            variant="secondary"
+            onClick={() => setShowAI(true)}
+            disabled={saving}
+          >
+            <Sparkle size={16} />
+            ✦ Get AI Advice
+          </Button>
+        </div>
 
         {/* Care Schedule */}
         <section className="plant-form-section">
@@ -274,6 +253,7 @@ export default function AddPlantPage() {
             careType="fertilizing"
             label="Fertilizing"
             expanded={fertilizingExpanded}
+            onExpand={() => setFertilizingExpanded(true)}
             frequency={fertilizing}
             onFrequencyChange={(f) => { setFertilizing(f); if (!fertilizingExpanded) setFertilizingExpanded(true); }}
             lastDoneAt={fertilizingLastDone}
@@ -286,6 +266,7 @@ export default function AddPlantPage() {
             careType="repotting"
             label="Repotting"
             expanded={repottingExpanded}
+            onExpand={() => setRepottingExpanded(true)}
             frequency={repotting}
             onFrequencyChange={(f) => { setRepotting(f); if (!repottingExpanded) setRepottingExpanded(true); }}
             lastDoneAt={repottingLastDone}
@@ -306,12 +287,11 @@ export default function AddPlantPage() {
         </div>
       </form>
 
-      <AIAdviceModal
+      <AIAdvicePanel
         isOpen={showAI}
         onClose={() => setShowAI(false)}
-        plantType={type}
-        photoUrl={photoUrl}
         onAccept={handleAIAccept}
+        initialPlantType={type}
       />
     </div>
   );

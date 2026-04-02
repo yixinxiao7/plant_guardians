@@ -1,9 +1,11 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import EditPlantPage from '../pages/EditPlantPage.jsx';
+
+const mockNavigate = vi.fn();
 
 vi.mock('react-router-dom', () => ({
   useParams: () => ({ id: '1' }),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
 }));
 
 vi.mock('@phosphor-icons/react', () => ({
@@ -24,14 +26,22 @@ vi.mock('@phosphor-icons/react', () => ({
   Lightbulb: (props) => <span data-testid="icon-lightbulb" {...props} />,
 }));
 
+const mockPlant = {
+  id: '1',
+  name: 'Test Plant',
+  type: 'Pothos',
+  notes: 'Some notes',
+  photo_url: '',
+  care_schedules: [
+    { care_type: 'watering', frequency_value: 7, frequency_unit: 'days', last_done_at: '2026-03-20T00:00:00.000Z' },
+    { care_type: 'fertilizing', frequency_value: 1, frequency_unit: 'months', last_done_at: '2026-03-15T00:00:00.000Z' },
+  ],
+};
+
+let mockUsePlantDetail;
+
 vi.mock('../hooks/usePlants.js', () => ({
-  usePlantDetail: () => ({
-    plant: null,
-    loading: true,
-    error: null,
-    notFound: false,
-    fetchPlant: vi.fn().mockResolvedValue(null),
-  }),
+  usePlantDetail: () => mockUsePlantDetail,
 }));
 
 vi.mock('../hooks/useToast.jsx', () => ({
@@ -57,6 +67,16 @@ vi.mock('../utils/validation.js', () => ({
 }));
 
 describe('EditPlantPage', () => {
+  beforeEach(() => {
+    mockUsePlantDetail = {
+      plant: null,
+      loading: true,
+      error: null,
+      notFound: false,
+      fetchPlant: vi.fn().mockResolvedValue(null),
+    };
+  });
+
   it('renders without crashing', () => {
     render(<EditPlantPage />);
     const skeletons = document.querySelectorAll('.skeleton');
@@ -67,5 +87,116 @@ describe('EditPlantPage', () => {
     render(<EditPlantPage />);
     const skeletons = document.querySelectorAll('.skeleton');
     expect(skeletons.length).toBeGreaterThan(0);
+  });
+
+  // T-047: isDirty detects last_done_at changes
+  it('enables Save button when watering last_done_at is changed', async () => {
+    mockUsePlantDetail = {
+      plant: mockPlant,
+      loading: false,
+      error: null,
+      notFound: false,
+      fetchPlant: vi.fn().mockResolvedValue(mockPlant),
+    };
+
+    render(<EditPlantPage />);
+
+    // Wait for form to populate
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Test Plant')).toBeInTheDocument();
+    });
+
+    // Save button should be disabled (no changes)
+    const saveBtn = screen.getByRole('button', { name: /save changes/i });
+    expect(saveBtn).toBeDisabled();
+
+    // Change watering last done date
+    const wateringDateInput = document.getElementById('watering-last-done');
+    fireEvent.change(wateringDateInput, { target: { value: '2026-03-25' } });
+
+    // Save button should now be enabled
+    await waitFor(() => {
+      expect(saveBtn).not.toBeDisabled();
+    });
+  });
+
+  it('enables Save button when fertilizing last_done_at is changed', async () => {
+    mockUsePlantDetail = {
+      plant: mockPlant,
+      loading: false,
+      error: null,
+      notFound: false,
+      fetchPlant: vi.fn().mockResolvedValue(mockPlant),
+    };
+
+    render(<EditPlantPage />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Test Plant')).toBeInTheDocument();
+    });
+
+    const saveBtn = screen.getByRole('button', { name: /save changes/i });
+    expect(saveBtn).toBeDisabled();
+
+    // Change fertilizing last done date
+    const fertDateInput = document.getElementById('fertilizing-last-done');
+    fireEvent.change(fertDateInput, { target: { value: '2026-03-22' } });
+
+    await waitFor(() => {
+      expect(saveBtn).not.toBeDisabled();
+    });
+  });
+
+  it('keeps Save button disabled when last_done_at matches original', async () => {
+    mockUsePlantDetail = {
+      plant: mockPlant,
+      loading: false,
+      error: null,
+      notFound: false,
+      fetchPlant: vi.fn().mockResolvedValue(mockPlant),
+    };
+
+    render(<EditPlantPage />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Test Plant')).toBeInTheDocument();
+    });
+
+    const saveBtn = screen.getByRole('button', { name: /save changes/i });
+    expect(saveBtn).toBeDisabled();
+  });
+
+  // T-054: Photo removal enables Save button
+  it('enables Save button when user removes an existing photo', async () => {
+    const plantWithPhoto = {
+      ...mockPlant,
+      photo_url: 'http://localhost:3000/uploads/test-photo.jpg',
+    };
+    mockUsePlantDetail = {
+      plant: plantWithPhoto,
+      loading: false,
+      error: null,
+      notFound: false,
+      fetchPlant: vi.fn().mockResolvedValue(plantWithPhoto),
+    };
+
+    render(<EditPlantPage />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Test Plant')).toBeInTheDocument();
+    });
+
+    // Save button should be disabled (no changes yet)
+    const saveBtn = screen.getByRole('button', { name: /save changes/i });
+    expect(saveBtn).toBeDisabled();
+
+    // Click the "Remove photo" button
+    const removeBtn = screen.getByText(/remove photo/i);
+    fireEvent.click(removeBtn);
+
+    // Save button should now be enabled since photo was removed
+    await waitFor(() => {
+      expect(saveBtn).not.toBeDisabled();
+    });
   });
 });

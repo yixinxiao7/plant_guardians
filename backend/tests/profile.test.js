@@ -19,6 +19,9 @@ beforeEach(async () => {
 
 describe('GET /api/v1/profile', () => {
   it('should return user profile with stats', async () => {
+    // T-031: Extended timeout — the JOIN-based care_actions count + bcrypt hashing
+    // in createTestUser can exceed the default 30s on cold PG connections
+    jest.setTimeout(60000);
     const { accessToken, user } = await createTestUser();
 
     // Create a plant and do a care action

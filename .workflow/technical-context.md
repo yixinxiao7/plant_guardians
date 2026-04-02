@@ -178,3 +178,126 @@ CREATE INDEX idx_care_actions_performed_at ON care_actions (plant_id, performed_
 | Multer (npm) | Multipart file upload handling for photo endpoint (T-010) | `backend/src/middleware/upload.js` |
 
 ---
+
+## Sprint 8 — Schema & Migration Notes (T-043)
+
+**Proposed by:** Backend Engineer — 2026-03-27
+**Status: Auto-approved (automated sprint)** — Manager Agent will review in closeout phase.
+
+### No New Migrations Required
+
+The `GET /api/v1/care-due` endpoint (T-043) requires **no schema changes**. All data needed to compute care-due status is already present in the existing Sprint 1 schema:
+
+- **`plants`** (`20260323_03_create_plants.js`): `id`, `name`, `user_id`, `created_at` — provides ownership scoping and the baseline date for plants whose care has never been logged
+- **`care_schedules`** (`20260323_04_create_care_schedules.js`): `plant_id`, `care_type`, `frequency_days` — provides the schedule definition (`next_due = last_done_at + frequency_days`)
+- **`care_actions`** (`20260323_05_create_care_actions.js`): `plant_id`, `care_type`, `performed_at` — provides `last_done_at` via `MAX(performed_at)` grouped by `(plant_id, care_type)`
+
+The categorization logic (overdue / due_today / upcoming) is computed entirely in the application layer using the above columns. No new columns, indexes, or tables are needed.
+
+**No migration files will be created for Sprint 8.**
+
+### Query Design (for implementation reference)
+
+The computation is a single aggregating query (care_schedules LEFT JOIN care_actions) followed by application-layer date arithmetic:
+
+```sql
+SELECT
+  cs.plant_id,
+  p.name AS plant_name,
+  cs.care_type,
+  cs.frequency_days,
+  p.created_at AS plant_created_at,
+  MAX(ca.performed_at) AS last_done_at
+FROM care_schedules cs
+JOIN plants p ON cs.plant_id = p.id
+LEFT JOIN care_actions ca
+  ON ca.plant_id = cs.plant_id
+  AND ca.care_type = cs.care_type
+WHERE p.user_id = :userId
+GROUP BY cs.plant_id, p.name, cs.care_type, cs.frequency_days, p.created_at;
+```
+
+Application layer then computes `next_due = (last_done_at ?? plant_created_at) + frequency_days` and categorises each row. All queries use parameterized Knex values — no string concatenation.
+
+---
+
+## Sprint 7 — Schema & Migration Notes (T-039)
+
+**Proposed by:** Backend Engineer — 2026-03-25
+**Status: Auto-approved (automated sprint)** — Manager Agent will review in closeout phase.
+
+### No New Migrations Required
+
+The `GET /api/v1/care-actions` endpoint (T-039) requires **no schema changes**. The existing `care_actions` table created in Sprint 1 (migration `20260323_05_create_care_actions.js`) already provides:
+
+- All required columns: `id`, `plant_id`, `care_type`, `performed_at`
+- Ownership linkage via `plant_id → plants.id → user_id` (for auth scoping)
+- Required indexes for efficient paginated queries: `idx_care_actions_plant_id` and `idx_care_actions_performed_at`
+
+The `plant_name` field in the API response is resolved by a `JOIN` with the `plants` table at query time — no denormalization, no new columns.
+
+**No migration files will be created for Sprint 7.**
+
+### Query Design (for implementation reference)
+
+The core query pattern for `GET /api/v1/care-actions`:
+
+```sql
+SELECT
+  ca.id,
+  ca.plant_id,
+  p.name AS plant_name,
+  ca.care_type,
+  ca.performed_at
+FROM care_actions ca
+JOIN plants p ON ca.plant_id = p.id
+WHERE p.user_id = :userId          -- ownership scoping (auth)
+  [AND ca.plant_id = :plantId]     -- optional plant filter
+ORDER BY ca.performed_at DESC
+LIMIT :limit OFFSET :offset;
+```
+
+Count query (for pagination `total`):
+
+```sql
+SELECT COUNT(*) AS total
+FROM care_actions ca
+JOIN plants p ON ca.plant_id = p.id
+WHERE p.user_id = :userId
+  [AND ca.plant_id = :plantId];
+```
+
+Both queries use parameterized values via Knex — no string concatenation.
+
+---
+
+## Sprint 11 — Schema & Migration Notes (T-053)
+
+**Proposed by:** Backend Engineer — 2026-03-30
+**Status: Auto-approved (automated sprint)** — Manager Agent will review in closeout phase.
+
+### No New Migrations Required
+
+T-053 (persistent login via HttpOnly refresh token cookie) requires **no schema changes**. The existing `refresh_tokens` table created in Sprint 1 stores all data needed:
+
+- `id`, `user_id`, `token_hash`, `expires_at`, `revoked_at`, `created_at` — all present and sufficient.
+- Token lookup, rotation, and revocation logic is unchanged.
+- The only change is in the **transport layer**: the raw token moves from JSON response body → `Set-Cookie` header on responses, and from JSON request body → `req.cookies` on requests.
+
+**No migration files will be created for Sprint 11.**
+
+### Dependency Addition — `cookie-parser`
+
+The `cookie-parser` npm package must be added as a production dependency:
+
+```bash
+npm install cookie-parser
+```
+
+This is the only external dependency change for Sprint 11. The package is a well-maintained Express ecosystem package. `cookie-parser` is registered in `backend/src/app.js` before the auth router so that `req.cookies` is populated in all auth route handlers.
+
+### Environment Variables — Sprint 11
+
+No new environment variables. Existing `REFRESH_TOKEN_EXPIRES_DAYS` (default: `7`) is used to derive the cookie `Max-Age` (value × 86400 seconds).
+
+---

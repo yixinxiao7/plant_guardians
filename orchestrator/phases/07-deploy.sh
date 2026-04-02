@@ -38,11 +38,11 @@ HANDOFF:
 11. Log a handoff to Monitor Agent to run post-deploy health checks
 12. Include the URLs/ports where the services are running
 
-If any step fails, log the failure details in qa-build-log.md and handoff-log.md. Do not proceed to production deployment — that only happens after Monitor and User Agent verification.
+If any step fails, log the failure details in qa-build-log.md and handoff-log.md. Do not proceed to production deployment — that only happens after Monitor Agent verification.
 
 Note: For this local/staging setup, 'staging' means running the built application locally with a real database. Production deployment will be handled separately when CI/CD is configured."
 
-    run_agent_with_retry "deploy-engineer" "$task_prompt" 3 40 "${MODEL_LIGHT:-sonnet}"
+    run_agent_with_retry "deploy-engineer" "$task_prompt" 3 50 "${MODEL_LIGHT:-sonnet}"
 
     if phase_deploy_complete; then
         sprint_state_set "phase" "deploy"

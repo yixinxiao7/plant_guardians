@@ -34,14 +34,14 @@ vi.mock('../utils/validation.js', () => ({
 describe('LoginPage', () => {
   it('renders without crashing', () => {
     render(<LoginPage />);
-    expect(screen.getByText('Plant Guardians')).toBeInTheDocument();
+    expect(screen.getAllByText('Plant Guardians').length).toBeGreaterThan(0);
   });
 
   it('renders login form with tabs', () => {
     render(<LoginPage />);
     expect(screen.getByRole('tab', { name: 'Log In' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Sign Up' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Email')).toBeInTheDocument();
-    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Email/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Password/)).toBeInTheDocument();
   });
 });

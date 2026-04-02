@@ -6,12 +6,16 @@
 /* Brand Panel */
 .login-brand-panel {
   width: 40%;
-  background: #4A6449;
+  background: var(--color-accent-hover);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   overflow: hidden;
+}
+
+[data-theme="dark"] .login-brand-panel {
+  background: #2A2620;
 }
 
 .login-brand-content {
@@ -90,9 +94,17 @@
 }
 
 .login-tab.active {
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-text-primary);
   box-shadow: 0 1px 4px rgba(44, 44, 44, 0.1);
+}
+
+[data-theme="dark"] .login-tab.active {
+  background: #242220;
+}
+
+[data-theme="dark"] .login-tabs {
+  background: #2C2A26;
 }
 
 /* Form */

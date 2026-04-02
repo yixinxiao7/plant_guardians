@@ -19,6 +19,7 @@ export default function AIAdviceModal({
   const [localPhotoUrl, setLocalPhotoUrl] = useState('');
   const [advice, setAdvice] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [errorCode, setErrorCode] = useState('');
   const [loadingText, setLoadingText] = useState('');
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function AIAdviceModal({
       setLocalPhoto(null);
       setAdvice(null);
       setErrorMessage('');
+      setErrorCode('');
     }
   }, [isOpen, initialPlantType, initialPhotoUrl]);
 
@@ -58,10 +60,11 @@ export default function AIAdviceModal({
       setAdvice(data);
       setState('results');
     } catch (err) {
+      setErrorCode(err.code || '');
       if (err.code === 'PLANT_NOT_IDENTIFIABLE') {
         setErrorMessage("We couldn't identify the plant from this photo. Try a clearer photo or enter the plant type manually.");
       } else if (err.code === 'AI_SERVICE_UNAVAILABLE') {
-        setErrorMessage('Our AI is temporarily unavailable. Try again in a moment.');
+        setErrorMessage('Our AI service is temporarily offline. You can still add your plant manually.');
       } else {
         setErrorMessage('Check your internet connection and try again.');
       }
@@ -218,16 +221,20 @@ export default function AIAdviceModal({
     );
   };
 
+  const isServiceUnavailable = errorCode === 'AI_SERVICE_UNAVAILABLE';
+
   const renderError = () => (
     <div className="ai-modal-error">
       <div className="ai-error-icon">!</div>
       <h3>Couldn't get advice right now</h3>
       <p>{errorMessage}</p>
       <div className="ai-modal-actions">
-        <Button variant="secondary" onClick={handleStartOver}>
-          Try Again
-        </Button>
-        <Button variant="ghost" onClick={onClose}>
+        {!isServiceUnavailable && (
+          <Button variant="secondary" onClick={handleStartOver}>
+            Try Again
+          </Button>
+        )}
+        <Button variant={isServiceUnavailable ? 'secondary' : 'ghost'} onClick={onClose}>
           Close
         </Button>
       </div>

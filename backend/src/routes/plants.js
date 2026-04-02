@@ -11,6 +11,7 @@ const { NotFoundError, ValidationError } = require('../utils/errors');
 
 const VALID_CARE_TYPES = ['watering', 'fertilizing', 'repotting'];
 const VALID_FREQ_UNITS = ['days', 'weeks', 'months'];
+const VALID_STATUSES = ['overdue', 'due_today', 'on_track'];
 
 /**
  * Validate care_schedules array from request body.
@@ -84,16 +85,70 @@ async function buildPlantResponse(plant, includeRecentActions = false) {
 // All routes require auth
 router.use(authenticate);
 
+/**
+ * Determine a plant's aggregate care status from its enriched schedules.
+ * - "overdue" if at least one schedule is overdue
+ * - "due_today" if at least one schedule is due_today (and none overdue)
+ * - "on_track" if all schedules are on_track
+ * - null if the plant has zero schedules (no computable status)
+ */
+function plantAggregateStatus(enrichedSchedules) {
+  if (enrichedSchedules.length === 0) return null;
+  if (enrichedSchedules.some((s) => s.status === 'overdue')) return 'overdue';
+  if (enrichedSchedules.some((s) => s.status === 'due_today')) return 'due_today';
+  return 'on_track';
+}
+
 // GET /api/v1/plants
 router.get('/', async (req, res, next) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
 
-    const { plants, total } = await Plant.findByUserId(req.user.id, { page, limit });
+    // Validate search param (T-083)
+    let search = undefined;
+    if (req.query.search !== undefined) {
+      search = String(req.query.search).trim();
+      if (search.length > 200) {
+        throw new ValidationError('search must be at most 200 characters.');
+      }
+      if (search.length === 0) {
+        search = undefined; // empty search treated as no filter
+      }
+    }
+
+    // Validate status param (T-083)
+    let statusFilter = undefined;
+    if (req.query.status !== undefined) {
+      if (!VALID_STATUSES.includes(req.query.status)) {
+        throw new ValidationError(`status must be one of: ${VALID_STATUSES.join(', ')}.`);
+      }
+      statusFilter = req.query.status;
+    }
+
+    // Validate utcOffset param (T-083)
+    let utcOffsetMinutes = 0;
+    if (req.query.utcOffset !== undefined) {
+      const parsed = parseInt(req.query.utcOffset, 10);
+      if (isNaN(parsed) || parsed < -840 || parsed > 840 || String(parsed) !== String(req.query.utcOffset)) {
+        throw new ValidationError('utcOffset must be an integer in the range -840 to 840.');
+      }
+      utcOffsetMinutes = parsed;
+    }
+
+    // When status filter is active, we must compute status for all matching plants
+    // before paginating, because status is derived in the application layer.
+    const needsAppLevelFiltering = !!statusFilter;
+
+    const { plants: rawPlants, total: rawTotal } = await Plant.findByUserId(req.user.id, {
+      page: needsAppLevelFiltering ? 1 : page,
+      limit: needsAppLevelFiltering ? undefined : limit,
+      search,
+      noPagination: needsAppLevelFiltering,
+    });
 
     // Batch load schedules
-    const plantIds = plants.map((p) => p.id);
+    const plantIds = rawPlants.map((p) => p.id);
     const allSchedules = await CareSchedule.findByPlantIds(plantIds);
 
     // Group schedules by plant_id
@@ -103,7 +158,8 @@ router.get('/', async (req, res, next) => {
       scheduleMap[s.plant_id].push(s);
     }
 
-    const data = plants.map((plant) => {
+    // Build full plant objects with enriched schedules
+    let data = rawPlants.map((plant) => {
       const schedules = scheduleMap[plant.id] || [];
       const enriched = enrichSchedules(schedules.map((s) => ({
         id: s.id,
@@ -111,7 +167,7 @@ router.get('/', async (req, res, next) => {
         frequency_value: s.frequency_value,
         frequency_unit: s.frequency_unit,
         last_done_at: s.last_done_at,
-      })));
+      })), utcOffsetMinutes);
 
       return {
         id: plant.id,
@@ -126,6 +182,20 @@ router.get('/', async (req, res, next) => {
       };
     });
 
+    // Apply status filter if provided (T-083)
+    let total = rawTotal;
+    if (statusFilter) {
+      data = data.filter((plant) => {
+        const aggStatus = plantAggregateStatus(plant.care_schedules);
+        return aggStatus === statusFilter;
+      });
+      total = data.length;
+
+      // Apply pagination to the filtered set
+      const offset = (page - 1) * limit;
+      data = data.slice(offset, offset + limit);
+    }
+
     res.status(200).json({
       data,
       pagination: { page, limit, total },
@@ -139,7 +209,7 @@ router.get('/', async (req, res, next) => {
 router.post(
   '/',
   validateBody([
-    { field: 'name', required: true, type: 'string', min: 1, max: 200 },
+    { field: 'name', required: true, type: 'string', min: 1, max: 100 },
     { field: 'type', required: false, type: 'string', max: 200 },
     { field: 'notes', required: false, type: 'string', max: 2000 },
     { field: 'photo_url', required: false, type: 'string' },
@@ -189,7 +259,7 @@ router.put(
   '/:id',
   validateUUIDParam('id'),
   validateBody([
-    { field: 'name', required: true, type: 'string', min: 1, max: 200 },
+    { field: 'name', required: true, type: 'string', min: 1, max: 100 },
     { field: 'type', required: false, type: 'string', max: 200 },
     { field: 'notes', required: false, type: 'string', max: 2000 },
     { field: 'photo_url', required: false, type: 'string' },

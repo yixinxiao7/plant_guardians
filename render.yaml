@@ -1,5 +1,5 @@
 # Render Infrastructure-as-Code Blueprint
-# Deploy: connect your GitHub repo in the Render dashboard — it detects this file
+# Deploy: https://render.com/deploy → connect repo → Render detects this file
 #
 # Services:
 #   1. PostgreSQL database (free tier)
@@ -38,9 +38,9 @@ services:
       - key: REFRESH_TOKEN_EXPIRES_DAYS
         value: "7"
       - key: FRONTEND_URL
-        sync: false  # Set after frontend deploys (its .onrender.com URL)
+        sync: false  # Set manually after frontend deploys (its .onrender.com URL)
       - key: GEMINI_API_KEY
-        sync: false  # Set manually in Render dashboard (optional)
+        sync: false  # Set manually in Render dashboard
       - key: MAX_UPLOAD_SIZE_MB
         value: "5"
       - key: RATE_LIMIT_WINDOW_MS
@@ -64,4 +64,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_BASE_URL
-        sync: false  # Set to: https://plant-guardians-api.onrender.com/api/v1
+        sync: false  # Set to backend URL: https://plant-guardians-api.onrender.com/api/v1

@@ -824,3 +824,2120 @@ type CareAction = {
 ---
 
 *Contracts written by Backend Engineer — 2026-03-23. Sprint 1.*
+
+---
+
+## Sprint 3 Contracts Review
+
+**Date:** 2026-03-23
+**Author:** Backend Engineer
+**Sprint:** 3
+
+### Summary
+
+No new API endpoints are introduced in Sprint 3. All 14 endpoints documented in Sprint 1 above are fully implemented, tested (40/40 backend tests pass), and staging-verified. The Frontend Engineer may wire up all 7 UI screens directly against the existing contracts.
+
+This section provides a screen-by-screen mapping of which endpoints each UI spec requires, along with Sprint 3-specific integration notes.
+
+---
+
+### Screen → Endpoint Mapping
+
+| Spec | Screen | Endpoints Required | Tasks |
+|------|--------|--------------------|-------|
+| SPEC-001 | Login & Sign Up | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh` | T-001 |
+| SPEC-002 | Plant Inventory (Home) | `GET /plants`, `DELETE /plants/:id` | T-002 |
+| SPEC-003 | Add Plant | `POST /plants`, `POST /plants/:id/photo`, `POST /ai/advice` | T-003 |
+| SPEC-004 | Edit Plant | `GET /plants/:id`, `PUT /plants/:id` | T-004 |
+| SPEC-005 | Plant Detail | `GET /plants/:id`, `POST /plants/:id/care-actions`, `DELETE /plants/:id/care-actions/:action_id` | T-005 |
+| SPEC-006 | AI Advice Modal | `POST /plants/:id/photo` (optional pre-upload), `POST /ai/advice` | T-006 |
+| SPEC-007 | Profile Page | `GET /profile`, `POST /auth/logout` | T-007 |
+
+---
+
+### Sprint 3 Integration Notes (Per Screen)
+
+#### SPEC-001 — Login & Sign Up (T-001)
+
+- `POST /auth/register` returns `access_token` + `refresh_token` in the response body. Store `access_token` in React context memory only (never localStorage). `refresh_token` should be stored in an httpOnly cookie or in memory — do not persist to localStorage.
+- `POST /auth/login` returns the same shape. On success, redirect to `/` (inventory).
+- On 409 `EMAIL_ALREADY_EXISTS`: display inline message beneath the email field: "An account with this email already exists."
+- On 401 `INVALID_CREDENTIALS`: show a form-level banner (not a field error): "Incorrect email or password."
+- Token auto-refresh: when any authenticated request returns 401, call `POST /auth/refresh` with the stored refresh token, then retry the original request. If refresh also fails with 401, clear auth state and redirect to `/login`.
+
+#### SPEC-002 — Plant Inventory / Home (T-002)
+
+- `GET /plants` returns an array under `data` with `pagination`. Default `limit=50` is sufficient for MVP — pagination controls are not required in the UI this sprint.
+- Each plant object includes `care_schedules[]` with computed `status` (`on_track | due_today | overdue`) and `days_overdue`. The frontend must NOT compute these — use the server-provided values directly.
+- Status badge display priority (most urgent shown first on card): `overdue` > `due_today` > `on_track`.
+- `DELETE /plants/:id` returns `{ "data": { "message": "Plant deleted successfully.", "id": "uuid" } }`. The card should animate out (scale + opacity) on success.
+- If `GET /plants` returns 401, the auth auto-refresh flow should handle it silently. Only show the "Couldn't load your plants" error banner on non-auth API failures.
+
+#### SPEC-003 — Add Plant (T-003)
+
+- **Photo upload flow:** `POST /plants/:id/photo` requires the plant to already exist (it needs an `:id`). Recommended workflow: (a) create the plant first without a photo via `POST /plants`, then (b) upload the photo via `POST /plants/:id/photo`, then (c) save the returned `photo_url` to the plant via `PUT /plants/:id`. Alternatively, the UI may upload the photo to a temporary endpoint and include `photo_url` in the initial `POST /plants` — but since `POST /plants/:id/photo` requires an existing plant ID, option (a) is the correct flow.
+- `POST /plants` `care_schedules` field: the UI enforces watering as required client-side. The API accepts it as optional (does not 400 if omitted), so client-side enforcement is the source of truth here.
+- `frequency_unit` values accepted by the API: `"days"`, `"weeks"`, `"months"` only. If the AI advice endpoint returns `"years"` for repotting, convert to months (`value * 12`, unit `"months"`) before submitting to `POST /plants`.
+
+#### SPEC-004 — Edit Plant (T-004)
+
+- Load existing plant data via `GET /plants/:id` on page mount.
+- `PUT /plants/:id` is a **full replacement** of care schedules — send the complete desired schedule state. If the user removes a care type from the form, omit it from the `care_schedules` array in the PUT body (the server will delete it).
+- The "Save" button should be disabled until the user makes at least one change (dirty-state tracking in form state).
+- On success, redirect to the inventory screen (`/`).
+
+#### SPEC-005 — Plant Detail (T-005)
+
+- Load via `GET /plants/:id`. Response includes `care_schedules[]` (with computed `status`) and `recent_care_actions[]` (last 5 actions).
+- **"Mark as done" flow:** Call `POST /plants/:id/care-actions` with the `care_type`. The response contains `updated_schedule` — update that schedule's status in local state from the response (do not re-fetch the full plant).
+- **Undo flow (10-second window):** Call `DELETE /plants/:id/care-actions/:action_id` within 10 seconds. The response contains the reverted `updated_schedule` — update the local schedule state from it.
+- Status badge colors map: `on_track` → Status Green (`#4A7C59`), `due_today` → Status Yellow (`#C4921F`), `overdue` → Status Red (`#B85C38`).
+- `days_overdue` from the response can be displayed as "X days overdue" in the badge label when `status === "overdue"`.
+
+#### SPEC-006 — AI Advice Modal (T-006)
+
+- The modal accepts either a photo upload or a plain-text plant type name. If the user uploads a photo, call `POST /plants/:id/photo` first to get a `photo_url`, then pass that URL to `POST /ai/advice`. If text-only, pass `plant_type` directly.
+- **Note on photo-before-plant scenario:** If the AI modal is opened from the Add Plant screen before the plant is created, the photo cannot be uploaded to `POST /plants/:id/photo` (no plant ID yet). Recommended approach: show a "text-only" mode in the modal when no plant exists yet, or upload the photo after plant creation. The AI endpoint also accepts `photo_url` from any previously uploaded source — the UI may upload to a generic endpoint if one exists, but currently `POST /plants/:id/photo` is the only upload endpoint and requires an existing plant.
+  - **Practical guidance:** The modal should default to text-entry on the Add Plant screen (before a plant exists). If the user wants photo-based AI advice, they should first save the plant, then access the AI modal from the Edit Plant screen. This is acceptable MVP behavior.
+- Expected response latency: 2–8 seconds. Always show a loading spinner/skeleton in the modal.
+- On 422 `PLANT_NOT_IDENTIFIABLE`: show a user-friendly message — "We couldn't identify this plant from the photo. Try a clearer photo or enter the plant name manually."
+- On 502 `AI_SERVICE_UNAVAILABLE`: show — "AI advice is temporarily unavailable. You can add care schedules manually."
+- The "Accept" button should populate the Add/Edit Plant form fields with the AI-suggested values. Map `care_advice.watering`, `care_advice.fertilizing`, `care_advice.repotting` to the corresponding form fields. Convert `"years"` frequency_unit to months before writing to form state.
+
+#### SPEC-007 — Profile Page (T-007)
+
+- `GET /profile` returns `user` (id, full_name, email, created_at) and `stats` (plant_count, days_as_member, total_care_actions). All values are server-computed — display them directly.
+- `POST /auth/logout` requires the current `refresh_token` in the request body (see contract above). On success, clear all auth state (access token, refresh token) from memory and redirect to `/login`.
+- The profile page shows "member since" as a human-readable date formatted from `user.created_at`. Use the browser's `Intl.DateTimeFormat` API or a date utility — do not install a full date library for this one field.
+
+---
+
+### Environment & CORS Configuration (Sprint 3)
+
+Both development and staging origins are whitelisted in the backend CORS config:
+
+| Environment | Frontend Origin | Backend Port |
+|-------------|----------------|-------------|
+| Development (Vite dev server) | `http://localhost:5173` | `:3000` |
+| Staging (Vite preview) | `http://localhost:4173` | `:3000` |
+
+The `FRONTEND_URL` env var in `backend/.env` is set to `http://localhost:5173,http://localhost:4173` (comma-separated list). Both origins are accepted — no CORS issues should occur on either the dev server or the staging preview.
+
+**API base URL for frontend:** `http://localhost:3000/api/v1` (development and staging).
+
+---
+
+### Security Requirements for Frontend (Sprint 3)
+
+These items from the security checklist apply to frontend implementation and must be verified during QA (T-015):
+
+| Requirement | Detail |
+|-------------|--------|
+| Token storage | `access_token` in React context memory only — never `localStorage`, never `sessionStorage` |
+| Refresh token | In memory (React context) or httpOnly cookie — never exposed to JS if possible |
+| Auth guards | All routes except `/login` and `/signup` must redirect unauthenticated users to `/login` |
+| XSS | No use of `dangerouslySetInnerHTML`. All user content rendered as text nodes. |
+| HTTPS | N/A for staging. Required before production deploy. |
+| Token auto-refresh | On 401: silently refresh → retry. On refresh failure: clear auth + redirect to login. |
+
+---
+
+*Sprint 3 contract review written by Backend Engineer — 2026-03-23. No new endpoints. All 14 Sprint 1 endpoints confirmed valid.*
+
+---
+
+## Sprint 4 Contracts Review
+
+**Date:** 2026-03-24
+**Author:** Backend Engineer
+**Sprint:** 4
+**Related Task:** T-025 — Configure real Gemini API key + verify AI advice happy path
+
+---
+
+### Summary
+
+Sprint 4 introduces **no new API endpoints**. The active-sprint.md explicitly places any new endpoints out of scope. The full 14-endpoint surface area documented in Sprint 1 remains authoritative and unchanged.
+
+The only backend deliverable this sprint (T-025) is an operational change: replacing the placeholder `GEMINI_API_KEY` in `backend/.env` with a real key and verifying the `POST /api/v1/ai/advice` happy path end-to-end. No contract amendments are needed — the endpoint shape, validation rules, success response, and error codes are already fully specified in Sprint 1 Group 4 above.
+
+---
+
+### T-025 — AI Advice Happy Path: Contract Verification Notes
+
+**Endpoint:** `POST /api/v1/ai/advice` (see Sprint 1, GROUP 4 for full spec)
+
+**Status of contract:** ✅ No changes required. The existing contract is complete.
+
+**Blocking dependency:** T-025 cannot be configured until T-024 (Monitor Agent staging health check) returns `Deploy Verified: Yes`. The endpoint is implemented and tested (3/3 unit tests pass in the unconfigured-key path). The only gap is the live Gemini key.
+
+#### Happy-Path Response — Expected Shape (with real Gemini key)
+
+When `GEMINI_API_KEY` is a valid key, a well-formed request should return HTTP 200 with a body matching this contract:
+
+```json
+{
+  "data": {
+    "identified_plant_type": "Epipremnum aureum",
+    "confidence": "high",
+    "care_advice": {
+      "watering": {
+        "frequency_value": 7,
+        "frequency_unit": "days",
+        "notes": "Allow top inch of soil to dry between waterings. Reduce in winter."
+      },
+      "fertilizing": {
+        "frequency_value": 1,
+        "frequency_unit": "months",
+        "notes": "Feed monthly during the growing season (spring–summer). Skip in winter."
+      },
+      "repotting": {
+        "frequency_value": 2,
+        "frequency_unit": "years",
+        "notes": "Repot when rootbound. Use well-draining potting mix."
+      },
+      "light": "Bright indirect light; tolerates low light",
+      "humidity": "Moderate; mist occasionally",
+      "additional_tips": "Toxic to pets. Wipe leaves monthly to remove dust."
+    }
+  }
+}
+```
+
+**Notes for QA (T-025 verification):**
+- `identified_plant_type`: non-null string when a photo is submitted; may be null for text-only queries where the user already named the plant
+- `confidence`: one of `"high"`, `"medium"`, `"low"`; null for text-only queries
+- `care_advice.repotting.frequency_unit` may be `"years"` — this is valid in the response. The frontend converts years→months (`value × 12`) before writing to care schedule storage. The backend does **not** convert this automatically.
+- `care_advice.fertilizing` and `care_advice.repotting` may be `null` for some plant types if the AI determines they are not applicable.
+- Expected response latency with a real Gemini key: 2–8 seconds. The frontend loading state must remain visible throughout.
+
+#### Error Path Still Under Contract
+
+The following error cases are unchanged and must continue to pass after T-025 is configured:
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | Neither `plant_type` nor `photo_url` provided |
+| 401 | `UNAUTHORIZED` | Missing or invalid access token |
+| 422 | `PLANT_NOT_IDENTIFIABLE` | Gemini could not identify the plant |
+| 502 | `AI_SERVICE_UNAVAILABLE` | Gemini API returned an error or timed out |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+The 502 `AI_SERVICE_UNAVAILABLE` path is directly referenced in T-026 (Frontend: AI Modal 502 fix). The frontend fix must display only a "Close" button (no "Try Again") with the exact message: `"Our AI service is temporarily offline. You can still add your plant manually."` — this is a frontend-only change; the contract error shape is unchanged.
+
+---
+
+### Schema Changes — Sprint 4
+
+**No schema changes.** All 5 tables (`users`, `refresh_tokens`, `plants`, `care_schedules`, `care_actions`) established in Sprint 1 are sufficient. No new tables, columns, or indexes are required for T-025.
+
+---
+
+### Environment Configuration Note (T-025)
+
+The `GEMINI_API_KEY` environment variable is read from `backend/.env`. The variable name and loading mechanism are already in place from Sprint 1 implementation. Only the value needs to change — from the current placeholder to a valid key issued by Google AI Studio.
+
+**No other environment variables need to change for this sprint.**
+
+If the project owner has not yet provided a valid Gemini API key, T-025 scope reduces to:
+1. Documenting the gap in `qa-build-log.md`
+2. Confirming all 40/40 backend unit tests continue to pass with the placeholder key
+3. T-020 user testing proceeds with the AI advice flow known to be non-functional (the 502 error state will be shown — which is the correct and spec-compliant behavior after T-026 is merged)
+
+---
+
+*Sprint 4 contract review written by Backend Engineer — 2026-03-24. No new endpoints. Existing 14-endpoint contract unchanged. T-025 happy-path notes added for QA reference.*
+
+---
+
+## Sprint 5 Contracts — 2026-03-24
+
+---
+
+### Summary
+
+Sprint 5 introduces **no new API endpoints and no schema changes**. The active-sprint.md explicitly places all new features out of scope — Sprint 5 is exclusively MVP validation and closeout.
+
+The full 14-endpoint API surface documented in Sprint 1 (Groups 1–4) remains the authoritative and complete contract. No amendments are required.
+
+**Backend tasks this sprint:**
+
+| Task | Type | API Impact |
+|------|------|-----------|
+| T-025 | Configure real `GEMINI_API_KEY` + verify `POST /api/v1/ai/advice` happy path | No contract change — endpoint fully specified in Sprint 1 Group 4 and Sprint 4 T-025 notes |
+| T-029 | Fix intermittent "socket hang up" in `POST /api/v1/plants` backend test | No contract change — test infrastructure fix only |
+
+---
+
+### T-025 — Sprint 5 Status: Contract Verification (Carry-Over)
+
+**Endpoint:** `POST /api/v1/ai/advice` — see Sprint 1, GROUP 4 for full spec; see Sprint 4 T-025 section for happy-path response shape and QA notes.
+
+**Contract status:** ✅ No changes. All sprint 4 contract verification notes remain current and authoritative.
+
+**Sprint 5 scope:** The Backend Engineer will attempt to configure `GEMINI_API_KEY` in `backend/.env` with a valid key from Google AI Studio, then manually exercise the endpoint to confirm the happy-path 200 response matches the shape documented in the Sprint 4 T-025 section. Results will be written to `qa-build-log.md`.
+
+**If no valid key is available:** T-025 scope reduces to documenting the gap in `qa-build-log.md`. The 40/40 backend unit tests must still pass. T-020 user testing continues — Flow 1 and Flow 3 do not require AI; Flow 2 will show the spec-compliant 502 error state.
+
+**No frontend action required** — the `POST /api/v1/ai/advice` request/response shape is unchanged.
+
+---
+
+### T-029 — Sprint 5 Status: Flaky Test Fix (No API Impact)
+
+**Affected area:** Backend test suite only — `POST /api/v1/plants > should create a plant with care schedules` intermittently throws "socket hang up" due to supertest/server teardown timing.
+
+**API contract impact:** None. The `POST /api/v1/plants` endpoint behavior and contract are unchanged. This is a test infrastructure stability fix.
+
+**Resolution approaches under consideration:**
+1. Add `--runInBand` to Jest config (`backend/package.json` test script) to serialize test suites and eliminate cross-suite socket collisions
+2. Improve supertest server teardown — ensure `server.close()` is called with a callback (not fire-and-forget) in `afterAll` hooks
+3. Add a small `afterAll` delay between test files if teardown race conditions persist
+
+**Acceptance criteria (contract-level):** All 40/40 backend tests pass reliably across 3 consecutive full-suite runs. No endpoint behavior changes.
+
+---
+
+### Schema Changes — Sprint 5
+
+**No schema changes.** All 5 tables (`users`, `refresh_tokens`, `plants`, `care_schedules`, `care_actions`) from Sprint 1 are sufficient for all Sprint 5 work.
+
+No migration files will be created this sprint.
+
+---
+
+### Environment Configuration — Sprint 5
+
+The only environment change this sprint is replacing the placeholder value of `GEMINI_API_KEY` in `backend/.env` with a real key. No new variables are introduced, and no other variables change.
+
+| Variable | Change | Notes |
+|----------|--------|-------|
+| `GEMINI_API_KEY` | Value updated (placeholder → valid key) | Only if project owner provisions a key; documented in `qa-build-log.md` either way |
+
+---
+
+*Sprint 5 contract review written by Backend Engineer — 2026-03-24. No new endpoints. No schema changes. Existing 14-endpoint contract is final and complete. T-025 and T-029 are operational/stability tasks only.*
+
+---
+
+## Sprint 6 Contracts — 2026-03-25
+
+---
+
+### Summary
+
+Sprint 6 introduces **one new API endpoint**: `DELETE /api/v1/auth/account` (T-033). No other endpoints are added or changed. No schema migrations are required — all foreign key `ON DELETE CASCADE` constraints needed for the cascade delete were established in Sprint 1.
+
+**Backend tasks this sprint with API impact:**
+
+| Task | Type | API Impact |
+|------|------|-----------|
+| T-033 | DELETE /api/v1/auth/account endpoint | New endpoint — fully specified below |
+| T-031 | Fix profile.test.js intermittent 30s timeout | No contract change — test infrastructure fix only |
+
+---
+
+### GROUP 5 — Account Management (T-033)
+
+---
+
+#### DELETE /api/v1/auth/account
+
+**Auth:** Required — Bearer token in `Authorization: Bearer <access_token>` header
+
+**Description:** Permanently deletes the authenticated user's account and all associated data. This action is irreversible. On success, the server invalidates all session data and returns 204 with no body.
+
+**Data deleted (cascade order):**
+1. `care_actions` — all care events for plants owned by this user (cascades from plants)
+2. `care_schedules` — all care schedules for plants owned by this user (cascades from plants)
+3. `plants` — all plants owned by this user (cascades from users)
+4. `refresh_tokens` — all refresh tokens for this user (cascades from users)
+5. Photo files on disk — any uploaded plant photo files associated with this user's plants (deleted by model layer before DB delete)
+6. `users` — the user record itself
+
+**Request Body:** None — no request body required or expected.
+
+**Request Headers:**
+
+```
+Authorization: Bearer <access_token>   // required
+```
+
+**Success Response — 204 No Content:**
+
+```
+(empty body)
+```
+
+No `data` wrapper is returned for 204 responses (standard HTTP behavior for No Content).
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 401 | `UNAUTHORIZED` | Missing, expired, or invalid access token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error during deletion (e.g., DB failure, file system error). If the DB delete fails mid-way, the operation is atomic via a transaction — no partial deletes. |
+
+**Notes for Frontend Engineer:**
+
+- After a successful 204 response: clear all tokens (memory + any sessionStorage), then redirect to `/login`. Show a toast: "Your account has been deleted."
+- If the request returns 401 (session expired before delete completes): display "Session expired. Please log in again." and redirect to `/login` after 2 seconds.
+- If the request returns a network error or 5xx: re-enable the delete button and show inline error: "Something went wrong. Please try again."
+- Do **not** retry the delete automatically — require the user to re-confirm.
+- The full modal interaction spec is in SPEC-007 (ui-spec.md), documented as part of H-067.
+
+**Notes for QA Engineer:**
+
+Test cases required per T-033 acceptance criteria:
+1. **Happy path (204):** Authenticated user calls DELETE /account → 204 returned → all DB rows for that user deleted → photo files cleaned up → calling GET /plants or GET /auth/profile with the same (now-deleted) account's credentials returns 401.
+2. **Unauthenticated (401):** Request with no Authorization header → 401 `UNAUTHORIZED`.
+3. **Invalid token (401):** Request with a malformed or expired JWT → 401 `UNAUTHORIZED`.
+4. **Cascade verification:** After delete, query DB directly to confirm users, plants, care_schedules, care_actions, and refresh_tokens rows for that user_id are all gone.
+5. **Regression:** All 44 existing backend tests continue to pass after T-033 is merged.
+
+---
+
+### Schema Changes — Sprint 6
+
+**No new migrations required.** All foreign key `ON DELETE CASCADE` constraints established in Sprint 1 are sufficient:
+
+| Table | FK to | Cascade |
+|-------|-------|---------|
+| `refresh_tokens` | `users.id` | `ON DELETE CASCADE` — tokens deleted when user deleted |
+| `plants` | `users.id` | `ON DELETE CASCADE` — plants deleted when user deleted |
+| `care_schedules` | `plants.id` | `ON DELETE CASCADE` — schedules deleted when plant deleted |
+| `care_actions` | `care_schedules.id` | `ON DELETE CASCADE` — actions deleted when schedule deleted |
+
+Photo file cleanup (files in `backend/uploads/`) is handled in the application layer (User model) — not a DB schema concern.
+
+**No migration files will be created this sprint.**
+
+---
+
+### Environment Configuration — Sprint 6
+
+No new environment variables are required for T-033 or T-031.
+
+---
+
+*Sprint 6 contract written by Backend Engineer — 2026-03-25. One new endpoint: DELETE /api/v1/auth/account. No schema changes. All 14 prior endpoints unchanged.*
+
+---
+
+## Sprint 7 Contracts — 2026-03-25
+
+---
+
+### Summary
+
+Sprint 7 introduces **one new API endpoint**: `GET /api/v1/care-actions` (T-039). No other endpoints are added or changed. No schema migrations are required — the `care_actions` table and all necessary indexes were established in Sprint 1 (T-014). A cross-table JOIN with `plants` satisfies the `plant_name` field requirement without any schema change.
+
+**New endpoints this sprint: 1** (total endpoints: 16)
+
+---
+
+### GROUP 7 — Care History (T-039)
+
+---
+
+#### GET /api/v1/care-actions
+
+**Auth:** Bearer token (required)
+
+**Description:** Returns a paginated, reverse-chronological list of all care actions performed by the authenticated user across all their plants. Optionally filtered to a single plant via the `plant_id` query parameter. Used by the Care History page (`/history`, SPEC-008).
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Rules |
+|-----------|------|----------|---------|-------|
+| `page` | integer | No | `1` | Must be ≥ 1 |
+| `limit` | integer | No | `20` | Must be between 1 and 100 inclusive |
+| `plant_id` | UUID string | No | — | If provided, must be a valid UUID; results restricted to this plant; returns empty array (not 404) if the plant has no care actions. If the plant_id does not belong to the authenticated user, return empty array (ownership isolation — do not reveal existence of other users' plants). |
+
+**Request Body:** None
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "plant_id": "uuid",
+      "plant_name": "string",
+      "care_type": "watering | fertilizing | repotting",
+      "performed_at": "ISO8601"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 42
+  }
+}
+```
+
+**Field Notes:**
+
+| Field | Source | Notes |
+|-------|--------|-------|
+| `id` | `care_actions.id` | UUID v4 |
+| `plant_id` | `care_actions.plant_id` | UUID v4 |
+| `plant_name` | `plants.name` (JOIN) | The plant's display name at time of query |
+| `care_type` | `care_actions.care_type` | Enum: `"watering"`, `"fertilizing"`, `"repotting"` |
+| `performed_at` | `care_actions.performed_at` | ISO 8601 UTC; used to compute relative timestamps on the frontend |
+
+**Sorting:** Always sorted by `performed_at DESC` (most recent first). Sorting is not configurable by the client.
+
+**Pagination Behavior:**
+- `page` and `limit` follow standard offset pagination: `OFFSET = (page - 1) * limit`
+- `total` is the count of all matching rows before pagination (used by frontend to compute "N remaining" for load-more)
+- Empty result is a valid 200 response: `{ "data": [], "pagination": { "page": 1, "limit": 20, "total": 0 } }`
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `page` or `limit` is not a positive integer; `limit` exceeds 100; `plant_id` is not a valid UUID format |
+| 401 | `UNAUTHORIZED` | Missing or invalid access token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Example — successful response with filter:**
+
+```
+GET /api/v1/care-actions?plant_id=abc123de-...&page=1&limit=20
+Authorization: Bearer <access_token>
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "plant_id": "abc123de-0000-0000-0000-000000000001",
+      "plant_name": "Monstera Deliciosa",
+      "care_type": "watering",
+      "performed_at": "2026-03-24T14:32:00.000Z"
+    },
+    {
+      "id": "a1b2c3d4-58cc-4372-a567-0e02b2c3d480",
+      "plant_id": "abc123de-0000-0000-0000-000000000001",
+      "plant_name": "Monstera Deliciosa",
+      "care_type": "fertilizing",
+      "performed_at": "2026-03-20T09:15:00.000Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 2
+  }
+}
+```
+
+**Example — empty result (no care actions or no-match filter):**
+
+```json
+{
+  "data": [],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 0
+  }
+}
+```
+
+**Example error (401):**
+
+```json
+{
+  "error": {
+    "message": "Authentication required.",
+    "code": "UNAUTHORIZED"
+  }
+}
+```
+
+**Example error (400 — invalid plant_id format):**
+
+```json
+{
+  "error": {
+    "message": "plant_id must be a valid UUID.",
+    "code": "VALIDATION_ERROR"
+  }
+}
+```
+
+---
+
+### Schema Changes — Sprint 7
+
+**No new migrations required.** The `care_actions` table was created in Sprint 1 (T-014, migration `20260323_05_create_care_actions.js`) and already contains all fields needed by this endpoint. The required indexes are already in place:
+
+| Index | Columns | Purpose |
+|-------|---------|---------|
+| `idx_care_actions_plant_id` | `plant_id` | Fast filter-by-plant queries |
+| `idx_care_actions_performed_at` | `(plant_id, performed_at)` | Fast sort + filter for history listing |
+
+The `plant_name` field is resolved at query time via a `JOIN` on the `plants` table — no denormalization or new columns needed.
+
+**No migration files will be created this sprint.**
+
+---
+
+### Environment Configuration — Sprint 7
+
+No new environment variables are required for T-039.
+
+---
+
+*Sprint 7 contract written by Backend Engineer — 2026-03-25. One new endpoint: GET /api/v1/care-actions. No schema changes. All 15 prior endpoints unchanged.*
+
+---
+
+## Sprint 8 Contracts — 2026-03-27
+
+---
+
+Sprint 8 introduces **one new API endpoint**: `GET /api/v1/care-due` (T-043). No other endpoints are added or changed. No schema migrations are required — all data needed for care-due calculations is already available in the existing `care_schedules` and `care_actions` tables from Sprint 1.
+
+---
+
+### GROUP 17 — Care Due Dashboard (T-043)
+
+---
+
+#### GET /api/v1/care-due
+
+**Auth:** Required — Bearer token in `Authorization: Bearer <access_token>` header
+
+**Description:** Returns all care events for the authenticated user's plants, categorised into three urgency buckets: overdue (past due), due today, and upcoming (within the next 7 days). The frontend uses this response to render the Care Due Dashboard (`/due`) and to populate the sidebar badge count (overdue + due_today items).
+
+**Calculation Logic:**
+- For each `(plant, care_schedule)` pair owned by the authenticated user, compute:
+  ```
+  next_due = last_done_at + frequency_days
+             (or plant.created_at + frequency_days if the care type has never been logged)
+  ```
+- Compare `next_due` against today's server date (UTC, date-only comparison):
+  - `next_due < today` → **overdue** — `days_overdue = today - next_due` (in days, integer ≥ 1)
+  - `next_due = today` → **due_today**
+  - `next_due > today` AND `next_due ≤ today + 7 days` → **upcoming** — `due_in_days = next_due - today` (integer 1–7)
+  - `next_due > today + 7 days` → **not returned** (on track, outside the 7-day window)
+- `last_done_at` is the most recent `performed_at` from `care_actions` for the given `(plant_id, care_type)` pair. If no record exists, `last_done_at` is `null` and `plant.created_at` is used as the baseline.
+
+**Query Parameters:** None — all data is scoped to the authenticated user.
+
+**Request Body:** None (GET request).
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "overdue": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "days_overdue": 3,
+        "last_done_at": "2026-03-24T08:00:00.000Z"
+      }
+    ],
+    "due_today": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting"
+      }
+    ],
+    "upcoming": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "due_in_days": 3,
+        "due_date": "2026-03-30"
+      }
+    ]
+  }
+}
+```
+
+**Field Details:**
+
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| `plant_id` | UUID string | No | The plant's UUID |
+| `plant_name` | string | No | The plant's name (from `plants.name`) |
+| `care_type` | enum string | No | One of: `watering`, `fertilizing`, `repotting` |
+| `days_overdue` | integer ≥ 1 | No (overdue only) | How many days past due. Minimum 1. |
+| `last_done_at` | ISO 8601 UTC string | **Yes** | Timestamp of most recent care action for this type. `null` if care has never been logged (never-done plant). Present in `overdue` items only. |
+| `due_in_days` | integer 1–7 | No (upcoming only) | Days until next due. 1 = tomorrow, 7 = one week away. |
+| `due_date` | ISO 8601 date string | No (upcoming only) | Calendar date when care is next due, e.g. `"2026-03-30"` (UTC date, no time component). |
+
+**Empty response (all plants on track — no overdue, due today, or upcoming in 7 days):**
+```json
+{
+  "data": {
+    "overdue": [],
+    "due_today": [],
+    "upcoming": []
+  }
+}
+```
+This is a valid 200 response — the frontend renders the global all-clear state.
+
+**Response when user has no plants:**
+```json
+{
+  "data": {
+    "overdue": [],
+    "due_today": [],
+    "upcoming": []
+  }
+}
+```
+Same empty shape — no special status code.
+
+**Sorting (server-side, applied before response):**
+- `overdue`: sorted by `days_overdue` DESC, then `plant_name` ASC for ties
+- `due_today`: sorted by `plant_name` ASC
+- `upcoming`: sorted by `due_in_days` ASC, then `plant_name` ASC for ties
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 401 | `UNAUTHORIZED` | No `Authorization` header, token is malformed, expired, or refers to a deleted user |
+| 500 | `INTERNAL_ERROR` | Unexpected server error (DB failure, etc.) |
+
+**Example error (401):**
+```json
+{
+  "error": {
+    "message": "Unauthorized.",
+    "code": "UNAUTHORIZED"
+  }
+}
+```
+
+**Example error (500):**
+```json
+{
+  "error": {
+    "message": "An unexpected error occurred.",
+    "code": "INTERNAL_ERROR"
+  }
+}
+```
+
+**Example curl:**
+```bash
+curl -X GET http://localhost:3000/api/v1/care-due \
+  -H "Authorization: Bearer <access_token>"
+```
+
+**Example happy-path response (mixed statuses):**
+```json
+{
+  "data": {
+    "overdue": [
+      {
+        "plant_id": "a1b2c3d4-...",
+        "plant_name": "Monstera",
+        "care_type": "watering",
+        "days_overdue": 5,
+        "last_done_at": "2026-03-22T09:00:00.000Z"
+      },
+      {
+        "plant_id": "e5f6g7h8-...",
+        "plant_name": "Pothos",
+        "care_type": "fertilizing",
+        "days_overdue": 2,
+        "last_done_at": null
+      }
+    ],
+    "due_today": [
+      {
+        "plant_id": "a1b2c3d4-...",
+        "plant_name": "Monstera",
+        "care_type": "fertilizing"
+      }
+    ],
+    "upcoming": [
+      {
+        "plant_id": "i9j0k1l2-...",
+        "plant_name": "Snake Plant",
+        "care_type": "watering",
+        "due_in_days": 3,
+        "due_date": "2026-03-30"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Schema Notes — Sprint 8
+
+**No new migrations required.**
+
+The `GET /api/v1/care-due` endpoint requires **no schema changes**. All data is derivable from existing tables:
+
+- `plants` (Sprint 1, migration 3): provides `id`, `name`, `user_id`, `created_at` (baseline date for never-done plants)
+- `care_schedules` (Sprint 1, migration 4): provides `plant_id`, `care_type`, `frequency_days`
+- `care_actions` (Sprint 1, migration 5): provides `plant_id`, `care_type`, `performed_at` (used as `last_done_at`)
+
+**No migration files will be created for Sprint 8 (T-043).**
+
+---
+
+### Query Design (for implementation reference)
+
+The core computation requires a `LEFT JOIN` from `care_schedules` to the most recent `care_action` per `(plant_id, care_type)`:
+
+```sql
+-- Step 1: Get most recent care action per (plant_id, care_type) for this user
+SELECT
+  cs.plant_id,
+  p.name AS plant_name,
+  cs.care_type,
+  cs.frequency_days,
+  p.created_at AS plant_created_at,
+  MAX(ca.performed_at) AS last_done_at
+FROM care_schedules cs
+JOIN plants p ON cs.plant_id = p.id
+LEFT JOIN care_actions ca ON ca.plant_id = cs.plant_id
+  AND ca.care_type = cs.care_type
+WHERE p.user_id = :userId
+GROUP BY cs.plant_id, p.name, cs.care_type, cs.frequency_days, p.created_at
+
+-- Step 2 (application layer): compute next_due from last_done_at (or plant_created_at)
+-- and categorise each row into overdue / due_today / upcoming / on_track
+```
+
+All queries use parameterized values via Knex — no string concatenation of user input.
+
+---
+
+### Environment Configuration — Sprint 8
+
+No new environment variables are required for T-043.
+
+---
+
+*Sprint 8 contract written by Backend Engineer — 2026-03-27. One new endpoint: GET /api/v1/care-due. No schema changes. All 16 prior endpoints unchanged.*
+
+---
+
+## Sprint 9 Contracts
+
+---
+
+### T-048 — Gemini 429 Model Fallback Chain (Behavioral Update to POST /api/v1/ai/advice)
+
+**Task:** T-048
+**Type:** Internal behavior change — no contract shape changes
+**Status:** Contracted (2026-03-28)
+
+---
+
+#### Summary
+
+Sprint 9 introduces **no new endpoints** and **no schema changes**. The single backend task (T-048) modifies the internal error-handling behavior of the existing `POST /api/v1/ai/advice` endpoint. The request body, success response shape, and all error response codes/shapes remain **identical** to the Sprint 1 contract.
+
+Frontend engineers and QA: **no integration changes required.** The external-facing contract is frozen.
+
+---
+
+#### POST /api/v1/ai/advice — Behavioral Update
+
+**Auth:** Bearer token (unchanged)
+
+**Request Body:** Unchanged from Sprint 1.
+
+```json
+{
+  "plant_type": "string | null",   // optional; max 200 chars
+  "photo_url":  "string | null"    // optional; must be a URL string
+}
+```
+
+At least one of `plant_type` or `photo_url` must be provided.
+
+**Success Response — 200 OK:** Unchanged from Sprint 1.
+
+```json
+{
+  "data": {
+    "identified_plant_type": "string | null",
+    "confidence": "high | medium | low | null",
+    "care_advice": {
+      "watering": {
+        "frequency_value": 7,
+        "frequency_unit": "days",
+        "notes": "string | null"
+      },
+      "fertilizing": {
+        "frequency_value": 2,
+        "frequency_unit": "weeks",
+        "notes": "string | null"
+      },
+      "repotting": {
+        "frequency_value": 12,
+        "frequency_unit": "months",
+        "notes": "string | null"
+      },
+      "light": "string | null",
+      "humidity": "string | null",
+      "additional_tips": "string | null"
+    }
+  }
+}
+```
+
+**Error Responses:** Unchanged from Sprint 1.
+
+| Status | Code | Trigger |
+|--------|------|---------|
+| 400 | `VALIDATION_ERROR` | Neither `plant_type` nor `photo_url` provided; `plant_type` exceeds 200 chars |
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 422 | `PLANT_NOT_IDENTIFIABLE` | Gemini returned a response that could not be parsed into the expected care-advice structure |
+| 502 | `AI_SERVICE_UNAVAILABLE` | Gemini API key not configured; OR all fallback models returned 429 rate-limit errors |
+
+---
+
+#### Behavioral Change: 429 Fallback Chain (Internal Only)
+
+This is an **internal implementation detail**. It changes when the 502 is surfaced, not what the frontend receives when it is.
+
+**Previous behavior (Sprint 1–8):**
+Any Gemini API error (including 429 rate limit) immediately throws `ExternalServiceError` → `502 AI_SERVICE_UNAVAILABLE`.
+
+**New behavior (Sprint 9 — T-048):**
+On a 429 rate-limit response (`err.status === 429` or `err.message` contains `'429'`), the backend silently retries through a model chain before returning 502:
+
+```
+Attempt 1: gemini-2.0-flash      (primary model)
+    ↓ if 429 →
+Attempt 2: gemini-2.5-flash
+    ↓ if 429 →
+Attempt 3: gemini-2.5-flash-lite
+    ↓ if 429 →
+Attempt 4: gemini-2.5-pro
+    ↓ if 429 →
+502 AI_SERVICE_UNAVAILABLE       (all models exhausted)
+```
+
+**Rules:**
+- Non-429 errors at any step are re-thrown immediately — no fallback occurs.
+- If any model in the chain succeeds, the 200 success response is returned normally.
+- If all four models return 429, `ExternalServiceError` is thrown → `502 AI_SERVICE_UNAVAILABLE` with the same error body as before.
+
+**Frontend impact:** None. The frontend already handles 502 per SPEC-006 (shows "Our AI service is temporarily offline" with only a "Close" button). The only observable difference is that a rate-limited request may take longer (up to 4 sequential model attempts) before the 502 is returned — this is intentional resilience behavior.
+
+---
+
+#### Schema Changes — Sprint 9
+
+None. No new tables, columns, or migrations required for T-048.
+
+---
+
+#### Environment Variables — Sprint 9
+
+No new environment variables required. `GEMINI_API_KEY` (existing) is used by all four fallback models.
+
+---
+
+*Sprint 9 contract written by Backend Engineer — 2026-03-28. Zero new endpoints. No schema changes. Behavioral-only update to POST /api/v1/ai/advice (429 fallback chain). All 17 prior endpoints and their shapes unchanged.*
+
+---
+
+## Sprint 11 Contracts
+
+**Task:** T-053 — Persistent Login via HttpOnly Refresh Token Cookie
+**Written by:** Backend Engineer — 2026-03-30
+**Status:** Ready for implementation
+
+---
+
+### GROUP 11A — Authentication Cookie Upgrade (T-053)
+
+**Summary of changes:** The four existing auth endpoints (`register`, `login`, `refresh`, `logout`) are updated to transport the refresh token via an `HttpOnly` cookie instead of the response/request body. The access token remains in the response body (memory-only on the frontend — no XSS regression). No new endpoints. No schema changes.
+
+---
+
+#### POST /api/v1/auth/register *(Updated — Sprint 11)*
+
+**Auth:** Public (no token required)
+
+**Description:** Creates a new user account. Returns an access token in the response body and sets the refresh token as an HttpOnly cookie. **Breaking change from Sprint 1:** `refresh_token` is no longer in the response body.
+
+**Request Body:** Unchanged from Sprint 1.
+
+```json
+{
+  "full_name": "string",    // required; min 2 chars, max 100 chars
+  "email": "string",        // required; valid email format; unique across users
+  "password": "string"      // required; min 8 chars
+}
+```
+
+**Response Headers Set:**
+```
+Set-Cookie: refresh_token=<opaque_token>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=604800
+```
+- `HttpOnly` — prevents JavaScript access (XSS protection)
+- `Secure` — only sent over HTTPS (browser ignores on plain `http://` in production; accepted in local dev where `Secure` is set but not enforced by localhost)
+- `SameSite=Strict` — not sent on cross-site requests (CSRF protection)
+- `Path=/api/v1/auth` — scoped to auth routes only; not sent on `/plants`, `/care-actions`, etc.
+- `Max-Age=604800` — 7 days (matches `REFRESH_TOKEN_EXPIRES_DAYS`)
+
+**Success Response — 201 Created:**
+
+```json
+{
+  "data": {
+    "user": {
+      "id": "uuid",
+      "full_name": "string",
+      "email": "string",
+      "created_at": "ISO8601"
+    },
+    "access_token": "string"
+  }
+}
+```
+
+> **Note:** `refresh_token` is no longer in the response body. It is exclusively in the `Set-Cookie` header.
+
+**Error Responses:** Unchanged from Sprint 1.
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | Missing or invalid fields |
+| 409 | `EMAIL_ALREADY_EXISTS` | An account with that email already exists |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+#### POST /api/v1/auth/login *(Updated — Sprint 11)*
+
+**Auth:** Public
+
+**Description:** Authenticates an existing user. Returns an access token in the response body and sets the refresh token as an HttpOnly cookie. **Breaking change from Sprint 1:** `refresh_token` is no longer in the response body.
+
+**Request Body:** Unchanged from Sprint 1.
+
+```json
+{
+  "email": "string",      // required
+  "password": "string"    // required
+}
+```
+
+**Response Headers Set:**
+```
+Set-Cookie: refresh_token=<opaque_token>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=604800
+```
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "user": {
+      "id": "uuid",
+      "full_name": "string",
+      "email": "string",
+      "created_at": "ISO8601"
+    },
+    "access_token": "string"
+  }
+}
+```
+
+> **Note:** `refresh_token` is no longer in the response body. It is exclusively in the `Set-Cookie` header.
+
+**Error Responses:** Unchanged from Sprint 1.
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | Missing email or password |
+| 401 | `INVALID_CREDENTIALS` | Email not found or password is wrong |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+#### POST /api/v1/auth/refresh *(Updated — Sprint 11)*
+
+**Auth:** Public — no Bearer token. Refresh token read from cookie (must send `credentials: 'include'`).
+
+**Description:** Silently re-authenticates a returning user. Reads the `refresh_token` cookie, validates it, issues a new access token (in body) and a rotated refresh token (new cookie). Old refresh token is invalidated. **Breaking change from Sprint 1:** `refresh_token` is no longer in the request body.
+
+**Request Body:** Empty (no body required). The refresh token is read from the `refresh_token` HttpOnly cookie.
+
+```json
+{}
+```
+
+**Cookie Required:**
+```
+Cookie: refresh_token=<opaque_token>
+```
+The browser sends this automatically when the request is made with `credentials: 'include'`.
+
+**Response Headers Set (rotated token):**
+```
+Set-Cookie: refresh_token=<new_opaque_token>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=604800
+```
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "access_token": "string"
+  }
+}
+```
+
+> **Note:** New rotated refresh token is set via `Set-Cookie` header only — not in the response body.
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 401 | `INVALID_REFRESH_TOKEN` | Cookie missing, token not found in DB, token expired, or token already revoked |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+#### POST /api/v1/auth/logout *(Updated — Sprint 11)*
+
+**Auth:** Bearer token required (`Authorization: Bearer <access_token>`)
+
+**Description:** Revokes the refresh token and clears the HttpOnly cookie. **Breaking change from Sprint 1:** `refresh_token` is no longer required in the request body.
+
+**Request Body:** Empty (no body required). The refresh token is read from the `refresh_token` HttpOnly cookie.
+
+```json
+{}
+```
+
+**Cookie Required:**
+```
+Cookie: refresh_token=<opaque_token>
+```
+
+**Response Headers Set (clears the cookie):**
+```
+Set-Cookie: refresh_token=; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT
+```
+
+**Success Response — 200 OK:** Unchanged from Sprint 1.
+
+```json
+{
+  "data": {
+    "message": "Logged out successfully."
+  }
+}
+```
+
+> **Note:** Cookie is cleared via `Max-Age=0` + epoch `Expires`. If the `refresh_token` cookie is absent, logout still succeeds (idempotent — access token is still invalidated via normal session end on the client).
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token in `Authorization` header |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+### Frontend Integration Notes (for Frontend Engineer)
+
+The following changes are required in `frontend/src/utils/api.js`:
+
+1. **All fetch calls** must include `credentials: 'include'` so the browser sends and accepts cookies cross-origin.
+2. **On app init** (e.g., inside a `useEffect` in `App.jsx` or a top-level auth provider): call `POST /api/v1/auth/refresh` with `credentials: 'include'`. If it returns `200`, store the `access_token` in memory and mark the user as authenticated. If it returns `401`, redirect to `/login`.
+3. **Login and register** — `refresh_token` is no longer in the response body. Read only `access_token` from `data`. The cookie is set automatically by the browser.
+4. **Logout** — no need to send `refresh_token` in the body. Call `POST /api/v1/auth/logout` with Bearer token and `credentials: 'include'`.
+5. **Access token** stays memory-only (no `localStorage` / `sessionStorage`). This is unchanged from Sprint 1.
+
+---
+
+### Schema Changes — Sprint 11
+
+None. No new tables, columns, or migrations required for T-053.
+
+The existing `refresh_tokens` table is unchanged. The cookie transport is a route-layer concern only.
+
+---
+
+### Middleware Addition — Sprint 11
+
+The `cookie-parser` npm package must be added to `backend/package.json` and registered in `backend/src/app.js` before the auth router:
+
+```js
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
+```
+
+This is required for `req.cookies.refresh_token` to be available in the auth routes.
+
+No environment variable changes required for cookie behavior. `REFRESH_TOKEN_EXPIRES_DAYS` (existing, defaults to `7`) continues to control token lifetime and is used to derive `Max-Age`.
+
+---
+
+*Sprint 11 contract written by Backend Engineer — 2026-03-30. Four existing auth endpoints updated (register, login, refresh, logout). Refresh token transport moves from body to HttpOnly cookie. Zero new endpoints. No schema changes. No migration files.*
+
+---
+
+## Sprint 12 Contracts — 2026-03-30
+
+**Written by:** Backend Engineer — 2026-03-30
+**Status:** Final — No new or changed endpoints this sprint.
+
+---
+
+### Overview
+
+Sprint #12 scope contains **zero new API endpoints** and **zero schema changes**. All backend work is reliability and configuration fixes:
+
+| Task | Type | API Impact |
+|------|------|-----------|
+| T-056 | Bug fix — intermittent 500 on `POST /api/v1/auth/login` | None — contract unchanged, reliability improved |
+| T-057 | Config fix — `TEST_DATABASE_URL` port in `backend/.env` | None — test-only, zero runtime impact |
+
+---
+
+### T-056 — POST /api/v1/auth/login Reliability Fix
+
+**Contract status:** UNCHANGED from Sprint 11. The endpoint spec defined in GROUP 11A remains authoritative.
+
+**What is being fixed:** An intermittent HTTP 500 occurs on `POST /api/v1/auth/login` when the backend is cold-started (FB-044). Root cause is suspected Knex connection pool cold-start (pool `min` is 0, so first request races against pool warm-up) or a `cookie-parser` middleware registration race in `app.js`. No change to request shape, response shape, error codes, or auth requirements.
+
+**Behavioral guarantee after fix:** `POST /api/v1/auth/login` MUST return `200 OK` with a valid access token (and set the `refresh_token` HttpOnly cookie) on every call, including the very first request after a cold backend restart. The 5-in-a-row / no-500 acceptance criterion from `active-sprint.md` is the verification target.
+
+**For Frontend Engineer:** No changes to your integration. `credentials: 'include'` is already required (Sprint 11 contract). The fix simply eliminates the transient 500 that could interrupt the login flow.
+
+**For QA Engineer:** After T-056 is implemented, verify:
+1. Restart backend (kill process → `npm start`)
+2. Immediately call `POST /api/v1/auth/login` 5 times in rapid succession
+3. All 5 must return `200 OK` — zero `500 Internal Server Error`
+4. All 72/72 backend tests must still pass
+
+---
+
+### T-057 — TEST_DATABASE_URL Config Fix
+
+**Contract status:** No API impact whatsoever.
+
+**What is being fixed:** `backend/.env` has `TEST_DATABASE_URL` pointing to port `5432`. `docker-compose.yml` maps the test PostgreSQL service to port `5433`. This mismatch causes test-suite failures if tests run against Docker. The fix updates the port to `5433` in `backend/.env`.
+
+**For Frontend Engineer:** No action needed.
+**For QA Engineer:** After T-057 is applied, confirm all 72/72 backend tests pass. No new test cases needed for this fix.
+
+---
+
+### Schema Changes — Sprint 12
+
+**None.** No new tables, columns, or migrations. No Manager approval required.
+
+---
+
+*Sprint 12 contract written by Backend Engineer — 2026-03-30. Zero new endpoints. Zero schema changes. T-056 stabilizes existing POST /api/v1/auth/login reliability. T-057 corrects a test config port mismatch. All existing Sprint 11 contracts remain authoritative.*
+
+---
+
+## Sprint 14 Contracts — 2026-03-30
+
+**Written by:** Backend Engineer — 2026-03-30
+**Status:** Ready for implementation — API contracts published before any code is written.
+
+---
+
+### Overview
+
+Sprint #14 contains **zero new API endpoints** and **zero schema changes**. All backend API work is bug-fix corrections to two existing endpoints:
+
+| Task | Type | Affected Endpoint | Change |
+|------|------|-------------------|--------|
+| T-058 | Bug fix — pool idle reaping causes transient 500 on login | `POST /api/v1/auth/login` | Contract UNCHANGED — reliability fix only (knexfile.js / server.js config) |
+| T-059 | Bug fix — plant photo URL not browser-accessible after upload | `POST /api/v1/plants/:id/photo` | Contract CLARIFIED — `photo_url` format requirement made explicit |
+| T-060 | Bug fix — Care Due Dashboard timezone mismatch | `GET /api/v1/care-due` | Contract UPDATED — new optional `utcOffset` query parameter added |
+| T-061 | Dependency update — npm audit fix | None | No API impact |
+
+---
+
+### T-058 — POST /api/v1/auth/login Pool Idle Fix
+
+**Contract status:** UNCHANGED from Sprint 11 / Sprint 12.
+
+**What is being fixed (implementation only):** After a 30-second idle period, the Knex connection pool reaps idle connections. The `afterCreate` validation hook adds latency during pool refill, creating a brief window where requests fail with 500. This is the same bug class as T-056 (cold-start), but triggered by idle reaping rather than cold-start.
+
+**Fix strategy (implementation-only, no contract impact):**
+- Increase `idleTimeoutMillis` from `30000` to `600000` (10 minutes) in `backend/knexfile.js` production and staging config sections; AND/OR
+- Add a periodic keepalive query (`SELECT 1`) in `backend/src/server.js` to prevent connection reaping during normal app operation.
+
+**Behavioral guarantee after fix:** `POST /api/v1/auth/login` MUST return `200 OK` consistently, including immediately after a 30+ second period of server inactivity. The fix must not change request shape, response shape, error codes, or auth requirements.
+
+**For Frontend Engineer:** No changes to your integration.
+
+**For QA Engineer:** After T-058 is implemented, verify:
+1. Allow the backend to sit idle for 30+ seconds (or simulate by temporarily setting `idleTimeoutMillis` to 3 seconds in a test config)
+2. Immediately call `POST /api/v1/auth/login` 5 times in rapid succession
+3. All 5 must return `200 OK` — zero `500 Internal Server Error`
+4. All 74/74 backend tests must still pass
+
+---
+
+### T-059 — POST /api/v1/plants/:id/photo — photo_url Format Clarification
+
+**Contract status:** CLARIFIED. The original Sprint 1 contract stated `photo_url` is a "publicly accessible URL" but did not specify the URL format. This sprint's fix makes the format requirement explicit.
+
+#### POST /api/v1/plants/:id/photo *(Clarified — Sprint 14)*
+
+**Auth:** Bearer token (required) — unchanged
+
+**Description:** Unchanged from Sprint 1. Uploads a photo for a plant via `multipart/form-data` and returns a browser-accessible URL.
+
+**Request:** Unchanged from Sprint 1.
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `photo` | file | required; MIME type `image/jpeg`, `image/png`, or `image/webp`; max 5 MB |
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "photo_url": "/uploads/<uuid>.<ext>"
+  }
+}
+```
+
+**`photo_url` format requirements (Sprint 14 clarification):**
+- MUST be a **relative path** of the form `/uploads/<filename>` (e.g., `/uploads/a3f8d2b1-...jpg`)
+- MUST be resolvable by the browser when prefixed with the backend origin (e.g., `http://localhost:3000/uploads/<filename>` returns HTTP 200)
+- The backend MUST serve the `./uploads/` directory as static files at the `/uploads/` path via `express.static`
+- The filename MUST be a UUID v4 (to prevent enumeration/path traversal) plus the original file extension
+- Do NOT store an absolute `http://localhost:3000/...` URL in the database — store only the relative `/uploads/<filename>` path. This ensures portability across environments.
+
+**Error Responses:** Unchanged from Sprint 1.
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `MISSING_FILE` | No `photo` field in the multipart request |
+| 400 | `INVALID_FILE_TYPE` | File MIME type is not `image/jpeg`, `image/png`, or `image/webp` |
+| 400 | `FILE_TOO_LARGE` | File exceeds 5 MB |
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 404 | `PLANT_NOT_FOUND` | No plant with this ID exists, or it belongs to a different user |
+| 500 | `INTERNAL_ERROR` | Unexpected server error (e.g., file system write failure) |
+
+**Implementation notes for Backend Engineer:**
+- Add `app.use('/uploads', express.static(path.join(__dirname, '../uploads')))` in `backend/src/app.js`
+- Ensure the `uploads/` directory is created at startup if it does not exist (use `fs.mkdirSync` with `{ recursive: true }`)
+- The route handler must construct `photo_url` as `/uploads/<filename>` — NOT `http://localhost:3000/uploads/<filename>`
+- This relative URL is stored in `plants.photo_url` and returned by `GET /plants` and `GET /plants/:id`
+
+**End-to-end verification (for QA):**
+1. Call `POST /api/v1/plants/:id/photo` with a valid image → response contains `photo_url: "/uploads/<uuid>.jpg"`
+2. Call `GET /api/v1/plants/:id` → `photo_url` field matches the URL returned by step 1
+3. Fetch `GET http://localhost:3000<photo_url>` directly → returns HTTP 200 with `Content-Type: image/*`
+
+---
+
+### T-060 — GET /api/v1/care-due — UTC Offset Query Parameter (Updated)
+
+**Contract status:** UPDATED. The original Sprint 8 contract did not include timezone support. A new optional `utcOffset` query parameter is added. All other fields (auth, response shape, error codes) are unchanged.
+
+#### GET /api/v1/care-due *(Updated — Sprint 14)*
+
+**Auth:** Required — Bearer token in `Authorization: Bearer <access_token>` header — unchanged
+
+**Description:** Returns care events for all of the authenticated user's plants, bucketed by urgency. **Sprint 14 update:** Accepts an optional `utcOffset` query parameter so urgency bucketing reflects the user's local timezone rather than UTC. All other behavior is unchanged from Sprint 8.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `utcOffset` | integer (minutes) | optional | The caller's UTC offset in minutes from UTC. **Positive values = ahead of UTC (e.g., UTC+5:30 → `330`). Negative values = behind UTC (e.g., UTC-5 → `-300`).** If omitted, backend defaults to UTC (existing behavior — no regression for consumers that don't send the param). |
+
+**Computing `utcOffset` on the frontend:**
+```js
+// JavaScript's getTimezoneOffset() returns minutes *behind* UTC (inverted convention)
+// We invert it to get minutes *ahead* of UTC (standard convention)
+const utcOffset = new Date().getTimezoneOffset() * -1;
+// US Eastern Standard Time → getTimezoneOffset() = 300 → utcOffset = -300
+// Central European Time    → getTimezoneOffset() = -60 → utcOffset = 60
+```
+
+**Validation:**
+- `utcOffset`: optional; if provided, must be an integer in the range `-840` to `840` (valid UTC offset range in minutes); returns `400 VALIDATION_ERROR` if out of range or non-integer
+
+**Backend logic change:**
+- If `utcOffset` is provided: compute "local today" as `[UTC midnight + utcOffset minutes, UTC midnight + utcOffset minutes + 24 hours)` — all comparisons use this local day boundary
+- If `utcOffset` is omitted: use UTC midnight (existing behavior — no change)
+
+**Request — unchanged from Sprint 8:**
+
+```
+GET /api/v1/care-due?utcOffset=-300
+Authorization: Bearer <access_token>
+```
+
+**Success Response — 200 OK:** Unchanged from Sprint 8.
+
+```json
+{
+  "data": {
+    "overdue": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "days_overdue": 3,
+        "last_done_at": "ISO8601 | null"
+      }
+    ],
+    "due_today": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "last_done_at": "ISO8601 | null"
+      }
+    ],
+    "upcoming": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "due_in_days": 3,
+        "due_date": "YYYY-MM-DD"
+      }
+    ]
+  }
+}
+```
+
+**Note on `due_date`:** When `utcOffset` is provided, `due_date` is expressed as a local calendar date (YYYY-MM-DD in the user's local timezone), not a UTC date.
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `utcOffset` provided but not a valid integer in range `[-840, 840]` |
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Frontend integration (for Frontend Engineer — T-060 frontend half):**
+
+In `frontend/src/pages/CareDuePage.jsx` (or `frontend/src/utils/api.js` in the `careDue.get()` method), send `utcOffset` with every request:
+
+```js
+// In api.js — careDue.get()
+const utcOffset = new Date().getTimezoneOffset() * -1;
+const response = await fetch(`/api/v1/care-due?utcOffset=${utcOffset}`, {
+  headers: { Authorization: `Bearer ${accessToken}` },
+  credentials: 'include',
+});
+```
+
+**Backward compatibility:** Any existing API consumer that calls `GET /api/v1/care-due` without `utcOffset` continues to receive UTC-bucketed results. No breaking change.
+
+**Example curl (with utcOffset):**
+```bash
+curl -X GET "http://localhost:3000/api/v1/care-due?utcOffset=-300" \
+  -H "Authorization: Bearer <access_token>"
+```
+
+---
+
+### T-061 — npm audit fix
+
+**Contract status:** No API impact.
+
+**What is being done:** Run `npm audit fix` in both `backend/` and `frontend/` to resolve available non-breaking vulnerabilities. No new endpoints, no schema changes, no request/response shape changes.
+
+**For Frontend Engineer:** No action needed.
+**For QA Engineer:** After T-061, verify all 74/74 backend tests and 130/130 frontend tests still pass. Review `npm audit` output — no new high-severity production vulnerabilities should be introduced.
+
+---
+
+### Schema Changes — Sprint 14
+
+**None.** No new tables, columns, or migrations required for any Sprint 14 task.
+
+- T-058 is a config-only fix (`knexfile.js`, optionally `server.js`)
+- T-059 is a route/static-file fix (no DB schema change; `photo_url` column already exists in `plants` table from Sprint 1)
+- T-060 is a route-logic fix (offset computation uses existing `care_schedules` and `care_actions` data)
+- T-061 is a dependency update only
+
+**No Manager approval required for schema changes this sprint** — there are none.
+
+---
+
+### Health Endpoint Documentation Fix (T-062)
+
+> **Note for QA Engineer:** T-062 assigns QA to fix a documentation discrepancy. If any reference to `/api/v1/health` exists in this file or in `.agents/monitor-agent.md`, it should be corrected to `/api/health`. The actual endpoint is `GET /api/health` (not under `/api/v1/`). No code changes required — docs only.
+
+---
+
+*Sprint 14 contract written by Backend Engineer — 2026-03-30. Zero new endpoints. Zero schema changes. Two endpoint clarifications/updates: POST /api/v1/plants/:id/photo (photo_url format made explicit); GET /api/v1/care-due (utcOffset query parameter added). T-058 and T-061 have no API contract impact. All prior sprint contracts remain authoritative.*
+
+---
+
+## Sprint 15 Contracts
+
+*Written by Backend Engineer — 2026-03-31*
+
+---
+
+### GROUP 1 — Care History Analytics (T-064)
+
+---
+
+#### GET /api/v1/care-actions/stats
+
+**Auth:** Bearer token (required)
+
+**Description:** Returns aggregated care action statistics for the authenticated user — total count, breakdown by plant, breakdown by care type, and a recent activity feed. Powers the `/analytics` frontend page (SPEC-011).
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "total_care_actions": 42,
+    "by_plant": [
+      {
+        "plant_id": "uuid",
+        "plant_name": "string",
+        "count": 15,
+        "last_action_at": "ISO8601"
+      }
+    ],
+    "by_care_type": [
+      { "care_type": "watering",    "count": 30 },
+      { "care_type": "fertilizing", "count": 8  },
+      { "care_type": "repotting",   "count": 4  }
+    ],
+    "recent_activity": [
+      {
+        "plant_name": "string",
+        "care_type": "watering | fertilizing | repotting",
+        "performed_at": "ISO8601"
+      }
+    ]
+  }
+}
+```
+
+**Field Rules:**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `total_care_actions` | integer ≥ 0 | Count of all care actions recorded by this user across all plants |
+| `by_plant` | array | One entry per plant that has at least one care action; sorted by `count` DESC, then `plant_name` ASC as a tiebreaker |
+| `by_plant[].plant_id` | UUID string | Plant's unique identifier |
+| `by_plant[].plant_name` | string | Human-readable plant name |
+| `by_plant[].count` | integer ≥ 1 | Total care actions for this plant |
+| `by_plant[].last_action_at` | ISO 8601 UTC string | Timestamp of the most recent care action for this plant |
+| `by_care_type` | array | One entry per care type that appears in the user's care action history; sorted by `count` DESC |
+| `by_care_type[].care_type` | string | One of `"watering"`, `"fertilizing"`, `"repotting"` (or any valid care type stored in care_schedules) |
+| `by_care_type[].count` | integer ≥ 1 | Total care actions of this type |
+| `recent_activity` | array | The 10 most recent care actions across all plants, sorted by `performed_at` DESC |
+| `recent_activity[].plant_name` | string | Name of the plant that was cared for |
+| `recent_activity[].care_type` | string | Type of care performed |
+| `recent_activity[].performed_at` | ISO 8601 UTC string | When the care action was recorded |
+
+**Empty State:**
+When the user has no care actions at all, the response is:
+```json
+{
+  "data": {
+    "total_care_actions": 0,
+    "by_plant": [],
+    "by_care_type": [],
+    "recent_activity": []
+  }
+}
+```
+This is a valid 200 response — not an error. The frontend renders the empty state UI per SPEC-011.
+
+**User Isolation:** All aggregations are scoped to the authenticated user's plants and care actions only. The query must JOIN through `plants` on `plants.user_id = :userId` to guarantee isolation. No other user's data may leak.
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|----------|
+| 401 | `UNAUTHORIZED` | Missing, expired, or invalid Bearer token |
+| 500 | `INTERNAL_ERROR` | Unexpected server or database error |
+
+**No pagination** — this endpoint is a stats aggregate, not a paginated list.
+
+**Implementation notes (for T-064):**
+- Route handler: `backend/src/routes/careActions.js` (add to existing file) or a new `careActionsStats.js` if separation is cleaner
+- Model method: `CareAction.getStatsByUser(userId)` in `backend/src/models/CareAction.js`
+- Three separate aggregation queries (or one CTE) joined in the model:
+  1. `SELECT COUNT(*) AS total_care_actions FROM care_actions JOIN plants ON ...`
+  2. `SELECT plants.id, plants.name, COUNT(*), MAX(performed_at) FROM care_actions JOIN plants ON ... GROUP BY plants.id ORDER BY count DESC, name ASC`
+  3. `SELECT care_type, COUNT(*) FROM care_actions JOIN plants ON ... GROUP BY care_type ORDER BY count DESC`
+  4. `SELECT plants.name, ca.care_type, ca.performed_at FROM care_actions ca JOIN plants ON ... ORDER BY ca.performed_at DESC LIMIT 10`
+- All queries must use **parameterized Knex** — never string-interpolate `userId`
+- Auth middleware (`requireAuth`) must be applied to this route exactly as it is on `GET /api/v1/care-due`
+
+---
+
+### Schema Changes — Sprint 15
+
+**None.** No new tables, columns, or migrations are required for Sprint 15.
+
+- `GET /api/v1/care-actions/stats` (T-064) aggregates data from existing `care_actions`, `plants`, and `care_schedules` tables — all created in Sprint 1 migrations
+- T-066 (pool startup hardening) is a config/startup-sequence fix only — no DB schema change
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+*Sprint 15 contract written by Backend Engineer — 2026-03-31. One new endpoint: GET /api/v1/care-actions/stats (T-064). Zero schema changes. T-066 has no API contract impact. All prior sprint contracts remain authoritative.*
+
+---
+
+## Sprint 16 Contracts
+
+---
+
+### GROUP 1 — Account Deletion (T-069)
+
+---
+
+#### DELETE /api/v1/account
+
+**Auth:** Required — Bearer token in `Authorization: Bearer <access_token>` header
+
+**Description:** Permanently deletes the authenticated user's account and all associated data (plants, care schedules, care actions, refresh tokens). The user is immediately logged out: the refresh token cookie is cleared on success.
+
+**Request Body:**
+
+```json
+{
+  "password": "string"   // required; user's current password — confirms intentional deletion
+}
+```
+
+**Validation Rules:**
+- `password`: required, non-empty string — must match the stored bcrypt hash for the authenticated user
+
+**Success Response — 204 No Content:**
+
+No response body. The refresh token `HttpOnly` cookie is cleared (Set-Cookie with `Max-Age=0`).
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `INVALID_PASSWORD` | `password` field is present but does not match the user's stored password hash. Message: `"Password is incorrect."` |
+| 400 | `VALIDATION_ERROR` | `password` field is missing or not a string. Message describes which field. |
+| 401 | `UNAUTHORIZED` | Missing, expired, or invalid Bearer token — auth middleware rejects before any DB query |
+| 500 | `INTERNAL_ERROR` | Unexpected server or database error |
+
+**Error Response Shape (example — wrong password):**
+
+```json
+{
+  "error": {
+    "message": "Password is incorrect.",
+    "code": "INVALID_PASSWORD"
+  }
+}
+```
+
+**Cascade Behavior:**
+
+All user-owned rows must be deleted. Preferred approach: rely on PostgreSQL `ON DELETE CASCADE` FK constraints already in place on `plants`, `care_schedules`, `care_actions`, and `refresh_tokens` tables (all reference `users.id`). Deleting the `users` row cascades automatically.
+
+If any FK does not currently have `ON DELETE CASCADE`, explicit DELETEs in the following order must be used instead:
+1. `DELETE FROM care_actions WHERE plant_id IN (SELECT id FROM plants WHERE user_id = :userId)`
+2. `DELETE FROM care_schedules WHERE plant_id IN (SELECT id FROM plants WHERE user_id = :userId)`
+3. `DELETE FROM refresh_tokens WHERE user_id = :userId`
+4. `DELETE FROM plants WHERE user_id = :userId`
+5. `DELETE FROM users WHERE id = :userId`
+
+All executed within a single database transaction.
+
+**User Isolation:** Only the authenticated user's own data may be deleted. The `userId` is sourced exclusively from the verified JWT payload — never from the request body or URL params.
+
+**Implementation Notes (for T-069):**
+- Route: `DELETE /account` in `backend/src/routes/account.js` (new file, or add to existing accounts route)
+- Model method: `User.deleteWithAllData(userId)` in `backend/src/models/User.js`
+- Auth middleware: `requireAuth` applied to this route
+- After successful deletion, clear the refresh token cookie: `res.clearCookie('refreshToken')` (same options as the cookie was set with)
+- Return `res.status(204).send()` — no body
+
+---
+
+### GROUP 2 — Stats Rate Limiter Amendment (T-071)
+
+---
+
+#### GET /api/v1/care-actions/stats — Rate Limit Amendment
+
+**Existing contract:** See Sprint 15, GROUP 1 — `GET /api/v1/care-actions/stats`.
+
+**Amendment (T-071):** An endpoint-specific rate limiter is added on top of the existing global limiter. This is a middleware-only change; the request/response schema is unchanged.
+
+**New Rate Limit:**
+- **Limit:** 30 requests per 15-minute window, per IP address
+- **Scope:** Applied only to `GET /api/v1/care-actions/stats`; the global limiter (100 req/15min) continues to apply to all other endpoints
+
+**On Rate Limit Exceeded — 429 Too Many Requests:**
+
+```json
+{
+  "error": {
+    "message": "Too many requests.",
+    "code": "RATE_LIMIT_EXCEEDED"
+  }
+}
+```
+
+**Updated Error Responses for GET /api/v1/care-actions/stats:**
+
+| HTTP | Code | Scenario |
+|------|------|----------|
+| 401 | `UNAUTHORIZED` | Missing, expired, or invalid Bearer token |
+| 429 | `RATE_LIMIT_EXCEEDED` | More than 30 requests in a 15-minute window from the same IP |
+| 500 | `INTERNAL_ERROR` | Unexpected server or database error |
+
+**Implementation Notes (for T-071):**
+- Create a dedicated `express-rate-limit` instance: `max: 30`, `windowMs: 15 * 60 * 1000`
+- Apply it as middleware immediately before the `GET /care-actions/stats` route handler
+- The `handler` option must return the structured `{ error: { message, code } }` body above with status 429
+
+---
+
+### GROUP 3 — Plant Name Max-Length Validation Amendment (T-075)
+
+---
+
+#### POST /api/v1/plants — Validation Amendment
+
+**Existing contract:** See Sprint 1, GROUP 3 — `POST /api/v1/plants`.
+
+**Amendment (T-075):** The `name` field now enforces a maximum length of 100 characters server-side.
+
+**Updated Validation Rule:**
+- `name`: required, string, **1–100 characters** (previously no upper bound enforced)
+
+**New Error Case:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `name` exceeds 100 characters. Message: `"name must be 100 characters or fewer."` |
+
+---
+
+#### PUT /api/v1/plants/:id — Validation Amendment
+
+**Existing contract:** See Sprint 1, GROUP 3 — `PUT /api/v1/plants/:id`.
+
+**Amendment (T-075):** The `name` field now enforces a maximum length of 100 characters server-side.
+
+**Updated Validation Rule:**
+- `name`: optional on PUT, but if provided must be a string of **1–100 characters** (previously no upper bound enforced)
+
+**New Error Case:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `name` exceeds 100 characters. Message: `"name must be 100 characters or fewer."` |
+
+**Implementation Notes (for T-075):**
+- Add the max-length check in `backend/src/middleware/validation.js` (or wherever plant field validation lives)
+- The check must apply to both `POST /plants` and `PUT /plants/:id` route handlers
+- Use parameterized Knex for all queries — this change is validation-layer only; no DB schema migration needed (PostgreSQL `TEXT` column already accepts any length; the constraint is application-level)
+
+---
+
+### Schema Changes — Sprint 16
+
+**None.** No new tables, columns, or migrations are required for Sprint 16.
+
+- `DELETE /api/v1/account` (T-069): operates on existing `users`, `plants`, `care_schedules`, `care_actions`, and `refresh_tokens` tables — all created in Sprint 1 migrations. If FK `ON DELETE CASCADE` constraints are not yet in place, the model uses explicit ordered DELETEs in a transaction (no schema change needed).
+- T-071 (stats rate limiter): middleware-only change — no DB schema impact.
+- T-075 (plant name max-length): application-level validation — no DB schema migration required.
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+*Sprint 16 contracts written by Backend Engineer — 2026-04-01. One new endpoint: DELETE /api/v1/account (T-069). Two amendments to existing endpoints: GET /api/v1/care-actions/stats rate-limit amendment (T-071), POST+PUT /api/v1/plants name max-length amendment (T-075). Zero schema changes. All prior sprint contracts remain authoritative.*
+
+---
+
+## Sprint 17 Contracts
+
+**Tasks:** T-077 — `POST /api/v1/ai/advice` (Gemini text-based advice), T-078 — `POST /api/v1/ai/identify` (Gemini image-based identification)
+**Written by:** Backend Engineer — 2026-04-01
+**Status:** Ready for implementation — Frontend Engineer may begin T-079 (text flow) immediately; T-080 (image flow) may begin once T-078 contract is acknowledged.
+
+---
+
+### GROUP 17A — AI Recommendations: Text-Based Advice (T-077)
+
+---
+
+#### POST /api/v1/ai/advice *(Breaking Shape Update — Sprint 17)*
+
+> **⚠️ BREAKING CHANGE** — The response shape of this endpoint is being updated in Sprint 17 (T-077) to align with the structured form-field mapping required by the AI Recommendations feature. The prior shape (Sprint 1 / Sprint 9) used nested `care_advice` with `frequency_value`/`frequency_unit` sub-objects. The new shape uses a flat `care` object with direct `*_interval_days` integers. Frontend integrations from prior sprints used the old `/ai/advice` endpoint in a different context; this sprint's T-079 is the first consumer of the new shape.
+
+**Auth:** Bearer token (required)
+
+**Description:** Accepts a plant type name (text string) and calls the Gemini API to return structured care recommendations. The response maps directly to Add/Edit Plant form fields so the frontend can auto-populate them on "Accept Advice". The `GeminiService` handles the Gemini API call with the existing 429 fallback chain (Sprint 9 behavior).
+
+**Request:** `Content-Type: application/json`
+
+```json
+{
+  "plant_type": "string"   // required; the plant's common or scientific name; max 200 chars
+}
+```
+
+**Validation Rules:**
+- `plant_type`: required, non-empty string, max 200 characters
+- Missing, null, empty string, or only-whitespace value → `400 VALIDATION_ERROR`
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "identified_plant": "string",        // matched/normalized plant name returned by Gemini
+    "confidence": "high | medium | low", // Gemini's identification confidence
+    "care": {
+      "watering_interval_days": 7,       // integer; number of days between watering
+      "fertilizing_interval_days": 14,   // integer | null; null if not applicable
+      "repotting_interval_days": 365,    // integer | null; null if not applicable
+      "light_requirement": "string",     // display-only; e.g. "Bright indirect light"
+      "humidity_preference": "string",   // display-only; e.g. "Moderate"
+      "care_tips": "string"              // free-text care advice, 1–3 sentences
+    }
+  }
+}
+```
+
+**Field Mapping to Add/Edit Plant Form (for Frontend — T-079):**
+
+| Response Field | Form Field |
+|---|---|
+| `identified_plant` | species/name field (only if currently empty) |
+| `care.watering_interval_days` | watering schedule interval |
+| `care.fertilizing_interval_days` | fertilizing schedule interval (skip if `null`) |
+| `care.repotting_interval_days` | repotting schedule interval (skip if `null`) |
+| `care.light_requirement` | display-only in advice panel; not mapped to form |
+| `care.humidity_preference` | display-only in advice panel; not mapped to form |
+| `care.care_tips` | display-only in advice panel; not mapped to form |
+
+**Error Responses:**
+
+| HTTP | Code | Message | Scenario |
+|------|------|---------|---------|
+| 400 | `VALIDATION_ERROR` | `"plant_type is required."` | `plant_type` missing, null, empty, or whitespace-only |
+| 400 | `VALIDATION_ERROR` | `"plant_type must be 200 characters or fewer."` | `plant_type` exceeds 200 chars |
+| 401 | `UNAUTHORIZED` | `"Authentication required."` | Missing or invalid Bearer token |
+| 502 | `EXTERNAL_SERVICE_ERROR` | `"AI advice is temporarily unavailable. Please try again."` | Gemini API error, timeout, unrecognized plant, or all 429 fallback models exhausted |
+| 500 | `INTERNAL_ERROR` | `"An unexpected error occurred."` | Unhandled server error |
+
+**Rate Limiting:** Reuses the general rate limiter (100 req / 15 min per IP). No endpoint-specific limit.
+
+**Environment Variables:**
+- `GEMINI_API_KEY` — Gemini API key. Must never be hardcoded. Read via `process.env.GEMINI_API_KEY`.
+
+**Implementation Notes:**
+- `GeminiService.js` (new) handles all Gemini communication and the Sprint 9 429-fallback chain
+- Route file: `backend/src/routes/ai.js`
+- Mount point: `backend/src/server.js` → `app.use('/api/v1/ai', aiRouter)`
+- Gemini model primary: `gemini-2.0-flash`; fallback chain: `gemini-2.5-flash` → `gemini-2.5-flash-lite` → `gemini-2.5-pro`
+- Parse Gemini's JSON response server-side and validate all required fields are present before returning 200; if fields are missing/malformed, surface as 502
+
+**Test Requirements (T-077 — minimum 4 new tests):**
+1. Happy path: valid `plant_type` → 200 with correct response shape
+2. Missing `plant_type` → 400 `VALIDATION_ERROR`
+3. Gemini API error mocked → 502 `EXTERNAL_SERVICE_ERROR`
+4. Missing auth header → 401 `UNAUTHORIZED`
+
+---
+
+### GROUP 17B — AI Recommendations: Image-Based Identification (T-078)
+
+---
+
+#### POST /api/v1/ai/identify
+
+**Auth:** Bearer token (required)
+
+**Description:** Accepts a plant photo upload (JPEG, PNG, or WebP, max 5MB) and calls the Gemini Vision API to identify the plant and return structured care recommendations. Returns the same response shape as `POST /api/v1/ai/advice`. The image is **never persisted** — it is held in memory only and forwarded transiently to Gemini.
+
+**Request:** `Content-Type: multipart/form-data`
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `image` | file | Yes | JPEG, PNG, or WebP; max 5MB |
+
+**Validation Rules (server-side):**
+- `image` field must be present → otherwise `400 VALIDATION_ERROR` with `"An image is required."`
+- MIME type must be `image/jpeg`, `image/png`, or `image/webp` → otherwise `400 VALIDATION_ERROR` with `"Image must be JPEG, PNG, or WebP."`
+- File size must be ≤ 5MB (5,242,880 bytes) → otherwise `400 VALIDATION_ERROR` with `"Image must be 5MB or smaller."`
+- Validation enforced via `multer` memory storage with `fileFilter` and `limits.fileSize`
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "identified_plant": "string",        // plant name identified from the image by Gemini Vision
+    "confidence": "high | medium | low", // Gemini's identification confidence
+    "care": {
+      "watering_interval_days": 7,       // integer; number of days between watering
+      "fertilizing_interval_days": 14,   // integer | null; null if not applicable
+      "repotting_interval_days": 365,    // integer | null; null if not applicable
+      "light_requirement": "string",     // display-only; e.g. "Bright indirect light"
+      "humidity_preference": "string",   // display-only; e.g. "Moderate"
+      "care_tips": "string"              // free-text care advice, 1–3 sentences
+    }
+  }
+}
+```
+
+*The response shape is **identical** to `POST /api/v1/ai/advice`. The frontend `AIAdvicePanel` can use the same result-rendering and accept/field-mapping logic for both endpoints.*
+
+**Field Mapping to Add/Edit Plant Form (for Frontend — T-080):**
+*Identical to T-077 mapping table above.*
+
+**Error Responses:**
+
+| HTTP | Code | Message | Scenario |
+|------|------|---------|---------|
+| 400 | `VALIDATION_ERROR` | `"An image is required."` | `image` field missing from request |
+| 400 | `VALIDATION_ERROR` | `"Image must be JPEG, PNG, or WebP."` | Uploaded file is not a supported image type |
+| 400 | `VALIDATION_ERROR` | `"Image must be 5MB or smaller."` | Uploaded file exceeds 5MB |
+| 401 | `UNAUTHORIZED` | `"Authentication required."` | Missing or invalid Bearer token |
+| 502 | `EXTERNAL_SERVICE_ERROR` | `"AI advice is temporarily unavailable. Please try again."` | Gemini Vision API error, timeout, unidentifiable plant, or all 429 fallback models exhausted |
+| 500 | `INTERNAL_ERROR` | `"An unexpected error occurred."` | Unhandled server error |
+
+**Rate Limiting:** Reuses the general rate limiter (100 req / 15 min per IP). No endpoint-specific limit.
+
+**Storage Policy:**
+- Image is parsed into memory (Buffer) by `multer` with `memoryStorage()`
+- Image Buffer is base64-encoded and passed directly to Gemini Vision API
+- **No file system writes. No database writes. No S3/cloud storage uploads.**
+- Buffer is garbage-collected after the request completes
+
+**Environment Variables:**
+- `GEMINI_API_KEY` — same key used by T-077. No additional env variables required.
+
+**Implementation Notes:**
+- Extends `GeminiService.js` (created in T-077) with a `identifyFromImage(imageBuffer, mimeType)` method
+- `multer` configured with `memoryStorage()`, `limits: { fileSize: 5 * 1024 * 1024 }`, and a `fileFilter` rejecting non-image MIME types
+- When multer's `limits.fileSize` is exceeded, multer emits a `LIMIT_FILE_SIZE` error — catch in the route's error handler and convert to `400 VALIDATION_ERROR` with the correct message
+- Route file: `backend/src/routes/ai.js` (same file as T-077, second route)
+- Gemini Vision prompt: include the image as an inline base64 part; instruct Gemini to identify the plant and return the same JSON structure as the text-based endpoint
+- Parse and validate Gemini's JSON response; if fields are missing/malformed, surface as 502
+
+**Test Requirements (T-078 — minimum 6 new tests):**
+1. Happy path: valid image upload → 200 with correct response shape
+2. Missing `image` field → 400 `VALIDATION_ERROR` `"An image is required."`
+3. Unsupported MIME type (e.g., `image/gif`) → 400 `VALIDATION_ERROR` `"Image must be JPEG, PNG, or WebP."`
+4. Image > 5MB → 400 `VALIDATION_ERROR` `"Image must be 5MB or smaller."`
+5. Gemini Vision API error mocked → 502 `EXTERNAL_SERVICE_ERROR`
+6. Missing auth header → 401 `UNAUTHORIZED`
+
+---
+
+### Schema Changes — Sprint 17
+
+**None.** No new tables, columns, or indexes are required for Sprint 17.
+
+- `POST /api/v1/ai/advice` (T-077): calls `GeminiService` — no database interaction
+- `POST /api/v1/ai/identify` (T-078): calls `GeminiService` — no database interaction; images not persisted
+- No Knex migrations required this sprint
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+## Sprint 18 Contracts
+
+---
+
+### T-083 — GET /api/v1/plants (Updated — Sprint 18)
+
+**Contract status:** UPDATED. The original Sprint 1 contract added `page` and `limit` query parameters. Sprint 18 extends it with two new optional filter parameters: `search` and `status`. All other fields (auth, response shape, error codes for auth/server errors) are unchanged from Sprint 1.
+
+---
+
+#### GET /api/v1/plants *(Updated — Sprint 18)*
+
+**Auth:** Bearer token (required)
+
+**Description:** Returns all plants belonging to the authenticated user, with pagination. **Sprint 18 update:** Accepts two new optional query parameters — `search` (case-insensitive name substring filter) and `status` (care-status filter: `overdue | due_today | on_track`). Both can be used simultaneously. Omitting either param restores the original unfiltered behaviour. An optional `utcOffset` parameter enables timezone-aware status bucketing (same semantics as `GET /api/v1/care-due` from Sprint 14).
+
+**Query Parameters:**
+
+| Param | Type | Default | Required | Description |
+|-------|------|---------|----------|-------------|
+| `page` | integer | `1` | no | Page number for pagination |
+| `limit` | integer | `50` | no | Records per page (max 100) |
+| `search` | string | — | no | Case-insensitive substring match against the plant's `name` field. Trimmed of leading/trailing whitespace before matching. Max 200 characters. Omit to return all plants (no name filter). |
+| `status` | string (enum) | — | no | Filter by computed care status. Must be one of: `overdue`, `due_today`, `on_track`. A plant matches the requested status if **at least one** of its care schedules has that status. Omit to return plants of all statuses. |
+| `utcOffset` | integer | `0` (UTC) | no | The caller's UTC offset in minutes. Used to compute "local today" for status calculations. Positive = ahead of UTC (e.g. UTC+5:30 → `330`). Negative = behind UTC (e.g. UTC-5 → `-300`). Omit to default to UTC. Same semantics as `GET /api/v1/care-due`. |
+
+**Validation Rules:**
+
+- `page`: optional; positive integer; defaults to `1`
+- `limit`: optional; positive integer; max `100`; defaults to `50`
+- `search`: optional; string; trimmed of whitespace; max **200** characters after trim; returns `400 VALIDATION_ERROR` if trimmed length exceeds 200
+- `status`: optional; if provided, must be exactly one of `overdue`, `due_today`, `on_track` (case-sensitive); returns `400 VALIDATION_ERROR` for any other value
+- `utcOffset`: optional; if provided, must be an integer in the range `[-840, 840]` (valid UTC offset range in minutes); returns `400 VALIDATION_ERROR` if out of range or non-integer
+
+**Status Computation Logic (timezone-aware, same as GET /api/v1/care-due):**
+
+- If `utcOffset` is provided: "local today" = `[UTC midnight + utcOffset minutes, UTC midnight + utcOffset minutes + 24 hours)`
+- If `utcOffset` is omitted: "local today" = UTC calendar day (existing behaviour — no regression)
+- `overdue`: `next_due_at` is before the start of local today
+- `due_today`: `next_due_at` falls within local today
+- `on_track`: `next_due_at` is after the end of local today
+- A plant matches `?status=overdue` if **at least one** of its care schedules is `overdue`
+- A plant matches `?status=due_today` if **at least one** schedule is `due_today` (and none are `overdue`)
+- A plant matches `?status=on_track` if **all** of its care schedules are `on_track`
+- Plants with zero care schedules are excluded from all `status` filter results (no computable status)
+
+**Combined Filter Behaviour:**
+
+- `search` and `status` are ANDed: a plant must satisfy **both** conditions to appear in results
+- Pagination (`page`, `limit`) applies to the already-filtered set; `pagination.total` reflects the **filtered** count, not the user's total plant count
+
+**Success Response — 200 OK:**
+
+Response shape is **identical** to the Sprint 1 contract. No new fields added.
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "name": "string",
+      "type": "string | null",
+      "notes": "string | null",
+      "photo_url": "string | null",
+      "created_at": "ISO8601",
+      "updated_at": "ISO8601",
+      "care_schedules": [
+        {
+          "id": "uuid",
+          "care_type": "watering | fertilizing | repotting",
+          "frequency_value": 7,
+          "frequency_unit": "days | weeks | months",
+          "last_done_at": "ISO8601 | null",
+          "next_due_at": "ISO8601",
+          "status": "on_track | due_today | overdue",
+          "days_overdue": 0
+        }
+      ]
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 50,
+    "total": 3
+  }
+}
+```
+
+**Notes:**
+
+- Empty filtered result returns `"data": []` with `"pagination": { "page": 1, "limit": 50, "total": 0 }` — **not** a 404
+- `care_schedules` array continues to contain 0–3 entries per plant regardless of which filter is active
+- Plants are ordered by `created_at DESC` within the filtered set (unchanged)
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `search` exceeds 200 characters (after trim) |
+| 400 | `VALIDATION_ERROR` | `status` is not one of `overdue`, `due_today`, `on_track` |
+| 400 | `VALIDATION_ERROR` | `utcOffset` provided but not an integer in range `[-840, 840]` |
+| 401 | `UNAUTHORIZED` | Missing or invalid access token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Example Requests:**
+
+```bash
+# Search by name (case-insensitive substring)
+GET /api/v1/plants?search=pothos
+
+# Filter by status only
+GET /api/v1/plants?status=overdue
+
+# Combined search + status + timezone offset
+GET /api/v1/plants?search=spider&status=due_today&utcOffset=-300
+
+# Paginated with search and status
+GET /api/v1/plants?search=monstera&status=on_track&page=1&limit=20
+
+# No filters — existing behaviour unchanged
+GET /api/v1/plants?page=2&limit=20
+
+# 400 — invalid status value
+GET /api/v1/plants?status=healthy
+
+# 400 — search exceeds 200 chars
+GET /api/v1/plants?search=[201-char string]
+```
+
+**Backward Compatibility:**
+
+Any existing consumer calling `GET /api/v1/plants` without the new parameters receives the same unfiltered paginated results as before. **No breaking change.**
+
+---
+
+### Schema Changes — Sprint 18
+
+**None.** No new tables, columns, or indexes are required for Sprint 18.
+
+- `GET /api/v1/plants` (T-083): query-parameter extension only — all status computation is derived from existing `care_schedules` data already present in the database
+- No Knex migrations required this sprint
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+*Sprint 18 contract written by Backend Engineer — 2026-04-01. One endpoint updated: GET /api/v1/plants (new optional `search`, `status`, and `utcOffset` query params). Response shape unchanged. No schema changes. All prior sprint contracts remain authoritative.*
+
+---
+
+*Sprint 17 contracts written by Backend Engineer — 2026-04-01. One endpoint shape update: POST /api/v1/ai/advice (T-077, breaking response shape change). One new endpoint: POST /api/v1/ai/identify (T-078). Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*

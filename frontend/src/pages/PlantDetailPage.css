@@ -28,10 +28,14 @@
   width: 240px;
   height: 240px;
   border-radius: var(--radius-card);
-  background: #E8F0E8;
+  background: var(--color-status-green-bg);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+[data-theme="dark"] .detail-photo-placeholder {
+  background: #1A2F22;
 }
 
 .detail-info {
@@ -185,6 +189,12 @@
   color: var(--color-status-green);
   border: 1.5px solid var(--color-status-green);
   animation: pulseScale 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+[data-theme="dark"] .care-done-success {
+  background: #1A2F22;
+  color: #6EB88A;
+  border-color: #3A5C43;
 }
 
 @keyframes pulseScale {

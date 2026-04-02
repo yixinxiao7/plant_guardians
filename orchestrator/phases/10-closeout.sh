@@ -29,6 +29,7 @@ SPRINT SUMMARY:
    - Sprint goal and whether it was met
    - Tasks completed (list task IDs and descriptions)
    - Tasks carried over (if any didn't finish)
+   - Verification failures: check .workflow/qa-build-log.md for 'Deploy Verified: No' — if found, list the issues and note they must be fixed in the next sprint
    - Key feedback themes
    - What went well
    - What to improve
@@ -52,12 +53,20 @@ WRITE THE NEXT SPRINT PLAN:
 
 CRITICAL: Do NOT skip step 6. The next sprint plan MUST be written to active-sprint.md before closeout is complete. The plan phase will verify it exists — if it is missing, the sprint cycle will stall."
 
-    run_agent_with_retry "manager" "$task_prompt" 3 30 "${MODEL_LIGHT:-sonnet}"
+    run_agent_with_retry "manager" "$task_prompt" 3 50 "${MODEL_LIGHT:-sonnet}"
 
     if phase_closeout_complete; then
         sprint_state_set "phase" "closeout"
         sprint_state_set "closeout_status" "complete"
         log_success "Sprint #${sprint_num} closed out"
+
+        # Kill any backend server running on port 3000
+        local backend_pid
+        backend_pid=$(lsof -ti :3000 2>/dev/null || true)
+        if [[ -n "$backend_pid" ]]; then
+            kill "$backend_pid" 2>/dev/null || true
+            log_info "Backend server (PID ${backend_pid}) on port 3000 stopped"
+        fi
     else
         log_error "Closeout incomplete — expected sprint summary in sprint-log.md"
         return 1

@@ -1,6 +1,6 @@
 # Feedback Log
 
-Structured feedback from the User Agent and Monitor Agent after each test cycle. Triaged by the Manager Agent.
+Structured feedback from the QA Engineer and Monitor Agent after each test cycle. Triaged by the Manager Agent.
 
 ---
 

@@ -3,6 +3,8 @@
   --color-bg: #F7F4EF;
   --color-surface: #FFFFFF;
   --color-surface-alt: #F0EDE6;
+  --color-sidebar: #FFFFFF;
+  --color-modal: #FFFFFF;
   --color-text-primary: #2C2C2C;
   --color-text-secondary: #6B6B5F;
   --color-text-disabled: #B0ADA5;
@@ -18,6 +20,10 @@
   --color-border: #E0DDD6;
   --color-border-focus: #5C7A5C;
   --color-overlay: rgba(44, 44, 44, 0.45);
+  --color-skeleton-base: #F0EDE6;
+  --color-skeleton-highlight: #E8E4DC;
+  --shadow-card: 0 2px 8px rgba(44, 44, 44, 0.06);
+  --shadow-card-hover: 0 6px 20px rgba(44, 44, 44, 0.12);
 
   /* Typography */
   --font-body: 'DM Sans', sans-serif;
@@ -38,10 +44,6 @@
   --radius-pill: 24px;
   --radius-circle: 50%;
 
-  /* Shadows */
-  --shadow-card: 0 2px 8px rgba(44, 44, 44, 0.06);
-  --shadow-card-hover: 0 6px 20px rgba(44, 44, 44, 0.12);
-
   /* Transitions */
   --transition-base: all 0.2s ease;
   --transition-spring: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -49,4 +51,62 @@
   /* Layout */
   --max-content-width: 1280px;
   --sidebar-width: 240px;
+}
+
+/* Dark mode — manual toggle */
+[data-theme="dark"] {
+  --color-bg: #1A1815;
+  --color-surface: #242220;
+  --color-surface-alt: #2C2A26;
+  --color-sidebar: #1F1D1A;
+  --color-modal: #2C2A26;
+  --color-text-primary: #EDE8DF;
+  --color-text-secondary: #9B9489;
+  --color-text-disabled: #5A5650;
+  --color-accent: #7EAF7E;
+  --color-accent-hover: #91BE91;
+  --color-accent-warm: #C2956A;
+  --color-status-green: #6EB88A;
+  --color-status-green-bg: #1A2F22;
+  --color-status-yellow: #E8B94A;
+  --color-status-yellow-bg: #2B220D;
+  --color-status-red: #E07A60;
+  --color-status-red-bg: #2E1A14;
+  --color-border: #3C3830;
+  --color-border-focus: #7EAF7E;
+  --color-overlay: rgba(0, 0, 0, 0.65);
+  --color-skeleton-base: #2C2A26;
+  --color-skeleton-highlight: #383530;
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* System preference fallback (when no manual override is set) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #1A1815;
+    --color-surface: #242220;
+    --color-surface-alt: #2C2A26;
+    --color-sidebar: #1F1D1A;
+    --color-modal: #2C2A26;
+    --color-text-primary: #EDE8DF;
+    --color-text-secondary: #9B9489;
+    --color-text-disabled: #5A5650;
+    --color-accent: #7EAF7E;
+    --color-accent-hover: #91BE91;
+    --color-accent-warm: #C2956A;
+    --color-status-green: #6EB88A;
+    --color-status-green-bg: #1A2F22;
+    --color-status-yellow: #E8B94A;
+    --color-status-yellow-bg: #2B220D;
+    --color-status-red: #E07A60;
+    --color-status-red-bg: #2E1A14;
+    --color-border: #3C3830;
+    --color-border-focus: #7EAF7E;
+    --color-overlay: rgba(0, 0, 0, 0.65);
+    --color-skeleton-base: #2C2A26;
+    --color-skeleton-highlight: #383530;
+    --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
+    --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.4);
+  }
 }

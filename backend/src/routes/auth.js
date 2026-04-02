@@ -1,5 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const User = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
@@ -11,6 +13,7 @@ const {
   InvalidRefreshTokenError,
   ConflictError,
 } = require('../utils/errors');
+const { setRefreshTokenCookie, clearRefreshTokenCookie } = require('../utils/cookieConfig');
 
 /**
  * Generate a JWT access token.
@@ -55,6 +58,9 @@ router.post(
       const access_token = generateAccessToken(user);
       const refresh_token = await generateRefreshToken(user.id);
 
+      // Set refresh token as HttpOnly cookie (T-053)
+      setRefreshTokenCookie(res, refresh_token);
+
       res.status(201).json({
         data: {
           user: {
@@ -64,7 +70,6 @@ router.post(
             created_at: user.created_at,
           },
           access_token,
-          refresh_token,
         },
       });
     } catch (err) {
@@ -97,6 +102,9 @@ router.post(
       const access_token = generateAccessToken(user);
       const refresh_token = await generateRefreshToken(user.id);
 
+      // Set refresh token as HttpOnly cookie (T-053)
+      setRefreshTokenCookie(res, refresh_token);
+
       res.status(200).json({
         data: {
           user: {
@@ -106,7 +114,6 @@ router.post(
             created_at: user.created_at,
           },
           access_token,
-          refresh_token,
         },
       });
     } catch (err) {
@@ -116,14 +123,15 @@ router.post(
 );
 
 // POST /api/v1/auth/refresh
+// Refresh token is read from the HttpOnly cookie (T-053)
 router.post(
   '/refresh',
-  validateBody([
-    { field: 'refresh_token', required: true, type: 'string' },
-  ]),
   async (req, res, next) => {
     try {
-      const { refresh_token: rawToken } = req.body;
+      const rawToken = req.cookies && req.cookies.refresh_token;
+      if (!rawToken) {
+        throw new InvalidRefreshTokenError();
+      }
 
       const tokenRecord = await RefreshToken.findValid(rawToken);
       if (!tokenRecord) {
@@ -142,10 +150,12 @@ router.post(
       const access_token = generateAccessToken(user);
       const new_refresh_token = await generateRefreshToken(user.id);
 
+      // Set rotated refresh token as HttpOnly cookie (T-053)
+      setRefreshTokenCookie(res, new_refresh_token);
+
       res.status(200).json({
         data: {
           access_token,
-          refresh_token: new_refresh_token,
         },
       });
     } catch (err) {
@@ -155,22 +165,67 @@ router.post(
 );
 
 // POST /api/v1/auth/logout
+// Refresh token is read from the HttpOnly cookie (T-053)
 router.post(
   '/logout',
   authenticate,
-  validateBody([
-    { field: 'refresh_token', required: true, type: 'string' },
-  ]),
   async (req, res, next) => {
     try {
-      const { refresh_token: rawToken } = req.body;
-      await RefreshToken.revokeByRawToken(rawToken);
+      const rawToken = req.cookies && req.cookies.refresh_token;
+      if (rawToken) {
+        await RefreshToken.revokeByRawToken(rawToken);
+      }
+
+      // Clear the refresh token cookie (T-053)
+      clearRefreshTokenCookie(res);
 
       res.status(200).json({
         data: {
           message: 'Logged out successfully.',
         },
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// DELETE /api/v1/auth/account (T-033)
+router.delete(
+  '/account',
+  authenticate,
+  async (req, res, next) => {
+    try {
+      // 1. Collect photo URLs before deleting DB rows (for file cleanup)
+      const photoUrls = await User.findPhotoUrlsByUserId(req.user.id);
+
+      // 2. Delete user — ON DELETE CASCADE removes refresh_tokens, plants,
+      //    care_schedules (via plants), and care_actions (via plants)
+      const deleted = await User.deleteById(req.user.id);
+      if (!deleted) {
+        // User not found (already deleted or race condition) — still return 204
+        return res.status(204).end();
+      }
+
+      // 3. Best-effort cleanup of uploaded photo files
+      const uploadDir = process.env.UPLOAD_DIR || './uploads';
+      for (const url of photoUrls) {
+        try {
+          // photo_url is stored as "/uploads/filename.ext"
+          const filename = url.split('/').pop();
+          if (filename) {
+            const filePath = path.resolve(uploadDir, filename);
+            fs.unlinkSync(filePath);
+          }
+        } catch {
+          // File may already be missing — non-critical, continue
+        }
+      }
+
+      // Clear the refresh token cookie on account deletion (T-053)
+      clearRefreshTokenCookie(res);
+
+      res.status(204).end();
     } catch (err) {
       next(err);
     }

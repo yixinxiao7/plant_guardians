@@ -72,6 +72,11 @@
   color: var(--color-text-secondary);
 }
 
+/* AI Advice trigger — positioned below species field */
+.ai-advice-trigger {
+  display: flex;
+}
+
 /* Form actions */
 .plant-form-actions {
   display: flex;

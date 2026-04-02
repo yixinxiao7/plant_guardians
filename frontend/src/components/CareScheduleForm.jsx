@@ -7,6 +7,7 @@ export default function CareScheduleForm({
   label,
   required = false,
   expanded: controlledExpanded,
+  onExpand,
   frequency,
   onFrequencyChange,
   lastDoneAt,
@@ -19,13 +20,18 @@ export default function CareScheduleForm({
 
   const isAiFilled = (field) => aiFilledFields.includes(field);
 
+  const handleExpand = () => {
+    setLocalExpanded(true);
+    if (onExpand) onExpand();
+  };
+
   if (!required && !expanded) {
     return (
       <div className="care-schedule-section">
         <button
           type="button"
           className="care-schedule-toggle"
-          onClick={() => setLocalExpanded(true)}
+          onClick={handleExpand}
         >
           <Plus size={16} />
           <span>Add {label.toLowerCase()} schedule</span>
