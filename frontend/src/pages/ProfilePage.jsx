@@ -133,17 +133,17 @@ export default function ProfilePage() {
       {/* Stats */}
       <div className="profile-stats">
         <div className="stat-tile" role="figure" aria-label={`${stats.plant_count || 0} Plants in care`}>
-          <Plant size={32} color="#5C7A5C" />
+          <Plant size={32} color="var(--color-accent-primary)" />
           <span className="stat-number">{stats.plant_count ?? 0}</span>
           <span className="stat-label">Plants in care</span>
         </div>
         <div className="stat-tile" role="figure" aria-label={`${stats.days_as_member || 0} Days as a Guardian`}>
-          <CalendarBlank size={32} color="#5C7A5C" />
+          <CalendarBlank size={32} color="var(--color-accent-primary)" />
           <span className="stat-number">{stats.days_as_member ?? 0}</span>
           <span className="stat-label">Days as a Guardian</span>
         </div>
         <div className="stat-tile" role="figure" aria-label={`${stats.total_care_actions || 0} Care actions completed`}>
-          <CheckCircle size={32} color="#5C7A5C" />
+          <CheckCircle size={32} color="var(--color-accent-primary)" />
           <span className="stat-number">{stats.total_care_actions ?? 0}</span>
           <span className="stat-label">Care actions completed</span>
         </div>

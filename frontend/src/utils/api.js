@@ -157,8 +157,15 @@ export const auth = {
 
 // Plant endpoints
 export const plants = {
-  list(page = 1, limit = 50) {
-    return request(`/plants?page=${page}&limit=${limit}`);
+  list(params = {}) {
+    const query = new URLSearchParams();
+    query.set('page', String(params.page || 1));
+    query.set('limit', String(params.limit || 50));
+    if (params.search) query.set('search', params.search);
+    if (params.status) query.set('status', params.status);
+    const utcOffset = new Date().getTimezoneOffset() * -1;
+    query.set('utcOffset', String(utcOffset));
+    return request(`/plants?${query.toString()}`, { _returnFull: true });
   },
   get(id) {
     return request(`/plants/${id}`);

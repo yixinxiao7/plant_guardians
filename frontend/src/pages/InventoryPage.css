@@ -143,6 +143,11 @@
   border: 0;
 }
 
+/* Mobile add-plant icon-only toggle */
+.add-plant-icon-only {
+  display: none;
+}
+
 /* Responsive */
 @media (max-width: 1023px) {
   .inventory-grid {
@@ -152,23 +157,26 @@
 
 @media (max-width: 767px) {
   .inventory-header {
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
   }
 
   .inventory-actions {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .inventory-search {
-    width: 100%;
-  }
-
-  .search-input {
-    width: 100%;
+    flex-shrink: 0;
   }
 
   .inventory-grid {
     grid-template-columns: 1fr;
+  }
+
+  .add-plant-label {
+    display: none;
+  }
+
+  .add-plant-icon-only {
+    display: inline;
+    font-size: 20px;
+    font-weight: bold;
+    line-height: 1;
   }
 }

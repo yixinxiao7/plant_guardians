@@ -4,6 +4,148 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-234 — Frontend Engineer → QA Engineer: Sprint 18 Frontend Tasks Complete — T-084, T-085, T-086 (2026-04-02)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-234 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-02 |
+| **Sprint** | 18 |
+| **Subject** | Frontend implementation of T-084 (search & filter), T-085 (ProfilePage icon colors), T-086 (CareDue focus management) complete — ready for QA |
+| **Status** | Active |
+
+### Summary
+
+All three Sprint 18 frontend tasks are complete and moved to In Review.
+
+### T-084 — Plant Inventory Search & Filter UI
+
+**Files changed:**
+- `frontend/src/components/PlantSearchFilter.jsx` — New component: search input (debounced 300ms), status filter strip (All/Overdue/Due Today/On Track), result count label, error banner, 4 empty state sub-components
+- `frontend/src/components/PlantSearchFilter.css` — Styles using CSS custom properties (dark mode compatible), responsive breakpoints, shimmer animation with reduced-motion support
+- `frontend/src/pages/InventoryPage.jsx` — Rewritten: server-side search/filter via API params
+- `frontend/src/pages/InventoryPage.css` — Updated responsive styles
+- `frontend/src/hooks/usePlants.js` — Updated to accept search/filter params, returns pagination
+- `frontend/src/utils/api.js` — `plants.list()` accepts object params with search/status/utcOffset
+- `frontend/src/pages/CareHistoryPage.jsx` — Updated to new `plantsApi.list()` signature
+- `frontend/src/__tests__/PlantSearchFilter.test.jsx` — 15 new tests
+- `frontend/src/__tests__/api.test.js` — Updated assertion for new return shape
+
+**What to test:**
+1. Search input debounce (300ms), results update correctly
+2. Status filter tabs (immediate fetch, no debounce)
+3. Combined search + filter (both params sent)
+4. Empty States B/C/D render correctly per SPEC-013
+5. Clear search (✕) clears input, re-fetches, focus returns to input
+6. Reset filter (All tab) removes status param
+7. Result count pluralization and visibility
+8. Error banner on fetch failure with retry
+9. Skeleton grid during loading
+10. Responsive layout, dark mode, keyboard accessibility
+
+**Known limitations:** URL parameter persistence not implemented (optional per SPEC-013). Backend T-083 still In Progress.
+
+### T-085 — ProfilePage Icon Colors
+
+Replaced 3 hardcoded `color="#5C7A5C"` with `color="var(--color-accent-primary)"`. Test in light + dark mode.
+
+### T-086 — CareDue Focus Management
+
+Already fully implemented (T-050, Sprint 10). 6 focus tests pass. No changes needed.
+
+### Test Results: All **177/177** frontend tests pass.
+
+---
+
+## H-233 — Frontend Engineer acknowledges T-083 API Contract (2026-04-02)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-233 |
+| **From** | Frontend Engineer |
+| **To** | Backend Engineer |
+| **Date** | 2026-04-02 |
+| **Sprint** | 18 |
+| **Subject** | Acknowledging GET /api/v1/plants updated API contract (T-083) |
+| **Status** | Active |
+
+### Summary
+
+Frontend Engineer has read and acknowledged the Sprint 18 API contract for `GET /api/v1/plants` (search, status, utcOffset query params). Frontend wired up in T-084. Response shape `{ data: [...], pagination: {...} }` consumed correctly. No new endpoints required.
+
+---
+
+## H-231 — Deploy Engineer → Manager Agent + QA Engineer: Sprint 18 Pre-Deploy Build Check Complete — BLOCKED on T-083 (2026-04-02)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-231 |
+| **From** | Deploy Engineer |
+| **To** | Manager Agent, QA Engineer |
+| **Date** | 2026-04-02 |
+| **Sprint** | 18 |
+| **Subject** | Sprint 18 pre-deploy build verification complete — deploy BLOCKED on T-083 implementation + QA sign-off |
+| **Status** | Blocked |
+
+### Summary
+
+Deploy Engineer has completed the Sprint 18 pre-deploy build verification. **Staging deployment cannot proceed.** Two blockers remain.
+
+### Build Verification Results
+
+| Check | Result |
+|-------|--------|
+| Backend tests | ✅ 108/108 pass |
+| Frontend tests | ✅ **177/177 pass** (15 new tests from T-084 PlantSearchFilter) |
+| Pending DB migrations | ✅ None (T-083 is query-only) |
+| QA sign-off | ❌ Missing for Sprint 18 |
+| T-083 implementation | ❌ Not in `backend/src/routes/plants.js` |
+
+### Active Blockers
+
+| # | Blocker | Owner | Resolution |
+|---|---------|-------|------------|
+| 1 | **No QA sign-off** — No Sprint 18 QA → Deploy Engineer handoff in handoff-log.md | QA Engineer | Complete Sprint 18 QA pass; issue sign-off handoff to Deploy Engineer |
+| 2 | **T-083 not implemented** — `GET /api/v1/plants` has no `search`/`status`/`utcOffset` handling; backend must reach ≥114 tests | Backend Engineer | Implement T-083; add 6+ backend tests |
+
+### What IS Complete (confirmed in working tree)
+
+| Task | Status |
+|------|--------|
+| T-082 (SPEC-013) | ✅ Written (H-227) |
+| T-083 (Backend search/filter) | ❌ In Progress — NOT in plants.js |
+| T-084 (PlantSearchFilter UI) | ✅ `PlantSearchFilter.jsx` + 15 new tests — 177/177 (H-234) |
+| T-085 (ProfilePage CSS tokens) | ✅ Done — `var(--color-accent-primary)` on lines 136/141/146 (H-234) |
+| T-086 (CareDuePage focus mgmt) | ✅ Done — full implementation present (H-234) |
+
+### Deploy Engineer Status
+
+Standing by. Will execute staging deploy **immediately** upon receipt of QA sign-off handoff confirming all T-082 through T-086 pass.
+
+Full pre-deploy check documented in `.workflow/qa-build-log.md` — "Sprint 18 — Deploy Engineer: Pre-Deploy Build Verification" section.
+
+---
+
+## H-230 — Deploy Engineer → Frontend Engineer: api.test.js Regression Flag — SUPERSEDED (2026-04-02)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-230 |
+| **From** | Deploy Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-02 |
+| **Sprint** | 18 |
+| **Subject** | ~~api.test.js regression~~ — **SUPERSEDED** — already fixed; 177/177 pass |
+| **Status** | Superseded — No Action Required |
+
+### Status
+
+This handoff was issued preemptively based on a stale-cache Vitest run that incorrectly showed 161/162. A clean full re-run confirmed **177/177 frontend tests pass**. The `api.test.js` assertion was already updated by the Frontend Engineer as part of T-084 (expecting `{ data: [{ id: 1 }] }` instead of `[{ id: 1 }]`). **No further action required.**
+
+---
+
 ## H-229 — Backend Engineer → QA Engineer: Sprint 18 API Contract Published — T-083 (2026-04-01)
 
 | Field | Value |

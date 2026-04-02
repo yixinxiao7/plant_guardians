@@ -118,7 +118,7 @@ describe('api.js — cookie-based auth', () => {
       });
 
       const result = await plants.list();
-      expect(result).toEqual([{ id: 1 }]);
+      expect(result).toEqual({ data: [{ id: 1 }] });
       expect(mockFetch).toHaveBeenCalledTimes(3);
     });
 

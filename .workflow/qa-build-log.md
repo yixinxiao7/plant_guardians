@@ -4,6 +4,109 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 18 — Deploy Engineer: Pre-Deploy Build Verification (2026-04-02)
+
+**Date:** 2026-04-02
+**Agent:** Deploy Engineer (Sprint #18)
+**Sprint:** 18
+**Git Branch:** fix/T-045-cors-port-5174
+**Git SHA:** eded8e0 (last commit: "checkpoint: sprint #17 -- phase 'contracts' complete")
+**QA Sign-off:** ⛔ PENDING — No Sprint 18 QA sign-off received. Deployment is BLOCKED.
+
+---
+
+### Pre-Deploy Checks
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| QA sign-off in handoff-log.md | ❌ BLOCKED | No Sprint 18 QA → Deploy Engineer handoff found. Most recent is H-220 (Sprint 17). |
+| Pending DB migrations | ✅ None | Sprint 18 adds no schema changes — T-083 is query-parameter-only, no DDL |
+| Backend test suite | ✅ PASS | 108/108 tests pass |
+| Frontend test suite | ✅ PASS | **177/177 tests pass** — 15 new tests from T-084 (PlantSearchFilter) |
+| Uncommitted/untracked working tree | ⚠️ Present | Sprint 18 implementation work exists in working tree but not yet committed to git |
+
+> **Note on initial false alarm:** First test run returned 161/162 (stale Vitest cache from prior session). Full re-run with all working tree files loaded confirmed **177/177**. The api.test.js regression was already fixed by the Frontend Engineer — `api.test.js` modified to expect `{ data: [{ id: 1 }] }` (matching the new `_returnFull: true` behavior). H-230 was sent preemptively but is now **superseded** — no action needed from Frontend Engineer on the test fix.
+
+---
+
+### Build Verification Results
+
+#### Backend — `npm test` in `backend/`
+
+| Metric | Result |
+|--------|--------|
+| Test Suites | 12 passed, 12 total |
+| Tests | **108/108 passed** |
+| Duration | ~28s |
+| Status | ✅ PASS — baseline maintained |
+
+> **Note on T-083:** Backend search/filter implementation (`GET /api/v1/plants?search=&status=`) is confirmed **NOT YET IMPLEMENTED** in `backend/src/routes/plants.js`. The endpoint accepts only `page` and `limit` params. Test count of 108 reflects the pre-T-083 baseline — once T-083 is implemented, backend will add minimum 6 tests (per DoD) bringing the count to ≥114.
+
+#### Frontend — `npm test -- --run` in `frontend/`
+
+| Metric | Result |
+|--------|--------|
+| Test Suites | 26 passed, 26 total |
+| Tests | **177/177 passed** |
+| Duration | ~3s |
+| Status | ✅ PASS — 15 new tests from T-084 PlantSearchFilter (above Sprint 17 baseline of 162) |
+
+---
+
+### Untracked / Uncommitted Working Tree Changes
+
+Sprint 18 implementation work is present in the working tree (untracked and modified files — not yet committed):
+
+**Modified files:**
+| File | Change Summary | Task |
+|------|---------------|------|
+| `frontend/src/utils/api.js` | `plants.list()` refactored: params object API, adds `search`/`status`/`utcOffset`, uses `_returnFull: true` | T-084 |
+| `frontend/src/hooks/usePlants.js` | Updated for new `{ data, pagination }` return shape; adds `pagination` state + `abortRef` | T-084 |
+| `frontend/src/pages/CareHistoryPage.jsx` | `plantsApi.list(1, 200)` → `plantsApi.list({ page: 1, limit: 200 })` compatibility fix | T-084 |
+| `frontend/src/pages/ProfilePage.jsx` | `color="#5C7A5C"` → `color="var(--color-accent-primary)"` on lines 136, 141, 146 | **T-085 ✅** |
+| `frontend/src/__tests__/api.test.js` | Updated assertion to expect `{ data: [...] }` from `plants.list()` | T-084 regression fix |
+| `frontend/src/pages/InventoryPage.jsx` | Updated to use PlantSearchFilter component, server-side search/filter | T-084 |
+| `frontend/src/pages/InventoryPage.css` | New styles for search/filter layout | T-084 |
+
+**New untracked files:**
+| File | Task |
+|------|------|
+| `frontend/src/components/PlantSearchFilter.jsx` (279 lines) | T-084 ✅ |
+| `frontend/src/components/PlantSearchFilter.css` | T-084 ✅ |
+| `frontend/src/__tests__/PlantSearchFilter.test.jsx` (215 lines) | T-084 ✅ |
+
+---
+
+### Sprint 18 Task Implementation Status (confirmed in codebase)
+
+| Task | Agent | Code Status | Tracker Status |
+|------|-------|-------------|----------------|
+| T-082 (SPEC-013 — Design) | Design Agent | ✅ Written — H-227 confirms SPEC-013 in ui-spec.md | Backlog (tracker not yet updated) |
+| T-083 (Backend search/filter) | Backend Engineer | ❌ NOT implemented — `plants.js` GET handler has no `search`/`status`/`utcOffset` params; 108/108 tests (pre-T-083) | In Progress |
+| T-084 (Frontend search/filter UI) | Frontend Engineer | ✅ Complete — `PlantSearchFilter.jsx` (279L), updated `InventoryPage.jsx`, 15 new tests, 177/177 pass | In Review |
+| T-085 (ProfilePage CSS tokens) | Frontend Engineer | ✅ Done — all 3 stat tile icons use `var(--color-accent-primary)` | In Review |
+| T-086 (CareDuePage focus mgmt) | Frontend Engineer | ✅ Done — `getNextFocusTarget`, `markDoneButtonRefs`, 300ms fade-then-focus fully implemented | In Review |
+
+---
+
+### Deployment Decision
+
+**Status: BLOCKED — DO NOT DEPLOY**
+
+Active blockers preventing staging deployment:
+1. **No QA sign-off** — No Sprint 18 QA → Deploy Engineer handoff exists in handoff-log.md
+2. **T-083 incomplete** — Backend search/filter not implemented; backend cannot serve `?search=` or `?status=` params; QA cannot verify search/filter end-to-end behavior
+
+**Non-blocking items confirmed clear:**
+- ✅ Backend: 108/108 tests (existing suite)
+- ✅ Frontend: 177/177 tests
+- ✅ No DB migrations pending (T-083 adds no schema changes)
+- ✅ T-084, T-085, T-086 all complete in working tree
+
+**Action taken:** Pre-deploy build verification logged. H-231 sent to Manager Agent summarizing blocker status. Staging deploy will proceed immediately upon receipt of QA sign-off from QA Engineer confirming T-082 through T-086 all pass.
+
+---
+
 ## Sprint 17 — Deploy Engineer: Staging Re-Deploy Verification (2026-04-02)
 
 **Date:** 2026-04-02

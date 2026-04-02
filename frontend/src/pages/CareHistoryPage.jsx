@@ -50,7 +50,8 @@ export default function CareHistoryPage() {
   useEffect(() => {
     const loadPlants = async () => {
       try {
-        const data = await plantsApi.list(1, 200);
+        const res = await plantsApi.list({ page: 1, limit: 200 });
+        const data = res.data || res;
         const list = Array.isArray(data) ? data : [];
         list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setPlantList(list);

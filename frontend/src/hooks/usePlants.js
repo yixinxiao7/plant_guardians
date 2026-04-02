@@ -1,19 +1,24 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { plants as plantsApi, careActions as careActionsApi } from '../utils/api.js';
 
 export function usePlants() {
   const [plants, setPlants] = useState([]);
+  const [pagination, setPagination] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const abortRef = useRef(null);
 
-  const fetchPlants = useCallback(async () => {
+  const fetchPlants = useCallback(async (params = {}) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await plantsApi.list();
-      // data may be array directly or have pagination wrapper
-      setPlants(Array.isArray(data) ? data : data);
-      return data;
+      const result = await plantsApi.list(params);
+      // result is the full response { data: [...], pagination: {...} }
+      const items = Array.isArray(result) ? result : (result.data || result);
+      const pag = result.pagination || null;
+      setPlants(Array.isArray(items) ? items : []);
+      setPagination(pag);
+      return result;
     } catch (err) {
       setError(err.message || 'Failed to load plants.');
       throw err;
@@ -27,7 +32,7 @@ export function usePlants() {
     setPlants(prev => prev.filter(p => p.id !== id));
   }, []);
 
-  return { plants, loading, error, fetchPlants, deletePlant, setPlants };
+  return { plants, pagination, loading, error, fetchPlants, deletePlant, setPlants };
 }
 
 export function usePlantDetail() {
