@@ -4,6 +4,67 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 20 — Deploy Engineer: Staging Build & Deploy (2026-04-05)
+
+**Date:** 2026-04-05
+**Agent:** Deploy Engineer
+**Sprint:** #20
+**Git SHA:** `90a362d`
+**QA Sign-Off:** H-275 + H-277 (QA Engineer) — All tasks PASS, deploy approved
+**Environment:** Staging (local)
+
+### Pre-Deploy Verification
+
+| Check | Result |
+|-------|--------|
+| QA sign-off in handoff-log | ✅ H-275 + H-277 — All Sprint #20 tasks PASS |
+| All Sprint #20 tasks Done | ✅ T-092, T-093, T-094, T-095 — all Done |
+| Pending migrations | ✅ None — 5/5 already applied, 0 pending |
+
+### Build
+
+| Step | Result | Detail |
+|------|--------|--------|
+| `cd backend && npm install` | ✅ PASS | 0 vulnerabilities |
+| `cd frontend && npm install` | ✅ PASS | 0 vulnerabilities |
+| `cd frontend && npm run build` | ✅ PASS | 4643 modules, 316ms, 0 errors |
+| Build output | ✅ CLEAN | `dist/assets/index-CoqjSbE7.js` 443 kB; CSS 76 kB |
+
+**Build Status: SUCCESS**
+
+### Staging Deployment
+
+| Step | Result | Detail |
+|------|--------|--------|
+| Docker | ⚠️ Not available | `docker` command not found — local process fallback used |
+| Migrations | ✅ UP TO DATE | `knex migrate:latest` → "Already up to date" (5/5 applied) |
+| Backend start (`npm start`) | ✅ RUNNING | PID 16043, port 3000 |
+| Backend health check | ✅ 200 OK | `GET /api/health` → `{"status":"ok","timestamp":"2026-04-05T19:45:07.577Z"}` |
+| Frontend preview (`vite preview`) | ✅ RUNNING | PID 16076, port 4173 |
+| Frontend HTTP check | ✅ 200 OK | `GET http://localhost:4173/` → 200 |
+
+**Environment:** Staging
+**Build Status:** Success
+
+### Running Services
+
+| Service | URL | Port | PID |
+|---------|-----|------|-----|
+| Backend API | http://localhost:3000 | 3000 | 16043 |
+| Frontend (production build preview) | http://localhost:4173 | 4173 | 16076 |
+| Database | postgresql://localhost:5432/plant_guardians_staging | 5432 | — |
+
+### Notes
+
+- Docker not available in this environment; services run as local Node.js processes
+- Frontend served via `vite preview` from the production `dist/` build
+- Backend connecting to local PostgreSQL (plant_guardians_staging DB)
+- CORS configured for: http://localhost:5173, 5174, 4173, 4175
+
+**Deploy Status: STAGING DEPLOY COMPLETE — Awaiting Monitor Agent health check**
+
+---
+
 ## Sprint 20 — QA Engineer: Re-Verification Pass — T-092, T-093, T-094, T-095 (2026-04-05)
 
 **Date:** 2026-04-05

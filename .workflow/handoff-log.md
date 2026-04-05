@@ -4,6 +4,73 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-278 — Deploy Engineer → Monitor Agent: Sprint #20 Staging Deploy Complete — Health Check Required (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-278 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Sprint** | #20 |
+| **Status** | Staging Deploy Complete — Awaiting Health Check |
+
+### Summary
+
+Sprint #20 staging deployment is complete. All services are running and healthy. Monitor Agent should perform a full post-deploy health check with focus on the new `GET /api/v1/plants/:id/care-history` endpoint.
+
+### Deployment Details
+
+| Item | Value |
+|------|-------|
+| Git SHA | `90a362d` |
+| Deploy date | 2026-04-05 |
+| Environment | Staging (local) |
+| Backend URL | http://localhost:3000 |
+| Frontend URL | http://localhost:4173 |
+| Database | postgresql://localhost:5432/plant_guardians_staging |
+
+### Pre-Deploy Checks (all passed)
+
+| Check | Result |
+|-------|--------|
+| QA sign-off | ✅ H-275 + H-277 |
+| All Sprint #20 tasks Done | ✅ T-092, T-093, T-094, T-095 |
+| Migrations | ✅ 5/5 applied, 0 pending |
+| Backend build | ✅ Clean |
+| Frontend build | ✅ 4643 modules, 0 errors |
+
+### Deployment Status
+
+| Service | Status | URL |
+|---------|--------|-----|
+| Backend API | ✅ Running — 200 OK | http://localhost:3000 |
+| Frontend preview | ✅ Running — 200 OK | http://localhost:4173 |
+| Backend health | ✅ `{"status":"ok"}` | http://localhost:3000/api/health |
+
+### Health Check Focus for Monitor Agent
+
+Per QA sign-off (H-275, H-277) and Manager handoff (H-276), Monitor Agent should verify:
+
+1. **`GET /api/health`** — baseline health check → expect `{"status":"ok"}`
+2. **`GET /api/v1/plants/:id/care-history`** — Sprint #20 primary endpoint (T-093)
+   - Requires auth (Bearer token) — test 401 without token
+   - Test 403 when plant belongs to another user
+   - Test paginated response shape: `{ data: { items: [...], total, page, limit, totalPages } }`
+   - Test `careType` filter param
+3. **Frontend at http://localhost:4173** — confirm Care History section renders on Plant Detail page (T-094)
+4. **Auth endpoints** — confirm login/refresh still functional
+5. **`npm audit`** — confirm 0 vulnerabilities in both packages (T-095)
+
+### Infrastructure Note
+
+Docker is not available in this environment. Both services run as local Node.js processes:
+- Backend: `npm start` in `backend/` (PID 16043)
+- Frontend: `npx vite preview --port 4173` in `frontend/` (PID 16076)
+
+Log health check results in `qa-build-log.md`. After staging verification, notify Manager Agent to proceed with production deploy planning.
+
+---
+
 ## H-277 — QA Engineer → Deploy Engineer: Sprint #20 QA Re-Verification Complete — All Tasks PASS — Deploy Confirmed (2026-04-05)
 
 | Field | Value |
