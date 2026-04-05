@@ -3112,3 +3112,207 @@ GET /api/v1/care-actions/streak
 ---
 
 *Sprint 19 contracts written by Backend Engineer — 2026-04-05. One new endpoint: GET /api/v1/care-actions/streak (T-090). T-087 is an internal cookie-flag fix — no contract change. Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*
+
+---
+
+## Sprint 20 Contracts
+
+---
+
+### T-093 — Care History Endpoint
+
+---
+
+#### GET /api/v1/plants/:id/care-history
+
+**Auth:** Required — `Authorization: Bearer <access_token>`. Returns 401 if token is missing or invalid.
+
+**Description:** Returns a paginated, reverse-chronological list of care actions logged for a specific plant owned by the authenticated user. Supports optional filtering by care type. Used by the Care History section on the Plant Detail page (SPEC-015).
+
+**URL Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | UUID string | The plant's UUID. Must belong to the authenticated user. |
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Constraints | Description |
+|-----------|------|---------|-------------|-------------|
+| `page` | integer | `1` | ≥ 1 | Page number (1-indexed) |
+| `limit` | integer | `20` | 1–100 (inclusive) | Items per page |
+| `careType` | string | *(none — all types)* | `watering` \| `fertilizing` \| `repotting` | Filter to a single care type. Omit to return all types. |
+
+**Validation Rules:**
+- `page`: optional; must be a positive integer (≥ 1); 400 if present and out of range
+- `limit`: optional; must be an integer between 1 and 100 inclusive; 400 if present and out of range
+- `careType`: optional; if provided must be exactly one of `"watering"`, `"fertilizing"`, `"repotting"` (case-sensitive); 400 if any other value
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "id": "uuid",
+        "careType": "watering",
+        "performedAt": "2026-04-04T09:00:00.000Z",
+        "notes": "string | null"
+      }
+    ],
+    "total": 42,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 3
+  }
+}
+```
+
+**Response Field Descriptions:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `items` | array | Ordered list of care action records for this page, newest first |
+| `items[].id` | UUID string | Unique identifier of the care action record |
+| `items[].careType` | string | One of: `"watering"`, `"fertilizing"`, `"repotting"` |
+| `items[].performedAt` | ISO 8601 UTC string | When the care action was performed (maps to `performed_at` column) |
+| `items[].notes` | string \| null | Optional note attached to the care action (maps to `note` column); `null` when no note was recorded |
+| `total` | integer | Total number of matching records across all pages |
+| `page` | integer | Current page number (matches the `page` query param used) |
+| `limit` | integer | Page size used for this response (matches the `limit` query param used) |
+| `totalPages` | integer | Total number of pages: `Math.ceil(total / limit)` |
+
+**Ordering:** Items are always returned `performed_at DESC` (most recent first), within each page.
+
+**Empty Result:** A plant with no care history (or no matching care history for the given filter) returns a 200 with `items: []`, `total: 0`, `totalPages: 0`.
+
+**Field Mapping Note:** The underlying `care_actions` database column is `note` (singular). The API response exposes this as `notes` (plural) for naming consistency with the rest of the API surface. The implementation will alias `note AS notes` in the query.
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `careType` is not one of the allowed values; or `page` / `limit` is out of range. `message` identifies the failing field. |
+| 401 | `UNAUTHORIZED` | No `Authorization` header, or token is expired/invalid |
+| 403 | `FORBIDDEN` | Plant `:id` exists but does not belong to the authenticated user |
+| 404 | `NOT_FOUND` | No plant with `:id` exists |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Example Requests:**
+
+```
+GET /api/v1/plants/a1b2c3d4-.../care-history
+Authorization: Bearer eyJ...
+
+GET /api/v1/plants/a1b2c3d4-.../care-history?careType=watering&page=2&limit=10
+Authorization: Bearer eyJ...
+```
+
+**Example Success Response (page 1, careType=watering, 2 of 5 items):**
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        "careType": "watering",
+        "performedAt": "2026-04-04T09:00:00.000Z",
+        "notes": "Soil was very dry — gave extra water"
+      },
+      {
+        "id": "c9bf9e57-1685-4c89-bafb-ff5af830be8a",
+        "careType": "watering",
+        "performedAt": "2026-03-28T08:30:00.000Z",
+        "notes": null
+      }
+    ],
+    "total": 5,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1
+  }
+}
+```
+
+**Example Error Responses:**
+
+```json
+// 400 — invalid careType
+{
+  "error": {
+    "message": "careType must be one of: watering, fertilizing, repotting",
+    "code": "VALIDATION_ERROR"
+  }
+}
+
+// 400 — limit out of range
+{
+  "error": {
+    "message": "limit must be an integer between 1 and 100",
+    "code": "VALIDATION_ERROR"
+  }
+}
+
+// 400 — page out of range
+{
+  "error": {
+    "message": "page must be a positive integer",
+    "code": "VALIDATION_ERROR"
+  }
+}
+
+// 401 — no/invalid token
+{
+  "error": {
+    "message": "Unauthorized",
+    "code": "UNAUTHORIZED"
+  }
+}
+
+// 403 — plant belongs to a different user
+{
+  "error": {
+    "message": "You do not have access to this plant",
+    "code": "FORBIDDEN"
+  }
+}
+
+// 404 — plant does not exist
+{
+  "error": {
+    "message": "Plant not found",
+    "code": "NOT_FOUND"
+  }
+}
+```
+
+---
+
+### T-095 — Lodash Security Fix
+
+**No API contract change.** T-095 is a dependency-only security fix:
+- Runs `npm audit fix` in `backend/` and `frontend/` to resolve the lodash ≤4.17.23 prototype-pollution / code-injection advisory
+- If lodash cannot be auto-fixed (pinned by a parent dep), adds an `overrides` entry in `package.json` to pin lodash to `>=4.17.24`
+- **No endpoints added, removed, or modified**
+- **No request or response shapes change**
+- All existing contracts remain fully authoritative
+
+---
+
+### Schema Changes — Sprint 20
+
+**None.** No new tables, columns, or indexes are required for Sprint 20.
+
+- `GET /api/v1/plants/:id/care-history` (T-093): queries the existing `care_actions` table using columns `id`, `care_type`, `performed_at`, and `note` — all present since Sprint 1 migration `20260323_05_create_care_actions.js`. The `idx_care_actions_performed_at` index on `(plant_id, performed_at DESC)` already covers the primary query pattern.
+- The API field name `notes` (plural) maps to the existing `note` (singular) column via a SQL alias — this is not a schema change.
+- No new Knex migrations required.
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+*Sprint 20 contracts written by Backend Engineer — 2026-04-05. One new endpoint: GET /api/v1/plants/:id/care-history (T-093). T-095 is a security dependency fix — no contract change. Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*

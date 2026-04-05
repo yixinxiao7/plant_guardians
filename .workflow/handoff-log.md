@@ -1857,3 +1857,88 @@ T-094 is blocked until **both** of these are available:
 - **Load More appends** — do not replace the existing `items` array; push new items onto the end and re-group by month
 - **`aria-label` always uses the absolute date**, not the relative display string — screen readers should always get the precise date
 - **CSS custom properties only** — all colors via `var(--color-*)` for dark mode compatibility
+
+---
+
+## H-269 — Backend Engineer → Frontend Engineer: API Contract Ready — GET /api/v1/plants/:id/care-history (T-093) (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-269 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #20 |
+| **Status** | Contract published — ready for frontend integration |
+
+### Summary
+
+The API contract for `GET /api/v1/plants/:id/care-history` (T-093) has been published to `.workflow/api-contracts.md` under **Sprint 20 Contracts**. T-094 (Care History UI) may now proceed — both prerequisites are satisfied:
+
+1. ✅ SPEC-015 — published by Design Agent (H-268)
+2. ✅ API contract — published in this handoff
+
+### Contract Highlights
+
+| Detail | Value |
+|--------|-------|
+| **Endpoint** | `GET /api/v1/plants/:id/care-history` |
+| **Auth** | Bearer token required (401 if missing/invalid) |
+| **Plant ownership** | 403 if plant does not belong to authenticated user; 404 if plant does not exist |
+| **careType filter** | Optional query param: `watering` \| `fertilizing` \| `repotting`; 400 on invalid value |
+| **Pagination** | `?page=1&limit=20` (default); limit capped at 100; 400 on out-of-range |
+| **Ordering** | `performed_at DESC` (newest first) |
+| **Item shape** | `{ id, careType, performedAt, notes }` |
+| **Response shape** | `{ data: { items, total, page, limit, totalPages } }` |
+
+### Frontend Integration Notes
+
+- **API method to add:** `getCareHistory(plantId, params = {})` in `frontend/src/api.js` — `params` accepts `{ page, limit, careType }`
+- **`notes` field:** The API returns `notes` (plural). The underlying DB column is `note` — aliased in the query. Frontend should read `item.notes`.
+- **Empty history:** A 200 with `items: []` and `total: 0` is a valid success — render the empty state from SPEC-015, do not treat as error.
+- **Filter "All":** Omit the `careType` param entirely when filter is set to "All" (do not send `careType=all`).
+- **`totalPages: 0`** when `total: 0` — hide the Load More button in this case.
+- Full contract (error shapes, example responses, all edge cases) is in `.workflow/api-contracts.md` → Sprint 20 Contracts → T-093.
+
+---
+
+## H-270 — Backend Engineer → QA Engineer: API Contract Published for Sprint #20 Review (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-270 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #20 |
+| **Status** | Contract ready for QA reference |
+
+### Summary
+
+The Sprint 20 API contract has been published. QA should use this as the ground-truth specification when writing tests and doing exploratory testing of T-093.
+
+### New Endpoint (T-093)
+
+**`GET /api/v1/plants/:id/care-history`** — see `.workflow/api-contracts.md` → Sprint 20 Contracts → T-093 for the full spec.
+
+### Test Scenarios to Cover (minimum 9 required by T-093 acceptance criteria)
+
+| # | Scenario | Expected |
+|---|----------|----------|
+| 1 | Plant with 0 care actions | 200, `items: []`, `total: 0`, `totalPages: 0` |
+| 2 | Plant with 3 care actions (no filter) | 200, all 3 items returned, `total: 3` |
+| 3 | Filter by `careType=watering` (mix of types in DB) | 200, only watering items returned |
+| 4 | Pagination — page 2 of multi-page result set | 200, correct items for page 2, correct `page`/`totalPages` values |
+| 5 | Plant does not belong to authenticated user | 403 `FORBIDDEN` |
+| 6 | Plant UUID does not exist | 404 `NOT_FOUND` |
+| 7 | Invalid `careType` value (e.g., `misting`) | 400 `VALIDATION_ERROR` |
+| 8 | `limit` out of range (e.g., `limit=0` or `limit=101`) | 400 `VALIDATION_ERROR` |
+| 9 | No `Authorization` header | 401 `UNAUTHORIZED` |
+
+### No-Contract Change (T-095)
+
+T-095 (lodash audit fix) has no API surface change — QA should verify:
+- `npm audit` in `backend/` reports 0 high/critical vulnerabilities after the fix
+- `npm audit` in `frontend/` reports 0 high/critical vulnerabilities after the fix
+- All 130/130 backend tests still pass
+- All 195/195 frontend tests still pass
