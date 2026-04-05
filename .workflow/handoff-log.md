@@ -4,6 +4,52 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-288 — QA Engineer → Deploy Engineer: Sprint #21 QA PASS — Ready for Staging Deploy (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-288 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Sprint** | #21 |
+| **Status** | Ready for Deploy |
+
+### Summary
+
+All Sprint #21 tasks (T-097, T-098, T-099) have passed full QA verification. The sprint is ready for staging deployment.
+
+### QA Results
+
+| Check | Result |
+|-------|--------|
+| Backend Unit Tests | ✅ 149/149 pass (7 new for T-097) |
+| Frontend Unit Tests | ✅ 227/227 pass (22 new for T-098) |
+| Integration Tests | ✅ API contract compliance verified; all UI states match SPEC-016 |
+| Config Consistency | ✅ Backend PORT, Vite proxy, CORS all aligned |
+| Security Scan | ✅ npm audit 0 vulnerabilities; all security checklist items pass |
+| T-097 (Backend notes) | ✅ Done |
+| T-098 (Frontend notes UI) | ✅ Done |
+| T-099 (SPEC-015 cosmetic) | ✅ Done |
+
+### What Changed This Sprint
+
+1. **T-097:** `POST /api/v1/plants/:id/care-actions` now accepts optional `notes` field (max 280 chars, whitespace-trimmed, empty → null). No schema changes. No new migrations. No new env vars.
+2. **T-098:** `CareNoteInput` component added to CareDuePage and PlantDetailPage mark-done flows. `CareHistoryItem` updated to display non-null notes with truncation + "Show more" toggle. `api.js` updated to pass notes field.
+3. **T-099:** `role="tabpanel"` added to history panel. Notes expansion uses CSS `max-height` transition. Dark mode icon backgrounds applied via CSS custom properties.
+
+### Deploy Notes
+
+- No new database migrations required
+- No new environment variables required
+- No breaking API changes (notes field is optional, backward compatible)
+- Build both frontend and backend as usual
+
+### Blockers
+
+None. Clear to deploy.
+
+---
+
 ## H-287 — Manager → QA Engineer: T-097, T-098, T-099 Code Review PASS — Ready for Integration Testing (2026-04-05)
 
 | Field | Value |

@@ -20,6 +20,51 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-095 — QA: Positive — Care Notes feature is elegantly non-intrusive (Sprint 21)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-095 |
+| **Source** | QA Engineer |
+| **Sprint** | 21 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The Care Notes feature nails the "quiet, natural extension" design constraint from SPEC-016. The "+ Add note" link is visually lightweight — it doesn't pressure users to write anything, which is exactly right for the novice persona who might feel overwhelmed by extra fields. The inline expand animation keeps the user in context (no modal interruption). The character counter appearing only at 200+ chars is a thoughtful touch — users typing short notes never see it, reducing cognitive load. The null-note handling in history is flawless: items without notes look identical to pre-Sprint-21 items, so the timeline stays clean for users who never use notes. |
+| **Status** | New |
+
+---
+
+## FB-096 — QA: Positive — Excellent edge case handling in notes normalization (Sprint 21)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-096 |
+| **Source** | QA Engineer |
+| **Sprint** | 21 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | Both frontend and backend handle the full matrix of edge cases for notes: null, undefined, empty string, whitespace-only, and the 280-char boundary. The belt-and-suspenders approach (client trims and omits empty; server also trims and normalizes) means even a buggy or stale frontend cache can't produce junk data in the database. The `CareHistoryItem` guard `notes != null && notes.trim() !== ''` is defensive enough to handle any historical data that might have empty strings stored. This level of normalization consistency between layers is unusual and commendable. |
+| **Status** | New |
+
+---
+
+## FB-097 — QA: Positive — Accessibility implementation exceeds minimum requirements (Sprint 21)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-097 |
+| **Source** | QA Engineer |
+| **Sprint** | 21 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The accessibility implementation goes beyond basic compliance. `aria-expanded`/`aria-controls` on the toggle, `aria-label` on the textarea, `aria-describedby` linking to the character counter, and `aria-live="polite"` on the counter with threshold-based announcements (not every keystroke) — this is a screen-reader-friendly implementation. The `role="tabpanel"` fix on the history panel (T-099) closes the last accessibility gap in the Plant Detail page. The `prefers-reduced-motion` support for the notes expansion animation is a nice inclusive touch. |
+| **Status** | New |
+
+---
+
 ## FB-091 — QA: Positive — Care History feature is well-architected and user-friendly (Sprint 20)
 
 | Field | Value |
