@@ -4,6 +4,71 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #19 — 2026-04-05 to 2026-04-11
+
+**Sprint Goal:** Close two pre-existing technical debt items (auth.test Secure cookie fix, PlantSearchFilter/CareDuePage CSS token migration) and deliver the Care Streak tracker — a gamification feature that rewards consecutive days of care activity to help novice plant owners build lasting habits.
+
+**Outcome:** ✅ Goal fully met — all 5 tasks completed (T-087 through T-091), Deploy Verified: Yes (SHA 99104bc), zero carry-over. Sixth consecutive clean sprint.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-087 | Backend: Fixed `auth.test.js` Secure cookie assertion — extracted `cookieConfig.js` with `secure: isProduction \|\| sameSite === 'none'`; all 130/130 backend tests pass (up from 120/121) |
+| T-088 | Frontend: Migrated `PlantSearchFilter.jsx` `ACTIVE_STYLES` and `CareDuePage.jsx` `SECTION_CONFIG`/`CARE_TYPE_CONFIG` hardcoded hex colors to 9 new CSS custom properties in `design-tokens.css` (light + dark); 195/195 frontend tests pass |
+| T-089 | Design: SPEC-014 — Care Streak UX spec covering all streak states (no streak / active / broken), Profile page tile, sidebar compact indicator, milestone celebrations (7/30/100 days), empty state, dark mode, and accessibility |
+| T-090 | Backend: `GET /api/v1/care-actions/streak` endpoint with `utcOffset` support; returns `currentStreak`, `longestStreak`, `lastActionDate`; 9 new tests; 130/130 backend tests pass |
+| T-091 | Frontend: Care Streak UI — `StreakTile` on Profile page (states: loading, empty, broken, active, milestones) + `SidebarStreakIndicator` (visible when streak ≥ 1); `StreakProvider` context prevents duplicate API calls; confetti animation on milestones (respects `prefers-reduced-motion`); 18 new tests; 195/195 frontend tests pass |
+
+#### Tasks Carried Over
+
+None. This is the sixth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. Monitor Agent health check returned **Deploy Verified: Yes** (SHA 99104bc, 2026-04-05). All health checks passed, including:
+- `GET /api/v1/care-actions/streak` (unauthenticated) → 401 ✅
+- `GET /api/v1/care-actions/streak` (authenticated) → 200 with correct `{ currentStreak, longestStreak, lastActionDate }` shape ✅
+- `utcOffset` out-of-range → 400 `VALIDATION_ERROR` ✅
+- All prior regression endpoints → 200/401 as expected ✅
+- Frontend preview server on port 4175 → 200 ✅
+
+---
+
+#### Key Feedback Themes
+
+- **FB-088** (Positive): Care Streak motivational copy praised as well-calibrated — empathetic for broken streaks, encouraging for active streaks, celebratory for milestones. The 30-day "officially no longer a plant-killer" message was specifically called out as tying well to the target persona.
+- **FB-089** (Positive): Accessibility in streak components called thorough — `aria-label`, `aria-live="polite"`, `aria-busy`, keyboard navigation (Enter + Space), `prefers-reduced-motion` compliance, and the `StreakProvider` dedup (avoids redundant screen reader announcements) all noted.
+- **FB-090** (Suggestion, Minor): `npm audit` reports 1 high-severity lodash vulnerability (≤4.17.23) in a transitive dependency. Vulnerable functions not called directly in app code. Queued as T-095 (Sprint 20) for `npm audit fix`.
+
+---
+
+#### What Went Well
+
+- All five tasks delivered and verified in a single sprint cycle with no rework loops
+- T-091 exceeded the minimum 6-test requirement with 18 new tests (10 StreakTile + 8 SidebarStreakIndicator)
+- `StreakProvider` shared context pattern eliminates duplicate API calls — good architectural discipline
+- Milestone confetti dedup via `sessionStorage` prevents repeated animation annoyance — UX detail caught proactively
+- Backend test count grew from 121 to 130 (9 new streak tests), frontend from 177 to 195 (18 new streak tests)
+- The auth.test.js Secure cookie issue — a pre-existing failure carried for multiple sprints — is now fully resolved
+
+#### What to Improve
+
+- The lodash vulnerability in transitive dependencies surfaced at QA; ideally caught earlier in the dev cycle. Consider adding `npm audit` to the pre-review checklist.
+
+#### Technical Debt Noted
+
+- `GET /api/v1/care-actions/stats` endpoint-specific rate limiting still in backlog (FB-073) — not yet prioritized
+- `npm audit` lodash transitive vulnerability (FB-090) → T-095 (Sprint 20 quick fix)
+- Soft delete / grace period for account deletion (FB-077) — backlog, low priority
+- Care history pagination / infinite scroll — not yet built; becomes more relevant as user collections grow
+
+---
+
 ### Sprint #18 — 2026-04-01 to 2026-04-07
 
 **Sprint Goal:** Improve the inventory experience for users with growing plant collections by adding search and filter capabilities, complete the design system by finishing the ProfilePage CSS token migration, and improve accessibility with focus management on the Care Due Dashboard.

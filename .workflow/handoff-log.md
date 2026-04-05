@@ -4,6 +4,59 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-267 — Manager Agent → All Agents: Sprint #19 Closed — Sprint #20 Plan Published (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-267 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-04-05 |
+| **Sprint** | #20 |
+| **Status** | Plan ready — agents may begin assigned tasks |
+
+### Summary
+
+Sprint #19 is closed. All 5 tasks (T-087 through T-091) are Done. Deploy Verified: Yes (SHA 99104bc). Sprint #20 plan is published to `active-sprint.md`. Feedback triage complete — all "New" feedback entries are dispositioned (FB-088, FB-089, FB-090 → Acknowledged).
+
+### Sprint #19 Outcome
+
+- **Tasks:** T-087 ✅ T-088 ✅ T-089 ✅ T-090 ✅ T-091 ✅
+- **Tests:** 130/130 backend, 195/195 frontend (up from 121/121 and 177/177)
+- **Deploy:** Verified: Yes (SHA 99104bc, Monitor Agent sign-off)
+- **Carry-over:** None. Sixth consecutive clean sprint.
+
+### Sprint #20 Focus: Care History + Security Audit Fix
+
+Sprint #20 delivers the **Care History** feature — a per-plant chronological log of all care actions visible on the Plant Detail page — and resolves the lodash transitive vulnerability flagged in FB-090.
+
+### Agent Priorities for Sprint #20
+
+| Agent | First Action |
+|-------|-------------|
+| **Design Agent** | Write SPEC-015 — Care History UX spec → `.workflow/ui-spec.md`. Start immediately (T-092, no blockers). |
+| **Backend Engineer** | (1) Run `npm audit fix` in backend/ and frontend/ → T-095, start immediately. (2) Implement `GET /api/v1/plants/:id/care-history` → T-093, start immediately, publish API contract to `api-contracts.md` before T-094 begins. |
+| **Frontend Engineer** | Begin T-094 after: (1) SPEC-015 published (T-092), and (2) T-093 API contract published to `api-contracts.md`. |
+| **QA Engineer** | Await all tasks complete. Full QA of T-092–T-095 including security checklist. |
+| **Deploy Engineer** | Await QA sign-off. Re-deploy to staging. |
+| **Monitor Agent** | Await Deploy Engineer handoff. Health check focus: `GET /api/v1/plants/:id/care-history` endpoint. |
+
+### Key Technical Notes for Sprint #20
+
+- **Care History endpoint** must 403 if plant `:id` belongs to another user (ownership check critical — do NOT return another user's care history)
+- **Pagination:** default `limit=20`, max `limit=100`; use `page`/`limit` query params; response includes `{ total, page, limit, totalPages }`
+- **T-095 (npm audit fix):** If lodash cannot be auto-upgraded (transitive dep pinned), add `"overrides": { "lodash": ">=4.17.24" }` to `package.json`. Run full test suite after to confirm no regressions.
+- **Baseline:** backend 130/130, frontend 195/195 — all Sprint #20 implementations must maintain these floors.
+
+### Backlog Reminders (not Sprint #20)
+
+- `GET /api/v1/care-actions/stats` endpoint-specific rate limiting (FB-073) — still in backlog
+- Soft delete / grace period for account deletion (FB-077) — backlog
+- Social auth (Google OAuth) — B-001 — post-sprint
+- Push/email notifications — B-002 — post-sprint
+
+---
+
 ## H-266 — Deploy Engineer → Monitor Agent: Sprint 19 Staging Deploy Complete — Run Post-Deploy Health Checks (2026-04-05)
 
 | Field | Value |

@@ -31,7 +31,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Category** | Positive |
 | **Severity** | N/A |
 | **Description** | The Care Streak feature (T-090 + T-091) directly addresses the product's core mission of helping "plant-killers" build care habits. The motivational copy is well-calibrated — empathetic for broken streaks ("That's okay. Every day is a fresh start"), encouraging for active streaks, and celebratory for milestones. The 30-day message ("officially no longer a plant-killer") is a particularly nice touch that ties to the target user persona. Sidebar indicator provides gentle positive reinforcement without requiring a Profile page visit. |
-| **Status** | New |
+| **Status** | Acknowledged |
 
 ---
 
@@ -46,7 +46,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Category** | Positive |
 | **Severity** | N/A |
 | **Description** | Streak components have comprehensive accessibility: `aria-label` on all counts and badges, `aria-live="polite"` on motivational messages, `aria-busy` on loading skeleton, keyboard navigation (Enter + Space) on sidebar indicator, and `prefers-reduced-motion` compliance for confetti and pop animations. The `StreakProvider` context also prevents duplicate fetches, which is both a performance and accessibility win (avoids redundant screen reader announcements). |
-| **Status** | New |
+| **Status** | Acknowledged |
 
 ---
 
@@ -61,7 +61,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Category** | Suggestion |
 | **Severity** | Minor |
 | **Description** | `npm audit` reports 1 high severity vulnerability in lodash (≤4.17.23) — prototype pollution via `_.unset`/`_.omit` and code injection via `_.template`. This is a transitive dependency and the vulnerable functions are not directly called in application code, so risk is low. However, `npm audit fix` should resolve it. Recommend addressing in Sprint 20 backlog. |
-| **Status** | New |
+| **Status** | Acknowledged — Minor suggestion. Vulnerability is in a transitive dependency with no direct call site in application code. Tasked → T-095 (Sprint 20) as a quick security housekeeping task. |
 
 ---
 
