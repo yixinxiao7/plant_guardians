@@ -1804,3 +1804,56 @@ Sprint #17 staging deploy has been re-verified. Full build and service check com
 - Health: GET /api/v1/profile → 200 OK
 - Health: Frontend build (dist/) present
 - Health: Frontend preview server on port 4175 → 200 OK
+
+---
+
+## H-268 — Design Agent → Frontend Engineer: SPEC-015 Approved — Care History Section (Plant Detail Page) (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-268 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #20 |
+| **Status** | Approved — ready for implementation |
+
+### Summary
+
+SPEC-015 (Care History Section) has been written and auto-approved for Sprint #20 task T-094. The spec covers all required elements for the Care History feature on the Plant Detail page.
+
+**Spec location:** `.workflow/ui-spec.md` → Section "SPEC-015 — Care History Section (Plant Detail Page)"
+
+### What's Covered
+
+| Area | Details |
+|------|---------|
+| **Entry point** | New "Overview / History" tab bar on Plant Detail page, below the plant hero section |
+| **Filter bar** | Pill-style filter tabs: All / Watering / Fertilizing / Repotting. Resets to page 1 on filter change. |
+| **Month grouping** | Entries grouped by calendar month with muted uppercase header labels |
+| **List item layout** | 40×40px care-type icon circle + care type label (left) + relative date in `<time>` element with absolute date on hover (right) + optional note toggle icon |
+| **Note expansion** | Inline `max-height` animated panel below item row, toggled by note icon; `aria-expanded` managed |
+| **Relative date logic** | Today / Yesterday / N days ago / N weeks ago — computed with `Intl.RelativeTimeFormat` |
+| **Pagination** | Load More (Ghost button) appends items; end-of-list message when all loaded; Load More error state |
+| **Empty state** | Zero-history state + filter-specific zero-results state with "Show All" CTA |
+| **Loading state** | Skeleton shimmer for filter bar + list cards; `aria-busy` on panel; `prefers-reduced-motion` respected |
+| **Error state** | Inline, non-fatal; retry button re-triggers fetch |
+| **Dark mode** | All elements use `var(--color-*)` CSS custom properties — no hardcoded colors |
+| **Accessibility** | `role="tablist/tab/tabpanel"`, `role="list/listitem"`, descriptive `aria-label` per item, `<time dateTime>`, `aria-busy`, `aria-pressed` on filter pills, `aria-expanded` on note toggles, keyboard-navigable |
+| **Responsive** | Desktop/tablet: single-row list items; Mobile (<768px): stacked item rows, full-width Load More |
+| **Component tree** | `CareHistorySection` → `CareHistoryFilterBar`, `CareHistoryList` → `CareHistoryItem`, `CareHistorySkeleton`, `CareHistoryEmpty`, `CareHistoryError` |
+
+### Blockers for Frontend Engineer (T-094)
+
+T-094 is blocked until **both** of these are available:
+1. ✅ **SPEC-015** — This handoff (now unblocked)
+2. ⏳ **API contract** — Backend Engineer must publish `GET /api/v1/plants/:id/care-history` contract to `.workflow/api-contracts.md` (T-093). Do not begin T-094 implementation until the API contract is published.
+
+### Key Implementation Notes
+
+- **Do not break existing Overview tab content** — wrap existing Plant Detail content in an Overview tab panel; do not remove or move any existing elements
+- **Items are fetched fresh** when the History tab is first activated (lazy load — do not fetch on page mount if user hasn't opened History tab)
+- **Filter change resets state:** clear `items` array, reset `page` to 1, re-fetch
+- **Load More appends** — do not replace the existing `items` array; push new items onto the end and re-group by month
+- **`aria-label` always uses the absolute date**, not the relative display string — screen readers should always get the precise date
+- **CSS custom properties only** — all colors via `var(--color-*)` for dark mode compatibility

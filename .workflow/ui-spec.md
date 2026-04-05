@@ -3824,3 +3824,343 @@ A "streak freeze" could allow users to preserve a streak when they miss a day du
 ---
 
 *SPEC-014 written by Design Agent on 2026-04-05 for Sprint #19.*
+
+---
+
+### SPEC-015 — Care History Section (Plant Detail Page)
+
+**Status:** Approved
+**Related Tasks:** T-092 (Design), T-094 (Frontend)
+**Sprint:** #20
+**Written by:** Design Agent — 2026-04-05
+
+---
+
+#### Description
+
+The Care History section gives users a chronological, per-plant log of every care action they have marked done. It appears on the existing Plant Detail page — the same page that shows the plant's name, photo, and care schedule status badges. The goal is to close the feedback loop for novice plant owners: they can confirm they watered last Tuesday, spot patterns ("I fertilize every 6 weeks, not 4"), and feel confidence in their routine rather than anxiety about what they may have forgotten.
+
+**Who uses it:** Primarily novice users who need reassurance, and intermediate users building conscious care habits. The history view is secondary to the care schedule — it should feel like a supportive companion panel, not a clinical audit log.
+
+---
+
+#### Entry Point — "History" Tab on Plant Detail Page
+
+The Plant Detail page currently shows care schedule status (watering, fertilizing, repotting badges + mark-done CTA). SPEC-015 adds a **tab bar** below the plant name/photo hero section, above the schedule content:
+
+```
+[ Overview ]  [ History ]
+```
+
+- **Overview tab (existing):** Current care schedule status, mark-done actions, AI advice section — unchanged.
+- **History tab (new — SPEC-015):** The care history log. Renders the full SPEC-015 layout described below.
+
+**Tab bar design:**
+- Tabs are text labels with an active indicator: a 2px bottom border in `#5C7A5C` (Accent Primary)
+- Inactive tabs: `color: #6B6B5F` (Text Secondary), no underline
+- Active tab: `color: #2C2C2C` (Text Primary), 2px bottom border `#5C7A5C`
+- Tab bar bottom border: 1px `#E0DDD6` — the active tab's 2px indicator sits on top of this
+- `font-size: 15px`, `font-weight: 500`, `padding: 12px 0`, `margin-right: 32px`
+- Tab switch: instant (no animation needed), content below swaps
+- On mobile: tab labels shrink to `font-size: 14px`, spacing between tabs: `margin-right: 24px`
+- `role="tablist"` on the container; each tab is `role="tab"` with `aria-selected` and `aria-controls` pointing to the respective panel; panels use `role="tabpanel"`
+
+---
+
+#### Care History Layout (History Tab Content)
+
+The History tab renders inside the same content container as the Overview tab. Max content width: 1280px (matching global convention), left-aligned in the Plant Detail layout.
+
+**Top-level structure (top to bottom):**
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Care Type Filter Bar                                    │
+│  [ All ]  [ Watering ]  [ Fertilizing ]  [ Repotting ]  │
+├──────────────────────────────────────────────────────────┤
+│  Month Group Header: "April 2026"                        │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │ 💧 Watering    3 days ago     [note icon if notes] │  │
+│  └────────────────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │ 🌿 Fertilizing  12 days ago                        │  │
+│  └────────────────────────────────────────────────────┘  │
+│  Month Group Header: "March 2026"                        │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │ 💧 Watering    18 days ago                         │  │
+│  └────────────────────────────────────────────────────┘  │
+├──────────────────────────────────────────────────────────┤
+│  [ Load More ]  (centered, Ghost button variant)        │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### Care Type Filter Bar
+
+A row of pill-style filter tabs directly below the Overview/History tab bar (within the History tab panel), with `margin-bottom: 24px`.
+
+| Filter | careType param sent to API | Default |
+|--------|---------------------------|---------|
+| All | (no careType filter) | ✅ Active |
+| Watering | `watering` | |
+| Fertilizing | `fertilizing` | |
+| Repotting | `repotting` | |
+
+**Visual design:**
+- Pills: `border-radius: 24px`, `padding: 6px 16px`, `font-size: 13px`, `font-weight: 500`
+- Active pill: background `#5C7A5C`, text `#FFFFFF`
+- Inactive pill: background `#F0EDE6` (Surface Alt), text `#6B6B5F`, border: none
+- Hover (inactive): background `#E0DDD6`, text `#2C2C2C`
+- Gap between pills: 8px
+- On mobile: pills scroll horizontally if they overflow (single row, `overflow-x: auto`, no wrap); `scroll-snap-type: x mandatory`, each pill `scroll-snap-align: start`
+
+**Behavior:**
+- Clicking a filter pill immediately re-fetches the history list with `careType=<value>` (or no careType for "All")
+- The active page resets to 1 (any previously loaded pages are cleared)
+- A new loading skeleton is shown during the refetch
+- Changing filter does NOT scroll the page to the top — the tab panel stays in view
+
+**Accessibility:**
+- Filter bar container: `role="group"` with `aria-label="Filter care history by type"`
+- Each pill: `role="button"` or `<button>` element; active pill: `aria-pressed="true"`, inactive: `aria-pressed="false"`
+- Do not use color alone to indicate active filter — active pill also changes text (white on sage) and can be identified by `aria-pressed`
+
+---
+
+#### Month Group Headers
+
+Care history entries are grouped by calendar month. Within each month group, entries are ordered reverse-chronologically (most recent first), which matches the API's `performed_at DESC` ordering.
+
+**Header visual:**
+- Text: month name + year, e.g., "April 2026"
+- `font-family: 'DM Sans'`, `font-size: 12px`, `font-weight: 600`, `color: #B0ADA5` (Text Disabled / muted label)
+- `text-transform: uppercase`, `letter-spacing: 0.08em`
+- `padding: 16px 0 8px` (top spacing from previous group or filter bar)
+- A 1px `#E0DDD6` horizontal rule below the header label, full width of the list
+
+**Grouping logic (frontend):** After fetching a page of items, group items by `new Date(item.performedAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })`. When Load More appends the next page, new month group headers are inserted at the correct position in the running list.
+
+---
+
+#### Care History List Item
+
+Each care event is a card row. The list container: `role="list"`, no extra `list-style`.
+
+**Item anatomy (horizontal flex row):**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ [Care Icon]  [Care Type Label]   [Relative Date]  [Note 🗒]  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| Column | Details |
+|--------|---------|
+| **Care Icon** | 32×32px icon, outlined (Phosphor Icons): Drop (`💧`) for watering, Plant (`🌿` / leaf) for fertilizing, Flower Pot for repotting. Icon color: care-type tint (see table below). Centered in a 40×40px circle with care-type background tint. |
+| **Care Type Label** | `font-size: 15px`, `font-weight: 500`, `color: #2C2C2C`. Text: "Watering" / "Fertilizing" / "Repotting". |
+| **Relative Date** | Right-aligned in the flex row. `font-size: 14px`, `color: #6B6B5F`. Text: e.g., "3 days ago", "Today", "Yesterday". Wrapped in a `<time>` element with `dateTime="<ISO-8601 value>"`. Absolute date shown on hover via `title` attribute AND a native tooltip (accessible via keyboard focus). Tooltip text format: "April 2, 2026 at 2:30 PM" (locale-appropriate). |
+| **Note Icon** | Only rendered if `item.notes` is not null/empty. A small speech-bubble or note icon (`16px`, `color: #B0ADA5`) after the care type label, with `title="Has notes"` and `aria-label="This entry has notes"`. Clicking the icon expands an inline notes panel below the item row (see Notes Expansion below). |
+
+**Care type icon tints:**
+
+| Care Type | Icon Color | Icon Background |
+|-----------|-----------|-----------------|
+| Watering | `#4A7C59` (Status Green) | `#E8F4EC` |
+| Fertilizing | `#A67C5B` (Accent Warm) | `#F5EDE4` |
+| Repotting | `#6B6B5F` (Text Secondary) | `#F0EDE6` |
+
+**Item card:**
+- Background: `#FFFFFF` (Surface)
+- `border: 1px solid #E0DDD6`
+- `border-radius: 12px`
+- `padding: 14px 20px`
+- `margin-bottom: 8px`
+- `box-shadow: 0 2px 8px rgba(44,44,44,0.06)` (Card Shadow)
+- Hover: subtle lift — `box-shadow: 0 4px 12px rgba(44,44,44,0.10)`, `transform: translateY(-1px)`, `transition: all 0.2s ease`
+- `role="listitem"` on each card
+- `aria-label` on each card: `"Watering on April 2, 2026"` (always uses the absolute date for the aria-label, regardless of relative display) — e.g., `aria-label="Fertilizing on March 15, 2026. Has notes."`
+
+**Notes Expansion (inline):**
+- When the note icon is clicked, a notes panel slides open below the item row using a CSS `max-height` transition (0 → auto via JS, `transition: max-height 0.25s ease`)
+- Notes panel: background `#F0EDE6` (Surface Alt), `border-radius: 8px`, `padding: 12px 16px`, `margin-top: 10px`, `font-size: 14px`, `color: #6B6B5F`, `font-style: italic`
+- Note icon toggles open/closed — icon rotates 15° when open (CSS transform)
+- `aria-expanded` on the note toggle button reflects current state
+
+---
+
+#### Relative Date Calculation
+
+Compute relative date on the frontend from `item.performedAt` (ISO-8601, UTC). Display:
+
+| Condition | Display |
+|-----------|---------|
+| Same calendar day (local time) | "Today" |
+| 1 day ago | "Yesterday" |
+| 2–6 days ago | "N days ago" |
+| 7–13 days ago | "1 week ago" |
+| 14–20 days ago | "2 weeks ago" |
+| 21–27 days ago | "3 weeks ago" |
+| 28+ days ago | "About N months ago" or just use the absolute date via `toLocaleDateString` |
+
+Prefer `Intl.RelativeTimeFormat` for implementation — it handles locale automatically and is screen-reader friendly. The `<time>` element's `dateTime` attribute always carries the full ISO-8601 string.
+
+---
+
+#### Pagination — Load More
+
+- Default: 20 items per page (`limit=20`), most recent first
+- After the last item in the current list, render the **Load More button** if `page < totalPages`
+- If `page >= totalPages` (all items loaded): the Load More button is hidden; render a friendly end-of-list message: `"You've seen all care history for this plant."` in `font-size: 13px`, `color: #B0ADA5`, centered, `padding: 16px 0`
+
+**Load More button:**
+- Variant: Ghost (transparent background, `color: #6B6B5F`, no border)
+- Text: "Load More"
+- Centered below the list: `margin: 16px auto`, `display: block`
+- Width: `fit-content`, `padding: 10px 24px`
+- Loading state: spinner icon (16px, `color: #6B6B5F`) replaces text; button disabled with `aria-busy="true"`
+- On success: new items appended to the existing list (no scroll jump); month group headers inserted as needed
+- On error: Load More button re-enables; a small inline error message below the button: `"Couldn't load more. Try again."` in `#B85C38`, `font-size: 13px`
+
+**Focus management:** After Load More completes, focus is NOT moved (user stays where they were scrolling).
+
+---
+
+#### States
+
+##### Loading State (Initial Fetch)
+
+Shown while the first page of history is being fetched (`isLoading: true` before any data has loaded).
+
+- Replace the filter bar and list with a skeleton layout
+- **Filter bar skeleton:** 4 pill-shaped skeletons (`border-radius: 24px`, width 64/80/88/80px, height 32px, `background: #E0DDD6`) with a shimmer animation
+- **List skeleton:** 4 card-shaped skeletons (`border-radius: 12px`, `height: 64px`, full width, `background: #E0DDD6`) with shimmer
+- Shimmer: `background: linear-gradient(90deg, #E0DDD6 25%, #F0EDE6 50%, #E0DDD6 75%)`, `background-size: 200%`, animated `backgroundPosition` from `100%` to `-100%` over 1.4s infinite
+- The history tab panel container: `aria-busy="true"` during skeleton display; `aria-busy="false"` once data renders or error displays
+- `prefers-reduced-motion`: if the user has enabled reduced motion, skip the shimmer animation — use a static muted background instead
+
+##### Empty State (No History Yet)
+
+Shown when the API returns `total: 0` — the plant has no logged care actions yet. This is common for newly added plants.
+
+**Layout:** Centered in the history panel, `padding: 48px 24px`, flex column, `align-items: center`, `gap: 16px`
+
+**Elements:**
+- Illustration: a small SVG/icon of a seedling or calendar with a leaf (64×64px, `color: #B0ADA5`) — use Phosphor `Plant` or `CalendarBlank` icon at 64px, outlined, `color: #C4C0B8`
+- Heading: `"No care history yet."` — `font-size: 18px`, `font-weight: 600`, `color: #2C2C2C`, `font-family: 'DM Sans'`
+- Body: `"Mark your first care action done and it will show up here."` — `font-size: 14px`, `color: #6B6B5F`, `text-align: center`, `max-width: 280px`
+- CTA button: `"Go to Overview"` — Secondary variant, switches the active tab back to Overview tab so the user can find the mark-done controls
+- If a care type filter is active and there are no results: show a filter-specific empty state: `"No [Watering/Fertilizing/Repotting] history yet."` with body `"Switch to 'All' to see all care actions."` — replace the CTA with a Ghost button `"Show All"` that resets the filter to "All"
+
+##### Error State (Fetch Failed)
+
+Shown when the API call fails (network error, 5xx, etc.). Must not break the rest of the Plant Detail page.
+
+**Layout:** Inline within the history panel — replaces the list content. `padding: 32px 24px`, centered.
+
+**Elements:**
+- Icon: `Warning` or `WarningCircle` (Phosphor), 32px, `color: #B85C38`
+- Message: `"Couldn't load care history."` — `font-size: 15px`, `font-weight: 500`, `color: #2C2C2C`
+- Sub-message: `"Check your connection and try again."` — `font-size: 14px`, `color: #6B6B5F`
+- Retry button: Secondary variant, text `"Try Again"`, re-triggers the fetch for page 1 with current filter
+- The rest of the Plant Detail page (Overview tab content, plant info, etc.) is unaffected
+
+---
+
+#### Responsive Behavior
+
+| Breakpoint | Behavior |
+|-----------|----------|
+| **Desktop** (≥ 1024px) | Full layout as described. History panel fills the same column as the Overview tab content — typically 60–70% of the page width, leaving room for the right sidebar (if the plant detail page has one). List items are single-row flex. |
+| **Tablet** (768px–1023px) | Same layout. Filter bar pill row scrolls horizontally if it overflows at narrow widths. |
+| **Mobile** (< 768px) | History panel is full viewport width (minus 16px side padding each side). List item cards stack vertically — care type icon + label on one line, date on the next line (flex column on the item row at < 480px). Filter pills horizontally scrollable. Load More button: full width (`width: 100%`). |
+
+**Touch targets:** All interactive elements (filter pills, Load More, note toggle, tab buttons) have a minimum 44×44px touch target on mobile, achieved via `min-height: 44px` and `padding` expansion as needed.
+
+---
+
+#### Dark Mode
+
+All new elements use CSS custom properties from the app's existing dark mode variable set. Spec describes the expected dark-mode appearance:
+
+| Element | Dark Mode Value |
+|---------|----------------|
+| Panel background | `var(--color-bg)` → dark: `#1A1A16` |
+| Card background | `var(--color-surface)` → dark: `#242420` |
+| Card border | `var(--color-border)` → dark: `#3A3A34` |
+| Month header text | `var(--color-text-disabled)` → dark: `#6B6B5F` |
+| Care type label | `var(--color-text-primary)` → dark: `#F0EDE6` |
+| Relative date text | `var(--color-text-secondary)` → dark: `#9B9B8F` |
+| Filter pill active bg | `var(--color-accent-primary)` → dark: `#5C7A5C` (unchanged) |
+| Filter pill inactive bg | `var(--color-surface-alt)` → dark: `#2E2E28` |
+| Filter pill inactive text | `var(--color-text-secondary)` → dark: `#9B9B8F` |
+| Watering icon bg | dark: `#1E3028` |
+| Fertilizing icon bg | dark: `#2E2018` |
+| Repotting icon bg | dark: `#2A2A24` |
+| Skeleton shimmer | dark: linear-gradient from `#2E2E28` → `#3A3A34` → `#2E2E28` |
+| Notes panel bg | `var(--color-surface-alt)` → dark: `#2E2E28` |
+| Tab active indicator | `var(--color-accent-primary)` → dark: `#5C7A5C` (unchanged) |
+
+No hardcoded color values in new component code — all colors via `var(--color-*)` tokens.
+
+---
+
+#### Accessibility
+
+| Requirement | Implementation |
+|-------------|---------------|
+| Tab navigation | `role="tablist"`, `role="tab"`, `aria-selected`, `aria-controls` on tab bar |
+| History list | `role="list"` on list container; `role="listitem"` on each card |
+| Item description | `aria-label="[Care Type] on [Absolute Date]"` (e.g., `"Watering on April 2, 2026"`) — absolute date always used for screen reader label regardless of relative display |
+| Items with notes | `aria-label` appended: `"Watering on April 2, 2026. Has notes."` |
+| Note toggle | `<button>` with `aria-expanded="true/false"` and `aria-label="Toggle notes"` |
+| Filter pills | `role="group"` with `aria-label="Filter care history by type"` on container; each pill `<button>` with `aria-pressed` |
+| Date element | `<time dateTime="ISO-8601">` wraps all relative date text |
+| Loading state | `aria-busy="true"` on history panel container during skeleton; `aria-busy="false"` after |
+| Load More button | `aria-busy="true"` when loading next page |
+| Color independence | Care types identified by label AND icon, not color alone. Filter active state identified by `aria-pressed` + visual change, not color alone. |
+| Keyboard navigation | Tab through filter pills, list items (each card focusable), note toggles, Load More button. Focus ring: 2px solid `#5C7A5C`, `outline-offset: 2px`. |
+| Reduced motion | Skeleton shimmer animation disabled; note expansion is instant (no `max-height` transition); card hover lift suppressed |
+| Screen reader text | Care type icon: `aria-hidden="true"` (the icon is decorative; the `aria-label` on the card provides full context) |
+
+---
+
+#### Component Architecture (Suggested)
+
+```
+PlantDetailPage.jsx
+  └── PlantDetailTabs.jsx          (new — Overview/History tab bar)
+        ├── PlantOverviewPanel.jsx  (existing content, moved into tab panel)
+        └── CareHistorySection.jsx  (new — SPEC-015 scope)
+              ├── CareHistoryFilterBar.jsx   (filter pills)
+              ├── CareHistoryList.jsx        (month-grouped list)
+              │     └── CareHistoryItem.jsx  (individual card)
+              ├── CareHistorySkeleton.jsx    (loading state)
+              ├── CareHistoryEmpty.jsx       (empty state)
+              └── CareHistoryError.jsx       (error state)
+```
+
+**API method** (to be added to `frontend/src/api.js`):
+```js
+// GET /api/v1/plants/:id/care-history
+// params: { page?, limit?, careType? }
+getCareHistory(plantId, params = {})
+```
+
+**State shape** for `CareHistorySection`:
+```js
+{
+  items: [],          // flat array of all loaded items (across pages)
+  total: 0,
+  page: 1,
+  totalPages: 1,
+  filter: 'all',      // 'all' | 'watering' | 'fertilizing' | 'repotting'
+  isLoading: false,   // true only on initial fetch (page 1, items empty)
+  isLoadingMore: false, // true when Load More is in progress
+  error: null,        // string | null
+}
+```
+
+---
+
+*SPEC-015 written by Design Agent on 2026-04-05 for Sprint #20.*
