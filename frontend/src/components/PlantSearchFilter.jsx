@@ -13,7 +13,7 @@ const STATUS_TABS = [
 const ACTIVE_STYLES = {
   all: {
     background: 'var(--color-accent-primary)',
-    color: '#FFFFFF',
+    color: 'var(--color-text-inverse)',
     borderColor: 'var(--color-accent-primary)',
   },
   overdue: {

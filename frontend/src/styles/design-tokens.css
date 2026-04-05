@@ -25,6 +25,9 @@
   --shadow-card: 0 2px 8px rgba(44, 44, 44, 0.06);
   --shadow-card-hover: 0 6px 20px rgba(44, 44, 44, 0.12);
 
+  /* Text inverse (T-088) */
+  --color-text-inverse: #FFFFFF;
+
   /* Status tab tokens (T-088) */
   --color-status-overdue-bg: #FAEAE4;
   --color-status-overdue-text: #B85C38;
@@ -116,6 +119,9 @@
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
   --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.4);
 
+  /* Text inverse (T-088) */
+  --color-text-inverse: #FFFFFF;
+
   /* Status tab tokens (T-088) */
   --color-status-overdue-bg: #2E1A14;
   --color-status-overdue-text: #E07A60;
@@ -180,6 +186,9 @@
     --color-skeleton-highlight: #383530;
     --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
     --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.4);
+
+    /* Text inverse (T-088) */
+    --color-text-inverse: #FFFFFF;
 
     /* Status tab tokens (T-088) */
     --color-status-overdue-bg: #2E1A14;

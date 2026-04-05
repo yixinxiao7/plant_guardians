@@ -4,6 +4,184 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-264 — Manager → QA Engineer: T-088 and T-091 Approved — All Sprint 19 Tasks Now in Integration Check (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-264 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | Complete |
+
+### Summary
+
+Manager Agent has completed the second round of code review for Sprint 19. Both remaining "In Review" tasks have been **APPROVED** and moved to **Integration Check**:
+
+**T-088 — CSS Token Migration (Rework Approved):**
+- Rework verified: zero hardcoded hex remaining in `PlantSearchFilter.jsx`, `PlantSearchFilter.css`, and `CareDuePage.jsx` (inline SVG in all-clear illustration exempted as known technical limitation)
+- `--color-text-inverse` token correctly added to `design-tokens.css` in all three theme contexts (`:root`, `[data-theme="dark"]`, `@media (prefers-color-scheme: dark)`)
+- All 15 new tokens (9 status + 6 care-type) properly defined for light and dark
+- Error banner in PlantSearchFilter.css now uses `var(--color-status-overdue-bg/border/text)` — no hardcoded hex
+- 195/195 frontend tests pass
+
+**T-091 — Care Streak Display (Approved):**
+- Full SPEC-014 compliance: all streak states (loading skeleton, empty/new user, broken, active 1-6, active 7+, milestones 7/30/100)
+- StreakTile on ProfilePage renders correctly with current/longest streak, motivational messages, milestone badges
+- SidebarStreakIndicator in Sidebar.jsx renders only when `currentStreak >= 1`, navigates to `/profile`
+- Shared `StreakProvider` context avoids duplicate API calls between ProfilePage and Sidebar
+- `careStreak.get()` in `api.js` passes `utcOffset` matching the API contract
+- Accessibility: `aria-label` on streak counts, `aria-live="polite"` on messages, `prefers-reduced-motion` respected for confetti and pop animation, `focus-visible` on sidebar indicator
+- Dark mode: all new elements use CSS custom properties from `design-tokens.css`
+- Security: no XSS vectors, no hardcoded secrets, auth handled via shared `request()` utility with Bearer token
+- 18 new tests (10 StreakTile + 8 SidebarStreakIndicator) — exceeds 6-test minimum
+- 195/195 frontend tests pass
+
+### Current Sprint 19 Task Status
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T-087 | Integration Check | Approved in prior review round |
+| T-088 | Integration Check | **Approved this round** (rework verified) |
+| T-089 | Done (Design spec) | SPEC-014 published |
+| T-090 | Integration Check | Approved in prior review round |
+| T-091 | Integration Check | **Approved this round** |
+
+### Action Required
+
+All 4 implementation tasks (T-087, T-088, T-090, T-091) are now in Integration Check awaiting QA sign-off. Please proceed with full QA verification including security checklist. Deploy Engineer (H-263) is ready to deploy to staging immediately upon QA sign-off.
+
+---
+
+## H-263 — Deploy Engineer → QA Engineer: Sprint 19 Pre-Deploy Gate Check PASS — Staging Deploy Ready, Awaiting QA Sign-Off (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-263 |
+| **From** | Deploy Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | Blocked — awaiting QA sign-off |
+
+### Summary
+
+Deploy Engineer has performed a full pre-deploy gate check on the Sprint 19 build (SHA `96fce271`). **All technical checks PASS.** The staging deploy is ready to execute immediately upon receipt of QA sign-off.
+
+### Pre-Deploy Gate Check Results
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| Backend tests | ✅ 130/130 PASS | `npx jest --runInBand --forceExit` — 14 suites, 0 failures. Includes 9 new `careActionsStreak.test.js` tests. |
+| Frontend tests | ✅ 195/195 PASS | `npx vitest run` — 28 files, 0 failures. Includes 18 new streak tests. |
+| Frontend production build | ✅ CLEAN | `vite build` — 4634 modules transformed, 0 errors, 289ms. |
+| Backend health check | ✅ 200 OK | `GET /api/health` → `{"status":"ok"}`. Pool warm-up completes cleanly. |
+| Pending DB migrations | ✅ NONE | 5/5 migrations at "up". No schema changes in Sprint 19. |
+| T-088 rework (H-261→H-262) | ✅ VERIFIED | `var(--color-text-inverse)` in `PlantSearchFilter.jsx`; `var(--color-status-overdue-*)` in `.psf-error-banner`; token defined in `design-tokens.css`. Code matches H-262 report. |
+| Infrastructure changes | ✅ N/A | No new Docker, CI/CD, or infra changes in Sprint 19 scope. |
+
+### What QA Needs to Confirm
+
+QA sign-off handoff should confirm:
+1. All 130/130 backend tests pass in QA's environment
+2. All 195/195 frontend tests pass in QA's environment
+3. `GET /api/v1/care-actions/streak` works correctly (currentStreak, longestStreak, lastActionDate; 401 on no auth; 400 on bad utcOffset)
+4. T-088: Visual rendering correct in light and dark mode (status filter tabs, error banner, "All" tab white text)
+5. T-091: Streak UI states render correctly (loading, empty, broken, active, milestone)
+6. Security checklist reviewed — no P1 issues
+7. No regressions to existing features
+
+**Please address the sign-off handoff to Deploy Engineer.** Deploy will commence within the same automated cycle.
+
+---
+
+## H-262 — Frontend Engineer → QA Engineer: T-088 Rework Complete (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-262 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Task** | T-088 |
+| **Status** | In Review |
+
+**Changes made (rework per H-261):**
+
+1. **`design-tokens.css`** — Added `--color-text-inverse: #FFFFFF` token in all three theme blocks (`:root`, `[data-theme="dark"]`, `@media (prefers-color-scheme: dark)`).
+2. **`PlantSearchFilter.jsx` line 16** — Replaced `'#FFFFFF'` with `'var(--color-text-inverse)'` in `ACTIVE_STYLES.all.color`.
+3. **`PlantSearchFilter.css` lines 147-152** — Replaced 3 hardcoded hex values in `.psf-error-banner`: `background: #FAEAE4` → `var(--color-status-overdue-bg)`, `border: 1px solid #B85C38` → `var(--color-status-overdue-border)`, `color: #B85C38` → `var(--color-status-overdue-text)`.
+
+**Verification:**
+- Zero hardcoded hex values remain in `PlantSearchFilter.jsx` and `PlantSearchFilter.css`
+- `CareDuePage.jsx` SVG illustration colors accepted as known limitation (per H-261)
+- 195/195 frontend tests pass — no regressions
+
+**What to test:**
+- Verify "All" filter tab text is white on accent background in both light and dark modes
+- Verify error banner (trigger by disconnecting API) renders correctly in both themes
+- Verify no visual regressions in status filter tabs (overdue/due today/on track)
+
+---
+
+## H-261 — Manager → Frontend Engineer: T-088 Returned for Rework (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-261 |
+| **From** | Manager Agent |
+| **To** | Frontend Engineer |
+| **Task** | T-088 |
+| **Status** | Returned → In Progress |
+
+**Review Notes:** Two remaining hardcoded hex colors must be migrated:
+
+1. **PlantSearchFilter.jsx line 16** — `color: '#FFFFFF'` in the "all" tab ACTIVE_STYLES. Add a `--color-text-inverse: #FFFFFF` token to design-tokens.css (light + dark) and replace with `'var(--color-text-inverse)'`.
+
+2. **PlantSearchFilter.css lines 147-152** — `.psf-error-banner` has 3 hardcoded hex values: `background: #FAEAE4`, `border: 1px solid #B85C38`, `color: #B85C38`. These match the existing overdue status tokens exactly. Replace with `var(--color-status-overdue-bg)`, `var(--color-status-overdue-border)`, and `var(--color-status-overdue-text)`.
+
+3. **SVG colors in CareDuePage.jsx lines 340-349** — Accepted as a known technical limitation of inline SVG fill/stroke attributes. No change needed.
+
+Fix items 1-2, re-run tests, and move back to In Review.
+
+---
+
+## H-260 — Manager → QA Engineer: T-087, T-090, T-091 Approved for QA (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-260 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Task** | T-087, T-090, T-091 |
+| **Status** | In Review → Integration Check |
+
+**Manager Code Review Summary:**
+
+**T-087 (Backend — auth cookie fix):** Secure flag correctly conditional on NODE_ENV. SameSite=Lax appropriate for refresh token POST-only usage. HttpOnly always set. 130/130 backend tests pass. No API contract change. Minimal, correct fix.
+
+**T-090 (Backend — GET /api/v1/care-actions/streak):** Full API contract compliance verified. Parameterized SQL via Knex (no injection risk). Auth middleware applied. utcOffset validated as integer within [-840, 840]. Error responses safe (no internal leakage). 9 tests covering happy path, error paths, edge cases, and user isolation. 130/130 backend tests pass.
+
+**T-091 (Frontend — Care streak UI):** Full SPEC-014 compliance. All streak states implemented (loading, empty, broken, active 1-6, active 7+, milestones 7/30/100). Dark mode via 14 CSS custom properties. prefers-reduced-motion respected for confetti + scale animation. Accessibility: ARIA labels, aria-live, keyboard nav (Enter + Space), focus visible, aria-busy on loading. No XSS vectors. Auth via shared request utility with auto-refresh. 18 tests (10 StreakTile + 8 SidebarStreakIndicator). 195/195 frontend tests pass. useStreak context (Option A) prevents duplicate API calls.
+
+**QA should verify:** Security checklist items, integration between T-090 and T-091 (backend streak API ↔ frontend display), and product-perspective testing of streak states and milestone celebrations.
+
+---
+
+## H-259 — Manager → QA Engineer: Sprint 19 Code Review Complete (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-259 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Task** | Sprint 19 Review Cycle |
+| **Status** | Review Complete |
+
+Sprint 19 code review complete. 3 of 4 tasks approved and moved to Integration Check (T-087, T-090, T-091). 1 task returned for rework (T-088 — minor hardcoded hex colors remain). T-088 rework is non-blocking for QA on the other 3 tasks. QA may proceed with T-087, T-090, and T-091 immediately.
+
+---
+
 ## H-258 — Frontend Engineer → QA Engineer: T-088 + T-091 Ready for QA (2026-04-05)
 
 | Field | Value |

@@ -4,6 +4,43 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 19 — Deploy Engineer: Updated Pre-Deploy Gate Check — All Technical Checks PASS, Awaiting QA Sign-Off (2026-04-05)
+
+**Date:** 2026-04-05
+**Agent:** Deploy Engineer (orchestrator-invoked, second pass)
+**Sprint:** 19
+**Git SHA:** `96fce271a162f0f6324cada437b1d777b3026266`
+**Status:** ⏳ BLOCKED — Awaiting QA sign-off (all technical checks PASS)
+
+### Pre-Deploy Gate Check
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| QA sign-off in handoff-log.md | ❌ MISSING | No Sprint 19 QA → Deploy Engineer handoff found. H-260 (Manager → QA) sent; QA in progress on T-087, T-090, T-091. |
+| Backend tests | ✅ 130/130 PASS | 14 test suites — all pass. Includes 9 new careActionsStreak.test.js tests (T-090). Auth cookie Secure flag fix verified (T-087). |
+| Frontend tests | ✅ 195/195 PASS | 28 test files — all pass. Includes 18 new streak tests: 10 StreakTile + 8 SidebarStreakIndicator (T-091). |
+| Frontend production build | ✅ CLEAN | `vite build` — 4634 modules transformed, 0 errors, 289ms. `index.js` 432KB (gzip 123KB). |
+| Backend health check | ✅ 200 OK | `GET /api/health` → `{"status":"ok"}`. Pool warm-up completes (2 connections). |
+| Pending DB migrations | ✅ NONE | 5/5 migrations at "up". Sprint 19 streak endpoint derived from existing `care_actions` table — no schema changes. |
+| T-088 rework (H-261) | ✅ COMPLETE | Both rework items verified in code: (1) `PlantSearchFilter.jsx` line 16 uses `var(--color-text-inverse)` ✅; (2) `.psf-error-banner` in `PlantSearchFilter.css` uses `var(--color-status-overdue-bg/border/text)` ✅; `--color-text-inverse` defined in `design-tokens.css` (light + dark + prefers-color-scheme). T-088 tracker status lags but code is In Review ready. |
+| Infrastructure tasks | ✅ N/A | No new Docker, CI/CD, or infra changes in Sprint 19 scope. |
+
+### Sprint 19 Code Changes Verified
+
+| Task | Tracker Status | Change Summary |
+|------|---------------|---------------|
+| T-087 | Integration Check | `backend/tests/auth.test.js`: Secure cookie assertion conditional on `NODE_ENV === 'production'`. 130/130 pass. |
+| T-088 | In Progress (rework done) | `design-tokens.css`: 9 status tokens + `--color-text-inverse`. `PlantSearchFilter.jsx/css`: 0 hardcoded hex. `CareDuePage.jsx`: 0 hardcoded status hex. 195/195 pass. |
+| T-089 | Backlog (SPEC-014 exists) | SPEC-014 in `ui-spec.md` — verified as prerequisite for T-091 implementation. |
+| T-090 | Integration Check | `backend/src/routes/careActionsStreak.js` + `CareAction.getStreakByUser()`. Registered at `/api/v1/care-actions/streak`. 9 new tests. 130/130 pass. |
+| T-091 | Integration Check | `StreakTile.jsx/css`, `SidebarStreakIndicator.jsx/css`, `useStreak.jsx`. ProfilePage + Sidebar updated. 18 new tests. 195/195 pass. |
+
+### Outcome
+
+All technical gate checks pass. Build is clean. Tests are clean. DB is up to date. Staging deploy is **ready to execute** the moment QA sign-off is received in handoff-log.md. Handoff H-262 sent to QA Engineer. Staging deploy will commence immediately upon receipt of QA → Deploy Engineer sign-off.
+
+---
+
 ## Sprint 19 — Deploy Engineer: Pre-Deploy Gate Check — BLOCKED (2026-04-05)
 
 **Date:** 2026-04-05
