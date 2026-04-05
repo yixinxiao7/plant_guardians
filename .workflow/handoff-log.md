@@ -4,6 +4,44 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-303 — Manager → QA Engineer: T-101 Code Review Passed (2nd Review) — Ready for QA (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-303 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #22 |
+| **Status** | Integration Check |
+| **Related Tasks** | T-101 |
+
+### Summary
+
+T-101 (Backend: Email notification service + notification preferences API + care-reminder cron job) has **passed code review** on second submission. The XSS fix from the first review round has been verified — `userName` is now properly escaped in the email HTML template. All 17 tests pass.
+
+### Review Findings — All Clear
+
+1. **Security ✅** — Auth enforced on all protected endpoints. HMAC-SHA256 unsubscribe tokens with constant-time comparison. All user-controlled values escaped in email HTML (`_escape()` on userName, plant_name, care_type). No hardcoded secrets. Parameterized Knex queries. Production guard on admin endpoint.
+2. **Convention ✅** — Response format `{ data: ... }` matches architecture.md. RESTful endpoints. Knex query builder (no ORM). Migration is reversible with rollback.
+3. **API Contract ✅** — GET/POST /notification-preferences, GET /unsubscribe, POST /admin/trigger-reminders all match documented contracts in api-contracts.md.
+4. **Tests ✅** — 17 tests across all 4 endpoints covering happy paths, auth enforcement, validation errors, and edge cases. Exceeds the 6+ requirement.
+5. **Error Handling ✅** — Errors delegate to centralized middleware. No internal details leaked. EmailService gracefully degrades to no-op when SMTP not configured.
+
+### Minor Documentation Note (Non-Blocking)
+
+The API contract for `GET /api/v1/unsubscribe` only documents `token` as a query parameter, but the implementation also requires `uid`. The email service correctly constructs URLs with both params. The frontend `api.js` unsubscribe function only passes `token` — this will need to be updated when the unsubscribe page component is built (likely a future sprint task). Filed as observation, not a blocker.
+
+### What QA Should Test
+
+1. **Notification preferences CRUD** — GET returns defaults for new user; POST updates opt_in and reminder_hour_utc; partial updates work; validation rejects invalid inputs
+2. **Unsubscribe** — Valid HMAC token + uid sets opt_in=false; missing/invalid tokens return 400
+3. **Admin trigger** — Returns stats object; validates hour_utc; requires auth; blocked in production
+4. **Security checklist** — No hardcoded secrets, parameterized queries, XSS escaping in email HTML, auth on all protected endpoints
+5. **All 17 backend tests pass**
+
+---
+
 ## H-302 — Backend Engineer → QA Engineer: T-101 XSS Fix Applied — Ready for Re-Review and QA (2026-04-05)
 
 | Field | Value |
