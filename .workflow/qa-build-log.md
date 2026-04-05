@@ -4,6 +4,28 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 19 — Deploy Engineer: Pre-Deploy Gate Check — BLOCKED (2026-04-05)
+
+**Date:** 2026-04-05
+**Agent:** Deploy Engineer (orchestrator-invoked)
+**Sprint:** 19
+**Status:** ❌ BLOCKED — Missing QA sign-off
+
+### Pre-Deploy Gate Check
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| QA sign-off in handoff-log.md | ❌ MISSING | No Sprint 19 QA → Deploy Engineer handoff found. Most recent QA sign-off is H-242 (Sprint 18). |
+| Sprint 19 task status | ❌ INCOMPLETE | T-087 (In Progress), T-088 (Backlog), T-089 (Backlog), T-090 (In Progress), T-091 (Backlog) |
+| Pending DB migrations | ✅ NONE | Sprint 19 introduces no schema changes (streak computed from existing `care_actions` table) |
+| Infrastructure tasks for Deploy Engineer | ✅ N/A | No new Docker, CI/CD, or infra changes in Sprint 19 scope |
+
+### Outcome
+
+Deploy is on hold. Handoff H-253 sent to QA Engineer. Will resume immediately upon QA sign-off confirming T-087–T-091 all verified and 121/121 backend + 177/177 frontend tests pass.
+
+---
+
 ## Sprint 18 — Deploy Engineer: Re-Deploy (Phase 2, post-QA) (2026-04-05)
 
 **Date:** 2026-04-05

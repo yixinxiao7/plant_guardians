@@ -14,6 +14,7 @@ const aiRoutes = require('./routes/ai');
 const profileRoutes = require('./routes/profile');
 const careHistoryRoutes = require('./routes/careHistory');
 const careActionsStatsRoutes = require('./routes/careActionsStats');
+const careActionsStreakRoutes = require('./routes/careActionsStreak');
 const careDueRoutes = require('./routes/careDue');
 const accountRoutes = require('./routes/account');
 
@@ -93,6 +94,7 @@ app.use('/api/v1/plants', plantsRoutes);
 app.use('/api/v1/plants', careActionsRoutes);  // care-actions are nested under plants
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/care-actions/stats', careActionsStatsRoutes);
+app.use('/api/v1/care-actions/streak', careActionsStreakRoutes);
 app.use('/api/v1/care-actions', careHistoryRoutes);
 app.use('/api/v1/care-due', careDueRoutes);
 app.use('/api/v1/profile', profileRoutes);

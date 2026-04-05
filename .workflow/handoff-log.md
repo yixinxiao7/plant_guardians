@@ -4,6 +4,194 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-258 — Frontend Engineer → QA Engineer: T-088 + T-091 Ready for QA (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-258 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | In Review — ready for QA |
+
+### Summary
+
+Both frontend Sprint 19 tasks are implemented and all 195/195 frontend tests pass (18 new tests added).
+
+### T-088 — CSS Token Migration (P2, Polish)
+
+**What changed:**
+- `design-tokens.css`: Added 9 semantic status tokens (`--color-status-overdue-bg/text/border`, `--color-status-due-today-bg/text/border`, `--color-status-on-track-bg/text/border`) + 6 care-type tokens (`--color-care-watering-bg/icon`, etc.) — defined in `:root`, `[data-theme="dark"]`, and `@media (prefers-color-scheme: dark)` blocks
+- `PlantSearchFilter.jsx`: `ACTIVE_STYLES` overdue/due_today/on_track now use `var(--color-status-*)`. Error banner WarningCircle icon uses `var(--color-status-overdue-text)`.
+- `CareDuePage.jsx`: `SECTION_CONFIG` color/pillBg, `CARE_TYPE_CONFIG` bgColor/iconColor, `getUrgencyColor()`, and error state icon all use CSS custom properties. Zero hardcoded hex status colors remain.
+
+**What to test:**
+- Light mode: status tabs in PlantSearchFilter should look visually identical to before (same hex values mapped to tokens)
+- Dark mode: status tabs and care-due sections should use dark-appropriate colors (not the old light-mode hex)
+- Overdue, Due Today, On Track tabs + Care Due sections render correctly in both themes
+- No visual regression on the Care Due page (loading, error, all-clear, populated states)
+
+**Known limitations:** The all-clear SVG illustration in CareDuePage still uses hardcoded hex — these are decorative illustration colors, not semantic status colors, and were out of scope for T-088.
+
+---
+
+### T-091 — Care Streak Display (P1, Feature)
+
+**What changed:**
+- **New files:** `StreakTile.jsx`, `StreakTile.css`, `SidebarStreakIndicator.jsx`, `SidebarStreakIndicator.css`, `useStreak.jsx`
+- **Modified:** `api.js` (new `careStreak.get()`), `AppShell.jsx` (wraps in `StreakProvider`), `Sidebar.jsx` (renders `SidebarStreakIndicator`), `ProfilePage.jsx` (renders `StreakTile`)
+- **Tokens:** 15 new streak CSS custom properties in `design-tokens.css` (light + dark + prefers-color-scheme)
+
+**API contract acknowledged:** `GET /api/v1/care-actions/streak` — authenticated, optional `utcOffset` param. Frontend passes `new Date().getTimezoneOffset() * -1`.
+
+**States implemented per SPEC-014:**
+- Loading: skeleton shimmer block with `aria-busy="true"`
+- Empty (new user): "Start your streak today!" CTA with Plant icon
+- Broken (streak lost): "0" with muted icon, sympathetic message, personal best preserved
+- Active (1-6 days): Plant icon, encouraging message
+- Active (7+ days): Fire icon, elevated message
+- Milestone (7/30/100): badge pill + confetti animation + card pop; `prefers-reduced-motion` skips animations; `sessionStorage` prevents repeat celebrations
+- Sidebar: compact pill (icon + count + "day streak") only when streak ≥ 1; navigates to /profile on click
+
+**What to test:**
+- Profile page: streak tile appears below stat tiles; all states render correctly
+- Sidebar: streak indicator visible when streak ≥ 1, hidden when 0
+- Dark mode: all streak elements use CSS custom properties
+- Accessibility: `aria-label` on streak count, longest streak, milestone badge; `aria-live="polite"` on motivational message; sidebar indicator is keyboard-navigable
+- Milestone confetti fires only once per session (check sessionStorage key `streak_celebrated_7/30/100`)
+- `prefers-reduced-motion: reduce` — no confetti, no scale animation
+- API error: streak tile gracefully returns null (non-critical); profile page still functions
+
+**18 new tests added:**
+- StreakTile: loading skeleton, empty state, broken state, active state with count, milestone badges (7/30/100), current record display, error returns null, aria-live on message (10 tests)
+- SidebarStreakIndicator: hidden at 0, hidden at null, visible at 1+, Plant icon 1-6, Fire icon 7+, navigate on click, navigate on Enter, onClick callback (8 tests)
+
+---
+
+## H-257 — Frontend Engineer → Backend Engineer: T-090 API Contract Acknowledged (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-257 |
+| **From** | Frontend Engineer |
+| **To** | Backend Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | Acknowledged |
+
+### Summary
+
+Frontend Engineer acknowledges the `GET /api/v1/care-actions/streak` API contract (T-090, published in H-251). Integration implemented in `frontend/src/utils/api.js` as `careStreak.get()`. The `utcOffset` parameter is computed as `new Date().getTimezoneOffset() * -1` per the contract specification. Response shape `{ data: { currentStreak, longestStreak, lastActionDate } }` is consumed by `useStreak.jsx` context and drives `StreakTile.jsx` and `SidebarStreakIndicator.jsx`.
+
+---
+
+## H-255 — Backend Engineer → Frontend Engineer: T-090 Streak API Ready (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-255 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | Complete |
+
+### Summary
+
+`GET /api/v1/care-actions/streak` is implemented and tested. The endpoint returns `{ currentStreak, longestStreak, lastActionDate }` for the authenticated user. Optional `utcOffset` query param (integer, -840 to 840) shifts date bucketing. See Sprint 19 section of `api-contracts.md` for full request/response spec. T-091 frontend work is now unblocked.
+
+---
+
+## H-254 — Backend Engineer → QA Engineer: T-087 + T-090 Ready for Testing (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-254 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | Ready for QA |
+
+### Summary
+
+Two backend tasks are ready for QA verification:
+
+**T-087 — Auth Cookie Secure Flag Fix:**
+- Fixed `auth.test.js` register test: `Secure` cookie assertion now conditional on `NODE_ENV === 'production'` (was unconditionally asserting `Secure` in test env).
+- SameSite assertion updated from `Strict` to `Lax` to match test-env `cookieConfig.js` behavior.
+- `cookieConfig.js` already had correct logic (`secure: isProduction || sameSite === 'none'`). No production behavior change.
+- Files changed: `backend/tests/auth.test.js`
+
+**T-090 — GET /api/v1/care-actions/streak:**
+- New route: `backend/src/routes/careActionsStreak.js`
+- New model method: `CareAction.getStreakByUser()` in `backend/src/models/CareAction.js`
+- Registered in `backend/src/app.js` at `/api/v1/care-actions/streak`
+- 9 new tests in `backend/tests/careActionsStreak.test.js`
+- Test coverage: empty user (0/0/null), 1-day streak, 3-day consecutive, gap breaks streak, utcOffset shifting, 401 unauthorized, 400 out-of-range offset, 400 non-integer offset, user isolation
+- Parameterized SQL throughout (no string concatenation)
+- No new migrations (streak computed from existing `care_actions` table)
+
+**What to verify:**
+1. All 130/130 backend tests pass (`npx jest --runInBand --forceExit`)
+2. T-087: In test env, refresh token cookie should NOT have `Secure` flag; in production env it should.
+3. T-090: Streak endpoint returns correct values per API contract scenarios (empty, active, broken streak, utcOffset)
+4. T-090: 401 without auth, 400 for invalid utcOffset
+5. Security checklist: parameterized queries, auth enforcement, no leaked internals in error responses
+
+---
+
+## H-253 — Deploy Engineer → QA Engineer: Sprint 19 Staging Deploy — BLOCKED Awaiting QA Sign-Off (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-253 |
+| **From** | Deploy Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | Blocked — awaiting QA sign-off |
+
+### Summary
+
+Deploy Engineer invoked for Sprint #19 staging re-deploy. Pre-deploy gate check failed: **no QA sign-off found in handoff-log.md for Sprint 19**.
+
+Per standing rule: *"Never deploy without QA confirmation in the handoff log."* The staging re-deploy is on hold until QA Engineer completes verification of all Sprint 19 tasks and posts a Deploy-Engineer-addressed sign-off handoff.
+
+### Pre-Deploy Gate Check Results
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| QA sign-off in handoff-log.md | ❌ MISSING | Most recent QA handoff is H-242 (Sprint 18). No Sprint 19 QA → Deploy Engineer sign-off found. |
+| Pending DB migrations | ✅ NONE | Sprint 19 has no schema changes. Streak computation derived from existing `care_actions` table (confirmed in H-250). |
+| Sprint 19 task completion | ❌ INCOMPLETE | T-087 In Progress, T-088 Backlog, T-089 Backlog, T-090 In Progress, T-091 Backlog. |
+| Infrastructure tasks for Deploy Engineer | ✅ N/A | No new Docker, CI/CD, or infra changes scoped for Sprint 19. |
+
+### Blocker
+
+**QA Engineer must complete verification of all Sprint 19 tasks (T-087 through T-091) and post a handoff addressed to Deploy Engineer** confirming:
+- All 121/121 backend tests pass (T-087 + T-090 verified)
+- All 177/177 frontend tests pass (T-088 + T-091 verified)
+- `GET /api/v1/care-actions/streak` endpoint returns correct responses
+- Security checklist reviewed
+- No regressions
+
+Once that handoff is received, the Deploy Engineer will:
+1. Run full pre-deploy gate check (backend tests, frontend build, migration status)
+2. Deploy to staging
+3. Log build status in `qa-build-log.md`
+4. Send handoff to Monitor Agent for post-deploy health check (including new streak endpoint)
+
+### Last Known Good State
+
+- Last deploy: Sprint 18, SHA `04963bd8e436c39c291764d522b4e79822900af9`
+- Backend: `http://localhost:3000` (Sprint 18 baseline)
+- Frontend: `http://localhost:4175` (Sprint 18 baseline)
+- All Sprint 18 health checks: PASS (H-247)
+
+---
+
 ## H-252 — Backend Engineer → QA Engineer: Sprint 19 API Contracts Ready for Testing Reference (2026-04-05)
 
 | Field | Value |

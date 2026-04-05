@@ -1,10 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Plant, User, SignOut, List, X, ClockCounterClockwise, BellSimple, ChartBar } from '@phosphor-icons/react';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useStreak } from '../hooks/useStreak.jsx';
+import SidebarStreakIndicator from './SidebarStreakIndicator.jsx';
 import './Sidebar.css';
 
 export default function Sidebar({ isOpen, onClose, careDueBadge = 0 }) {
   const { user, logout } = useAuth();
+  const { data: streakData, loading: streakLoading } = useStreak();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -84,6 +87,11 @@ export default function Sidebar({ isOpen, onClose, careDueBadge = 0 }) {
             <span>Profile</span>
           </NavLink>
         </nav>
+
+        {/* Streak indicator — only rendered when streak >= 1 and data loaded (T-091) */}
+        {!streakLoading && streakData?.currentStreak >= 1 && (
+          <SidebarStreakIndicator currentStreak={streakData.currentStreak} onClick={onClose} />
+        )}
 
         <div className="sidebar-footer">
           <div className="sidebar-user">

@@ -2,10 +2,11 @@ import { useState, useCallback, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { List } from '@phosphor-icons/react';
 import Sidebar from './Sidebar.jsx';
+import { StreakProvider } from '../hooks/useStreak.jsx';
 import { careDue } from '../utils/api.js';
 import './AppShell.css';
 
-export default function AppShell() {
+function AppShellInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [careDueBadge, setCareDueBadge] = useState(0);
 
@@ -44,5 +45,13 @@ export default function AppShell() {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function AppShell() {
+  return (
+    <StreakProvider>
+      <AppShellInner />
+    </StreakProvider>
   );
 }

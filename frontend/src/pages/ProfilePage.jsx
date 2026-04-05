@@ -4,15 +4,18 @@ import { Plant, CalendarBlank, CheckCircle, SignOut } from '@phosphor-icons/reac
 import { profile as profileApi, auth as authApi, clearTokens } from '../utils/api.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useToast } from '../hooks/useToast.jsx';
+import { useStreak } from '../hooks/useStreak.jsx';
 import { formatMonthYear } from '../utils/formatDate.js';
 import Button from '../components/Button.jsx';
 import DeleteAccountModal from '../components/DeleteAccountModal.jsx';
 import ThemeToggle from '../components/ThemeToggle.jsx';
+import StreakTile from '../components/StreakTile.jsx';
 import './ProfilePage.css';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
   const { addToast } = useToast();
+  const { data: streakData, loading: streakLoading, error: streakError } = useStreak();
   const navigate = useNavigate();
 
   const [profileData, setProfileData] = useState(null);
@@ -148,6 +151,9 @@ export default function ProfilePage() {
           <span className="stat-label">Care actions completed</span>
         </div>
       </div>
+
+      {/* Care Streak (T-091) */}
+      <StreakTile data={streakData} loading={streakLoading} error={streakError} />
 
       {/* Appearance */}
       <div className="profile-appearance-card">

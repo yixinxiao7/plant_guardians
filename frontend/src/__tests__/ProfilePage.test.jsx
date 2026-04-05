@@ -54,6 +54,19 @@ vi.mock('../utils/formatDate.js', () => ({
   formatMonthYear: () => 'January 2025',
 }));
 
+vi.mock('../hooks/useStreak.jsx', () => ({
+  useStreak: () => ({
+    data: null,
+    loading: true,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
+
+vi.mock('../components/StreakTile.jsx', () => ({
+  default: () => <div data-testid="streak-tile">Streak Tile</div>,
+}));
+
 describe('ProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();

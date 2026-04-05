@@ -17,20 +17,20 @@ const CARE_TYPE_CONFIG = {
   watering: {
     icon: Drop,
     label: 'Watering',
-    bgColor: '#EBF4F7',
-    iconColor: '#5B8FA8',
+    bgColor: 'var(--color-care-watering-bg)',
+    iconColor: 'var(--color-care-watering-icon)',
   },
   fertilizing: {
     icon: Leaf,
     label: 'Fertilizing',
-    bgColor: '#E8F4EC',
-    iconColor: '#4A7C59',
+    bgColor: 'var(--color-care-fertilizing-bg)',
+    iconColor: 'var(--color-care-fertilizing-icon)',
   },
   repotting: {
     icon: PottedPlant,
     label: 'Repotting',
-    bgColor: '#F4EDE8',
-    iconColor: '#A67C5B',
+    bgColor: 'var(--color-care-repotting-bg)',
+    iconColor: 'var(--color-care-repotting-icon)',
   },
 };
 
@@ -38,22 +38,22 @@ const SECTION_CONFIG = {
   overdue: {
     icon: WarningCircle,
     title: 'OVERDUE',
-    color: '#B85C38',
-    pillBg: '#FAEAE4',
+    color: 'var(--color-status-overdue-text)',
+    pillBg: 'var(--color-status-overdue-bg)',
     emptyText: 'Nothing overdue — great work! 🌱',
   },
   due_today: {
     icon: Clock,
     title: 'DUE TODAY',
-    color: '#C4921F',
-    pillBg: '#FDF4E3',
+    color: 'var(--color-status-due-today-text)',
+    pillBg: 'var(--color-status-due-today-bg)',
     emptyText: 'Nothing due today.',
   },
   upcoming: {
     icon: CalendarBlank,
     title: 'COMING UP',
-    color: '#5C7A5C',
-    pillBg: '#E8F4EC',
+    color: 'var(--color-status-on-track-text)',
+    pillBg: 'var(--color-status-on-track-bg)',
     emptyText: 'No upcoming care in the next 7 days.',
   },
 };
@@ -127,9 +127,9 @@ function getUrgencyText(sectionKey, item) {
 }
 
 function getUrgencyColor(sectionKey) {
-  if (sectionKey === 'overdue') return '#B85C38';
-  if (sectionKey === 'due_today') return '#C4921F';
-  return '#5C7A5C';
+  if (sectionKey === 'overdue') return 'var(--color-status-overdue-text)';
+  if (sectionKey === 'due_today') return 'var(--color-status-due-today-text)';
+  return 'var(--color-status-on-track-text)';
 }
 
 function formatDueDate(dateStr) {
@@ -310,7 +310,7 @@ export default function CareDuePage() {
         <h1 className="care-due-title">Care Due</h1>
         <p className="care-due-subtitle">Plants that need your attention, sorted by urgency.</p>
         <div className="care-due-centered-state">
-          <WarningCircle size={48} color="#B85C38" />
+          <WarningCircle size={48} color="var(--color-status-overdue-text)" />
           <h2 className="care-due-state-heading care-due-state-heading--error">
             Couldn't load your care schedule.
           </h2>

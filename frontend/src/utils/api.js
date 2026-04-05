@@ -220,6 +220,14 @@ export const careActions = {
   },
 };
 
+// Care streak
+export const careStreak = {
+  get() {
+    const utcOffset = new Date().getTimezoneOffset() * -1;
+    return request(`/care-actions/streak?utcOffset=${utcOffset}`);
+  },
+};
+
 // Care action stats (analytics)
 export const careStats = {
   get() {
