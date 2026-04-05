@@ -20,6 +20,51 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-088 — QA: Positive — Care Streak feature delivers on core product mission (Sprint 19)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-088 |
+| **Source** | QA Engineer |
+| **Sprint** | 19 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | The Care Streak feature (T-090 + T-091) directly addresses the product's core mission of helping "plant-killers" build care habits. The motivational copy is well-calibrated — empathetic for broken streaks ("That's okay. Every day is a fresh start"), encouraging for active streaks, and celebratory for milestones. The 30-day message ("officially no longer a plant-killer") is a particularly nice touch that ties to the target user persona. Sidebar indicator provides gentle positive reinforcement without requiring a Profile page visit. |
+| **Status** | New |
+
+---
+
+## FB-089 — QA: Positive — Accessibility implementation in streak components is thorough (Sprint 19)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-089 |
+| **Source** | QA Engineer |
+| **Sprint** | 19 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | Streak components have comprehensive accessibility: `aria-label` on all counts and badges, `aria-live="polite"` on motivational messages, `aria-busy` on loading skeleton, keyboard navigation (Enter + Space) on sidebar indicator, and `prefers-reduced-motion` compliance for confetti and pop animations. The `StreakProvider` context also prevents duplicate fetches, which is both a performance and accessibility win (avoids redundant screen reader announcements). |
+| **Status** | New |
+
+---
+
+## FB-090 — QA: Suggestion — Run `npm audit fix` for lodash vulnerability (Sprint 19)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-090 |
+| **Source** | QA Engineer |
+| **Sprint** | 19 |
+| **Date** | 2026-04-05 |
+| **Category** | Suggestion |
+| **Severity** | Minor |
+| **Description** | `npm audit` reports 1 high severity vulnerability in lodash (≤4.17.23) — prototype pollution via `_.unset`/`_.omit` and code injection via `_.template`. This is a transitive dependency and the vulnerable functions are not directly called in application code, so risk is low. However, `npm audit fix` should resolve it. Recommend addressing in Sprint 20 backlog. |
+| **Status** | New |
+
+---
+
 ## FB-084 — QA: Positive — Search & Filter implementation is polished and user-friendly (Sprint 18)
 
 | Field | Value |
