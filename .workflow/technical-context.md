@@ -301,3 +301,64 @@ This is the only external dependency change for Sprint 11. The package is a well
 No new environment variables. Existing `REFRESH_TOKEN_EXPIRES_DAYS` (default: `7`) is used to derive the cookie `Max-Age` (value × 86400 seconds).
 
 ---
+
+---
+
+## Sprint 22 — Schema Change Proposal
+
+**Proposed by:** Backend Engineer  
+**Date:** 2026-04-05  
+**Status:** Auto-approved (automated sprint) — Manager will review in closeout phase  
+**Related Task:** T-101
+
+---
+
+### New Table: `notification_preferences`
+
+**Purpose:** Stores per-user email notification preferences (opt-in toggle and preferred reminder hour). One row per user, created on first `GET /api/v1/profile/notification-preferences` call if not yet present.
+
+**Schema:**
+
+```sql
+CREATE TABLE notification_preferences (
+  user_id           UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  opt_in            BOOLEAN     NOT NULL DEFAULT false,
+  reminder_hour_utc INTEGER     NOT NULL DEFAULT 8
+                                CHECK (reminder_hour_utc >= 0 AND reminder_hour_utc <= 23),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT notification_preferences_pkey PRIMARY KEY (user_id)
+);
+```
+
+**Index:** Primary key on `user_id` (unique, covers all preference lookups by user). An additional partial index on `opt_in` is added to support efficient cron-job queries:
+
+```sql
+CREATE INDEX idx_notification_preferences_opted_in
+  ON notification_preferences (reminder_hour_utc)
+  WHERE opt_in = true;
+```
+
+**Relationships:**
+- `user_id` → `users.id` (FK, CASCADE DELETE — deleting a user removes their preferences)
+
+**Migration file:** `backend/migrations/<timestamp>_create_notification_preferences.js`  
+**Rollback:** `down()` drops the index then drops the table.
+
+---
+
+### New Environment Variables — Sprint 22
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `EMAIL_HOST` | Optional | SMTP host; if unset, email sending is disabled with a startup warning |
+| `EMAIL_PORT` | Optional | SMTP port (default: `587`) |
+| `EMAIL_USER` | Optional | SMTP username |
+| `EMAIL_PASS` | Optional | SMTP password |
+| `EMAIL_FROM` | Optional | Sender display name + address |
+| `UNSUBSCRIBE_SECRET` | Optional | HMAC secret for signing unsubscribe tokens; if unset, unsubscribe links are disabled |
+| `APP_BASE_URL` | Optional | Frontend base URL for email CTAs (default: `http://localhost:5173`) |
+
+All six variables are optional — the backend starts cleanly without them. When `EMAIL_HOST` is absent, the email service logs a warning and becomes a no-op. This ensures graceful degradation in environments where SMTP is not yet configured.
+
+---

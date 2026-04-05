@@ -3491,3 +3491,215 @@ The following guidance applies when integrating the updated contract on the fron
 ---
 
 *Sprint 21 contracts written by Backend Engineer — 2026-04-05. No new endpoints — one updated endpoint: POST /api/v1/plants/:id/care-actions now accepts optional `notes` field (T-097). Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*
+
+---
+
+## Sprint 22 Contracts
+
+**Sprint Goal:** Care Reminder Email Notifications — notification preferences API + email service + daily cron job (T-101).
+
+---
+
+### GROUP — Notification Preferences & Email Reminders (T-101)
+
+---
+
+#### GET /api/v1/profile/notification-preferences
+
+**Auth:** Bearer token required (`Authorization: Bearer <access_token>`)
+
+**Description:** Returns the current authenticated user's notification preferences. If no preference row exists yet (new user or first call), creates a default row (`opt_in: false`, `reminder_hour_utc: 8`) and returns it. This means the endpoint is always safe to call on page load — it will never 404 for an authenticated user.
+
+**Request Body:** None
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "opt_in": false,           // boolean — true = user wants email reminders
+    "reminder_hour_utc": 8     // integer 0–23 — hour of day (UTC) to send reminder
+  }
+}
+```
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+#### POST /api/v1/profile/notification-preferences
+
+**Auth:** Bearer token required (`Authorization: Bearer <access_token>`)
+
+**Description:** Updates the authenticated user's notification preferences. Accepts partial updates — only the fields provided are changed; omitted fields retain their current value. Creates the preference row if it does not yet exist (upsert semantics). Returns the full updated preference object.
+
+**Request Body:**
+
+```json
+{
+  "opt_in": true,              // optional; boolean
+  "reminder_hour_utc": 8      // optional; integer 0–23 inclusive
+}
+```
+
+**Validation Rules:**
+- At least one of `opt_in` or `reminder_hour_utc` must be present
+- `opt_in`: optional, boolean; non-boolean values → 400
+- `reminder_hour_utc`: optional, integer; must be in range 0–23 inclusive; non-integer or out-of-range → 400
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "opt_in": true,
+    "reminder_hour_utc": 8
+  }
+}
+```
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `reminder_hour_utc` is not an integer or is outside 0–23; or body is empty / no valid fields provided |
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+#### GET /api/v1/unsubscribe
+
+**Auth:** Public — no Bearer token required. Authentication is provided by a signed `token` query parameter generated at email-send time.
+
+**Description:** One-click unsubscribe endpoint linked from the email footer. When clicked, verifies the HMAC-signed token, sets `opt_in = false` for the corresponding user, and returns a plain-text or minimal-HTML confirmation. Designed to be safe to call from a browser via a link click (GET semantics are appropriate because this is an idempotent, user-initiated unsubscribe — one-click from email requires GET).
+
+**Query Parameters:**
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `token` | string | yes | HMAC-SHA256 signed token encoding `user_id`; signed with `UNSUBSCRIBE_SECRET` env var |
+
+**Token Format (server-side):** `base64url(HMAC-SHA256(UNSUBSCRIBE_SECRET, user_id))`  
+The email service constructs this token at send time. The unsubscribe endpoint re-derives the expected HMAC and compares via constant-time comparison.
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "message": "You have been unsubscribed from Plant Guardians care reminder emails."
+  }
+}
+```
+
+*Note: The frontend may render a full confirmation page at `/unsubscribe?token=…` instead of consuming this JSON response directly — the UI team may choose to redirect to a confirmation page. The backend endpoint returns JSON; the frontend SPA catches the route.*
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `INVALID_TOKEN` | `token` param is missing, malformed, or HMAC verification fails |
+| 404 | `USER_NOT_FOUND` | Token is valid but user no longer exists |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+#### POST /api/v1/admin/trigger-reminders *(Dev/Test Only)*
+
+**Auth:** Bearer token required (`Authorization: Bearer <access_token>`)
+
+**Description:** Manually triggers the care reminder cron job for the current UTC hour. Intended for development and QA testing — allows testers to fire the reminder job on demand without waiting for the scheduled hour. **This endpoint must only be registered when `NODE_ENV !== 'production'`** — it is never exposed in production.
+
+In non-production environments this endpoint is available to any authenticated user (no special admin role required in Sprint 22 — a future sprint may add role-based access).
+
+**Request Body:** None (or optional override — see below)
+
+**Optional Request Body:**
+
+```json
+{
+  "hour_utc": 8   // optional; integer 0–23; if omitted, uses current UTC hour
+}
+```
+
+**Validation Rules:**
+- `hour_utc`: optional, integer 0–23; if provided and invalid → 400
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "triggered_at": "2026-04-05T08:00:00.000Z",   // ISO 8601 UTC — actual time trigger ran
+    "hour_utc": 8,                                  // UTC hour that was evaluated
+    "users_evaluated": 3,                           // users with opt_in=true and matching hour
+    "emails_sent": 2,                               // users with ≥1 due/overdue care event
+    "users_skipped": 1                              // opted-in users with no due/overdue care
+  }
+}
+```
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `hour_utc` provided but invalid (not integer or out of 0–23 range) |
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 403 | `FORBIDDEN` | Endpoint called in production environment |
+| 500 | `INTERNAL_ERROR` | Unexpected server error (includes SMTP failure summary in `message`) |
+
+---
+
+### Schema Changes — Sprint 22
+
+**New table: `notification_preferences`**
+
+See proposal in `.workflow/technical-context.md` (Sprint 22 entry). Migration status: **Auto-approved (automated sprint)** — Manager will review in closeout phase.
+
+---
+
+### Environment Variables — Sprint 22
+
+The following new environment variables are required by the email service. All are **optional** — if not set, the backend starts and runs without crashing; email sending is skipped with a logged warning at startup.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `EMAIL_HOST` | string | — | SMTP server hostname (e.g., `smtp.mailpit.local`) |
+| `EMAIL_PORT` | integer | `587` | SMTP port |
+| `EMAIL_USER` | string | — | SMTP username |
+| `EMAIL_PASS` | string | — | SMTP password |
+| `EMAIL_FROM` | string | — | Sender address (e.g., `Plant Guardians <noreply@plantguardians.app>`) |
+| `UNSUBSCRIBE_SECRET` | string | — | Secret key used to HMAC-sign unsubscribe tokens; required for unsubscribe links to work |
+| `APP_BASE_URL` | string | `http://localhost:5173` | Frontend base URL; used to construct the CTA button and unsubscribe link in emails |
+
+**Graceful degradation rule:** If `EMAIL_HOST` or `UNSUBSCRIBE_SECRET` is unset, the email service logs `[EmailService] WARNING: EMAIL_HOST not configured — email sending disabled` at startup and returns early (no-op) on every send call. The cron job and trigger endpoint still run — they just skip sending.
+
+---
+
+### Frontend Integration Notes (for T-102)
+
+1. **Page load:** Call `GET /api/v1/profile/notification-preferences` on ProfilePage mount. Pre-populate toggle (`opt_in`) and timing selector (`reminder_hour_utc` → map 8→Morning, 12→Midday, 18→Evening).
+
+2. **Save action:** Call `POST /api/v1/profile/notification-preferences` with `{ opt_in, reminder_hour_utc }`. Both fields should always be sent (not partial) since the UI always has a value for each after initial fetch.
+
+3. **Timing selector mapping:**
+
+| Display label | UTC hour sent in POST body |
+|---------------|---------------------------|
+| Morning (~8 AM) | `8` |
+| Midday (~12 PM) | `12` |
+| Evening (~6 PM) | `18` |
+
+4. **Default state:** If `opt_in` is `false`, the timing selector should be hidden (but retain the last selected value in local state so it re-appears when the user toggles on).
+
+5. **Unsubscribe:** The unsubscribe URL is constructed by the backend email service and embedded in the email HTML. The frontend SPA should handle the route `/unsubscribe?token=…` and display a confirmation message after the backend call succeeds. The `api.js` module should expose `notificationPreferences.unsubscribe(token)` → `GET /api/v1/unsubscribe?token=<token>`.
+
+---
+
+*Sprint 22 contracts written by Backend Engineer — 2026-04-05. New endpoints: GET + POST /api/v1/profile/notification-preferences, GET /api/v1/unsubscribe, POST /api/v1/admin/trigger-reminders (dev only). Schema change: notification_preferences table (see technical-context.md). All prior sprint contracts remain authoritative.*
