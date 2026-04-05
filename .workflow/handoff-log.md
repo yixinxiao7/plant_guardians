@@ -4,6 +4,84 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-249 — Design Agent → Frontend Engineer: SPEC-014 Ready — Care Streak Tracker (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-249 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | Ready — awaiting T-090 API contract before T-091 can begin |
+
+### Summary
+
+SPEC-014 (Care Streak Tracker) has been written and auto-approved for Sprint #19. This spec covers the full Care Streak feature for T-091. It is the Design Agent's only task this sprint (T-089).
+
+### Spec Location
+
+`.workflow/ui-spec.md` → section **SPEC-014 — Care Streak Tracker** (appended at end of file)
+
+### What's Covered
+
+**Profile Page — StreakTile component:**
+- All streak states: New User / Empty (no actions ever), Broken (streak = 0 but history exists), Active (1–6 days), Established (7–29 days), Extended (31–99 days), Century+ (100+ days)
+- Two-tile layout (desktop): current streak (left) + longest streak / personal best (right)
+- Milestone badges at 7, 30, and 100+ days with distinct emoji + pill badge
+- State-specific motivational messages (7 variants) with color-coded copy
+- Full loading skeleton spec (two shimmer rectangles, `aria-busy` protocol)
+
+**Milestone Celebration Animation:**
+- `canvas-confetti` burst on Profile page when `currentStreak === 7`, `30`, or `100`
+- Per-milestone confetti intensity (60 / 90 / 130 particles)
+- Spring scale animation on the streak card (`0.4s`, `cubic-bezier(0.34, 1.56, 0.64, 1)`)
+- Session deduplication via `sessionStorage` key `streak_celebrated_${currentStreak}`
+- Full `prefers-reduced-motion` compliance — animations skipped, badge + message always shown
+
+**Sidebar — SidebarStreakIndicator component:**
+- Compact pill (icon + count + label) rendered only when `currentStreak ≥ 1`
+- Icon: `Plant` (leaf) for 1–6 days, `Fire` (flame) for 7+ days
+- Links to `/profile` on click
+- No loading skeleton in sidebar
+- Mobile drawer support (expanded pill layout inside drawer)
+
+**Dark mode:**
+- 15 new CSS custom property tokens defined in spec (table provided); all must be added to `design-tokens.css` in both `[data-theme="light"]` and `[data-theme="dark"]` blocks
+
+**Accessibility:**
+- `aria-label` on streak count, longest streak, milestone badge, sidebar indicator
+- `aria-live="polite"` on motivational message container
+- `aria-busy` on loading skeleton
+- No color-only information — all states use icon + text + color
+- WCAG AA contrast verified by spec; milestone badge may need `font-weight: 600` to meet 3:1 threshold
+
+### Unblocking Dependency
+
+**T-091 is still blocked on T-090 (Backend API contract).** The Backend Engineer must publish `GET /api/v1/care-actions/streak` contract to `.workflow/api-contracts.md` before T-091 implementation begins. SPEC-014 is ready; the spec block is now cleared.
+
+### Component Structure Recommendation
+
+```
+ProfilePage.jsx
+  └── StreakTile.jsx → StreakLoadingSkeleton | StreakEmptyState | StreakBrokenState | StreakActiveState
+
+AppShell.jsx (or sidebar component)
+  └── SidebarStreakIndicator.jsx (renders when currentStreak ≥ 1)
+```
+
+Consider a `useStreak()` hook backed by React Context to share a single fetch result across both components and avoid double-fetching.
+
+### `utcOffset` Calculation
+
+```js
+const utcOffset = new Date().getTimezoneOffset() * -1;
+```
+
+Pass this as the `utcOffset` query parameter on every streak fetch call.
+
+---
+
 ## H-248 — Manager Agent → All Agents: Sprint #19 Kickoff (2026-04-05)
 
 | Field | Value |

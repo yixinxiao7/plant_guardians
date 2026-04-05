@@ -3478,3 +3478,349 @@ Minimum 6 new tests:
 ---
 
 *SPEC-013 written by Design Agent on 2026-04-01 for Sprint #18.*
+
+---
+
+### SPEC-014 — Care Streak Tracker
+
+**Status:** Approved
+**Related Tasks:** T-089 (Design), T-091 (Frontend)
+**Sprint:** #19
+
+#### Description
+
+The Care Streak Tracker is a motivational feature that rewards users for building a daily care habit. It tracks consecutive calendar days on which the user logged at least one care action (watering, fertilizing, or repotting any plant). The feature surfaces in two places: (1) a prominent streak section on the Profile page, and (2) a compact indicator in the sidebar nav that surfaces the streak count without requiring a trip to the Profile page.
+
+Tone: warm and encouraging. Plant Guardians exists for plant-killers trying to do better. The streak should feel like a gentle coach, not a punishing task-tracker. Milestone moments (7, 30, 100 days) deserve genuine celebration — these users have done something genuinely hard.
+
+---
+
+#### API Source
+
+`GET /api/v1/care-actions/streak?utcOffset={offset}` — authenticated endpoint.
+
+Response shape:
+```json
+{
+  "data": {
+    "currentStreak": 7,
+    "longestStreak": 12,
+    "lastActionDate": "2026-04-05"
+  }
+}
+```
+
+- `currentStreak` — 0 if no active streak; N if the user has logged care actions on N consecutive calendar days (including today if an action was logged today)
+- `longestStreak` — the highest consecutive-day count this user has ever achieved
+- `lastActionDate` — the local-timezone date of the most recent care action; `null` if the user has never logged a care action
+
+`utcOffset` param: integer, minutes offset from UTC (-840 to +840). The frontend should pass `new Date().getTimezoneOffset() * -1` to ensure streak calculation aligns with the user's local calendar days.
+
+---
+
+#### Streak States
+
+| State | Condition | Description |
+|-------|-----------|-------------|
+| **New User / No Actions** | `currentStreak = 0` AND `lastActionDate = null` | User has never logged a care action. Show empty-state CTA. |
+| **Streak Broken** | `currentStreak = 0` AND `lastActionDate` is not null AND is older than yesterday | User had a streak but missed at least one day. Show broken-state with sympathetic message. |
+| **Active — Early (1–6 days)** | `currentStreak` 1–6 | Building momentum. Warm, encouraging tone. Leaf icon. |
+| **Active — Established (7–29 days)** | `currentStreak` 7–29 | Strong habit forming. Elevated tone. Flame icon from day 7 onwards. |
+| **Milestone: 7 days** | `currentStreak === 7` | One-week milestone. Celebration animation fires. |
+| **Active — Extended (8–29 days)** | `currentStreak` 8–29 | Post-milestone continuation. Flame icon, elevated message. |
+| **Milestone: 30 days** | `currentStreak === 30` | One-month milestone. Celebration animation fires. |
+| **Active — Long (31–99 days)** | `currentStreak` 31–99 | Long-haul engagement. Enthusiastic tone. |
+| **Milestone: 100 days** | `currentStreak === 100` | Century milestone. Biggest celebration animation. |
+| **Active — Century+ (100+ days)** | `currentStreak > 100` | Legendary territory. Sustained milestone treatment. |
+
+**Milestone trigger rule:** celebration animation fires when `currentStreak` equals exactly 7, 30, or 100. Users already past these thresholds (e.g., `currentStreak = 45`) do not see a celebration — they missed it in a prior session. The `currentStreak = 100` threshold also acts as a permanent milestone: users with streaks > 100 keep the 100-day milestone badge visible.
+
+---
+
+#### Visual Design — Profile Page Streak Section
+
+**Placement:** Below the three existing stat tiles ("Plants in care", "Days as a Guardian", "Care actions completed") as a full-width card. The streak section is visually distinct — it has more visual weight than the stat tiles because it is the app's primary motivational element.
+
+---
+
+##### Streak Card (Active State — streak ≥ 1)
+
+**Container:**
+- `background: var(--color-streak-tile-bg)`
+- `border-radius: 12px`
+- `padding: 32px`
+- `border: 1.5px solid var(--color-border)` — default border
+- For milestone days only: add `border-left: 4px solid var(--color-streak-tile-border-milestone)` and change background to `var(--color-streak-tile-bg-milestone)`
+
+**Section heading row (top of card):**
+- Left: Label "Your Care Streak" — DM Sans, `font-size: 18px`, `font-weight: 600`, `color: var(--color-text-primary)`
+- Right (desktop only): small pill showing last action date — "Last cared: [relative date, e.g., 'today' or '2 days ago']" — `font-size: 12px`, `color: var(--color-text-secondary)`, `background: var(--color-surface-alt)`, `border-radius: 24px`, `padding: 4px 10px`
+
+**Tile body — two-column grid (desktop) / stacked (mobile):**
+
+**Left tile — Current Streak:**
+- Icon:
+  - Streaks 1–6 days: Phosphor `Plant` icon, 40px, `color: var(--color-streak-icon-leaf)`
+  - Streaks 7+ days: Phosphor `Fire` icon, 40px, `color: var(--color-streak-icon-fire)`
+- Streak number: Playfair Display, `font-size: 48px`, `font-weight: 600`, `color: var(--color-streak-number)`, `line-height: 1`
+  - Accompanied by `aria-label="Current care streak: [N] days"` on the container
+- Sub-label: "day streak" — DM Sans, `font-size: 14px`, `color: var(--color-streak-label)`, lowercase, `margin-top: 4px`
+- Milestone badge (conditional — only when `currentStreak === 7`, `30`, or `100+`):
+  - Pill badge positioned below the sub-label
+  - Content per milestone:
+    - 7 days: "🎉 One week!"
+    - 30 days: "🌟 One month!"
+    - 100+ days: "🏆 100 days!"
+  - Style: `background: var(--color-streak-milestone-badge-bg)`, `color: var(--color-streak-milestone-badge-text)`, `border: 1px solid var(--color-streak-milestone-badge-border)`, `border-radius: 24px`, `padding: 4px 12px`, `font-size: 12px`, `font-weight: 500`
+  - `aria-label="Milestone: [N] day streak"` on the badge element
+
+**Right tile — Longest Streak:**
+- Icon: Phosphor `TrendUp`, 28px, `color: var(--color-streak-secondary-number)`
+- Number: Playfair Display, `font-size: 32px`, `font-weight: 600`, `color: var(--color-streak-secondary-number)`
+  - `aria-label="Longest streak: [N] days"` on the container
+- Sub-label: "personal best" — DM Sans, `font-size: 13px`, `color: var(--color-streak-label)`, italic, `margin-top: 4px`
+- If `longestStreak === currentStreak` and streak ≥ 7: add small note "(current record!)" in `color: var(--color-streak-icon-leaf)`, `font-size: 12px`
+
+**Motivational message (full width, below tile body):**
+- `margin-top: 20px`, `padding-top: 16px`, `border-top: 1px solid var(--color-border)`
+- `aria-live="polite"` on this container so screen readers announce it when data loads
+- Message content by state:
+
+| `currentStreak` | Message | Weight |
+|-----------------|---------|--------|
+| 1 | "Great start! 🌱 You've begun your streak." | 400 |
+| 2–6 | "Keep it up! [N] days and counting." | 400 |
+| 7 | "One week strong! 🌿 You're building a real habit." | 500 |
+| 8–29 | "You're on a roll — [N] days of consistent care!" | 400 |
+| 30 | "30 days! 🌟 You're officially no longer a plant-killer." | 600 |
+| 31–99 | "Your plants are so lucky to have you. [N] days!" | 400 |
+| 100 | "100 days! 🏆 You are a certified Plant Guardian." | 600 |
+| >100 | "[N] days. Legendary. Your plants will outlive us all." | 500 |
+
+- Message `font-size: 14px` (600-weight messages: `font-size: 15px`)
+- Active streak (1–6): `color: var(--color-text-secondary)`
+- Active streak (7+): `color: var(--color-streak-icon-leaf)` (sage green — positive reinforcement)
+- Milestone messages: `color: var(--color-streak-icon-leaf)`, `font-size: 15px`
+
+---
+
+##### Streak Card — Empty State (New User / No Actions)
+
+When `currentStreak = 0` and `lastActionDate = null`.
+
+Replace the tile body entirely with a centered illustration block:
+- Phosphor `Plant` icon, 56px, `color: var(--color-streak-empty-icon)`, `margin-bottom: 16px`
+- Heading: "Start your streak today!" — Playfair Display, 20px, `color: var(--color-text-primary)`
+- Body: "Log your first care action to begin your streak. Come back every day and watch it grow." — DM Sans, 14px, `color: var(--color-text-secondary)`, `max-width: 400px`, centered, `line-height: 1.6`, `margin-top: 8px`
+- CTA button: "Go to your plants" — Secondary variant, links to `/` (inventory), `margin-top: 20px`
+- No "personal best" tile shown — there is no data yet
+
+Section heading still reads "Your Care Streak." The card has the default border (no milestone accent).
+
+---
+
+##### Streak Card — Broken State (Streak Lost)
+
+When `currentStreak = 0` and `lastActionDate` is not null.
+
+Show the streak tile with broken/muted treatment:
+- Left tile — Current Streak:
+  - Icon: Phosphor `Plant` (wilted treatment — use muted color `var(--color-streak-broken-icon)`, 40px)
+  - Streak number: "0" in Playfair Display, 48px, `color: var(--color-streak-broken-icon)` (muted)
+  - Sub-label: "day streak"
+  - No milestone badge
+- Right tile — Longest Streak: shown normally (personal best is preserved as encouragement)
+- Motivational message: "Your streak ended — but that's okay. 🌱 Every day is a fresh start." — 14px, `color: var(--color-text-secondary)`, neutral tone (do not use warning colors; this is sympathetic, not punishing)
+- Card border: default (no milestone accent). Background: default tile background.
+- The "last action date" pill still appears in the heading row showing when they last cared for a plant.
+
+---
+
+#### Milestone Celebration Animation
+
+Triggered on the Profile page when the streak tile mounts and `currentStreak` is exactly 7, 30, or 100.
+
+**Trigger logic:**
+1. On mount, check `currentStreak` value
+2. Check `sessionStorage.getItem(`streak_celebrated_${currentStreak}`)` — if already set, do NOT trigger
+3. If not previously celebrated: fire the animation, then set `sessionStorage.setItem(`streak_celebrated_${currentStreak}`, 'true')`
+4. This ensures the celebration fires at most once per browser session, even if the user navigates away and back
+
+**Animation:**
+- Confetti burst using `canvas-confetti` (or equivalent lightweight library — no heavy deps)
+- Colors: `['#5C7A5C', '#A67C5B', '#C4921F', '#FFFFFF', '#4A7C59']`
+- `particleCount`: 60 (7-day), 90 (30-day), 130 (100-day)
+- `spread`: 80
+- `origin`: `{ x: 0.5, y: 0.75 }` — centered below the streak number
+- `startVelocity`: 35
+- Duration: ~2.5 seconds via gravity decay
+- The streak card itself also gets a brief "pop": `scale(1.0) → scale(1.04) → scale(1.0)`, duration `0.4s`, easing `cubic-bezier(0.34, 1.56, 0.64, 1)` (spring — same as the "mark as done" celebration in SPEC-005)
+
+**`prefers-reduced-motion: reduce`:**
+- Skip confetti burst entirely
+- Skip scale animation
+- The milestone badge and motivational message are ALWAYS displayed regardless of motion preference — information must never be hidden behind animation
+
+---
+
+#### Compact Sidebar Streak Indicator
+
+**Location:** In the App Shell sidebar (`AppShell.jsx` or the sidebar component), placed between the navigation links and the bottom user profile section.
+
+**Visibility rule:** Rendered only when `currentStreak ≥ 1`. Not rendered (not just hidden) when `currentStreak = 0`. This keeps the sidebar clean for new users and users who have lost their streak.
+
+**Interaction:** Clicking the indicator navigates to `/profile` (the Profile page). This doubles as a shortcut to the streak detail view.
+
+---
+
+##### Sidebar Expanded (Desktop, 240px)
+
+Compact pill below the nav links:
+```
+┌─────────────────────────────────┐
+│  🔥  7 day streak               │
+└─────────────────────────────────┘
+```
+
+- Container: `display: flex`, `align-items: center`, `gap: 8px`, `padding: 8px 16px`, `margin: 4px 12px 8px`, `background: var(--color-streak-sidebar-bg)`, `border-radius: 8px`, cursor: pointer
+- Hover: `background` darkens slightly — `rgba(92,122,92,0.14)`, `transition: background 0.15s ease`
+- Icon:
+  - Streaks 1–6: Phosphor `Plant`, 18px, `color: var(--color-streak-icon-leaf)`
+  - Streaks 7+: Phosphor `Fire`, 18px, `color: var(--color-streak-icon-fire)`
+- Text: streak count in `font-size: 14px`, `font-weight: 600`, `color: var(--color-text-primary)` + " day streak" in `font-size: 12px`, `color: var(--color-text-secondary)`
+- `aria-label="Care streak: [N] days. Go to your profile."` on the container
+- `role="link"` (or use an actual `<a>` wrapping the pill)
+- `tabindex="0"`, keyboard activatable with Enter/Space
+
+##### Sidebar Collapsed / Mobile Drawer Closed
+
+When the sidebar is in icon-only or collapsed mode (tablet/mobile where the sidebar is a hamburger-triggered drawer):
+- The streak indicator is revealed inside the open drawer using the same expanded layout as desktop
+- On the collapsed icon sidebar (if ever implemented): show the icon alone with a small count badge overlaid at top-right:
+  - Badge: 16px × 16px circle, `background: var(--color-streak-sidebar-badge-bg)`, `color: #FFFFFF`, `font-size: 10px`, `font-weight: 700`, `border-radius: 50%`
+  - Counts ≥ 100 display as "99+"
+
+**Loading behavior:** The sidebar indicator simply does not render until the streak API call resolves. No skeleton shown in the sidebar (avoids visual noise in a persistent navigation element).
+
+---
+
+#### Loading State
+
+**Profile page streak section:**
+- While `GET /api/v1/care-actions/streak` is in-flight: render a skeleton shimmer block in place of the streak card
+- Skeleton structure:
+  - Full-width container with `border-radius: 12px`, matching the card dimensions (~160px height)
+  - Two side-by-side shimmer rectangles (`height: 100px`, `border-radius: 8px`, `background: var(--color-skeleton)`) representing the left and right tiles
+  - Shimmer animation: same `@keyframes shimmer` used elsewhere in the app (left-to-right gradient sweep)
+  - `aria-busy="true"` on the streak section container; `aria-label="Loading streak data"` on the skeleton wrapper
+
+**Sidebar indicator:** No loading skeleton. Indicator simply absent until data resolves.
+
+---
+
+#### Dark Mode Token Definitions
+
+All new CSS custom properties added to `design-tokens.css` in both `[data-theme="light"]` and `[data-theme="dark"]` blocks:
+
+| Token | Light Value | Dark Value |
+|-------|-------------|------------|
+| `--color-streak-tile-bg` | `#FFFFFF` | `#1E2220` |
+| `--color-streak-tile-bg-milestone` | `#F7FAF7` | `#1C2419` |
+| `--color-streak-tile-border-milestone` | `#5C7A5C` | `#5C7A5C` |
+| `--color-streak-icon-fire` | `#C4921F` | `#D4A832` |
+| `--color-streak-icon-leaf` | `#5C7A5C` | `#6B9B6B` |
+| `--color-streak-number` | `#2C2C2C` | `#F0EDE6` |
+| `--color-streak-label` | `#6B6B5F` | `#9B9B8F` |
+| `--color-streak-secondary-number` | `#6B6B5F` | `#9B9B8F` |
+| `--color-streak-milestone-badge-bg` | `#FDF4E3` | `#2A2518` |
+| `--color-streak-milestone-badge-text` | `#C4921F` | `#D4A832` |
+| `--color-streak-milestone-badge-border` | `#C4921F` | `#D4A832` |
+| `--color-streak-sidebar-bg` | `rgba(92, 122, 92, 0.08)` | `rgba(107, 155, 107, 0.12)` |
+| `--color-streak-sidebar-badge-bg` | `#C4921F` | `#D4A832` |
+| `--color-streak-broken-icon` | `#B0ADA5` | `#6B6B60` |
+| `--color-streak-empty-icon` | `#B8CEB8` | `#4A5E4A` |
+
+Note: `--color-skeleton` is assumed to already exist from prior token migrations. If not, add: light `#E0DDD6`, dark `#2E3330`.
+
+---
+
+#### Responsive Behavior
+
+| Breakpoint | Profile Page | Sidebar |
+|-----------|--------------|---------|
+| Desktop (≥1024px) | Streak card below stat tiles; current + longest in 2-col grid inside card | Expanded pill in left sidebar (240px); always visible when streak ≥ 1 |
+| Tablet (768–1023px) | Same layout, `padding: 24px`; tiles remain 2-col | Sidebar collapsed to hamburger; indicator appears inside the open drawer |
+| Mobile (<768px) | Streak card full-width below stats; current streak and longest streak tiles stack vertically (single column); CTA full-width | Inside mobile drawer (opened via hamburger); same expanded layout as desktop |
+
+---
+
+#### Accessibility Summary
+
+| Requirement | Implementation |
+|-------------|---------------|
+| Streak count | `aria-label="Current care streak: [N] days"` on the number container |
+| Longest streak | `aria-label="Longest streak: [N] days"` on the personal best container |
+| Milestone badge | `aria-label="Milestone: [N] day streak"` on the badge element |
+| Motivational message | `aria-live="polite"` on the message container — announced to screen readers after data loads |
+| Sidebar indicator | `role="link"`, `aria-label="Care streak: [N] days. Go to your profile."`, keyboard activatable |
+| Loading skeleton | `aria-busy="true"` on streak section during fetch; `aria-busy="false"` when resolved |
+| Confetti animation | Purely decorative — no ARIA; always respects `prefers-reduced-motion: reduce` |
+| Milestone badge visibility | Badge always visible (not behind animation); milestone state never conveyed by color alone |
+| Broken/empty states | All state descriptions include text — icon color changes are supplemental, not the sole signal |
+| Color contrast | All text on tile backgrounds must meet WCAG AA (4.5:1 for normal text). Milestone badge: `#C4921F` on `#FDF4E3` — verify contrast at implementation time; use `font-weight: 600` if needed to reach 3:1 for large text threshold |
+| Icon decorative treatment | All Phosphor icons are accompanied by visible text; standalone icons use `aria-hidden="true"` |
+| No color-only info | Streak state is communicated via icon, numeral, text label, and motivational copy — never by color alone |
+| Focus management | Sidebar indicator is in the natural tab order; confetti canvas is `aria-hidden="true"` and outside tab order |
+
+---
+
+#### Component Structure (Implementation Guidance for T-091)
+
+```
+ProfilePage.jsx
+  └── StreakTile.jsx                    (new component — handles all streak states)
+        ├── StreakLoadingSkeleton       (renders during fetch)
+        ├── StreakEmptyState            (currentStreak=0, no lastActionDate)
+        ├── StreakBrokenState           (currentStreak=0, lastActionDate exists)
+        └── StreakActiveState           (currentStreak ≥ 1)
+              ├── CurrentStreakDisplay  (icon + number + optional milestone badge)
+              ├── LongestStreakDisplay  (personal best)
+              ├── MotivationalMessage  (aria-live)
+              └── MilestoneCelebration (confetti + scale animation, conditional)
+
+AppShell.jsx (or sidebar component)
+  └── SidebarStreakIndicator.jsx        (new component — shows when currentStreak ≥ 1)
+```
+
+**Data fetching strategy:**
+- `ProfilePage.jsx` fetches streak data on mount: `GET /api/v1/care-actions/streak?utcOffset=<localOffset>`
+- `AppShell.jsx` (or sidebar) also needs streak data. To avoid a second API call, consider one of:
+  - Option A (recommended): a `useStreak()` custom hook backed by a React Context that shares a single fetch result across `ProfilePage` and `AppShell`
+  - Option B (simpler): duplicate the fetch in `AppShell` with its own independent state — acceptable if caching is not yet in place; results in two parallel requests on Profile page load
+- Either approach is acceptable for Sprint 19. Document the chosen approach in a code comment.
+
+**`utcOffset` calculation:**
+```js
+const utcOffset = new Date().getTimezoneOffset() * -1;
+// e.g., UTC-5 → getTimezoneOffset() = 300 → utcOffset = -300
+// e.g., UTC+9 → getTimezoneOffset() = -540 → utcOffset = 540
+```
+Pass this value as the `utcOffset` query parameter on every streak fetch.
+
+---
+
+#### Streak Freeze / Grace Period (Advisory — Post-MVP)
+
+This is a suggestion for a future sprint, not required for Sprint 19.
+
+A "streak freeze" could allow users to preserve a streak when they miss a day due to illness or travel. Three approaches considered:
+
+1. **Automatic 1-day grace (server-side):** Count the streak as active if the last action was 2 days ago instead of just 1. Simple but may feel unearned.
+2. **Earned freeze token:** User earns a freeze every 7 days; can spend it to protect a streak once. Adds engagement depth but requires additional backend + UI.
+3. **No freeze (current Sprint 19 implementation):** Honest and simple. A broken streak is a learning moment — "Every day is a fresh start." is the message we show.
+
+**Recommendation:** Ship Sprint 19 without freeze. Revisit after user feedback. If feedback shows frustration with streak loss due to travel, implement option 2 (earned freeze) as it is the most satisfying game mechanic.
+
+---
+
+*SPEC-014 written by Design Agent on 2026-04-05 for Sprint #19.*
