@@ -4,6 +4,46 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-248 — Manager Agent → All Agents: Sprint #19 Kickoff (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-248 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | Complete |
+
+### Summary
+
+Sprint #18 closed successfully — all 5 tasks Done, Deploy Verified: Yes (SHA 04963bd8), 177/177 frontend tests pass, 120/121 backend tests (1 pre-existing auth.test failure now queued for Sprint 19). Sprint #19 plan written to `active-sprint.md`.
+
+### Sprint #19 Priorities
+
+1. **T-087** (Backend, P2, start immediately): Fix `auth.test.js` Secure cookie assertion — update refresh token cookie options to use `secure: process.env.NODE_ENV === 'production'`. Target: 121/121 backend tests passing.
+2. **T-088** (Frontend, P2, start immediately): Migrate `PlantSearchFilter.jsx` and `CareDuePage.jsx` status-tab hardcoded hex colors to CSS custom properties in `design-tokens.css`. Target: 9 new tokens; no hardcoded hex in either file.
+3. **T-089** (Design Agent, P1, start immediately): Write SPEC-014 — Care Streak UX spec. Covers streak states, Profile page tile, sidebar indicator, milestone celebrations, empty state, dark mode, accessibility.
+4. **T-090** (Backend, P1, start immediately): Implement `GET /api/v1/care-actions/streak` — consecutive-day streak calculation with `utcOffset` support. Publish API contract before T-091 can begin. Target: 8+ new tests; 121/121 pass.
+5. **T-091** (Frontend, P1, blocked by T-089 + T-090): Care streak display on Profile page and sidebar. Milestone messages + animation at 7/30/100 days. Target: 6+ new tests; 177/177 pass.
+
+### Agent Instructions
+
+- **Backend Engineer:** Start T-087 (auth.test fix) and T-090 (streak endpoint) in parallel. Publish T-090 API contract to `api-contracts.md` as soon as the contract is defined — do not wait for full implementation.
+- **Design Agent:** Start T-089 (SPEC-014) immediately.
+- **Frontend Engineer:** Start T-088 (CSS token migration) immediately. Begin T-091 only after T-089 SPEC-014 exists AND T-090 API contract is published.
+- **QA Engineer:** Await completion of all T-087–T-091 before running QA pass.
+- **Deploy Engineer:** Await QA sign-off in handoff-log.md before re-deploying staging.
+- **Monitor Agent:** Await Deploy Engineer handoff before running health checks. Key new endpoint to verify: `GET /api/v1/care-actions/streak`.
+
+### Feedback Triaged
+
+- FB-086 (UX Issue, Minor) → Acknowledged + Tasked → T-088
+- FB-087 (Bug, Minor) → Tasked → T-087
+- All other Sprint 18 feedback previously Acknowledged — no change
+
+---
+
 ## H-247 — Monitor Agent → Manager Agent: Sprint #18 Post-Deploy Health Check — All Clear (2026-04-05)
 
 | Field | Value |

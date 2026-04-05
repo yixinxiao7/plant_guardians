@@ -4,6 +4,73 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #18 — 2026-04-01 to 2026-04-07
+
+**Sprint Goal:** Improve the inventory experience for users with growing plant collections by adding search and filter capabilities, complete the design system by finishing the ProfilePage CSS token migration, and improve accessibility with focus management on the Care Due Dashboard.
+
+**Outcome:** ✅ Goal fully met — all 5 tasks completed (T-082 through T-086), Deploy Verified: Yes (SHA 04963bd8e436c39c291764d522b4e79822900af9), zero carry-over. Fifth consecutive clean sprint.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-082 | Design: SPEC-013 — Inventory Search & Filter UX spec covering search input, status filter tabs (All/Overdue/Due Today/On Track), combined use, all empty-state variants, dark mode, and accessibility notes |
+| T-083 | Backend: `GET /api/v1/plants` extended with `search`, `status`, and `utcOffset` query parameters; parameterized SQL; 13 new tests; 120/121 backend tests pass (1 pre-existing auth.test Secure cookie failure, not a regression) |
+| T-084 | Frontend: `PlantSearchFilter.jsx` component with 300ms debounce, status filter tabs, all 4 empty states, result count (`aria-live`), skeleton loading; 17 new tests; 177/177 frontend tests pass |
+| T-085 | Frontend: `ProfilePage.jsx` — 3 hardcoded `color="#5C7A5C"` props replaced with `color="var(--color-accent)"` — design system token migration complete |
+| T-086 | Frontend: Care Due Dashboard focus management after mark-done — next sibling → next section → all-clear CTA decision tree; `prefers-reduced-motion` respected; `transitionend` listener with 350ms fallback; 6 new focus tests; 177/177 pass |
+
+#### Tasks Carried Over
+
+None. This is the fifth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. Monitor Agent health check returned **Deploy Verified: Yes** (SHA 04963bd8, 2026-04-05, H-247). All 20 health checks passed, including:
+- `GET /api/v1/plants?search=pothos` → 200 ✅
+- `GET /api/v1/plants?status=overdue` → 200 ✅
+- `GET /api/v1/plants?search=pothos&status=on_track` → 200 ✅
+- `GET /api/v1/plants?status=invalid` → 400 `VALIDATION_ERROR` ✅
+- Frontend preview server on port 4175 → 200 ✅
+- All 14+ existing endpoints → 200/401 as expected ✅
+
+---
+
+#### Key Feedback Themes
+
+- **FB-084** (Positive): Search & filter implementation is polished — 300ms debounce, semantically colored status tabs, all 3 empty state variants, `aria-live` result count. QA called it "well-executed."
+- **FB-085** (Positive): Care Due focus management is "best-in-class accessibility" — the full decision-tree coverage (next sibling → next section → all-clear CTA), `prefers-reduced-motion` respect, and robust `transitionend` + fallback timeout were praised.
+- **FB-086** (UX Issue, Minor): `PlantSearchFilter.jsx` `ACTIVE_STYLES` constant and `CareDuePage.jsx` `SECTION_CONFIG` both define status-tab colors as hardcoded hex values rather than CSS custom properties. Consistent with each other, but should migrate to design tokens for dark-mode resilience. → Tasked T-088 (Sprint 19).
+- **FB-087** (Bug, Minor): `auth.test.js` pre-existing failure — test asserts `Secure` cookie flag which is absent in non-HTTPS dev/test env. Not a Sprint 18 regression; pre-dates the sprint. → Tasked T-087 (Sprint 19).
+
+---
+
+#### What Went Well
+
+- All tasks delivered and verified in a single sprint cycle with no rework loops
+- T-084 exceeded the minimum 6-test requirement with 17 new tests
+- T-086 focus management was comprehensive — QA praised all edge cases as covered
+- API contract published before T-084 started — dependency chain respected cleanly
+- Parameterized SQL (`LOWER(name) LIKE ?`) prevents search injection — security posture maintained
+- Deploy used two-phase verification: initial QA pass, then Deploy re-verification pass; both clean
+
+#### What to Improve
+
+- The `auth.test.js` Secure cookie assertion has been a pre-existing failure for multiple sprints — it should be fixed rather than suppressed (queued for T-087)
+- `PlantSearchFilter` hardcoded hex colors are a design-system debt item that should have been caught during T-084 implementation review (queued for T-088)
+
+#### Technical Debt Noted
+
+- `PlantSearchFilter.jsx` ACTIVE_STYLES + `CareDuePage.jsx` SECTION_CONFIG/CARE_TYPE_CONFIG: 6 hardcoded hex values not in CSS custom properties (FB-086) → T-088
+- `auth.test.js`: Secure cookie assertion is environment-context-unaware (FB-087) → T-087
+- `GET /api/v1/care-actions/stats` lacks endpoint-specific rate limiting (FB-073) — still in backlog
+
+---
+
 ### Sprint #17 — 2026-04-01 to 2026-04-02
 
 **Sprint Goal:** Deliver the AI Recommendations feature — Gemini-powered care advice via plant name text input and photo upload, wired into the Add/Edit Plant form with accept/reject flow.
