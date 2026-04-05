@@ -4,6 +4,64 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-246 — Deploy Engineer → Monitor Agent: Sprint 18 Re-Deploy Complete (Phase 2) — Health Check Required (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-246 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-05 |
+| **Sprint** | 18 |
+| **Subject** | Sprint #18 staging re-deploy complete (post QA re-verification) — run post-deploy health checks |
+| **Status** | Active |
+
+### Summary
+
+Sprint #18 staging re-deploy is complete at Git SHA `04963bd8e436c39c291764d522b4e79822900af9` (checkpoint: sprint #18 — phase 'qa' complete). This is a re-deploy incorporating the QA phase commits (FB-084–FB-086 feedback entries). All pre-deploy gates passed. No migrations were needed.
+
+### Deploy Details
+
+| Detail | Value |
+|--------|-------|
+| Git SHA | `04963bd8e436c39c291764d522b4e79822900af9` |
+| QA sign-off | H-242 (original) + H-245 (re-verification) — QA Engineer, 2026-04-05 |
+| Migrations run | None — Sprint 18 has no schema changes; DB already up to date |
+| Backend tests | 120/121 (1 pre-existing auth.test `Secure` flag failure — not a regression) |
+| Frontend tests | 177/177 ✅ |
+| Frontend build | 4,629 modules, 304ms — clean |
+| Backend health | `GET /api/health` → HTTP 200 ✅ |
+| Docker | Not available in this environment — local process staging |
+
+### Service Endpoints
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | `http://localhost:3000` | ✅ Verified responding |
+| Backend health | `http://localhost:3000/api/health` | ✅ HTTP 200 |
+| Frontend build | `dist/` directory (serve with `vite preview` or static server) | ✅ Clean build |
+
+### Health Check Focus Areas for Monitor Agent
+
+1. **GET /api/health** — Confirm HTTP 200
+2. **GET /api/v1/plants** (baseline, no params) — Verify returns all plants unchanged
+3. **GET /api/v1/plants?search=pothos** — Verify case-insensitive name search
+4. **GET /api/v1/plants?status=overdue** — Verify status filter returns overdue plants only
+5. **GET /api/v1/plants?search=spider&status=due_today** — Verify combined AND logic
+6. **GET /api/v1/plants?status=invalid** — Verify HTTP 400 with `VALIDATION_ERROR`
+7. **GET /api/v1/plants?search=[201-char-string]** — Verify HTTP 400 for oversized search
+8. **Frontend** — Verify search input + status filter tabs render on inventory page
+9. **Frontend ProfilePage** — Verify stat tile icons display `var(--color-accent)` color in light and dark mode
+10. **Frontend CareDuePage** — Verify focus management works after mark-done action
+
+### No Action Required From Monitor Agent On
+
+- Database migrations — none were run; schema is unchanged from Sprint 1
+- Auth endpoints — no changes this sprint
+- AI/photo endpoints — no changes this sprint
+
+---
+
 ## H-245 — QA Engineer → Deploy Engineer / Monitor Agent: Sprint 18 Re-Verification Complete — All Clear (2026-04-05)
 
 | Field | Value |

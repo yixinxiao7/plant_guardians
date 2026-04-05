@@ -4,6 +4,102 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 18 — Deploy Engineer: Re-Deploy (Phase 2, post-QA) (2026-04-05)
+
+**Date:** 2026-04-05
+**Agent:** Deploy Engineer (orchestrator-invoked re-deploy — post QA re-verification)
+**Sprint:** 18
+**Git SHA:** 04963bd8e436c39c291764d522b4e79822900af9 (checkpoint: sprint #18 — phase 'qa' complete)
+**QA Sign-off:** ✅ H-242 (original) + H-245 (re-verification) — all T-082–T-086 confirmed Done
+
+---
+
+### Pre-Deploy Gate Checks
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| QA sign-off in handoff-log.md | ✅ PASS | H-242 + H-245 — QA confirmed all 5 Sprint 18 tasks Done |
+| Pending DB migrations | ✅ NONE | Sprint 18 has no schema changes; migrations already up to date |
+| Backend test suite | ✅ 120/121 PASS | 1 pre-existing auth.test `Secure` cookie flag failure (dev env non-HTTPS; not a regression) |
+| Frontend test suite | ✅ 177/177 PASS | 26 suites — all green |
+| Frontend production build | ✅ CLEAN | 4,629 modules; 419.11 kB JS (120.74 kB gzip); 63.58 kB CSS; 304ms |
+| Backend app module load | ✅ CLEAN | `node src/app.js` — no import errors |
+| Backend health check | ✅ HTTP 200 | `GET /api/health` → `{"status":"ok","timestamp":"2026-04-05T16:52:36.990Z"}` |
+
+---
+
+### Build Results
+
+#### Backend Tests
+
+| Metric | Result |
+|--------|--------|
+| Test Suites | 12 passed, 1 failed (pre-existing), 13 total |
+| Tests | 120/121 passed |
+| Failing test | `auth.test.js` — `Secure` cookie flag absent in dev env; known non-regression from prior sprints |
+| Status | ✅ PASS (baseline maintained) |
+
+#### Frontend Tests
+
+| Metric | Result |
+|--------|--------|
+| Test Suites | 26 passed, 26 total |
+| Tests | 177/177 passed |
+| Status | ✅ PASS |
+
+#### Frontend Production Build
+
+| Metric | Result |
+|--------|--------|
+| Modules transformed | 4,629 |
+| JS bundle size | 419.11 kB (120.74 kB gzip) |
+| CSS bundle size | 63.58 kB (10.42 kB gzip) |
+| Build time | 304ms |
+| Status | ✅ CLEAN — no errors, no warnings |
+
+---
+
+### Database Migrations
+
+| Check | Result |
+|-------|--------|
+| Pending migrations | 0 — `knex migrate:latest` → "Already up to date" |
+| Current migration version | `20260323_05_create_care_actions.js` |
+| Migration action taken | None required |
+
+---
+
+### Staging Deployment Status (Local — Docker not available)
+
+| Step | Status | Notes |
+|------|--------|-------|
+| Docker availability | ⚠️ N/A | Docker not available in this environment — local process staging used |
+| Backend npm install | ✅ PASS | Dependencies installed; 1 high lodash advisory (known non-blocking false positive) |
+| Frontend npm install | ✅ PASS | 0 vulnerabilities |
+| Frontend production build | ✅ PASS | `dist/` generated, 4629 modules |
+| Database migrations | ✅ SKIPPED | No pending migrations |
+| Backend server start | ✅ PASS | Server starts on PORT 3000 without errors |
+| Backend health check | ✅ HTTP 200 | `GET /api/health` → `{"status":"ok"}` |
+| Handoff to Monitor Agent | ✅ SENT | H-246 logged — Monitor Agent to run post-deploy health checks |
+
+---
+
+### Sprint 18 Changes Deployed
+
+| Task | Change | Verified |
+|------|--------|----------|
+| T-082 | SPEC-013 — Inventory Search & Filter UX spec | ✅ QA confirmed in ui-spec.md |
+| T-083 | `GET /api/v1/plants` — `search`, `status`, `utcOffset` query params | ✅ 13 new tests pass |
+| T-084 | `PlantSearchFilter.jsx`, debounce, empty states, aria-live result count | ✅ 17 new tests pass |
+| T-085 | `ProfilePage.jsx` — 3 icon color props → `var(--color-accent)` | ✅ CSS token verified |
+| T-086 | `CareDuePage.jsx` — focus management after mark-done | ✅ 6 focus tests pass |
+
+**Deploy Verdict: ✅ SUCCESS — Staging re-deploy complete at SHA 04963bd8**
+
+Note: Docker was not available in this environment. Staging is verified via local processes (backend on port 3000, frontend build at `dist/`). Docker-based staging environment would be used when Docker is installed and running.
+
+---
+
 ## Sprint 18 — QA Engineer: Re-Verification Pass (2026-04-05)
 
 **Date:** 2026-04-05
