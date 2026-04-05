@@ -4,6 +4,74 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #20 — 2026-04-12 to 2026-04-18
+
+**Sprint Goal:** Give users visibility into their past care actions by delivering a **Care History** feature — a chronological, per-plant log of all care events accessible from the Plant Detail page — and resolve the lodash transitive security vulnerability.
+
+**Outcome:** ✅ Goal fully met — all 4 tasks completed (T-092 through T-095), Deploy Verified: Yes (SHA 90a362d), zero carry-over. Seventh consecutive clean sprint.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-092 | Design: SPEC-015 — Care History UX spec covering entry point (Plant Detail tab), list item layout (care type icon + relative date + absolute on hover), Load More pagination, empty state with CTA, care type filter (All/Watering/Fertilizing/Repotting), month-based date grouping, dark mode, and accessibility |
+| T-093 | Backend: `GET /api/v1/plants/:id/care-history` endpoint — authenticated, plant-scoped, paginated (page/limit), careType filter, reverse-chronological order; 12 new tests; 142/142 backend tests pass (up from 130) |
+| T-094 | Frontend: Care History section on Plant Detail page — tab/panel UI, care type icons + relative dates, Load More pagination, filter tabs, empty state, loading skeleton, error state, `aria-busy`, `role="list"`, dark mode via CSS custom properties; 10 new tests; 205/205 frontend tests pass (up from 195) |
+| T-095 | Security: `npm audit fix` in both `backend/` and `frontend/`; resolved lodash ≤4.17.23 high-severity transitive vulnerability; `npm audit` → 0 vulnerabilities in both directories; no test regressions |
+
+#### Tasks Carried Over
+
+None. This is the seventh consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. Monitor Agent health check returned **Deploy Verified: Yes** (SHA 90a362d, 2026-04-05, H-279). All checks passed:
+- `GET /api/v1/plants/:id/care-history` — 12 sub-checks pass: response shape, careType filter, pagination, 401/404/400/400 error paths, all validation messages exact-match contract ✅
+- Plants CRUD (GET list, GET detail, POST, DELETE) → all 200/201 as expected ✅
+- Auth (login, refresh error path) ✅
+- Frontend at `http://localhost:4173` → 200 ✅
+- No 5xx errors across 18 calls ✅
+- 403 cross-user path not live-tested (rate-limit constraint on `/register`, no second seeded user plant); covered by 142/142 QA test suite ✅
+
+---
+
+#### Key Feedback Themes
+
+- **FB-091** (Positive): Care History feature praised as a natural complement to the Sprint 19 Care Streak — tab bar on Plant Detail is intuitive, filter pills are clean, month-grouped list is easy to scan, empty state messaging is encouraging and action-oriented.
+- **FB-092** (Positive): `requestId` ref in `usePlantCareHistory.js` preventing race conditions on rapid filter switching called out as a subtle but important architectural detail.
+- **FB-093** (UX Issue, Cosmetic/Acknowledged): Three minor SPEC-015 deviations — (1) missing `role="tabpanel"` on history panel div, (2) notes expansion uses CSS class toggle instead of `transition: max-height 0.25s ease`, (3) dark mode icon background colors defined in `CARE_CONFIG` but not applied in CSS. Non-blocking. Queued as backlog for Sprint 21 (T-099).
+- **FB-094** (Positive): Care-history endpoint error handling and 404-vs-403 ownership distinction praised as exemplary and secure.
+
+---
+
+#### What Went Well
+
+- All four tasks delivered in a single sprint cycle with no rework loops — seventh consecutive clean sprint
+- Backend test count grew from 130 to 142 (12 new T-093 tests); frontend from 195 to 205 (10 new T-094 tests)
+- The `requestId` anti-stale-closure pattern in the custom hook is a production-quality detail that preemptively prevents a common React data-fetching bug
+- Deploy Engineer caught and self-fixed a `within`-scope ambiguity in `CareHistorySection.test.jsx` before QA was blocked — good proactive CI hygiene
+- lodash vulnerability resolved cleanly with zero regressions — quick housekeeping that closes out the FB-090 suggestion from Sprint 19
+
+#### What to Improve
+
+- Three cosmetic SPEC-015 deviations (FB-093) slipped through Frontend and code review — spec compliance sweep should be more thorough, especially for ARIA roles and CSS animation properties
+- Dark mode icon background colors were defined in JS config but the CSS was never updated to consume them; a checklist item linking JS config additions → CSS variable updates would catch this class of gap
+
+#### Technical Debt Noted
+
+- `role="tabpanel"` missing on Care History panel div (FB-093) → T-099 (Sprint 21)
+- Notes expansion animation missing (`max-height` transition) (FB-093) → T-099 (Sprint 21)
+- Dark mode icon background colors not applied in CSS (FB-093) → T-099 (Sprint 21)
+- `GET /api/v1/care-actions/stats` endpoint-specific rate limiting (FB-073) — still in backlog
+- Soft delete / grace period for account deletion (FB-077) — backlog, low priority
+- Production deployment still blocked on project owner providing SSL certificates
+
+---
+
 ### Sprint #19 — 2026-04-05 to 2026-04-11
 
 **Sprint Goal:** Close two pre-existing technical debt items (auth.test Secure cookie fix, PlantSearchFilter/CareDuePage CSS token migration) and deliver the Care Streak tracker — a gamification feature that rewards consecutive days of care activity to help novice plant owners build lasting habits.

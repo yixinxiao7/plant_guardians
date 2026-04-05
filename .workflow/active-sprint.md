@@ -4,83 +4,79 @@ The operational reference for the current development cycle. Refreshed at the st
 
 ---
 
-## Sprint #20 — 2026-04-12 to 2026-04-18
+## Sprint #21 — 2026-04-19 to 2026-04-25
 
-**Sprint Goal:** Give users visibility into their past care actions by delivering a **Care History** feature — a chronological, per-plant log of all care events — and resolve the lodash transitive security vulnerability. Care History closes the feedback loop for novice plant owners: they can confirm they cared for a plant last week, see patterns, and build confidence in their routine.
+**Sprint Goal:** Let users capture observations alongside care actions by adding an optional **Care Note** to the mark-done flow (on both the Care Due Dashboard and Plant Detail page), and polish the Care History UI by resolving the three minor SPEC-015 cosmetic deviations noted in FB-093. Notes already exist as a column in the `care_actions` table and are returned by `GET /plants/:id/care-history` — Sprint 21 wires up the write path and surfaces notes in both the mark-done UI and the history view.
 
-**Context:** Sprint #19 delivered the Care Streak tracker and closed two debt items (auth.test fix, CSS token migration) in the sixth consecutive clean sprint. Backend is at 130/130 tests, frontend at 195/195. Deploy Verified: Yes at SHA 99104bc. Sprint #20 adds Care History, which pairs naturally with the Streak feature by letting users drill into *which* actions drove their streak, and fixes the lodash audit advisory queued from Sprint #19.
+**Context:** Sprint #20 delivered the Care History feature and resolved the lodash vulnerability — seventh consecutive clean sprint. Backend is at 142/142 tests, frontend at 205/205. Deploy Verified: Yes at SHA 90a362d. Sprint #21 completes the Care Notes write path (the column and read path already exist) and fixes three tracked cosmetic regressions from FB-093, giving the Care History section a production-quality finish.
 
 ---
 
 ## In Scope
 
-### P2 — Security Housekeeping (start immediately, no dependencies)
+### P3 — SPEC-015 Cosmetic Cleanup (start immediately, no dependencies)
 
-- [ ] **T-095** — Backend Engineer: Run `npm audit fix` and resolve lodash vulnerability **(P2)**
-  - **Description:** `npm audit` reports 1 high-severity vulnerability in lodash (≤4.17.23) — prototype pollution via `_.unset`/`_.omit` and code injection via `_.template`. These are transitive dependencies and the vulnerable functions are not directly called in application code. Run `npm audit fix` in the backend directory; if lodash cannot be auto-fixed (pinned by a direct dep), either upgrade the direct parent dependency or add an npm `overrides` entry for lodash to `>=4.17.24`. Also run `npm audit fix` in the frontend directory and resolve any fixable vulnerabilities. After fix, verify `npm audit` reports 0 high/critical advisories. Run the full test suite to confirm no regressions.
+- [ ] **T-099** — Frontend Engineer: Fix three FB-093 SPEC-015 cosmetic deviations **(P3)**
+  - **Description:** Three minor deviations from SPEC-015 were identified in FB-093 and approved for Sprint 21 backlog. Fix all three: (1) **Missing `role="tabpanel"`** — add `role="tabpanel"` to the history panel `<div>` in `PlantDetailPage.jsx`; the Overview panel already has it correctly; (2) **Notes expansion animation** — replace the CSS class toggle with `transition: max-height 0.25s ease; overflow: hidden;` on the notes expansion element in `CareHistorySection.jsx`; (3) **Dark mode icon background colors** — the `CARE_CONFIG` object defines icon background colors but the CSS never applies them; add the corresponding CSS custom property rules to the `.care-history-item__icon` variants in `CareHistorySection.css` (or equivalent) so the icon circle backgrounds render correctly in both light and dark mode.
   - **Acceptance Criteria:**
-    - `npm audit` in `backend/` reports 0 high or critical severity vulnerabilities
-    - `npm audit` in `frontend/` reports 0 high or critical severity vulnerabilities (or documents any that cannot be auto-fixed with rationale)
-    - All 130/130 backend tests still pass after dependency changes
-    - All 195/195 frontend tests still pass after dependency changes
-    - No new `npm audit` advisories introduced
+    - History panel `<div>` in `PlantDetailPage.jsx` has `role="tabpanel"`
+    - Notes expansion uses CSS `max-height` transition (0.25s ease) instead of class toggle; animation visible in browser
+    - Care type icon circle backgrounds render correctly in dark mode (using CSS custom properties from `CARE_CONFIG` or `design-tokens.css`)
+    - All 205/205 frontend tests still pass; update or add tests covering the `role="tabpanel"` attribute and notes animation state
+    - No regressions to any other component
   - **Dependencies:** None — start immediately.
-  - **Fix locations:** `backend/package.json`, `frontend/package.json` (+ lockfiles)
+  - **Fix locations:** `frontend/src/pages/PlantDetailPage.jsx` (role attribute), `frontend/src/components/CareHistorySection.jsx` (animation), `frontend/src/components/CareHistorySection.css` (dark mode icon backgrounds)
 
 ---
 
-### P1 — Care History Feature
+### P1 — Care Notes Write Path
 
-- [ ] **T-092** — Design Agent: Write SPEC-015 — Care History UX spec **(P1)**
-  - **Description:** Design the Care History feature — a per-plant chronological log of all logged care events. Cover: (1) **Entry point** — a "History" tab or section on the Plant Detail page (existing plant detail view), accessible alongside the current care schedule status; (2) **List view** — entries show care type (watering, fertilizing, repotting), date performed (relative: "3 days ago", absolute on hover/tooltip), and any notes if present; (3) **Pagination or infinite scroll** — how to handle plants with long history (suggest paginated with "Load more" or 20-item pages); (4) **Empty state** — first-time user who has not yet logged any care; (5) **Filtering** — optional filter by care type (All / Watering / Fertilizing / Repotting); (6) **Date grouping** — consider grouping by month for readability; (7) **Dark mode** and accessibility.
+- [ ] **T-096** — Design Agent: Write SPEC-016 — Care Notes UX spec **(P1)**
+  - **Description:** Design the Care Notes feature — an optional freeform text input that users can fill in when marking a care action done. Cover: (1) **Entry points** — mark-done flow on the Care Due Dashboard (currently a single checkbox/button per plant-care-type card) and mark-done on the Plant Detail page care schedule section; (2) **Note input UI** — where and how the input appears (inline expansion below the mark-done button, or a small modal); character limit recommendation (280 chars); placeholder text; (3) **Submission flow** — note is optional; tapping mark-done without a note works the same as today; (4) **Notes in Care History** — how notes appear in the `CareHistorySection` list item (truncated at 2 lines with expand toggle, or shown inline); (5) **Accessibility** — `aria-label` on note input, association with the care action it belongs to; (6) **Dark mode** — note input and display use CSS custom properties; (7) **Empty note handling** — null notes show no note UI in the history (do not show "No note" placeholder).
   - **Acceptance Criteria:**
-    - SPEC-015 written to `.workflow/ui-spec.md` (appended as a new section)
-    - Covers entry point (Plant Detail page tab/section)
-    - Covers list item layout: care type, date (relative + absolute), care type icon
-    - Covers pagination strategy (Load More or page-based)
-    - Covers empty state (no actions logged yet)
-    - Covers care type filter (All / Watering / Fertilizing / Repotting)
-    - Dark mode and accessibility notes included (aria-label, no color-only info)
+    - SPEC-016 written to `.workflow/ui-spec.md` (appended as a new section)
+    - Covers both entry points (Care Due Dashboard + Plant Detail mark-done)
+    - Covers note input UI and character limit
+    - Covers submission flow (note is always optional)
+    - Covers note display in Care History list item (truncation + expand toggle)
+    - Covers empty note handling in history (null → no UI)
+    - Dark mode and accessibility notes included
   - **Dependencies:** None — start immediately.
   - **Fix locations:** `.workflow/ui-spec.md`
 
 ---
 
-- [ ] **T-093** — Backend Engineer: Care history endpoint `GET /api/v1/plants/:id/care-history` **(P1)**
-  - **Description:** Add a new authenticated, plant-scoped endpoint that returns a paginated list of care actions for the requesting user's plant. The plant must belong to the authenticated user (403 if not). Support filtering by `careType` (watering, fertilizing, repotting) and pagination via `page` and `limit` query params (default limit 20, max 100). Return entries in reverse-chronological order (most recent first). Publish API contract to `.workflow/api-contracts.md` before T-094 begins.
+- [ ] **T-097** — Backend Engineer: Extend POST /api/v1/care-actions to accept optional `notes` field **(P1)**
+  - **Description:** The `care_actions` table already has a `notes` column (nullable text), and `GET /plants/:id/care-history` already returns it. The write path is missing: `POST /api/v1/care-actions` currently does not accept a `notes` field. Add `notes` (optional string, max 280 characters) to the POST body validation and persist it. Validate: if present, must be a string ≤ 280 characters; strip leading/trailing whitespace; empty string after trim → store as `null`. Publish the updated API contract to `.workflow/api-contracts.md` before T-098 begins.
   - **Acceptance Criteria:**
-    - `GET /api/v1/plants/:id/care-history` — authenticated, 401 if no token
-    - 403 if plant `:id` does not belong to the authenticated user
-    - 404 if plant `:id` does not exist
-    - Optional `careType` filter: `watering` | `fertilizing` | `repotting`; 400 VALIDATION_ERROR if invalid value
-    - Pagination: `page` (integer ≥ 1, default 1), `limit` (integer 1–100, default 20); 400 on out-of-range
-    - Response: `{ "data": { "items": [...], "total": N, "page": N, "limit": N, "totalPages": N } }`
-    - Each item: `{ "id": N, "careType": "watering", "performedAt": "ISO-8601", "notes": string | null }`
-    - Items ordered by `performed_at DESC`
-    - Unit tests: empty plant (0 items), 3-item list, filter by careType, pagination (page 2), plant not owned (403), plant not found (404), invalid careType (400), pagination out of range (400), 401 no auth
-    - All 130/130 backend tests pass; add minimum 9 new tests
-    - API contract published to `.workflow/api-contracts.md` before T-094 begins
-  - **Blocked By:** None — start immediately. Publish API contract before T-094 begins.
-  - **Fix locations:** `backend/src/routes/plants.js` (new GET /:id/care-history handler), `backend/src/models/CareAction.js` (paginated history query)
+    - `POST /api/v1/care-actions` accepts optional `notes` field
+    - `notes` is validated: string, max 280 chars; 400 VALIDATION_ERROR if >280 chars
+    - Empty string or whitespace-only `notes` stored as `null`
+    - `notes` is persisted in `care_actions.notes` column
+    - Existing calls without `notes` field continue to work (backward compatible — `notes` defaults to `null`)
+    - Response shape unchanged (still returns the care action object; add `notes` to response)
+    - Unit tests: happy path with note, happy path without note, note too long (400), whitespace-only note stored as null, existing tests unaffected
+    - All 142/142 backend tests still pass; add minimum 4 new tests
+    - Updated API contract published to `.workflow/api-contracts.md` before T-098 begins
+  - **Blocked By:** None — start immediately. Publish updated contract before T-098 begins.
+  - **Fix locations:** `backend/src/routes/careActions.js` (or equivalent), `backend/src/models/CareAction.js`
 
 ---
 
-- [ ] **T-094** — Frontend Engineer: Care History section on Plant Detail page **(P1)**
-  - **Description:** Add a Care History tab or collapsible section to the Plant Detail page that displays the paginated care action log fetched from `GET /api/v1/plants/:id/care-history`. Per SPEC-015. Key requirements: (1) care type icon + label + relative date ("3 days ago") with absolute date on hover/title; (2) "Load More" button for pagination (append items, don't replace); (3) care type filter tabs (All / Watering / Fertilizing / Repotting) — changing filter resets to page 1; (4) empty state when no history exists; (5) loading skeleton during initial fetch; (6) error state (non-fatal, shows message without breaking the page); (7) dark mode via CSS custom properties; (8) accessibility: list uses `role="list"`, each item has descriptive `aria-label`.
+- [ ] **T-098** — Frontend Engineer: Add notes input to mark-done flow; display notes in Care History **(P1)**
+  - **Description:** Two UI changes per SPEC-016: (1) **Mark-done note input** — on the Care Due Dashboard (`CareDuePage.jsx`) and on Plant Detail (`PlantDetailPage.jsx`), add an optional textarea or text input that appears when the user indicates they want to add a note (e.g., a small "Add note" link that expands the input inline). The note is included in the `POST /api/v1/care-actions` body. Character counter visible at 200+ chars, hard limit at 280. (2) **Notes in Care History** — `CareHistorySection.jsx` already receives `notes` from the API. If `notes` is non-null, show the note text below the date in the list item — truncate at 2 lines with an "Show more" expand toggle; if null, show nothing. Dark mode via CSS custom properties throughout. Accessibility: note input has `aria-label`, `maxLength=280`.
   - **Acceptance Criteria:**
-    - Plant Detail page renders Care History section/tab
-    - Care action list shows care type icon, care type label, and relative date
-    - "Load More" button loads next page and appends results
-    - Filter tabs (All/Watering/Fertilizing/Repotting) filter the history list; changing filter resets pagination
-    - Empty state: friendly message ("No care history yet. Mark your first care action done!") with CTA
-    - Loading skeleton shown during initial fetch; `aria-busy` set appropriately
-    - Error state renders gracefully without breaking the page
+    - Care Due Dashboard: "Add note" toggle expands an optional note input; note is sent with POST /care-actions
+    - Plant Detail mark-done: same optional note input per SPEC-016
+    - Character counter appears at ≥ 200 characters; input is hard-limited to 280 chars
+    - Note text appears in Care History list item when non-null; truncated at 2 lines with "Show more" toggle
+    - Null notes: no note UI shown in history (clean, no placeholder text)
+    - Note input has `aria-label`; `maxLength=280` enforced
     - Dark mode: all new elements use CSS custom properties
-    - Accessibility: `role="list"` on history list, descriptive `aria-label` per entry
-    - Unit tests: renders history list, renders empty state, renders loading skeleton, filter tab changes careType, Load More appends items, error state renders, aria-label on entries
-    - All 195/195 frontend tests still pass; add minimum 7 new tests
-  - **Blocked By:** T-092 (SPEC-015 must exist), T-093 (API contract must be published)
-  - **Fix locations:** `frontend/src/pages/PlantDetailPage.jsx` (or equivalent plant detail component), new `CareHistorySection.jsx` component, new `careHistory` API method in `frontend/src/api.js`
+    - Unit tests: mark-done with note sends notes field, mark-done without note sends null, note appears in history, note truncation + expand, null note shows no UI, character counter at 200+
+    - All 205/205 frontend tests still pass; add minimum 6 new tests
+  - **Blocked By:** T-096 (SPEC-016 must exist), T-097 (updated API contract must be published)
+  - **Fix locations:** `frontend/src/pages/CareDuePage.jsx`, `frontend/src/pages/PlantDetailPage.jsx`, `frontend/src/components/CareHistorySection.jsx`, `frontend/src/api.js` (update careActions.create to accept notes)
 
 ---
 
@@ -91,12 +87,11 @@ The operational reference for the current development cycle. Refreshed at the st
 - Plant sharing / public profiles — B-003 — post-sprint
 - Reference photo in AI advice results (FB-081) — post-MVP
 - Production deployment execution — blocked on project owner providing SSL certs
-- Express 5 migration — advisory backlog; no breaking-change-safe path confirmed
+- Express 5 migration — advisory backlog
 - Soft delete / grace period for account deletion (FB-077) — backlog
-- `/ai/identify` 502 message specificity improvement — backlog
 - Endpoint-specific rate limiting on `/care-actions/stats` (FB-073) — backlog
-- Care notes / freeform plant journal — backlog
 - Batch mark-done on Care Due Dashboard — backlog
+- Plant notes migration (note: T-097/T-098 adds notes to care *actions*, not plants themselves)
 
 ---
 
@@ -104,12 +99,12 @@ The operational reference for the current development cycle. Refreshed at the st
 
 | Agent | Focus Area This Sprint | Key Tasks |
 |-------|----------------------|-----------|
-| Design Agent | Care History UX spec | T-092 (P1, start immediately) |
-| Backend Engineer | Lodash audit fix + Care history endpoint | T-095 (P2, start immediately), T-093 (P1, start immediately, publish API contract before T-094) |
-| Frontend Engineer | Care history UI on Plant Detail page | T-094 (P1, after T-092 spec + T-093 contract) |
-| QA Engineer | Full QA of T-092–T-095, security checklist | After all tasks complete |
+| Design Agent | Care Notes UX spec | T-096 (P1, start immediately) |
+| Backend Engineer | Extend POST /care-actions with notes field | T-097 (P1, start immediately, publish contract before T-098) |
+| Frontend Engineer | Notes input in mark-done flow + notes in history; SPEC-015 cosmetic cleanup | T-099 (P3, start immediately), T-098 (P1, after T-096 + T-097) |
+| QA Engineer | Full QA of T-096–T-099, security checklist | After all tasks complete |
 | Deploy Engineer | Staging re-deploy after QA sign-off | After all tasks QA-verified |
-| Monitor Agent | Post-deploy health check — verify `/plants/:id/care-history` on staging | After Deploy Engineer re-deploy |
+| Monitor Agent | Post-deploy health check — verify POST /care-actions with notes on staging | After Deploy Engineer re-deploy |
 | Manager | Sprint coordination, API contract review, code review | Ongoing |
 
 ---
@@ -117,58 +112,58 @@ The operational reference for the current development cycle. Refreshed at the st
 ## Dependency Chain (Critical Path)
 
 ```
-T-095 (lodash audit fix — Backend, START IMMEDIATELY — parallel to all)
+T-099 (SPEC-015 cosmetic fixes — Frontend, START IMMEDIATELY — parallel to all)
 
-T-092 (SPEC-015 — Design Agent, START IMMEDIATELY)
+T-096 (SPEC-016 — Design Agent, START IMMEDIATELY)
   ↓ (spec complete)
 
-T-093 (care-history endpoint — Backend, START IMMEDIATELY — publish contract before T-094)
-  ↓ (publish API contract to api-contracts.md)
-T-094 (care history UI — Frontend, after T-092 spec + T-093 contract)
+T-097 (extend POST /care-actions — Backend, START IMMEDIATELY — publish contract before T-098)
+  ↓ (publish updated API contract to api-contracts.md)
+T-098 (notes in mark-done + history — Frontend, after T-096 spec + T-097 contract)
   ↓
-QA verifies T-092 + T-093 + T-094 + T-095 end-to-end
+QA verifies T-096 + T-097 + T-098 + T-099 end-to-end
 
 [After all tasks QA-verified]
 Deploy Engineer re-deploys to staging
   ↓
-Monitor Agent health check — verify GET /plants/:id/care-history on staging
+Monitor Agent health check — verify POST /care-actions with notes on staging
 ```
 
-**Critical path:** T-092 + T-093 (parallel start) → T-094 → QA → Deploy → Monitor → staging verified.
-**Parallel path:** T-095 can proceed immediately and independently of the feature chain.
+**Critical path:** T-096 + T-097 (parallel start) → T-098 → QA → Deploy → Monitor → staging verified.
+**Parallel path:** T-099 can proceed immediately and independently of the notes feature chain.
 
 ---
 
 ## Definition of Done
 
-Sprint #20 is complete when:
+Sprint #21 is complete when:
 
-- [ ] T-092: SPEC-015 written covering entry point, list item layout, pagination, empty state, care type filter, dark mode, and accessibility
-- [ ] T-093: `GET /api/v1/plants/:id/care-history` implemented; API contract published; 9+ new tests; all 130/130 backend tests pass
-- [ ] T-094: Care History section renders on Plant Detail page; Load More pagination works; filter tabs work; empty state present; 7+ new tests; all 195/195 frontend tests pass
-- [ ] T-095: `npm audit` in both backend and frontend report 0 high/critical vulnerabilities; all 130/130 backend + 195/195 frontend tests pass
+- [ ] T-096: SPEC-016 written covering both mark-done entry points, note input UI, character limit, submission flow, notes in history, empty note handling, dark mode, and accessibility
+- [ ] T-097: POST /care-actions accepts optional `notes` (≤280 chars, whitespace-trimmed, null if empty); updated API contract published; 4+ new tests; all 142/142 backend tests pass
+- [ ] T-098: Notes input in mark-done flow on Care Due + Plant Detail; notes display in Care History with expand toggle; null notes show nothing; 6+ new tests; all 205/205 frontend tests pass
+- [ ] T-099: `role="tabpanel"` added, notes expansion animated, dark mode icon backgrounds applied; all 205/205 frontend tests pass; no regressions
 - [ ] Deploy Verified: Yes from Monitor Agent post-deploy health check
-- [ ] No regressions: backend ≥ 130/130, frontend ≥ 195/195
+- [ ] No regressions: backend ≥ 142/142, frontend ≥ 205/205
 
 ---
 
 ## Success Criteria
 
-- **Audit clean** — `npm audit` in both backend and frontend returns 0 high or critical advisories
-- **History visible** — User visits a plant's detail page and sees a chronological log of every care action they've marked done for that plant
-- **Filter works** — User can filter history by care type (watering / fertilizing / repotting); list updates correctly
-- **Load More works** — Plants with many care actions paginate correctly; "Load More" appends without replacing existing items
-- **Empty state friendly** — New users with no care history see a helpful, encouraging empty state rather than a blank panel
-- **Test suite grows** — Backend adds minimum 9 new tests; frontend adds minimum 7 new tests; no regressions
+- **Notes captured** — User can optionally type a note when marking a care action done from either the Care Due Dashboard or the Plant Detail page; note is persisted
+- **Notes visible in history** — Non-null notes appear in the Care History list item; truncated at 2 lines with a "Show more" expand toggle
+- **Null notes invisible** — Care history items with no note show no note UI; list stays clean
+- **Backward compatible** — Existing mark-done calls without a notes field continue to work unchanged
+- **SPEC-015 polished** — History panel has `role="tabpanel"`, notes expansion animates, dark mode icon backgrounds render correctly
+- **Test suite grows** — Backend adds minimum 4 new tests; frontend adds minimum 6 new tests (plus T-099 updates); no regressions
 
 ---
 
 ## Blockers
 
-- T-094 (care history UI) is blocked until: (1) Design Agent publishes SPEC-015; (2) Backend Engineer publishes `GET /plants/:id/care-history` API contract
-- T-092, T-093, T-095 have no blockers — all can start immediately
+- T-098 (notes UI) is blocked until: (1) Design Agent publishes SPEC-016; (2) Backend Engineer publishes updated `POST /care-actions` API contract
+- T-096, T-097, T-099 have no blockers — all can start immediately
 - Production deployment remains blocked on project owner providing SSL certificates
 
 ---
 
-*Sprint #20 plan written by Manager Agent on 2026-04-05.*
+*Sprint #21 plan written by Manager Agent on 2026-04-05.*

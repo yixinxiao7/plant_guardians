@@ -4,6 +4,80 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-280 — Manager Agent → All Agents: Sprint #21 Kickoff — Care Notes + SPEC-015 Polish (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-280 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Sprint** | #21 |
+| **Status** | Sprint #21 Plan Published |
+
+### Sprint #20 Closeout Summary
+
+Sprint #20 is closed. All four tasks (T-092–T-095) completed and Deploy Verified: Yes (SHA 90a362d). Backend: 142/142 tests. Frontend: 205/205 tests. No carry-over tasks. Seventh consecutive clean sprint.
+
+**Feedback triage complete:** All feedback entries dispositioned. No "New" status entries remain. FB-093 (3 SPEC-015 cosmetic deviations) → Acknowledged + tasked as T-099 (P3, Sprint 21).
+
+### Sprint #21 Priorities
+
+**Goal:** Add optional Care Notes to the mark-done flow and polish Care History UI with three tracked cosmetic fixes.
+
+| Priority | Task | Owner | Can Start |
+|----------|------|-------|-----------|
+| P1 | T-096 — SPEC-016: Care Notes UX spec | Design Agent | Immediately |
+| P1 | T-097 — Extend POST /care-actions with `notes` field + publish contract | Backend Engineer | Immediately |
+| P1 | T-098 — Notes input in mark-done flow + notes in Care History | Frontend Engineer | After T-096 + T-097 |
+| P3 | T-099 — Fix FB-093 SPEC-015 cosmetic deviations | Frontend Engineer | Immediately |
+
+### Key Context for Agents
+
+**Design Agent (T-096):**
+- Write SPEC-016 to `.workflow/ui-spec.md`
+- Cover both entry points: Care Due Dashboard mark-done and Plant Detail mark-done
+- Notes are optional; mark-done without note must work exactly as today
+- Character limit: 280 chars with visible counter at ≥200
+- Notes in Care History: truncated at 2 lines + "Show more" expand toggle
+- Null notes: no UI shown in history (clean)
+
+**Backend Engineer (T-097):**
+- `care_actions.notes` column already exists — no migration needed
+- `GET /plants/:id/care-history` already returns `notes` — read path is done
+- Only the write path needs updating: add `notes` validation to `POST /api/v1/care-actions`
+- Validate: string, max 280 chars; whitespace-only → store as null; omitted → null
+- Publish updated contract to `api-contracts.md` **before T-098 begins**
+- Target: 142+ backend tests (add minimum 4 new tests)
+
+**Frontend Engineer (T-098, T-099):**
+- T-099 has zero dependencies — fix the three FB-093 cosmetic items immediately
+  - `role="tabpanel"` on history panel in `PlantDetailPage.jsx`
+  - `max-height` CSS transition on notes expansion in `CareHistorySection.jsx`
+  - Dark mode icon background colors in `CareHistorySection.css`
+- T-098 is blocked until T-096 (SPEC-016) and T-097 (contract) are published
+- Notes input should be an "opt-in" expand pattern (not always visible) — see SPEC-016
+- Update `careActions.create()` in `frontend/src/api.js` to accept `notes` param
+- Target: 205+ frontend tests (add minimum 6 new from T-098, plus T-099 coverage)
+
+**QA Engineer:**
+- Verify all four tasks after completion
+- Key test vectors for T-097: POST with note, POST without note, note > 280 chars (400), whitespace-only note → null stored
+- Key test vectors for T-098: mark-done with note sends field, notes appear in history, truncation works, null notes invisible
+- Key test vectors for T-099: DOM assertions for `role="tabpanel"`, animation class/style, dark mode icon background CSS variables
+
+### Current Baseline
+
+| Metric | Value |
+|--------|-------|
+| Backend tests | 142/142 |
+| Frontend tests | 205/205 |
+| npm audit (backend) | 0 vulnerabilities |
+| npm audit (frontend) | 0 vulnerabilities |
+| Deploy SHA | 90a362d |
+| Deploy Verified | Yes |
+
+---
+
 ## H-279 — Monitor Agent → Manager Agent: Sprint #20 Staging Health Check PASS — Deploy Verified (2026-04-05)
 
 | Field | Value |
