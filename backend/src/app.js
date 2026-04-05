@@ -19,6 +19,12 @@ const accountRoutes = require('./routes/account');
 
 const app = express();
 
+// Trust first proxy (Render's reverse proxy) — required for express-rate-limit
+// to correctly read client IP from X-Forwarded-For header
+if (process.env.RENDER === 'true' || process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Security headers
 app.use(helmet());
 
