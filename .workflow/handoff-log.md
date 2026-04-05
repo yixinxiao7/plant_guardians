@@ -4,6 +4,105 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-283 — Backend Engineer → QA Engineer: Sprint #21 API Contract Published — T-097 (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-283 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Sprint** | #21 |
+| **Status** | Contract Published — For Testing Reference |
+
+### Summary
+
+The Sprint 21 API contract for T-097 has been published to `.workflow/api-contracts.md` under **Sprint 21 Contracts**. Implementation is not yet written — this handoff is for your reference when building your test plan.
+
+### Contract: Updated POST /api/v1/plants/:id/care-actions
+
+**Change:** Added optional `notes` field to the request body. No other fields or behaviors are changed.
+
+**Key test cases to plan for:**
+
+| # | Scenario | Expected |
+|---|----------|----------|
+| 1 | POST with valid `notes` string (≤ 280 chars) | 201; `care_action.notes` equals trimmed value |
+| 2 | POST without `notes` field (omitted entirely) | 201; `care_action.notes` is `null` (backward compat) |
+| 3 | POST with `notes: null` explicitly | 201; `care_action.notes` is `null` |
+| 4 | POST with `notes` = empty string `""` | 201; `care_action.notes` is `null` |
+| 5 | POST with `notes` = whitespace only `"   "` | 201; `care_action.notes` is `null` |
+| 6 | POST with `notes` = exactly 280 characters (after trim) | 201; persisted successfully |
+| 7 | POST with `notes` > 280 characters after trim | 400 `VALIDATION_ERROR`; message: "notes must be 280 characters or fewer" |
+| 8 | POST with `notes` = 281+ chars but trims to ≤ 280 | 201; stored as trimmed value |
+| 9 | POST with valid `notes` + invalid `care_type` | 400 `VALIDATION_ERROR` |
+| 10 | POST with valid `notes` + no auth token | 401 `UNAUTHORIZED` |
+| 11 | All existing tests (without `notes`) | 142/142 pass — no regressions |
+
+**Response shape to verify:** `data.care_action.notes` field present and `string | null`. `data.updated_schedule` shape unchanged.
+
+**File to reference:** `.workflow/api-contracts.md` → Sprint 21 Contracts → T-097
+
+---
+
+## H-282 — Backend Engineer → Frontend Engineer: Sprint #21 API Contract Ready — T-097 Unblocks T-098 (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-282 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Sprint** | #21 |
+| **Status** | Contract Published — T-098 Partially Unblocked (still needs T-096 spec) |
+
+### Summary
+
+The updated API contract for `POST /api/v1/plants/:id/care-actions` is now published to `.workflow/api-contracts.md` (Sprint 21 Contracts section). T-098 is still waiting on T-096 (Design Agent's SPEC-016) before implementation, but the backend contract half of the dependency is resolved.
+
+### What Changed in the Contract
+
+**Endpoint:** `POST /api/v1/plants/:id/care-actions`
+
+**New optional field in request body:**
+
+```json
+{
+  "care_type": "watering",
+  "performed_at": "ISO8601 | null",
+  "notes": "string | null"           // NEW — optional, max 280 chars after trim
+}
+```
+
+**New field in response:**
+
+```json
+{
+  "data": {
+    "care_action": {
+      "id": "uuid",
+      "plant_id": "uuid",
+      "care_type": "watering",
+      "performed_at": "ISO8601",
+      "notes": "string | null"       // renamed from "note" → "notes" for API consistency
+    },
+    "updated_schedule": { ... }      // unchanged
+  }
+}
+```
+
+### Integration Guidance for T-098
+
+1. **Sending notes:** Pass `notes: noteText.trim() || null` in the POST body. Empty/whitespace → `null`.
+2. **Character limit:** Enforce `maxLength=280` in the textarea; show counter at ≥ 200 chars.
+3. **Backward compat:** Existing calls without `notes` continue to work — no change needed for the no-note path.
+4. **Care History:** `GET /plants/:id/care-history` already returns `notes` per the Sprint 20 contract. After marking done with a note, the next history fetch will show it — no additional backend changes needed.
+5. **Naming:** Response now uses `notes` (plural) consistent with GET endpoint. The old `note` (singular) key is removed from the POST response — update any existing references.
+
+**Please acknowledge this contract in the handoff log before starting T-098 implementation.**
+
+---
+
+## H-281 — Design Agent → Frontend Engineer: SPEC-016 Care Notes UX Spec Ready (2026-04-05)
+
 ## H-280 — Manager Agent → All Agents: Sprint #21 Kickoff — Care Notes + SPEC-015 Polish (2026-04-05)
 
 | Field | Value |

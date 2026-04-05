@@ -3316,3 +3316,178 @@ Authorization: Bearer eyJ...
 ---
 
 *Sprint 20 contracts written by Backend Engineer — 2026-04-05. One new endpoint: GET /api/v1/plants/:id/care-history (T-093). T-095 is a security dependency fix — no contract change. Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*
+
+---
+
+## Sprint 21 Contracts
+
+---
+
+### T-097 — Extend POST /plants/:id/care-actions to Accept Optional `notes` Field
+
+---
+
+#### UPDATED: POST /api/v1/plants/:id/care-actions
+
+**Auth:** Bearer token (required)
+
+**Description:** Records a care action for a plant owned by the authenticated user. **Sprint 21 update:** Adds an optional `notes` field to the request body so users can attach a care observation when marking a care action done. All existing behavior is unchanged — callers that omit `notes` continue to work exactly as before.
+
+**This is a non-breaking change.** The `notes` field is entirely optional and defaults to `null` when absent. No previously valid request will fail.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | UUID string | Yes | The plant's unique identifier. Must belong to the authenticated user. |
+
+**Request Body:**
+
+```json
+{
+  "care_type": "watering",           // required; enum: watering | fertilizing | repotting
+  "performed_at": "ISO8601 | null",  // optional; if null/omitted, server defaults to current UTC time
+  "notes": "string | null"           // optional (NEW in Sprint 21); freeform observation text; max 280 characters
+}
+```
+
+**Validation Rules:**
+
+| Field | Rule |
+|-------|------|
+| `care_type` | Required. Must be exactly one of: `"watering"`, `"fertilizing"`, `"repotting"`. Case-sensitive. |
+| `performed_at` | Optional ISO 8601 datetime string. Must not be in the future. If omitted or `null`, server defaults to `NOW()`. |
+| `notes` | Optional. If present, must be a string. Maximum 280 characters after whitespace-trimming. If the value is `null`, an empty string, or whitespace-only (e.g. `"   "`), it is stored as `null`. Returns `400 VALIDATION_ERROR` if length exceeds 280 chars after trim. |
+
+**Normalization rules for `notes`:**
+- `null` → stored as `null`
+- `""` (empty string) → stored as `null`
+- `"   "` (whitespace-only) → trimmed to `""` → stored as `null`
+- `"  Great watering session  "` → trimmed to `"Great watering session"` → stored as provided trimmed value
+- `"x".repeat(281)` → 400 `VALIDATION_ERROR` (exceeds 280 chars after trim)
+
+**Success Response — 201 Created:**
+
+```json
+{
+  "data": {
+    "care_action": {
+      "id": "uuid",
+      "plant_id": "uuid",
+      "care_type": "watering",
+      "performed_at": "ISO8601",
+      "notes": "string | null"
+    },
+    "updated_schedule": {
+      "id": "uuid",
+      "care_type": "watering",
+      "frequency_value": 7,
+      "frequency_unit": "days",
+      "last_done_at": "ISO8601",
+      "next_due_at": "ISO8601",
+      "status": "on_track",
+      "days_overdue": 0
+    }
+  }
+}
+```
+
+**Response Field Notes:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `care_action.id` | UUID string | The newly created care action record's unique identifier |
+| `care_action.plant_id` | UUID string | The plant this action was recorded against |
+| `care_action.care_type` | string | One of: `"watering"`, `"fertilizing"`, `"repotting"` |
+| `care_action.performed_at` | ISO 8601 UTC string | When the care action was performed |
+| `care_action.notes` | string \| null | The (trimmed) note text, or `null` if none provided. Maps to the `note` column in `care_actions` (aliased to `notes` for API consistency with `GET /plants/:id/care-history`). |
+| `updated_schedule.*` | — | Recalculated care schedule state after this action — same shape as in prior sprints |
+
+**Naming alignment note:** The underlying `care_actions` database column is `note` (singular, established Sprint 1). The API consistently exposes it as `notes` (plural) across both read (`GET /plants/:id/care-history`) and write (`POST /plants/:id/care-actions`) paths. The implementation aliases `note AS notes` in SELECT queries. The Sprint 1 contract showed `"note"` (singular) in the POST response — Sprint 21 aligns the POST response to `"notes"` (plural) for consistency with the GET contract; no DB schema change is required.
+
+**Example — request with note:**
+
+```
+POST /api/v1/plants/a1b2c3d4-.../care-actions
+Authorization: Bearer eyJ...
+Content-Type: application/json
+
+{
+  "care_type": "watering",
+  "notes": "Soil was very dry today — gave a deep soak"
+}
+```
+
+**Example — request without note (backward-compatible, unchanged behavior):**
+
+```
+POST /api/v1/plants/a1b2c3d4-.../care-actions
+Authorization: Bearer eyJ...
+Content-Type: application/json
+
+{
+  "care_type": "fertilizing"
+}
+```
+
+**Example — whitespace-only note stored as null:**
+
+```json
+// Request body
+{ "care_type": "watering", "notes": "   " }
+
+// Response: care_action.notes will be null
+```
+
+**Example — note too long (400):**
+
+```json
+// Request body — notes field is 281 characters after trim
+{ "care_type": "watering", "notes": "a...a" }
+
+// Error response
+{
+  "error": {
+    "message": "notes must be 280 characters or fewer",
+    "code": "VALIDATION_ERROR"
+  }
+}
+```
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | Missing or invalid `care_type`; `performed_at` is in the future; `notes` exceeds 280 characters (after trimming) |
+| 401 | `UNAUTHORIZED` | Missing or invalid access token |
+| 404 | `PLANT_NOT_FOUND` | Plant does not exist or belongs to another user |
+| 422 | `NO_SCHEDULE_FOR_CARE_TYPE` | Plant does not have a care schedule configured for the given `care_type` |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+### Frontend Integration Notes (for T-098)
+
+The following guidance applies when integrating the updated contract on the frontend:
+
+1. **Sending `notes`:** Include `"notes": noteText.trim() || null` in the POST body. If the textarea is empty or contains only whitespace, send `null` (or omit the field entirely — the server will default it to `null`).
+
+2. **Character limit enforcement:** Hard-limit the textarea to `maxLength=280`. Display a character counter when the user has typed ≥ 200 characters.
+
+3. **Backward compatibility:** No changes needed for existing mark-done flows that do not include notes — they continue to work exactly as before.
+
+4. **Care History display:** The `GET /api/v1/plants/:id/care-history` response already includes `notes` for each care action (Sprint 20 contract). After a successful POST, the new care action's `notes` will appear in the history on next fetch. No additional backend changes are required for display.
+
+---
+
+### Schema Changes — Sprint 21
+
+**No schema changes required.** The `care_actions` table has contained a `note` (nullable text) column since Sprint 1 (migration `20260323_05_create_care_actions.js`). T-097 wires up the write path to persist values into this existing column — no `ALTER TABLE`, no new indexes, and no new migration files are needed.
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+*Sprint 21 contracts written by Backend Engineer — 2026-04-05. No new endpoints — one updated endpoint: POST /api/v1/plants/:id/care-actions now accepts optional `notes` field (T-097). Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*
