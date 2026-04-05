@@ -66,6 +66,44 @@ const CareAction = {
   },
 
   /**
+   * Paginated care action history for a specific plant, optionally filtered by care type.
+   * Returns { items, total } where items include id, care_type, performed_at, note (aliased as notes).
+   * (T-093)
+   */
+  async findPaginatedByPlant(plantId, { page = 1, limit = 20, careType = null } = {}) {
+    const offset = (page - 1) * limit;
+
+    const buildBase = () => {
+      const q = db('care_actions').where('plant_id', plantId);
+      if (careType) {
+        q.andWhere('care_type', careType);
+      }
+      return q;
+    };
+
+    const [items, [{ count }]] = await Promise.all([
+      buildBase()
+        .select(
+          'id',
+          'care_type as careType',
+          'performed_at as performedAt',
+          'note as notes'
+        )
+        .orderBy('performed_at', 'desc')
+        .limit(limit)
+        .offset(offset),
+      buildBase().count('id as count'),
+    ]);
+
+    const total = parseInt(count, 10);
+
+    return {
+      items,
+      total,
+    };
+  },
+
+  /**
    * Paginated care action history for a user, optionally filtered by plant_id.
    * Returns { data, total } where data includes plant_name via JOIN.
    * (T-039)

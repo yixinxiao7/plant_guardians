@@ -6,7 +6,7 @@ const Plant = require('../models/Plant');
 const CareSchedule = require('../models/CareSchedule');
 const CareAction = require('../models/CareAction');
 const { computeCareStatus } = require('../utils/careStatus');
-const { NotFoundError, ValidationError, UnprocessableError } = require('../utils/errors');
+const { NotFoundError, ForbiddenError, ValidationError, UnprocessableError } = require('../utils/errors');
 
 const VALID_CARE_TYPES = ['watering', 'fertilizing', 'repotting'];
 
@@ -130,6 +130,64 @@ router.delete(
         data: {
           deleted_action_id: action.id,
           updated_schedule: enriched,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// GET /api/v1/plants/:id/care-history (T-093)
+router.get(
+  '/:id/care-history',
+  validateUUIDParam('id'),
+  async (req, res, next) => {
+    try {
+      // Validate query params
+      const pageRaw = req.query.page !== undefined ? req.query.page : '1';
+      const limitRaw = req.query.limit !== undefined ? req.query.limit : '20';
+      const careType = req.query.careType || null;
+
+      const page = parseInt(pageRaw, 10);
+      const limit = parseInt(limitRaw, 10);
+
+      if (isNaN(page) || page < 1 || !Number.isInteger(page)) {
+        throw new ValidationError('page must be a positive integer');
+      }
+      if (isNaN(limit) || limit < 1 || limit > 100 || !Number.isInteger(limit)) {
+        throw new ValidationError('limit must be an integer between 1 and 100');
+      }
+      if (careType !== null && !VALID_CARE_TYPES.includes(careType)) {
+        throw new ValidationError('careType must be one of: watering, fertilizing, repotting');
+      }
+
+      // Check plant exists
+      const plant = await Plant.findById(req.params.id);
+      if (!plant) {
+        throw new NotFoundError('Plant');
+      }
+
+      // Check ownership
+      if (plant.user_id !== req.user.id) {
+        throw new ForbiddenError('You do not have access to this plant');
+      }
+
+      const { items, total } = await CareAction.findPaginatedByPlant(plant.id, {
+        page,
+        limit,
+        careType,
+      });
+
+      const totalPages = Math.ceil(total / limit);
+
+      res.status(200).json({
+        data: {
+          items,
+          total,
+          page,
+          limit,
+          totalPages,
         },
       });
     } catch (err) {

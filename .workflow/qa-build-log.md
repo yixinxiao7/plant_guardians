@@ -4,6 +4,51 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 20 — Deploy Engineer: Pre-Deploy Gate Check + Test Fix (2026-04-05)
+
+**Date:** 2026-04-05
+**Agent:** Deploy Engineer (Sprint #20 — pre-deploy gate check)
+**Git SHA:** 5fb8470be8aa929691da02c2406763124624a659 (checkpoint: sprint #20 — phase 'contracts' complete; Sprint #20 implementation uncommitted in working tree)
+**QA Sign-Off:** ❌ MISSING — No Sprint #20 QA → Deploy Engineer handoff found in handoff-log.md
+**Environment:** Staging (localhost) — deploy BLOCKED
+**Status:** ⛔ BLOCKED — All technical checks PASS; awaiting Manager code review + QA sign-off
+
+### Gate Check Results (Final — after test fix)
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Backend tests | ✅ 142/142 PASS | 15 test suites, 35.43s (T-093 adds 12 new tests) |
+| Frontend tests | ✅ 205/205 PASS | 29 test files, 3.03s (T-094 adds 10 new tests; 1 test fixed by Deploy Engineer — see below) |
+| Frontend production build | ✅ PASS | 4643 modules, 314ms, 0 errors |
+| DB migrations | ✅ PASS | 5/5 complete, 0 pending (no new migrations for Sprint #20) |
+| Backend health check | ✅ PASS | `GET /api/health` → 200 OK `{"status":"ok"}` |
+| npm audit — backend | ✅ 0 vulnerabilities | T-095 resolved lodash vulnerability |
+| npm audit — frontend | ✅ 0 vulnerabilities | Already clean; T-095 confirmed |
+| QA sign-off in handoff-log.md | ❌ MISSING | Last QA sign-off is H-265 (Sprint #19). No Sprint #20 sign-off. |
+
+### Test Fix Applied by Deploy Engineer
+
+**Failing test:** `CareHistorySection.test.jsx > filter tab changes trigger changeFilter`
+**Root cause:** `MOCK_ITEMS` includes two `watering` items, putting multiple "Watering" text nodes on screen. `screen.getByRole('button', { name: 'Watering' })` became ambiguous with the `<span class="ch-item-label">Watering</span>` in list items.
+**Fix applied:** Added `within` import; scoped button query to the filter group (`getByRole('group', { name: /Filter care history by type/ })`) before querying for the "Watering" pill button. This is the correct Testing Library pattern when multiple same-text elements exist on the page.
+**Fix location:** `frontend/src/__tests__/CareHistorySection.test.jsx` — lines 1 and 132–133
+**Result:** 205/205 frontend tests now pass cleanly.
+
+### Sprint #20 Task Status at Gate Check
+
+| Task | Assigned To | Status | Notes |
+|------|------------|--------|-------|
+| T-092 | Design Agent | In Review | SPEC-015 published per H-268 |
+| T-093 | Backend Engineer | In Review | 12 new backend tests; 142/142 pass |
+| T-094 | Frontend Engineer | In Review | 10 new frontend tests; 205/205 pass (after test fix) |
+| T-095 | Backend Engineer | In Review | `npm audit` — 0 vulnerabilities in both packages |
+
+### Conclusion
+
+**All Sprint #20 tasks are In Review.** All technical checks pass. The codebase is clean and ready for staging deploy the moment QA sign-off is received. Handoff H-271 sent to QA Engineer.
+
+---
+
 ## Sprint 19 — Deploy Engineer: Post-QA-Sign-Off Re-Verification (2026-04-05)
 
 **Date:** 2026-04-05

@@ -220,6 +220,18 @@ export const careActions = {
   },
 };
 
+// Plant care history (per-plant, paginated)
+export const careHistory = {
+  get(plantId, params = {}) {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.careType) query.set('careType', params.careType);
+    const qs = query.toString();
+    return request(`/plants/${plantId}/care-history${qs ? `?${qs}` : ''}`);
+  },
+};
+
 // Care streak
 export const careStreak = {
   get() {
