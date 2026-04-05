@@ -4163,4 +4163,355 @@ getCareHistory(plantId, params = {})
 
 ---
 
+### SPEC-016 — Care Notes: Mark-Done Input & History Display
+
+**Status:** Approved
+**Related Tasks:** T-096 (Design), T-098 (Frontend)
+**Date Written:** 2026-04-05
+**Sprint:** #21
+
+---
+
+#### Overview
+
+Care Notes lets users optionally capture a short freeform observation whenever they mark a care action as done. The note is stored alongside the care action and surfaced in the Care History view. The feature is entirely opt-in — the mark-done flow is unchanged for users who do not add a note. Null notes produce zero UI in the history list.
+
+**Design constraints:**
+- Japandi aesthetic — the note UI must feel like a quiet, natural extension of the existing mark-done flow, not an interruption.
+- No modals. The note input expands inline beneath the mark-done button with a smooth animation.
+- The note display in history is compact and unobtrusive — text only, no borders or extra chrome around it.
+
+---
+
+#### Entry Points
+
+There are two surfaces where a user can mark a care action done, and both receive the note input:
+
+| Surface | Component | Location of note input |
+|---------|-----------|----------------------|
+| Care Due Dashboard | `CareDuePage.jsx` — plant-care-type card | Inline, below the "Mark Done" button, toggled by "Add note" link |
+| Plant Detail — Care Schedule | `PlantDetailPage.jsx` — Overview tab, care schedule row | Inline, below the "Mark Done" button for the relevant care type |
+
+---
+
+#### Entry Point A — Care Due Dashboard Card
+
+**Current card anatomy (before this sprint):**
+```
+┌──────────────────────────────────────────────────────┐
+│  [Plant photo or leaf icon]  Monstera                │
+│  Watering · 3 days overdue                          │
+│                                                      │
+│                          [ Mark Done ]               │
+└──────────────────────────────────────────────────────┘
+```
+
+**Updated card anatomy (Sprint 21):**
+```
+┌──────────────────────────────────────────────────────┐
+│  [Plant photo or leaf icon]  Monstera                │
+│  Watering · 3 days overdue                          │
+│                                                      │
+│                          [ Mark Done ]               │
+│                          + Add note                  │
+│  ┌────────────────────────────────────────────────┐  │
+│  │ e.g. "Soil was very dry — used extra water"    │  │
+│  │                                                │  │
+│  │                                   0 / 280      │  │
+│  └────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────┘
+```
+
+**"Add note" toggle link:**
+- Rendered as a ghost/text button: no background, no border, `color: var(--color-text-secondary)`, `font-size: 12px`, `font-weight: 500`
+- Icon: `PencilSimple` (Phosphor, outlined, 12px) inline-left of the text
+- Label: `"+ Add note"` in default state; `"− Remove note"` when the textarea is expanded
+- Positioned flush-right, below the "Mark Done" button, aligned to the right edge of the card's action area
+- Keyboard-accessible `<button>` element; `aria-expanded="false"` / `"true"` reflecting the expansion state; `aria-controls="note-input-{plantId}-{careType}"` linking it to the textarea
+
+**Note textarea (expanded state):**
+- Appears with `transition: max-height 0.3s ease, opacity 0.2s ease` — max-height animates from `0` to `120px`; opacity 0 → 1
+- Background: `var(--color-surface-alt)` (`#F0EDE6` light / `#2E2E28` dark)
+- Border: `1px solid var(--color-border)` (`#E0DDD6` light / `#3A3A34` dark); on focus: `2px solid var(--color-border-focus)` (`#5C7A5C`)
+- Border radius: `8px`
+- Padding: `10px 12px`
+- Font: `14px`, `font-family: 'DM Sans'`, `color: var(--color-text-primary)`
+- Placeholder text: `"e.g. 'Soil was very dry — gave extra water'"` in `color: var(--color-text-disabled)`
+- Resize: `none` (fixed height, no resize handle)
+- `maxLength={280}` enforced on the element
+- `rows={3}` (approximately 72px tall with 14px line-height × 3)
+- Full width of the card's content area minus 16px padding each side
+- `id="note-input-{plantId}-{careType}"` — unique across the page when multiple cards are visible
+- `aria-label="Care note for {plantName} {careType}"` (e.g., `"Care note for Monstera watering"`)
+- `aria-describedby="note-counter-{plantId}-{careType}"` — linking to the character counter
+
+**Character counter:**
+- Positioned bottom-right of the textarea, visually inside the textarea border
+- Text: `"{n} / 280"`, `font-size: 11px`, `color: var(--color-text-disabled)`
+- Counter is hidden (or renders at `opacity: 0`) when character count is below 200
+- Counter becomes visible (`opacity: 1`, `transition: opacity 0.15s`) when count reaches 200
+- Counter text turns `color: var(--color-status-yellow)` (`#C4921F`) at 240 characters
+- Counter text turns `color: var(--color-status-red)` (`#B85C38`) at 270–280 characters
+- `id="note-counter-{plantId}-{careType}"` — matches the `aria-describedby` on the textarea
+- Screen readers should announce: `aria-live="polite"` on the counter so character count changes are announced when typing slows; update announcement at 200, 240, 270, 280 characters only (not every keystroke)
+
+**Collapsed state (default):**
+- Textarea is not in the DOM (or has `display: none`) when collapsed — do not leave a hidden textarea that can be tab-focused
+- "Add note" link is visible and focusable
+- No blank space below the mark-done button
+
+**Interaction sequence:**
+1. User sees card with "Mark Done" button and "+ Add note" link
+2. User clicks "+ Add note" → textarea expands with animation; link label changes to "− Remove note"; textarea receives focus automatically
+3. User types a note (optional)
+4. User clicks "Mark Done" — the note value (trimmed) is included in the `POST /api/v1/care-actions` request body as `notes`; if the textarea is collapsed or empty, `notes` is omitted from the request body (backend defaults to `null`)
+5. On success: card is removed from the dashboard (existing mark-done behavior); textarea and link are torn down with the card
+6. If user clicks "− Remove note" before marking done: textarea collapses with reverse animation; note value is discarded; link returns to "+ Add note"
+
+---
+
+#### Entry Point B — Plant Detail Page, Care Schedule Section
+
+**Context:** In the Plant Detail Overview tab, each active care schedule type (watering, fertilizing, repotting) is shown as a row with a status badge and a "Mark Done" button. After Sprint 21, a "+ Add note" link appears below the "Mark Done" button for each row.
+
+**Care schedule row anatomy (Sprint 21):**
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  💧  Watering          [Overdue 2 days]          [ Mark Done ]     │
+│                                                  + Add note        │
+│                        ┌─────────────────────────────────────────┐ │
+│                        │ e.g. "Leaves were drooping..."          │ │
+│                        │                                         │ │
+│                        │                              0 / 280    │ │
+│                        └─────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+**Note textarea placement:**
+- Below the "Mark Done" button, right-aligned (same column as the button)
+- On desktop (≥768px): textarea width matches the "Mark Done" button column width (≈ 240px minimum, expanding to fill available space right of the care type label)
+- On mobile (<768px): textarea is full-width beneath the entire row, same as the button stacks to full-width
+
+All behavior (toggle, animation, character counter, ARIA) is identical to Entry Point A. The `id` and `aria-label` attributes use the Plant Detail context:
+- `id="note-input-detail-{careType}"` (e.g., `"note-input-detail-watering"`)
+- `aria-label="Care note for {plantName} {careType}"` (e.g., `"Care note for Peace Lily fertilizing"`)
+
+---
+
+#### Submission Flow
+
+The note is **always optional**. The mark-done action works identically to today when no note is provided.
+
+| User action | `notes` value in POST body |
+|-------------|---------------------------|
+| Mark done, "Add note" never opened | Omit `notes` field entirely (backend defaults to `null`) |
+| Mark done, "Add note" opened but textarea is empty | Omit `notes` field (empty string → backend stores as `null`; either approach is valid) |
+| Mark done, "Add note" opened with text | Send `notes: trimmedValue` (trim whitespace before sending) |
+
+**Client-side trim:** Before submitting, call `noteValue.trim()`. If the trimmed value is `""` (empty), omit the field.
+
+**Hard character limit:** `maxLength={280}` is enforced on the textarea DOM element. The form/button should also guard against `note.length > 280` before submitting (belt-and-suspenders, since the backend also validates).
+
+**POST body shape (when note is present):**
+```json
+{
+  "plantId": "uuid",
+  "careType": "watering",
+  "notes": "Soil was very dry — gave extra water and misted leaves."
+}
+```
+
+**Loading state during submission:**
+- "Mark Done" button shows spinner and becomes disabled (existing behavior)
+- The "+ Add note" link is also disabled (pointer-events: none, opacity 0.5) during the pending state
+- The textarea is `disabled` during submission to prevent edits mid-flight
+
+**Error state:**
+- If the POST fails, the existing error toast is shown (no change)
+- The textarea re-enables, preserving the user's note text
+- The user can retry by clicking "Mark Done" again
+
+---
+
+#### Notes Display in Care History
+
+The `CareHistoryItem` component (in `CareHistorySection.jsx`) already receives `notes` from the API. If `notes` is non-null and non-empty, a note preview is shown below the date line.
+
+**History list item anatomy — with note:**
+```
+┌──────────────────────────────────────────────────────────┐
+│  [💧]  Watering                          3 days ago      │
+│        April 2, 2026                                     │
+│        ─────────────────────────────────────────         │
+│        "Soil was very dry — gave extra water and         │
+│         misted leaves."                                  │
+│                                              Show more ↓ │
+└──────────────────────────────────────────────────────────┘
+```
+
+**History list item anatomy — without note (null):**
+```
+┌──────────────────────────────────────────────────────────┐
+│  [💧]  Watering                          3 days ago      │
+│        April 2, 2026                                     │
+└──────────────────────────────────────────────────────────┘
+```
+No note row, no "No note" placeholder, no divider. The item is visually identical to the pre-Sprint-21 history items.
+
+**Note text styling:**
+- `font-size: 13px`
+- `color: var(--color-text-secondary)` (`#6B6B5F` light / `#9B9B8F` dark)
+- `font-style: italic`
+- `line-height: 1.5`
+- Padding: `8px 0 4px 0` (top gap from date line, small bottom padding before "Show more")
+- A subtle `1px solid var(--color-border)` horizontal rule (full-width, no horizontal margins) visually separates the date from the note area when a note is present
+
+**Divider (note separator):**
+- Only rendered when `notes` is non-null
+- `border-top: 1px solid var(--color-border)`
+- `margin: 6px 0 8px 0`
+- No divider when note is null
+
+**Truncation (2-line clamp):**
+- Default state: note text is clamped to 2 lines via `display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden`
+- If the full note fits within 2 lines, no "Show more" toggle is rendered
+- If the full note overflows 2 lines, a "Show more" toggle button is rendered
+
+**"Show more" / "Show less" toggle:**
+- Rendered as a ghost text button: `font-size: 12px`, `color: var(--color-accent-primary)` (`#5C7A5C`)
+- Icon: `CaretDown` (Phosphor, 10px) right of text in collapsed state; `CaretUp` in expanded state
+- Label: `"Show more"` (collapsed) / `"Show less"` (expanded)
+- Positioned flush-right, below the truncated text
+- Clicking "Show more": removes the `line-clamp` CSS property, reveals full note text; label changes to "Show less" + caret rotates 180° (`transition: transform 0.2s ease`)
+- No animation on the text itself — just the caret rotation and instant reveal (to remain lightweight in a list)
+- `aria-expanded="false"` / `"true"` on the toggle button
+- `aria-controls="note-text-{itemId}"` linking to the note text container
+- `id="note-text-{itemId}"` on the note text `<p>` element
+
+**State where full note ≤ 2 lines:**
+- No divider is still present (the divider appears whenever `notes !== null`)
+- No "Show more" button
+- Note text is simply displayed in full, styled as above
+
+---
+
+#### Empty Note Handling (History)
+
+When `notes` is `null` (or `undefined`):
+- Render nothing. No divider, no italicized text area, no "No note" label, no empty space.
+- The care history item renders in its original form (care type + date line only).
+- This is the default state for all care actions recorded before Sprint 21.
+
+**Guard condition in `CareHistoryItem`:**
+```jsx
+{notes != null && notes.trim() !== '' && (
+  <div className="care-history-item__note">
+    <hr className="care-history-item__note-divider" />
+    <p id={`note-text-${id}`} className="care-history-item__note-text">
+      {notes}
+    </p>
+    {/* Show more toggle — only if text overflows */}
+  </div>
+)}
+```
+
+---
+
+#### States Summary
+
+| State | Dashboard Card | Plant Detail Row | History Item |
+|-------|---------------|-----------------|--------------|
+| Default (no note) | "+ Add note" link visible | "+ Add note" link visible | No note UI |
+| Note input open | Textarea expanded, "− Remove note" | Textarea expanded, "− Remove note" | — |
+| Note typed, <200 chars | Counter hidden | Counter hidden | — |
+| Note typed, 200–239 chars | Counter visible (muted) | Counter visible (muted) | — |
+| Note typed, 240–269 chars | Counter yellow | Counter yellow | — |
+| Note typed, 270–280 chars | Counter red | Counter red | — |
+| Submitting | Button+link disabled, textarea disabled | Button+link disabled, textarea disabled | — |
+| Submit success | Card removed | Row refreshes (existing behavior) | Note shown (if non-null) |
+| Submit error | Error toast, textarea re-enabled | Error toast, textarea re-enabled | — |
+| History item, note null | — | — | No note UI rendered |
+| History item, note ≤ 2 lines | — | — | Full note, no toggle |
+| History item, note > 2 lines | — | — | 2-line clamp + "Show more" |
+| History item, note expanded | — | — | Full note, "Show less" |
+
+---
+
+#### Responsive Behavior
+
+| Breakpoint | Dashboard Card | Plant Detail Row | History Item |
+|------------|---------------|-----------------|-------------|
+| Desktop (≥1024px) | Card layout unchanged; note textarea fills card content width below mark-done button | Textarea right-aligned, same column as button (~240–320px wide) | Note text wraps naturally within card |
+| Tablet (768–1023px) | Same as desktop | Textarea full-width beneath the row (button + note stack vertically) | Same as desktop |
+| Mobile (<768px) | Card is full-width; textarea is full-width below mark-done button | Textarea full-width, stacks below button | Note text wraps naturally; "Show more" toggle on its own line |
+
+**Touch targets:** "Add note" link minimum touch target 44×44px (use `padding: 12px 8px` even though the visual text is smaller). "Show more" / "Show less" button minimum touch target 44×44px.
+
+---
+
+#### Dark Mode
+
+All new elements use CSS custom properties from the existing dark mode variable set.
+
+| Element | Light | Dark |
+|---------|-------|------|
+| Note textarea background | `var(--color-surface-alt)` → `#F0EDE6` | `#2E2E28` |
+| Note textarea border | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+| Note textarea border (focus) | `var(--color-border-focus)` → `#5C7A5C` | `#5C7A5C` |
+| Note textarea text | `var(--color-text-primary)` → `#2C2C2C` | `#F0EDE6` |
+| Note textarea placeholder | `var(--color-text-disabled)` → `#B0ADA5` | `#6B6B5F` |
+| "Add note" / "Remove note" link | `var(--color-text-secondary)` → `#6B6B5F` | `#9B9B8F` |
+| Character counter (muted) | `var(--color-text-disabled)` → `#B0ADA5` | `#6B6B5F` |
+| Character counter (yellow) | `var(--color-status-yellow)` → `#C4921F` | `#C4921F` |
+| Character counter (red) | `var(--color-status-red)` → `#B85C38` | `#B85C38` |
+| History note text | `var(--color-text-secondary)` → `#6B6B5F` | `#9B9B8F` |
+| History note divider | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+| "Show more" / "Show less" | `var(--color-accent-primary)` → `#5C7A5C` | `#5C7A5C` |
+
+No hardcoded color values in any new component code — all via `var(--color-*)` tokens.
+
+---
+
+#### Accessibility
+
+| Requirement | Implementation |
+|-------------|---------------|
+| "Add note" toggle | `<button>` with `aria-expanded`, `aria-controls` pointing to textarea `id` |
+| Note textarea | `aria-label="Care note for {plantName} {careType}"` |
+| Character counter | `aria-describedby` on textarea → counter `id`; counter has `aria-live="polite"`, announces at 200 / 240 / 270 / 280 only |
+| Textarea disabled during submit | `disabled` attribute (not just `pointer-events: none`) |
+| History note container | `id="note-text-{itemId}"` for `aria-controls` reference |
+| "Show more" toggle | `<button>` with `aria-expanded`, `aria-controls` linking to note `p` element |
+| Keyboard navigation | Tab order: Mark Done button → Add note link → textarea (when open) → character counter (skip, non-interactive) |
+| Focus management | When "Add note" is clicked, textarea receives focus via `ref.focus()` after animation starts |
+| Reduced motion | When `prefers-reduced-motion: reduce`, textarea expansion is instant (no `max-height` transition); caret rotation on "Show more" is instant |
+| Color independence | Character counter severity communicated via text value ("270 / 280") in addition to color; note presence in history communicated by the text content itself, not by color alone |
+| Screen reader — note in history | `CareHistoryItem` `aria-label` is extended: `"Watering on April 2, 2026. Includes note."` when `notes` is non-null |
+
+---
+
+#### Component Changes Summary
+
+| Component | Change |
+|-----------|--------|
+| `CareDuePage.jsx` | Add `noteValue` state per card (keyed by `{plantId}-{careType}`); add "+ Add note" toggle button; render note textarea on expand; pass `notes` to `careActions.create()` |
+| `PlantDetailPage.jsx` | Same pattern as CareDuePage for each care-type row in the Overview tab; `noteValue` state keyed by `careType` |
+| `CareHistorySection.jsx` / `CareHistoryItem.jsx` | Render note block when `notes` is non-null; implement 2-line clamp + "Show more" toggle |
+| `CareHistorySection.css` (or equivalent) | Add `.care-history-item__note`, `.care-history-item__note-text`, `.care-history-item__note-divider`, `.care-history-item__show-more` styles; all using CSS custom properties |
+| `frontend/src/api.js` | Update `careActions.create(payload)` to accept and pass through optional `notes` field |
+
+---
+
+#### File Locations
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/CareDuePage.jsx` | Note input for mark-done flow |
+| `frontend/src/pages/PlantDetailPage.jsx` | Note input for mark-done flow |
+| `frontend/src/components/CareHistorySection.jsx` | Note display in history list item |
+| `frontend/src/components/CareHistorySection.css` | Note styles (dark mode, truncation, toggle) |
+| `frontend/src/api.js` | `careActions.create` updated to accept `notes` |
+
+---
+
 *SPEC-015 written by Design Agent on 2026-04-05 for Sprint #20.*

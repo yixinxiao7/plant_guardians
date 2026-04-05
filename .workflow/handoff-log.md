@@ -2550,4 +2550,61 @@ T-095 (lodash audit fix) has no API surface change — QA should verify:
 - `npm audit` in `backend/` reports 0 high/critical vulnerabilities after the fix
 - `npm audit` in `frontend/` reports 0 high/critical vulnerabilities after the fix
 - All 130/130 backend tests still pass
+
+---
+
+## H-281 — Design Agent → Frontend Engineer: SPEC-016 Care Notes UX Spec Ready (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-281 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #21 |
+| **Status** | Approved — ready for implementation |
+| **Spec** | SPEC-016 in `.workflow/ui-spec.md` |
+| **Related Tasks** | T-096 (Design — this handoff), T-098 (Frontend — implements this spec) |
+| **Blocked By** | T-098 is also blocked by T-097 (Backend must publish updated API contract first) |
+
+### Summary
+
+SPEC-016 is written and approved. It covers all seven required areas from T-096:
+
+1. **Entry points** — Both surfaces documented with anatomy diagrams: Care Due Dashboard card (`CareDuePage.jsx`) and Plant Detail care schedule row (`PlantDetailPage.jsx`).
+2. **Note input UI** — Inline textarea expansion below the "Mark Done" button, triggered by a "+ Add note" ghost link. Animation: `max-height 0.3s ease, opacity 0.2s ease`. Character limit: 280. Placeholder text specified. Counter hidden below 200 chars, visible + colored at 200 / 240 / 270.
+3. **Submission flow** — Note is always optional. Omit `notes` from POST body when empty/collapsed. Client-side trim before sending. Button and textarea both disabled during in-flight request. On error, textarea re-enables with note text preserved.
+4. **Notes in Care History** — Note text shown below date line in `CareHistoryItem`, clamped to 2 lines. "Show more" / "Show less" toggle with `aria-expanded`. No toggle rendered when note fits within 2 lines.
+5. **Accessibility** — Full ARIA spec: `aria-expanded` + `aria-controls` on toggle, `aria-label` on textarea, `aria-live="polite"` counter (announces at thresholds only), `aria-expanded` on "Show more" toggle, extended `aria-label` on history items with notes.
+6. **Dark mode** — All new elements use `var(--color-*)` CSS custom properties. No hardcoded color values. Dark mode token mapping table provided.
+7. **Empty note handling** — Null notes produce zero UI in history. Guard condition shown in JSX pseudocode. No "No note" placeholder.
+
+### Key Implementation Notes for Frontend Engineer
+
+- **Do not start T-098 until T-097 (Backend) publishes the updated API contract** — you need the confirmed POST body shape before wiring up the API call.
+- The textarea `id` naming convention is `note-input-{plantId}-{careType}` (dashboard) and `note-input-detail-{careType}` (Plant Detail) — keep these consistent so ARIA `aria-controls` references resolve correctly.
+- History item `aria-label` must include `". Includes note."` suffix when `notes !== null` — this is required for screen reader users who cannot see the inline note text.
+- Character counter: use `aria-live="polite"` and only trigger announcements at the four threshold values (200, 240, 270, 280) — not on every keystroke.
+- Reduced motion: wrap the `max-height` transition in a `@media (prefers-reduced-motion: no-preference)` guard so users with motion sensitivity see instant expansion.
+- Do NOT use a `<details>`/`<summary>` pattern for the "Show more" toggle — use a `<button>` with `aria-expanded` for full browser compatibility and control.
+
+### Files to Modify (per SPEC-016)
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/CareDuePage.jsx` | Add note state + textarea per card; pass `notes` to API call |
+| `frontend/src/pages/PlantDetailPage.jsx` | Same pattern for care schedule rows in Overview tab |
+| `frontend/src/components/CareHistorySection.jsx` | Add note block rendering in `CareHistoryItem`; "Show more" toggle |
+| `frontend/src/components/CareHistorySection.css` | Note styles, clamp, divider, toggle, dark mode vars |
+| `frontend/src/api.js` | Update `careActions.create(payload)` to accept optional `notes` |
+
+### Minimum Test Coverage Required (T-098 acceptance criteria)
+
+- Mark-done with note sends `notes` field in POST body
+- Mark-done without note sends no `notes` field (or `notes: null`)
+- Note appears in Care History list item when non-null
+- Note truncation: long note clamps to 2 lines; "Show more" expands
+- Null note: no note UI rendered in history item
+- Character counter appears at ≥200 characters
+- (Plus any additional tests for ARIA state, animation state, etc.)
 - All 195/195 frontend tests still pass
