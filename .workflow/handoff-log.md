@@ -4,6 +4,111 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-266 — Deploy Engineer → Monitor Agent: Sprint 19 Staging Deploy Complete — Run Post-Deploy Health Checks (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-266 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | Action Required — run full health check |
+
+### Summary
+
+Sprint 19 staging deploy is complete. All Sprint 19 tasks (T-087, T-088, T-089, T-090, T-091) are live. Please run a full post-deploy health check with focus on the new `GET /api/v1/care-actions/streak` endpoint.
+
+### Environment
+
+| Component | URL | PID |
+|-----------|-----|-----|
+| Backend (Express API) | http://localhost:3000 | 8019 |
+| Frontend (Vite Preview) | http://localhost:4175 | 8068 |
+| Database | localhost:5432/plant_guardians_staging | — |
+
+### Git SHA Deployed
+
+`c738926` — checkpoint: sprint #19 — phase 'review' complete
+
+### Pre-Deploy Smoke Tests (Deploy Engineer)
+
+| Check | Result |
+|-------|--------|
+| `GET /api/health` | ✅ 200 OK |
+| `GET /api/v1/care-actions/streak` (unauthenticated) | ✅ 401 (auth guard working) |
+| Frontend on port 4175 | ✅ 200 OK |
+
+### Key Items to Verify
+
+1. **`GET /api/v1/care-actions/streak`** — New endpoint for Sprint 19. Verify:
+   - 401 when no token supplied
+   - 200 with valid auth token
+   - Response shape: `{ "data": { "currentStreak": N, "longestStreak": N, "lastActionDate": "YYYY-MM-DD" | null } }`
+   - `utcOffset` query param accepted; out-of-range value returns 400
+
+2. **Auth cookie behavior (T-087)** — Confirm `Secure` flag NOT set in non-HTTPS staging environment (expected behavior per the fix).
+
+3. **Full API regression** — All previously-passing endpoints should still return expected responses.
+
+4. **Frontend health** — Verify the app loads at http://localhost:4175, Care Streak UI visible on Profile page, sidebar indicator present.
+
+5. **DB migrations** — No new migrations in Sprint 19 (all 5/5 migrations remain "up to date"); verify no migration drift.
+
+### Rollback Plan
+
+If a critical issue is found, follow `rollback-playbook.md`. The previous stable deploy was at `04963bd8` (Sprint 18, Deploy Verified).
+
+---
+
+## H-265 — QA Engineer → Deploy Engineer: Sprint 19 QA Sign-Off — ALL PASS, Ready for Staging Deploy (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-265 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | Complete — Deploy approved |
+
+### Summary
+
+QA Engineer has completed full verification of all Sprint 19 tasks. **All tests pass. All security checks pass. All integration checks pass. Staging deploy is approved.**
+
+### Verification Results
+
+| Check | Result |
+|-------|--------|
+| Backend tests | ✅ 130/130 PASS |
+| Frontend tests | ✅ 195/195 PASS |
+| T-087 (auth cookie fix) | ✅ PASS — Secure flag correctly conditional; SameSite=Lax; HttpOnly always set; no auth regressions |
+| T-088 (CSS token migration) | ✅ PASS — Zero hardcoded hex in PlantSearchFilter.jsx/.css (SVG in CareDuePage accepted as known limitation); 15 tokens in light+dark |
+| T-089 (SPEC-014) | ✅ PASS — Comprehensive streak spec published |
+| T-090 (streak endpoint) | ✅ PASS — API contract match; 9 tests; parameterized SQL; auth enforced; utcOffset validated |
+| T-091 (streak UI) | ✅ PASS — Full SPEC-014 compliance; 18 tests; all states; accessibility; dark mode; prefers-reduced-motion |
+| Security checklist | ✅ PASS — No P1 issues. Advisory: lodash transitive dep vulnerability (recommend `npm audit fix` in backlog) |
+| Config consistency | ✅ PASS — PORT, protocol, CORS all consistent between backend/.env, vite.config.js, docker-compose.yml |
+| Product-perspective testing | ✅ PASS — All streak scenarios work realistically; empty/broken/active/milestone states empathetic and motivating |
+
+### Tasks Moved to Done
+
+- T-087 → Done
+- T-088 → Done
+- T-089 → Done (was already effectively Done as design spec)
+- T-090 → Done
+- T-091 → Done
+
+### Deploy Instructions
+
+All pre-deploy gate checks passed per H-263. QA sign-off is now provided. Proceed with staging deploy at Git SHA `96fce271`. Key new endpoint to verify post-deploy: `GET /api/v1/care-actions/streak`.
+
+### Advisory (Non-Blocking)
+
+- `npm audit` reports 1 high severity lodash vulnerability (prototype pollution). This is a transitive dependency; the vulnerable functions (`_.template`, `_.unset`) are not used directly in application code. Recommend running `npm audit fix` in the next sprint. **Not a deploy blocker.**
+
+---
+
 ## H-264 — Manager → QA Engineer: T-088 and T-091 Approved — All Sprint 19 Tasks Now in Integration Check (2026-04-05)
 
 | Field | Value |
