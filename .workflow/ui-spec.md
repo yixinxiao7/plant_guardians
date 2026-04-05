@@ -4515,3 +4515,457 @@ No hardcoded color values in any new component code — all via `var(--color-*)`
 ---
 
 *SPEC-015 written by Design Agent on 2026-04-05 for Sprint #20.*
+
+---
+
+### SPEC-017 — Care Reminder Email Notifications
+
+**Status:** Approved
+**Related Tasks:** T-100 (Design), T-102 (Frontend)
+**Date Written:** 2026-04-05
+**Sprint:** #22
+
+---
+
+#### Overview
+
+Care Reminder Email Notifications close the engagement loop for the "plant killer" persona by sending proactive email reminders when plants need care. Users who never open the app on a busy day still get a nudge at a time that fits their routine. The feature is entirely opt-in — users who do not enable reminders experience zero change. The preferences UI is a new "Reminders" section at the bottom of the Profile page.
+
+**Design constraints:**
+- Japandi botanical aesthetic — the Reminders section is calm and purposeful, not promotional. No upsell language.
+- The toggle and timing selector are the entire UI surface. Keep it minimal: label, toggle, conditional timing selector, one save button.
+- The email template is warm and botanical — not a cold transactional email. It should feel like a gentle note from a trusted plant-care companion.
+- Opt-out must be effortless: one click from the email footer, no confirmation gate, no dark patterns.
+
+---
+
+#### Surface 1 — Notification Preferences UI (Profile Page)
+
+##### 1.1 — Profile Page Layout (Post-Sprint-22)
+
+The Profile page currently has three sections stacked vertically: **Account Info** (avatar, name, member since), **Stats** (plant count, longest streak, etc.), and now a new **Reminders** section added below Stats.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  [Avatar]  Yixin Xiao                                       │
+│            Member since January 2026                        │
+│  ─────────────────────────────────────────────────────────  │
+│  📊  Stats                                                  │
+│       3 plants  ·  12-day streak  ·  48 care actions        │
+│  ─────────────────────────────────────────────────────────  │
+│  🔔  Reminders                          ← NEW SECTION       │
+│       Get email reminders when care is due                  │
+│                                      [ ○ ] OFF              │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+When the toggle is turned ON:
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🔔  Reminders                                              │
+│       Get email reminders when care is due                  │
+│                                      [ ● ] ON               │
+│                                                             │
+│       Reminder time                                         │
+│       ● Morning  (8 AM)                                     │
+│       ○ Midday   (12 PM)                                    │
+│       ○ Evening  (6 PM)                                     │
+│                                                             │
+│                           [ Save reminder settings ]        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+##### 1.2 — Reminders Section — Component Anatomy
+
+**Section header row:**
+- Icon: `Bell` (Phosphor, outlined, 18px), `color: var(--color-accent-primary)` (`#5C7A5C`)
+- Label: `"Reminders"`, `font-size: 18px`, `font-weight: 600`, `font-family: 'DM Sans'`, `color: var(--color-text-primary)`
+- Same visual style as other section headers on the Profile page (border-bottom rule or equivalent)
+- `padding-bottom: 16px`
+
+**Toggle row:**
+- Layout: flex row, `justify-content: space-between`, `align-items: center`
+- Left side: descriptive label text
+  - Primary label: `"Get email reminders when care is due"`, `font-size: 15px`, `font-weight: 500`, `color: var(--color-text-primary)`
+  - Secondary label below it: `"We'll email you at your chosen time on days when plant care is due or overdue."`, `font-size: 13px`, `color: var(--color-text-secondary)`, `margin-top: 4px`
+  - `id="reminder-toggle-desc"` on the secondary label — referenced by `aria-describedby` on the toggle
+- Right side: the toggle switch (see below)
+- `margin-bottom: 20px` when timing selector is hidden; `margin-bottom: 16px` when timing selector is visible
+
+**Toggle switch component:**
+- Render as a `<button>` element (not a checkbox, not an `<input type="checkbox">`)
+- `role="switch"`
+- `aria-checked="false"` (off) / `"true"` (on)
+- `aria-label="Email reminders"`
+- `aria-describedby="reminder-toggle-desc"`
+- Visual appearance:
+  - Track: `width: 44px`, `height: 24px`, `border-radius: 12px`
+  - OFF state: track background `var(--color-border)` (`#E0DDD6` light / `#3A3A34` dark); thumb background `#FFFFFF`
+  - ON state: track background `var(--color-accent-primary)` (`#5C7A5C`); thumb background `#FFFFFF`
+  - Thumb: `width: 18px`, `height: 18px`, `border-radius: 50%`, `box-shadow: 0 1px 3px rgba(0,0,0,0.2)`
+  - Thumb position: OFF → `translateX(3px)`; ON → `translateX(23px)`
+  - Transition: `transition: background 0.2s ease` on track; `transition: transform 0.2s ease` on thumb
+  - Focus ring: `outline: 2px solid var(--color-border-focus)` (`#5C7A5C`), `outline-offset: 2px`
+- Minimum tap target: `48px × 48px` (use negative margin or padding to expand hit area without affecting layout)
+
+**Timing selector (conditional — only shown when toggle is ON):**
+- Appears with `transition: max-height 0.3s ease, opacity 0.2s ease` — max-height animates from `0` to `160px`; opacity 0 → 1
+- When toggle is turned OFF, the selector collapses with reverse animation; timing selection state is preserved in memory (re-appears at the user's last choice if toggled back on during the same session)
+- Container: `background: var(--color-surface-alt)` (`#F0EDE6` light / `#2E2E28` dark), `border-radius: 8px`, `padding: 16px`, `margin-top: 4px`
+- Section label above the radio group: `"Send reminder at:"`, `font-size: 12px`, `font-weight: 500`, `text-transform: uppercase`, `letter-spacing: 0.06em`, `color: var(--color-text-secondary)`, `margin-bottom: 12px`
+- `role="radiogroup"` on the container wrapping the three options
+- `aria-label="Reminder time"` on the `role="radiogroup"` element
+- Three options rendered as custom-styled radio buttons (visually consistent, but backed by `<input type="radio">` for native keyboard support):
+
+| Label | Value sent to API (`reminder_hour_utc`) | Helper text |
+|-------|-----------------------------------------|-------------|
+| Morning | `8` | `"~8:00 AM your local time"` |
+| Midday | `12` | `"~12:00 PM your local time"` |
+| Evening | `18` | `"~6:00 PM your local time"` |
+
+> **Note on UTC hours:** The three values (8, 12, 18) are UTC integers stored on the server. The helper text says "your local time" because the backend will be enhanced in a future sprint to handle user timezones — for now, documenting as UTC but displaying as approximate local time is acceptable for MVP. The Frontend Engineer should send the raw integer values (8, 12, 18) in the POST body; the display label is the only user-facing text.
+
+- Radio option anatomy:
+  ```
+  ● Morning
+    ~8:00 AM your local time
+  ```
+  - Radio circle: custom styled `<input type="radio" name="reminderTime" value="8">`, visually replaced by a circle — selected state uses `var(--color-accent-primary)` fill; unselected state uses `var(--color-border)` stroke only
+  - Primary label: `font-size: 14px`, `font-weight: 500`, `color: var(--color-text-primary)`
+  - Helper text: `font-size: 12px`, `color: var(--color-text-secondary)`, `margin-top: 2px`, rendered as `<label>` associated with the radio input
+  - `padding: 10px 0`; each option separated by `8px` gap
+  - Selected option's container: subtle left accent — `border-left: 3px solid var(--color-accent-primary)`, `padding-left: 12px` (only on the selected item; de-selects with `border-left: 3px solid transparent`)
+  - Hover: background `var(--color-surface-alt)` lightens slightly; cursor pointer
+  - Focus (on radio input): `outline: 2px solid var(--color-border-focus)`, `outline-offset: 2px`
+  - Keyboard: native radio group behavior — arrow keys move between options; `Tab` exits the group
+
+**Save button:**
+- Only visible when toggle is ON
+- Appears below the timing selector container with `margin-top: 16px`
+- Variant: **Primary** (`background: #5C7A5C`, `color: #FFFFFF`)
+- Label: `"Save reminder settings"`
+- Width: auto, `align-self: flex-end` (right-aligned in the section's flex column)
+- Height: `40px`, `padding: 0 20px`, `border-radius: 8px`, `font-size: 14px`, `font-weight: 600`
+- Loading state: button shows spinner (16px, white) and `"Saving…"` label; disabled during the request
+- `aria-label="Save reminder settings"`
+
+---
+
+##### 1.3 — Preference Save Flow
+
+**Page load (pre-population):**
+1. Profile page mounts → dispatches `GET /api/v1/profile/notification-preferences`
+2. While fetching: toggle and timing selector render in a skeleton/disabled state (toggle is unresponsive, timing selector is hidden); a subtle `opacity: 0.5` on the section indicates loading
+3. On success: populate `opt_in` → toggle state; populate `reminder_hour_utc` → selected radio option; section becomes interactive
+4. On API error: section becomes interactive with default state (toggle OFF, Morning selected); show a subtle inline note: `"Could not load your current settings."` in `color: var(--color-status-red)`, `font-size: 12px` below the toggle row; user can still interact and save
+
+**Save action (triggered by "Save reminder settings" button):**
+1. User clicks "Save reminder settings"
+2. Button enters loading state (spinner + "Saving…", disabled)
+3. POST `/api/v1/profile/notification-preferences` with body:
+   ```json
+   { "opt_in": true, "reminder_hour_utc": 8 }
+   ```
+   (or `{ "opt_in": false }` if toggling off — still saves to persist the preference)
+4. **On success:**
+   - Button returns to default state
+   - Show a success toast (using the app's existing toast component):
+     - Icon: `CheckCircle` (Phosphor, 16px, green)
+     - Message: `"Reminder settings saved"` when opt_in=true; `"Email reminders turned off"` when opt_in=false
+     - Duration: 3 seconds, auto-dismiss
+     - Position: bottom-center (consistent with other toasts in the app)
+5. **On error:**
+   - Button returns to default state
+   - Show an inline error directly below the save button (not a toast, to keep it contextual):
+     - Text: `"Couldn't save your settings — please try again."`, `font-size: 13px`, `color: var(--color-status-red)`
+     - `role="alert"` on the error element so screen readers announce it immediately
+     - Error clears on the next successful save or when the user dismisses manually (× icon at the right of the error message)
+
+**Toggle-off quick save:**
+- When user toggles OFF while reminders were previously ON, the "Save reminder settings" button remains visible and active (user must still click save). This prevents accidental opt-out without confirmation.
+- The save button label changes to `"Save changes"` in the toggle-OFF state to feel more neutral.
+
+**Unsaved state warning:**
+- If the user navigates away from the Profile page with unsaved changes (toggle or timing was modified but not saved), no warning modal is shown (MVP — keep it simple). The unsaved state is silently discarded. Future sprint may add a "You have unsaved changes" warning.
+
+---
+
+##### 1.4 — States Summary (Reminders Section)
+
+| State | Toggle | Timing selector | Save button | Section appearance |
+|-------|--------|-----------------|-------------|-------------------|
+| Loading preferences | Disabled, OFF | Hidden | Hidden | `opacity: 0.5` |
+| Load error | Enabled, OFF (default) | Hidden | Hidden | Inline error note |
+| Off (opt_in=false) | OFF | Hidden | Hidden | Minimal — toggle row only |
+| On (opt_in=true), not yet saved | ON | Visible, one option selected | Visible (`"Save reminder settings"`) | Full section |
+| Saving in progress | Disabled | Disabled (pointer-events: none) | Spinner + `"Saving…"`, disabled | — |
+| Save success | Current state | Current state | Default | Toast shown |
+| Save error | Current state | Current state | Default, error message below | Inline error |
+| Toggle OFF, not yet saved | OFF | Hidden (collapses) | Visible (`"Save changes"`) | Toggle + save button |
+
+---
+
+#### Surface 2 — Email Template Layout
+
+The care reminder email is an HTML email rendered by the backend's Nodemailer service. This spec defines the **visual layout and content structure**. The Frontend Engineer is not responsible for email template code — this section guides the Backend Engineer's HTML email construction and informs QA's email rendering checks.
+
+##### 2.1 — Email Template Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│              🌿  Plant Guardians                            │  ← Header
+│                                                             │
+│  ─────────────────────────────────────────────────────────  │
+│                                                             │
+│  Hi [First Name],                                           │
+│                                                             │
+│  Your plants need some attention today.                     │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  💧  Monstera Deliciosa                             │    │  ← Plant row
+│  │      Watering · 3 days overdue                      │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  🪴  Peace Lily                                     │    │  ← Plant row
+│  │      Watering · due today                           │    │
+│  │      Fertilizing · due today                        │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│                   [ Open Plant Guardians ]                  │  ← CTA
+│                                                             │
+│  ─────────────────────────────────────────────────────────  │
+│                                                             │
+│  You're receiving this because you opted in to             │  ← Footer
+│  care reminders in Plant Guardians.                         │
+│  Unsubscribe · Help                                         │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+##### 2.2 — Header
+
+- Background: `#F7F4EF` (warm off-white, matching app background)
+- Logo area: app name `"Plant Guardians"` in `'Playfair Display', Georgia, serif`, `font-size: 24px`, `font-weight: 600`, `color: #2C2C2C`, centered
+- Leaf emoji or inline SVG leaf icon (16×16) left of the app name as a botanical accent: `color: #5C7A5C`
+- Tagline below app name: `"Your plant care companion"`, `font-size: 13px`, `color: #6B6B5F`, centered
+- `padding: 32px 24px 24px`
+- Bottom border: `1px solid #E0DDD6`
+
+##### 2.3 — Body
+
+- Background: `#FFFFFF`
+- Max width: `600px`, centered (standard email width)
+- Outer padding: `32px 24px`
+
+**Greeting line:**
+- `"Hi [user.name],"` — use the user's first name if available, otherwise `"Hi there,"`
+- `font-size: 16px`, `color: #2C2C2C`, `margin-bottom: 8px`
+
+**Intro line:**
+- `"Your plants need some attention today."` (when all items are due today or overdue)
+- Or: `"A few of your plants need attention today."` (when only some plants have care due)
+- `font-size: 15px`, `color: #6B6B5F`, `margin-bottom: 24px`
+
+**Plant rows:**
+Each plant that has ≥1 care type due or overdue is rendered as a card:
+
+- Card: `background: #F7F4EF`, `border-radius: 8px`, `padding: 14px 16px`, `margin-bottom: 12px`, `border: 1px solid #E0DDD6`
+- Plant name: `font-size: 15px`, `font-weight: 600`, `color: #2C2C2C`, `margin-bottom: 6px`
+- Care type rows inside the card (one per due/overdue care type):
+  - Care type icon (inline emoji or text): 💧 Watering, 🌱 Fertilizing, 🪴 Repotting
+  - Care type label: `"Watering"` / `"Fertilizing"` / `"Repotting"`, `font-size: 14px`, `color: #2C2C2C`
+  - Status text (inline separator `·`):
+    - Due today: `"due today"`, `color: #C4921F`
+    - Overdue 1 day: `"1 day overdue"`, `color: #B85C38`
+    - Overdue N days: `"N days overdue"`, `color: #B85C38`
+  - Example rendered row: `💧 Watering · 3 days overdue`
+  - `margin-bottom: 4px` between rows
+
+**Plant row ordering:**
+- Sort plants: overdue plants first (most days overdue → least), then due today
+- Within a plant's card: sort care types overdue → due today; alphabetical within the same status
+
+**Empty state:** If no plants have due or overdue care, no email is sent (backend cron job check). This template is never rendered for "all clear" days.
+
+##### 2.4 — CTA Button
+
+- Centered below the plant rows, `margin-top: 28px`, `margin-bottom: 28px`
+- Button: `display: inline-block`, `background: #5C7A5C`, `color: #FFFFFF`, `padding: 14px 32px`, `border-radius: 8px`, `font-size: 15px`, `font-weight: 600`, `font-family: 'DM Sans', Arial, sans-serif`, `text-decoration: none`
+- Label: `"Open Plant Guardians"`
+- Href: deep link to the Care Due page (e.g., `https://app.plantguardians.com/care-due` — or the staging equivalent)
+- Email client fallback: the anchor must have `target="_blank"` and inline styles only (no CSS classes — email clients strip `<style>` blocks)
+
+##### 2.5 — Footer
+
+- Background: `#F7F4EF`
+- Top border: `1px solid #E0DDD6`
+- `padding: 20px 24px`
+- Text line 1: `"You're receiving this because you enabled care reminders in Plant Guardians."`
+  - `font-size: 12px`, `color: #6B6B5F`, `text-align: center`, `margin-bottom: 8px`
+- Text line 2 (links):
+  - `"Unsubscribe"` — link to the unsubscribe endpoint (see Surface 3); `color: #5C7A5C`, `text-decoration: underline`
+  - Separator: ` · ` in `color: #B0ADA5`
+  - `"Help"` — link to a mailto or help URL (placeholder: `mailto:support@plantguardians.com`); `color: #5C7A5C`, `text-decoration: underline`
+  - `font-size: 12px`, `text-align: center`
+
+---
+
+#### Surface 3 — Unsubscribe / Opt-Out Flow
+
+##### 3.1 — Unsubscribe Link Construction
+
+- The unsubscribe link in the email footer is a GET endpoint: `GET /api/v1/profile/notification-preferences/unsubscribe?token={unsubscribeToken}`
+- The `unsubscribeToken` is a signed, user-specific token generated by the backend when the email is sent (implementation detail for the Backend Engineer — this spec defines the UX outcome only)
+- The link works without the user being logged in — it is a one-click, no-login-required opt-out
+
+##### 3.2 — Unsubscribe Outcome (Browser Page)
+
+When the user clicks the unsubscribe link, the backend:
+1. Validates the token
+2. Sets `opt_in = false` for the user in `notification_preferences`
+3. Responds with a simple HTML confirmation page (server-rendered, no React)
+
+**Confirmation page layout:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│              🌿  Plant Guardians                            │
+│                                                             │
+│  ─────────────────────────────────────────────────────────  │
+│                                                             │
+│         ✓  You've been unsubscribed                        │
+│                                                             │
+│         You won't receive any more care reminder           │
+│         emails from Plant Guardians.                        │
+│                                                             │
+│         Changed your mind? You can re-enable reminders     │
+│         anytime from your Profile page.                     │
+│                                                             │
+│                   [ Go to Plant Guardians ]                 │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+- Page background: `#F7F4EF`
+- Max width: `480px`, centered, `margin: 80px auto`, `padding: 48px 32px`
+- Card: `background: #FFFFFF`, `border-radius: 12px`, `box-shadow: 0 2px 8px rgba(44,44,44,0.06)`, `padding: 48px 40px`, `text-align: center`
+- Check icon: `✓` or `CheckCircle` SVG, `color: #4A7C59`, `font-size: 36px`, `margin-bottom: 16px`
+- Heading: `"You've been unsubscribed"`, `font-family: 'Playfair Display', Georgia, serif`, `font-size: 24px`, `color: #2C2C2C`, `margin-bottom: 12px`
+- Body text: two lines as above, `font-size: 15px`, `color: #6B6B5F`, `line-height: 1.6`, `margin-bottom: 24px`
+- CTA button: `"Go to Plant Guardians"`, Primary button style (`background: #5C7A5C`, `color: #FFFFFF`), links to `https://app.plantguardians.com` (or staging equivalent)
+
+**Invalid or expired token:**
+- If the token is invalid or already used, show an alternate state on the same page:
+  - Heading: `"Link not valid"`
+  - Body: `"This unsubscribe link may have already been used or has expired. If you'd like to manage your reminder settings, sign in to your profile."`
+  - CTA: `"Sign In"` — links to the login page
+
+##### 3.3 — Profile Page Sync After Unsubscribe
+
+- When the user later visits the Profile page, `GET /api/v1/profile/notification-preferences` will return `opt_in: false`
+- The toggle will correctly render as OFF, reflecting the unsubscribed state
+- No special handling needed on the frontend — the existing pre-population logic handles this
+
+---
+
+#### Surface 4 — Empty-State Handling (No Email Sent)
+
+This is a **backend behavior**, not a UI surface. It is documented here for QA completeness and to communicate the product intent clearly.
+
+| Condition | Behavior |
+|-----------|----------|
+| User has `opt_in = false` | Cron job skips this user entirely — no email sent |
+| User has `opt_in = true` but no care is due or overdue for any plant | No email sent — silence is the right UX here (no "all clear" spam) |
+| User has `opt_in = true` and ≥1 plant has due or overdue care | Email sent with plant list |
+| User has no plants | No email sent |
+| SMTP env vars are not configured | Backend logs a warning, skips all sends, does not crash |
+
+**No "all clear" email:** The product principle is that silence means everything is fine. Sending a daily "nothing is due" email trains users to ignore reminders. Only send when action is needed.
+
+---
+
+#### Dark Mode — Reminders Section (Profile Page)
+
+All new elements in the Reminders section use CSS custom properties. No hardcoded color values.
+
+| Element | Light value | Dark value |
+|---------|-------------|------------|
+| Section background | Inherits page `var(--color-background)` → `#F7F4EF` | `#1E1E1A` |
+| Toggle track (OFF) | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+| Toggle track (ON) | `var(--color-accent-primary)` → `#5C7A5C` | `#5C7A5C` |
+| Toggle thumb | `#FFFFFF` | `#FFFFFF` |
+| Timing selector container bg | `var(--color-surface-alt)` → `#F0EDE6` | `#2E2E28` |
+| Radio selected accent border | `var(--color-accent-primary)` → `#5C7A5C` | `#5C7A5C` |
+| Radio unselected circle | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+| Primary label text | `var(--color-text-primary)` → `#2C2C2C` | `#F0EDE6` |
+| Secondary/helper text | `var(--color-text-secondary)` → `#6B6B5F` | `#9B9B8F` |
+| Save button | `var(--color-accent-primary)` → `#5C7A5C` | `#5C7A5C` |
+| Save button text | `#FFFFFF` | `#FFFFFF` |
+| Inline error text | `var(--color-status-red)` → `#B85C38` | `#B85C38` |
+| Section divider / border | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+
+The email template does not support dark mode (email client dark mode support is inconsistent and out of scope for MVP). Use light-mode values only in the email HTML.
+
+---
+
+#### Responsive Behavior — Reminders Section
+
+| Breakpoint | Layout |
+|------------|--------|
+| Desktop (≥1024px) | Toggle row: label left, toggle right (flex row, space-between). Timing selector: full width of section. Save button: right-aligned (align-self: flex-end). |
+| Tablet (768–1023px) | Same as desktop — Profile page is single-column, no sidebar adjustment needed. |
+| Mobile (<768px) | Toggle row: label stacks above toggle (flex column, or label takes full width and toggle sits on the right of same row — whichever is tighter). Timing selector: full width. Save button: full width (`width: 100%`). |
+
+**Touch targets (mobile):**
+- Toggle: minimum 44×44px tap area around the toggle track
+- Each radio option row: minimum 44px tall
+- Save button: minimum 44px tall (`height: 44px` on mobile)
+
+---
+
+#### Accessibility — Reminders Section
+
+| Requirement | Implementation |
+|-------------|---------------|
+| Toggle semantics | `<button role="switch" aria-checked="false/true" aria-label="Email reminders" aria-describedby="reminder-toggle-desc">` |
+| Toggle description | Secondary label text has `id="reminder-toggle-desc"` — linked via `aria-describedby` on the toggle |
+| Timing selector group | `<div role="radiogroup" aria-label="Reminder time">` wrapping the three radio inputs |
+| Radio inputs | Native `<input type="radio" name="reminderTime">` — preserves keyboard arrow-key navigation between options |
+| Radio labels | `<label>` elements properly associated with each radio `id` — clicking the label text activates the radio |
+| Save button | `<button aria-label="Save reminder settings">` (or "Save changes" in toggle-OFF state) |
+| Loading state | Reminders section container has `aria-busy="true"` during preferences fetch; remove once loaded |
+| Inline error | `<p role="alert">` so screen readers announce the error immediately without requiring focus |
+| Toggle disabled (loading) | `<button disabled>` (not just `pointer-events: none`) during preferences fetch and during save |
+| Focus management | After save succeeds, focus stays on the save button (no focus jump); after error, focus stays on the save button |
+| Keyboard navigation order | Page heading → Account Info section → Stats section → Reminders heading → Toggle → (if ON) Morning radio → Midday radio → Evening radio → Save button |
+| Reduced motion | Timing selector expansion is instant (`transition: none`) when `prefers-reduced-motion: reduce` |
+| Color independence | Toggle ON/OFF state communicated by `aria-checked` — not color alone; radio selection communicated by `checked` attribute — not the accent border alone |
+
+---
+
+#### Component Changes Summary
+
+| Component | Change |
+|-----------|--------|
+| `frontend/src/pages/ProfilePage.jsx` | Add `RemindersSection` (inline or extracted component); add `useNotificationPreferences` hook logic or inline state; fetch on mount; handle toggle, radio, save |
+| `frontend/src/pages/ProfilePage.css` | Add `.reminders-section`, `.reminders-toggle-row`, `.reminders-toggle-switch`, `.reminders-timing-selector`, `.reminders-save-btn`, `.reminders-error` styles; all using CSS custom properties |
+| `frontend/src/api.js` | Add `notificationPreferences.get()` → `GET /api/v1/profile/notification-preferences`; add `notificationPreferences.update(payload)` → `POST /api/v1/profile/notification-preferences` |
+
+---
+
+#### File Locations
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/ProfilePage.jsx` | New Reminders section below Stats |
+| `frontend/src/pages/ProfilePage.css` | New Reminders section styles |
+| `frontend/src/api.js` | `notificationPreferences.get`, `notificationPreferences.update` |
+
+---
+
+*SPEC-017 written by Design Agent on 2026-04-05 for Sprint #22.*

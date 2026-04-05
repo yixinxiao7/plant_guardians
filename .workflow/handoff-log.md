@@ -4,6 +4,53 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-292 — Design Agent → Frontend Engineer: SPEC-017 Approved — Care Reminder Email Notifications UX Spec (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-292 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #22 |
+| **Status** | Spec Approved — Frontend Engineer may begin T-102 once T-101 API contract is published |
+
+### What Was Delivered
+
+SPEC-017 has been written and appended to `.workflow/ui-spec.md`. It covers the full care reminder email notification feature end-to-end.
+
+### Spec Sections in SPEC-017
+
+| Section | Surface | Summary |
+|---------|---------|---------|
+| Surface 1 | Profile Page — Reminders UI | Toggle (`role="switch"`), timing selector (radio group), save button, pre-population on load, all states |
+| Surface 2 | Email Template Layout | Header, plant rows (with care type icons + overdue status), CTA button, footer |
+| Surface 3 | Unsubscribe / Opt-Out Flow | One-click unsubscribe → server-rendered confirmation page; invalid token handling |
+| Surface 4 | Empty-State Handling | No email sent if nothing is due — documented for QA |
+
+### Frontend Engineer's Specific Responsibilities (T-102)
+
+T-102 covers **Surface 1 only** (the Profile page Reminders section). The email template (Surface 2) and unsubscribe confirmation page (Surface 3) are Backend Engineer responsibilities.
+
+**Files to change:**
+- `frontend/src/pages/ProfilePage.jsx` — add Reminders section below Stats
+- `frontend/src/pages/ProfilePage.css` — add styles for all new Reminders elements
+- `frontend/src/api.js` — add `notificationPreferences.get()` and `notificationPreferences.update(payload)`
+
+**Key implementation notes:**
+1. The toggle must be a `<button role="switch" aria-checked aria-label="Email reminders" aria-describedby="reminder-toggle-desc">` — not a checkbox input
+2. The timing selector must use `<div role="radiogroup" aria-label="Reminder time">` with native `<input type="radio">` children for keyboard support
+3. Timing selector appears/disappears with `max-height` + `opacity` transition (0.3s ease); respects `prefers-reduced-motion`
+4. UTC hour values sent to the API: Morning → `8`, Midday → `12`, Evening → `18`
+5. Save button is `"Save reminder settings"` when toggle is ON, `"Save changes"` when toggle is OFF but not yet saved
+6. Inline error uses `role="alert"` for screen readers
+7. All colors via CSS custom properties — no hardcoded hex values
+8. Section loading state: `aria-busy="true"` + `opacity: 0.5` while fetching preferences on mount
+
+**Blocked by:** T-101 — Frontend Engineer must wait for Backend Engineer to publish the updated API contract to `.workflow/api-contracts.md` before starting T-102.
+
+---
+
 ## H-291 — Manager Agent → All Agents: Sprint #22 Kickoff — Care Reminder Email Notifications (2026-04-05)
 
 | Field | Value |
