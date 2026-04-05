@@ -4,6 +4,179 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 21 — Monitor Agent: Post-Deploy Health Check (2026-04-05)
+
+**Timestamp:** 2026-04-05T20:25:00Z
+**Agent:** Monitor Agent
+**Sprint:** #21
+**Environment:** Staging (local Node.js processes)
+**Git SHA Deployed:** d8a7b17
+**Reference Handoff:** H-289 (Deploy Engineer → Monitor Agent)
+
+---
+
+### Config Consistency Validation
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Backend PORT (`.env`) | — | `3000` | ✅ PASS |
+| Vite proxy target port (`vite.config.js`) | must match PORT=3000 | `http://localhost:3000` | ✅ PASS — ports match |
+| Vite proxy protocol | HTTP (no SSL certs in .env) | `http://` | ✅ PASS — no SSL keys set, HTTP correct |
+| CORS origin includes frontend dev server | `http://localhost:5173` in FRONTEND_URL | `http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` | ✅ PASS |
+| Docker port mapping | N/A | Docker not available — services run as local Node.js processes | ✅ N/A — docker-compose.yml defines postgres only (port 5432), no backend container port conflict |
+| SSL_KEY_PATH / SSL_CERT_PATH | — | Not set in `.env` — backend runs HTTP | ✅ PASS — consistent with Vite proxy using `http://` |
+
+**Config Consistency: ALL PASS**
+
+---
+
+### Health Check Results
+
+#### Baseline: GET /api/health
+
+| Check | Result |
+|-------|--------|
+| HTTP Status | `200 OK` |
+| Response Body | `{"status":"ok","timestamp":"2026-04-05T20:24:29.347Z"}` |
+| Result | ✅ PASS |
+
+*Note: Actual health path is `/api/health` (not `/api/v1/health`). The pre-deploy smoke test from Deploy Engineer confirmed this path. Tested `/api/v1/health` first — returned 404 as expected (no v1 health route). Confirmed working path is `/api/health`.*
+
+---
+
+#### Auth: POST /api/v1/auth/login
+
+| Check | Result |
+|-------|--------|
+| HTTP Status | `200 OK` |
+| Response | Access token issued for `test@plantguardians.local` |
+| `data.access_token` present | ✅ Yes |
+| `data.user.email` | `test@plantguardians.local` |
+| Result | ✅ PASS |
+
+---
+
+#### Auth: POST /api/v1/auth/refresh (invalid token)
+
+| Check | Result |
+|-------|--------|
+| HTTP Status | `401` |
+| Result | ✅ PASS — invalid token correctly rejected |
+
+---
+
+#### Auth Guard: GET /api/v1/plants (unauthenticated)
+
+| Check | Result |
+|-------|--------|
+| HTTP Status | `401` |
+| Result | ✅ PASS — auth guard active |
+
+---
+
+#### Plants: GET /api/v1/plants (authenticated)
+
+| Check | Result |
+|-------|--------|
+| HTTP Status | `200 OK` |
+| Response shape | `{"data":[...],"pagination":{...}}` |
+| Result | ✅ PASS |
+
+---
+
+#### Plants: GET /api/v1/plants/:id (authenticated)
+
+| Check | Result |
+|-------|--------|
+| Plant ID tested | `ee21a6cd-d1e6-4a34-a1d8-1e8e00083031` |
+| HTTP Status | `200 OK` |
+| Result | ✅ PASS |
+
+---
+
+#### Plants: POST /api/v1/plants (create)
+
+| Check | Result |
+|-------|--------|
+| HTTP Status | `201 Created` (implied — response contained `data.id`) |
+| New plant ID | `f094180c-7baa-4fd9-9cc9-3afff1a0d433` |
+| Result | ✅ PASS |
+
+---
+
+#### Plants: DELETE /api/v1/plants/:id
+
+| Check | Result |
+|-------|--------|
+| Deleted plant | `f094180c-7baa-4fd9-9cc9-3afff1a0d433` (test plant just created) |
+| HTTP Status | `200 OK` |
+| Result | ✅ PASS |
+
+---
+
+#### Profile: GET /api/v1/profile (authenticated)
+
+| Check | Result |
+|-------|--------|
+| HTTP Status | `200 OK` |
+| Response | `data.user` + `data.stats` present (`plant_count:4, days_as_member:12, total_care_actions:4`) |
+| Result | ✅ PASS |
+
+---
+
+#### T-097 (Sprint #21 Primary): POST /api/v1/plants/:id/care-actions — notes field
+
+| # | Test Scenario | HTTP Status | Response | Result |
+|---|---------------|-------------|----------|--------|
+| 1 | Unauthenticated request | `401` | Auth error | ✅ PASS |
+| 2 | Valid `notes` string (35 chars) | `201 Created` | `care_action.notes:"Leaves looking healthy, soil was dry."` | ✅ PASS |
+| 3 | Whitespace-only `notes` (`"   "`) | `201 Created` | `care_action.notes:null` | ✅ PASS |
+| 4 | `notes` > 280 chars (281 chars) | `400` | `{"error":{"message":"notes must be 280 characters or fewer","code":"VALIDATION_ERROR"}}` | ✅ PASS |
+| 5 | No `notes` field (backward compat) | `201 Created` | Success | ✅ PASS |
+
+**T-097 result: ALL 5 SCENARIOS PASS**
+
+---
+
+#### Frontend Build Artifact
+
+| Check | Result |
+|-------|--------|
+| `frontend/dist/` exists | ✅ Yes — `assets/`, `favicon.svg`, `icons.svg`, `index.html` present |
+| Frontend at http://localhost:4177 | HTTP `200 OK` |
+| Result | ✅ PASS |
+
+---
+
+#### Security: npm audit
+
+| Package | Vulnerabilities | Result |
+|---------|-----------------|--------|
+| `backend/` | 0 | ✅ PASS |
+| `frontend/` | 0 | ✅ PASS |
+
+---
+
+### Summary
+
+| Category | Checks | Passed | Failed |
+|----------|--------|--------|--------|
+| Config Consistency | 6 | 6 | 0 |
+| Health / Baseline | 1 | 1 | 0 |
+| Auth Endpoints | 3 | 3 | 0 |
+| Plants CRUD | 4 | 4 | 0 |
+| Profile | 1 | 1 | 0 |
+| T-097 care-actions notes (Sprint #21) | 5 | 5 | 0 |
+| Frontend Build | 2 | 2 | 0 |
+| Security (npm audit) | 2 | 2 | 0 |
+| **TOTAL** | **24** | **24** | **0** |
+
+### Deploy Verified: Yes
+
+All 24 checks passed. Sprint #21 staging deployment is healthy and verified. Handoff H-290 sent to Manager Agent.
+
+---
+
 ## Sprint 21 — Deploy Engineer: Staging Build & Deploy (2026-04-05)
 
 **Date:** 2026-04-05

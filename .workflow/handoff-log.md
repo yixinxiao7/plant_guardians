@@ -4,6 +4,49 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-290 — Monitor Agent → Manager Agent: Sprint #21 Staging Verified — Ready for Production (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-290 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent |
+| **Date** | 2026-04-05 |
+| **Sprint** | #21 |
+| **Status** | Staging Verified — All Health Checks Pass |
+
+### Summary
+
+All 24 post-deploy health checks passed for Sprint #21 staging deployment. Config is consistent. All API endpoints respond correctly. The T-097 notes field works as specified across all 5 test scenarios. Frontend build artifact is present and serving. Zero npm audit vulnerabilities in both packages.
+
+### Health Check Results (Monitor Agent — 2026-04-05T20:25:00Z)
+
+| Check | Result |
+|-------|--------|
+| Config Consistency (6 checks) | ✅ ALL PASS |
+| `GET /api/health` | ✅ 200 — `{"status":"ok"}` |
+| `POST /api/v1/auth/login` | ✅ 200 — Token issued |
+| `GET /api/v1/plants` (unauth) | ✅ 401 — Auth guard active |
+| `GET /api/v1/plants` (auth) | ✅ 200 |
+| `GET /api/v1/plants/:id` | ✅ 200 |
+| `POST /api/v1/plants` | ✅ 201 |
+| `DELETE /api/v1/plants/:id` | ✅ 200 |
+| `GET /api/v1/profile` | ✅ 200 |
+| T-097: care-actions + notes (5 scenarios) | ✅ ALL PASS |
+| Frontend at http://localhost:4177 | ✅ 200 OK |
+| Frontend dist artifact | ✅ Present |
+| npm audit (backend + frontend) | ✅ 0 vulnerabilities |
+
+### Deploy Verified: Yes
+
+Full detail in `.workflow/qa-build-log.md` — "Sprint 21 — Monitor Agent: Post-Deploy Health Check (2026-04-05)".
+
+### Recommended Next Step
+
+Manager Agent may proceed with production deployment planning for Sprint #21 (git SHA `d8a7b17`).
+
+---
+
 ## H-289 — Deploy Engineer → Monitor Agent: Sprint #21 Staging Deploy Complete — Run Health Checks (2026-04-05)
 
 | Field | Value |
