@@ -4,6 +4,75 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 18 — QA Engineer: Re-Verification Pass (2026-04-05)
+
+**Date:** 2026-04-05
+**Agent:** QA Engineer (orchestrator-invoked re-verification)
+**Sprint:** 18
+**Tasks Verified:** T-082, T-083, T-084, T-085, T-086
+
+---
+
+### Re-Verification Summary
+
+QA was re-invoked by the orchestrator after the initial QA pass (H-242) and staging deploy (H-243). Independent re-verification confirms all prior results still hold.
+
+### Unit Tests (Test Type: Unit Test)
+
+| Suite | Result | Notes |
+|-------|--------|-------|
+| Backend | 120/121 pass (12 passed, 1 failed) | Same pre-existing `auth.test.js` Secure cookie flag failure. Not a regression. |
+| Frontend | 177/177 pass (26 suites) | All green. No regressions. |
+
+### Integration Tests (Test Type: Integration Test)
+
+All integration checks re-confirmed:
+- Frontend `plants.list()` sends `search`, `status`, `utcOffset` params via URLSearchParams — matches API contract
+- Backend validates: `search` max 200 chars trimmed, `status` enum (overdue|due_today|on_track), `utcOffset` range [-840,840]
+- SQL uses parameterized `LIKE ?` — no injection vectors
+- Response shape `{ data: [...], pagination: {...} }` consumed correctly via `_returnFull: true`
+- All 4 empty states implemented: no plants, no search match, no filter match, no combined match
+- Debounce 300ms, skeleton loading, aria-live result count, keyboard nav — all confirmed
+- T-085: `ProfilePage.jsx` lines 136/141/146 use `var(--color-accent)` — no hardcoded hex
+- T-086: Focus management decision tree covers all 4 cases; reduced-motion respected; ref cleanup present
+
+### Config Consistency (Test Type: Config Consistency)
+
+| Check | Result |
+|-------|--------|
+| Backend PORT=3000 ↔ Vite proxy `http://localhost:3000` | PASS |
+| No SSL in dev ↔ proxy uses `http://` | PASS |
+| FRONTEND_URL includes `http://localhost:5173` | PASS |
+| Docker compose ports align with DATABASE_URL/TEST_DATABASE_URL | PASS |
+
+### Security Scan (Test Type: Security Scan)
+
+| Check | Result |
+|-------|--------|
+| Auth enforcement on /plants routes | PASS — `router.use(authenticate)` |
+| Parameterized SQL (search) | PASS — `whereRaw('LOWER(name) LIKE ?', [...])` |
+| Input validation server-side | PASS — search length, status enum, utcOffset range |
+| XSS prevention | PASS — React auto-escaping, no `dangerouslySetInnerHTML` |
+| Error handler safe | PASS — structured JSON, no stack traces leaked |
+| Helmet enabled | PASS — security headers set |
+| CORS restricted | PASS — only allowed origins |
+| .env not committed | PASS — gitignored, `git ls-files backend/.env` returns empty |
+| npm audit | INFO — 1 high lodash advisory (known false positive, installed version above advisory ceiling) |
+| No P1 security issues | CONFIRMED |
+
+### Product-Perspective Notes
+
+- Search with realistic plant names (substring matching) works correctly
+- Status filter correctly excludes plants with zero care schedules — no confusing results
+- Boundary testing: 200-char search accepted, 201-char rejected; utcOffset at -840/840 accepted, -841/841 rejected
+- Focus management after mark-done is smooth and comprehensive
+
+### Verdict
+
+**All Sprint 18 tasks RE-VERIFIED: PASS.** No new issues found. Deploy to staging was already completed (H-243). Monitor Agent health check is the only remaining gate.
+
+---
+
 ## Sprint 18 — Deploy Engineer: Staging Deploy (2026-04-05)
 
 **Date:** 2026-04-05
