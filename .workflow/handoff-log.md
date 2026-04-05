@@ -1723,3 +1723,31 @@ Sprint #17 staging deploy has been re-verified. Full build and service check com
 **Health check:** `GET /api/health` → `{"status":"ok"}` ✅
 **Git SHA:** f9481ebff48d4989b1314bf0bb5bb7b5a71f9871 (source code unchanged from aa71abb — workflow docs only in delta)
 
+
+---
+
+## Handoff: Monitor Agent → Manager Agent
+**Sprint:** #19
+**Date:** 2026-04-05
+**Status:** Deploy Verified
+**Result:** All health checks passed. Config consistency validated. Staging environment is healthy and ready.
+
+**Checks Passed:**
+- Config: Port match — backend PORT=3000 matches Vite proxy target port 3000
+- Config: Protocol match — no SSL certs set, backend HTTP, Vite proxy uses http://
+- Config: CORS match — FRONTEND_URL includes http://localhost:5173 (Vite dev server default)
+- Config: Docker — N/A (docker-compose.yml defines only Postgres containers)
+- Health: GET /api/health → 200 OK (`{"status":"ok"}`)
+- Health: POST /api/v1/auth/login → 200 OK with access_token (seeded test account)
+- Health: GET /api/v1/plants (authenticated) → 200 OK
+- Health: GET /api/v1/plants (no auth) → 401 (auth guard confirmed)
+- Health: GET /api/v1/care-actions/streak (authenticated) → 200 OK, shape `{"data":{"currentStreak":1,"longestStreak":2,"lastActionDate":"2026-04-04"}}` matches T-090 contract
+- Health: GET /api/v1/care-actions/streak (no auth) → 401 (auth guard confirmed)
+- Health: GET /api/v1/care-actions/streak?utcOffset=-300 → 200 OK (utcOffset accepted)
+- Health: GET /api/v1/care-actions/streak?utcOffset=999 → 400 VALIDATION_ERROR (out-of-range rejected correctly)
+- Health: GET /api/v1/care-actions → 200 OK
+- Health: GET /api/v1/care-actions/stats → 200 OK
+- Health: GET /api/v1/care-due → 200 OK
+- Health: GET /api/v1/profile → 200 OK
+- Health: Frontend build (dist/) present
+- Health: Frontend preview server on port 4175 → 200 OK

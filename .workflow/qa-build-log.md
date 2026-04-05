@@ -943,3 +943,49 @@ Active blockers preventing staging deployment:
 
 ---
 
+
+---
+
+## Sprint #19 — Post-Deploy Health Check
+**Date:** 2026-04-05
+**Environment:** Staging (local staging — backend on port 3000, frontend preview on port 4175)
+**Test Type:** Post-Deploy Health Check + Config Consistency
+
+### Config Consistency
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Port match (backend PORT vs Vite proxy) | PASS | backend PORT=3000; Vite proxy target=`http://localhost:3000` — ports match |
+| Protocol match (SSL config vs Vite proxy) | PASS | No SSL_KEY_PATH or SSL_CERT_PATH set in backend/.env; backend serves HTTP; Vite proxy correctly uses `http://` |
+| CORS match (FRONTEND_URL covers dev server) | PASS | FRONTEND_URL=`http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` — includes http://localhost:5173 (Vite default dev port) |
+| Docker port match | N/A | docker-compose.yml defines only Postgres containers (no backend app container); no port mapping to validate against PORT |
+
+### Health Checks
+
+| Check | Result | HTTP | Response |
+|-------|--------|------|----------|
+| GET /api/health | PASS | 200 | `{"status":"ok","timestamp":"2026-04-05T18:09:19.729Z"}` |
+| GET /api/v1/health | EXPECTED 404 | 404 | Health endpoint mounted outside /api/v1/ prefix — consistent with prior sprints |
+| POST /api/v1/auth/login (test account) | PASS | 200 | `{"data":{"user":{...},"access_token":"..."}}`  — access_token present |
+| GET /api/v1/plants (authenticated) | PASS | 200 | Plants list returned |
+| GET /api/v1/plants (no auth) | PASS | 401 | Auth guard working |
+| GET /api/v1/care-actions/streak (authenticated) | PASS | 200 | `{"data":{"currentStreak":1,"longestStreak":2,"lastActionDate":"2026-04-04"}}` — correct shape per T-090 contract |
+| GET /api/v1/care-actions/streak (no auth) | PASS | 401 | Auth guard working |
+| GET /api/v1/care-actions/streak?utcOffset=-300 | PASS | 200 | utcOffset query param accepted |
+| GET /api/v1/care-actions/streak?utcOffset=999 (out of range) | PASS | 400 | `{"error":{"message":"utcOffset must be an integer between -840 and 840","code":"VALIDATION_ERROR"}}` — validation working |
+| GET /api/v1/care-actions | PASS | 200 | Care actions list returned |
+| GET /api/v1/care-actions/stats | PASS | 200 | Stats returned |
+| GET /api/v1/care-due | PASS | 200 | Care due list returned |
+| GET /api/v1/profile | PASS | 200 | Profile data returned |
+| Frontend build (dist/) | PASS | Present | dist/ directory contains assets, favicon.svg, icons.svg, index.html |
+| Frontend preview server (:4175) | PASS | 200 | Vite preview server responding |
+
+### Summary
+
+**Deploy Verified:** Yes
+
+**Notes:**
+- `GET /api/v1/health` returns 404 — actual health endpoint is `GET /api/health` (mounted outside /api/v1/ prefix). This is expected, consistent with all prior sprint Monitor checks.
+- Sprint 19 T-090 new endpoint `GET /api/v1/care-actions/streak` is live and fully functional: auth-gated (401 without token), correct response shape with `currentStreak`, `longestStreak`, and `lastActionDate` fields, `utcOffset` query param accepted, out-of-range `utcOffset` correctly returns 400 VALIDATION_ERROR.
+- No SSL configured in staging environment — correct for local staging; Vite proxy protocol matches.
+- All config consistency checks pass. All health checks pass.
