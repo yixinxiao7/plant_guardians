@@ -47,7 +47,7 @@ async function teardownDatabase() {
 }
 
 async function cleanTables() {
-  await db.raw('TRUNCATE care_actions, care_schedules, plants, refresh_tokens, users CASCADE');
+  await db.raw('TRUNCATE notification_preferences, care_actions, care_schedules, plants, refresh_tokens, users CASCADE');
 }
 
 /**

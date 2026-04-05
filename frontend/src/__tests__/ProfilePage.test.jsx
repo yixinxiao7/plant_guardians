@@ -67,6 +67,10 @@ vi.mock('../components/StreakTile.jsx', () => ({
   default: () => <div data-testid="streak-tile">Streak Tile</div>,
 }));
 
+vi.mock('../components/RemindersSection.jsx', () => ({
+  default: () => <div data-testid="reminders-section">Reminders Section</div>,
+}));
+
 describe('ProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();

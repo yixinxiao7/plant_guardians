@@ -10,6 +10,7 @@ import Button from '../components/Button.jsx';
 import DeleteAccountModal from '../components/DeleteAccountModal.jsx';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 import StreakTile from '../components/StreakTile.jsx';
+import RemindersSection from '../components/RemindersSection.jsx';
 import './ProfilePage.css';
 
 export default function ProfilePage() {
@@ -154,6 +155,9 @@ export default function ProfilePage() {
 
       {/* Care Streak (T-091) */}
       <StreakTile data={streakData} loading={streakLoading} error={streakError} />
+
+      {/* Reminders (T-102) */}
+      <RemindersSection />
 
       {/* Appearance */}
       <div className="profile-appearance-card">

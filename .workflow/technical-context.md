@@ -29,6 +29,7 @@ All schema changes must be tracked here. Before deploying any migration, verify 
 | 3 | 1 | Create `plants` table | Create | `20260323_03_create_plants.js` | Implemented — Ready for Deploy |
 | 4 | 1 | Create `care_schedules` table | Create | `20260323_04_create_care_schedules.js` | Implemented — Ready for Deploy |
 | 5 | 1 | Create `care_actions` table | Create | `20260323_05_create_care_actions.js` | Implemented — Ready for Deploy |
+| 6 | 22 | Create `notification_preferences` table | Create | `20260405_01_create_notification_preferences.js` | Implemented — Ready for Deploy |
 
 ---
 

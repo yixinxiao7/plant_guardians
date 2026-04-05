@@ -4,6 +4,171 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-297 — Backend Engineer → QA Engineer: T-101 Implementation Complete — Ready for QA (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-297 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #22 |
+| **Status** | Ready for QA |
+| **Related Tasks** | T-101 |
+
+### Summary
+
+T-101 backend implementation is complete. All notification preferences API endpoints, email service, reminder service, and unsubscribe flow are implemented and tested. 17 new tests pass; 166/166 total backend tests pass.
+
+### What to Test
+
+| Method | Path | Auth | Test Focus |
+|--------|------|------|------------|
+| GET | `/api/v1/profile/notification-preferences` | Bearer | Returns defaults `{opt_in: false, reminder_hour_utc: 8}` for new user; never 404 |
+| POST | `/api/v1/profile/notification-preferences` | Bearer | Upsert with partial updates; validate `opt_in` (boolean), `reminder_hour_utc` (int 0–23); empty body → 400 |
+| GET | `/api/v1/unsubscribe?token=<hmac>&uid=<userId>` | Public | Valid HMAC → 200, sets opt_in=false; invalid/missing token → 400 |
+| POST | `/api/v1/admin/trigger-reminders` | Bearer | Dev/test only; optional `hour_utc` (int 0–23); returns stats; 401 without auth |
+
+### Files Changed
+
+- **Migration:** `backend/src/migrations/20260405_01_create_notification_preferences.js`
+- **Model:** `backend/src/models/NotificationPreference.js`
+- **Services:** `backend/src/services/EmailService.js`, `backend/src/services/ReminderService.js`
+- **Routes:** `backend/src/routes/notificationPreferences.js`, `backend/src/routes/unsubscribe.js`, `backend/src/routes/adminReminders.js`
+- **App registration:** `backend/src/app.js` (new routes added; admin route guarded by `NODE_ENV !== 'production'`)
+- **Tests:** `backend/tests/notificationPreferences.test.js` (17 tests)
+- **Env:** `backend/.env.example` updated with EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM, UNSUBSCRIBE_SECRET, APP_BASE_URL
+
+### Security Notes
+
+- HMAC unsubscribe tokens use constant-time comparison (`crypto.timingSafeEqual`)
+- All SQL uses parameterized Knex queries — no string concatenation
+- Admin trigger endpoint is NOT registered in production (`NODE_ENV === 'production'`)
+- HTML in emails escapes user-controlled strings (plant names) to prevent XSS
+- All SMTP credentials are via environment variables, never hardcoded
+
+---
+
+## H-298 — Backend Engineer → Deploy Engineer: Sprint 22 Migration Ready (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-298 |
+| **From** | Backend Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #22 |
+| **Status** | Ready |
+| **Related Tasks** | T-101 |
+
+### Summary
+
+New migration `20260405_01_create_notification_preferences.js` needs to run on staging before production. Creates `notification_preferences` table with PK on `user_id` (FK → users) and partial index on opted-in users by hour. Reversible via `down()`.
+
+New npm dependency: `nodemailer` (added to package.json). Run `npm install` on deploy.
+
+New optional env vars: `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM`, `UNSUBSCRIBE_SECRET`, `APP_BASE_URL` — all optional, backend starts without them.
+
+---
+
+## H-299 — Backend Engineer → Frontend Engineer: Sprint 22 API Ready (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-299 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #22 |
+| **Status** | Ready |
+| **Related Tasks** | T-101, T-102 |
+
+### Summary
+
+All Sprint 22 backend endpoints are implemented and tested. The notification preferences API (`GET` and `POST /api/v1/profile/notification-preferences`) and unsubscribe endpoint (`GET /api/v1/unsubscribe`) match the contracts in `api-contracts.md` (Sprint 22 Contracts section). Frontend integration can proceed per those contracts.
+
+---
+
+## H-296 — Frontend Engineer → QA Engineer: T-102 Notification Preferences UI Ready for QA (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-296 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #22 |
+| **Status** | Ready for QA |
+| **Related Tasks** | T-102 |
+
+### Summary
+
+T-102 implementation is complete. The Profile page now has a "Reminders" section below the Care Streak tile, with an opt-in toggle and timing selector (Morning/Midday/Evening), wired to `GET/POST /api/v1/profile/notification-preferences`.
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `frontend/src/components/RemindersSection.jsx` | New component — toggle, timing radio group, save flow, all states |
+| `frontend/src/components/RemindersSection.css` | All styles, CSS custom properties, dark mode, responsive, reduced-motion |
+| `frontend/src/pages/ProfilePage.jsx` | Import and render `<RemindersSection />` below StreakTile |
+| `frontend/src/utils/api.js` | Added `notificationPreferences.get()`, `.update()`, `.unsubscribe()` |
+| `frontend/src/__tests__/RemindersSection.test.jsx` | 12 new tests |
+| `frontend/src/__tests__/ProfilePage.test.jsx` | Added RemindersSection mock to prevent test breakage |
+
+### What to Test
+
+1. **Loading state:** Section shows `opacity: 0.5`, toggle disabled, `aria-busy="true"` while preferences fetch
+2. **Load error:** Inline "Could not load your current settings." message; toggle defaults to OFF; user can still interact
+3. **Off state (opt_in=false):** Toggle OFF, timing selector hidden, no save button
+4. **Toggle ON:** Timing selector expands with animation, save button appears as "Save reminder settings"
+5. **Timing selection:** Three radio options (Morning=8, Midday=12, Evening=18), keyboard arrow keys work, selected has left accent border
+6. **Save success (opt_in=true):** Toast "Reminder settings saved"; API receives `{ opt_in: true, reminder_hour_utc: <value> }`
+7. **Save success (opt_in=false):** Toast "Email reminders turned off"; button label was "Save changes"
+8. **Save error:** Inline `role="alert"` error below save button; dismissible with X
+9. **Saving state:** Button shows spinner + "Saving...", toggle and radios disabled
+10. **Toggle OFF from ON:** Save button label changes to "Save changes"; timing selector collapses
+11. **Accessibility:** `role="switch"` with `aria-checked`, `aria-describedby`, `role="radiogroup"` with `aria-label`, native radio inputs, `role="alert"` on errors, focus-visible outlines
+12. **Dark mode:** All colors via CSS custom properties — verify toggle track, timing selector bg, radio accents
+13. **Responsive (<768px):** Save button full width, radio options 44px min height
+14. **Reduced motion:** `prefers-reduced-motion: reduce` → timing selector transition is instant
+
+### Known Limitations
+
+- No unsaved-changes warning on page navigation (per SPEC-017 MVP decision)
+- UTC hours displayed as "~X:00 AM/PM your local time" — timezone-aware conversion deferred to future sprint
+- Unsubscribe route (`/unsubscribe?token=...`) is not yet added to React Router — the backend handles this as a server-rendered page per SPEC-017 Surface 3
+
+### Test Results
+
+239/239 frontend tests pass (12 new RemindersSection tests + 0 regressions).
+
+---
+
+## H-295 — Frontend Engineer → Backend Engineer: API Contract Acknowledged — T-101/T-102 (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-295 |
+| **From** | Frontend Engineer |
+| **To** | Backend Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #22 |
+| **Status** | Acknowledged |
+| **Related Tasks** | T-101, T-102 |
+
+### Summary
+
+Frontend Engineer acknowledges the Sprint 22 API contract (H-293). The following endpoints are wired up in `frontend/src/utils/api.js`:
+
+- `notificationPreferences.get()` → `GET /api/v1/profile/notification-preferences`
+- `notificationPreferences.update(payload)` → `POST /api/v1/profile/notification-preferences`
+- `notificationPreferences.unsubscribe(token)` → `GET /api/v1/unsubscribe?token=<token>`
+
+Timing selector mapping: Morning→8, Midday→12, Evening→18. POST body always sends both `opt_in` and `reminder_hour_utc`.
+
+---
+
 ## H-294 — Backend Engineer → QA Engineer: Sprint #22 API Contracts Published — T-101 (2026-04-05)
 
 | Field | Value |

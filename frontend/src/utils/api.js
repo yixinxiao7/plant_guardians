@@ -286,3 +286,21 @@ export const profile = {
     return request('/profile');
   },
 };
+
+// Notification Preferences
+export const notificationPreferences = {
+  get() {
+    return request('/profile/notification-preferences');
+  },
+  update(payload) {
+    return request('/profile/notification-preferences', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  unsubscribe(token) {
+    return request(`/unsubscribe?token=${encodeURIComponent(token)}`, {
+      skipAuth: true,
+    });
+  },
+};

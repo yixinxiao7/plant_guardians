@@ -17,6 +17,8 @@ const careActionsStatsRoutes = require('./routes/careActionsStats');
 const careActionsStreakRoutes = require('./routes/careActionsStreak');
 const careDueRoutes = require('./routes/careDue');
 const accountRoutes = require('./routes/account');
+const notificationPreferencesRoutes = require('./routes/notificationPreferences');
+const unsubscribeRoutes = require('./routes/unsubscribe');
 
 const app = express();
 
@@ -98,7 +100,15 @@ app.use('/api/v1/care-actions/streak', careActionsStreakRoutes);
 app.use('/api/v1/care-actions', careHistoryRoutes);
 app.use('/api/v1/care-due', careDueRoutes);
 app.use('/api/v1/profile', profileRoutes);
+app.use('/api/v1/profile/notification-preferences', notificationPreferencesRoutes);
 app.use('/api/v1/account', accountRoutes);
+app.use('/api/v1/unsubscribe', unsubscribeRoutes);
+
+// Dev/test only: admin trigger-reminders endpoint (T-101)
+if (process.env.NODE_ENV !== 'production') {
+  const adminRemindersRoutes = require('./routes/adminReminders');
+  app.use('/api/v1/admin/trigger-reminders', adminRemindersRoutes);
+}
 
 // 404 handler for unknown routes
 app.use('/api/*', (req, res) => {
