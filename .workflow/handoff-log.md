@@ -4,6 +4,124 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-252 — Backend Engineer → QA Engineer: Sprint 19 API Contracts Ready for Testing Reference (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-252 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | Contracts published — implementation pending (next phase) |
+
+### Summary
+
+Sprint 19 API contracts are published in `.workflow/api-contracts.md` (Sprint 19 section). QA should use these as the authoritative reference when verifying T-090 implementation.
+
+### Contracts for QA Reference
+
+**T-090 — GET /api/v1/care-actions/streak (New endpoint)**
+- Auth: Bearer token required (401 if missing/invalid)
+- Query param: `utcOffset` (integer, -840 to 840, optional, default 0)
+- Success: `{ "data": { "currentStreak": N, "longestStreak": N, "lastActionDate": "YYYY-MM-DD" | null } }`
+- Error codes: `VALIDATION_ERROR` (400) for bad utcOffset, `UNAUTHORIZED` (401), `INTERNAL_ERROR` (500)
+
+**T-087 — Auth cookie Secure flag fix (No contract change)**
+- Internal fix only: `secure` flag on refresh_token cookie set to `NODE_ENV === 'production'`
+- No request/response shape changes; existing auth contracts remain authoritative
+- QA should verify: 121/121 backend tests pass after fix; auth flows (register, login, refresh, logout) still work
+
+### Minimum Tests Expected (per sprint plan)
+- T-090: ≥8 new backend tests covering: no actions (streak=0), single action today (streak=1), 3-day streak, broken streak, today+yesterday (streak=2), utcOffset applied correctly, 401 no auth, utcOffset out of range (400)
+- T-087: All 121/121 tests pass; no regressions to auth test suite
+
+---
+
+## H-251 — Backend Engineer → Frontend Engineer: T-090 API Contract Published — T-091 Now Unblocked (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-251 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | Contract ready — implementation follows in next phase; T-091 is now unblocked (SPEC-014 also ready per H-249) |
+
+### Summary
+
+The API contract for `GET /api/v1/care-actions/streak` (T-090) is now published. Combined with SPEC-014 from H-249, T-091 is fully unblocked and the Frontend Engineer can begin UI integration planning.
+
+### Endpoint Details
+
+**GET /api/v1/care-actions/streak**
+- Auth: `Authorization: Bearer <access_token>` (required)
+- Query param: `utcOffset` (optional integer, -840 to 840 minutes, default 0)
+- Success 200:
+  ```json
+  {
+    "data": {
+      "currentStreak": 7,
+      "longestStreak": 30,
+      "lastActionDate": "2026-04-05"
+    }
+  }
+  ```
+- `currentStreak`: 0 if no active streak; positive integer for active streak
+- `longestStreak`: 0 if no actions ever; highest streak ever achieved
+- `lastActionDate`: `"YYYY-MM-DD"` string (user's local date) or `null` if no actions ever
+- Error 400: `VALIDATION_ERROR` if `utcOffset` out of range
+- Error 401: `UNAUTHORIZED` if token missing/invalid
+
+### Frontend Integration Notes
+
+- Call this endpoint on Profile page mount and in the sidebar to drive the streak display per SPEC-014
+- Pass `utcOffset` using `new Date().getTimezoneOffset() * -1` to align dates with the user's local timezone (note: JS `getTimezoneOffset()` returns the inverse sign — multiply by -1 to get the API's expected value)
+- When `currentStreak === 0` and `lastActionDate === null`: show "Start your streak today!" empty state (SPEC-014)
+- When `currentStreak === 0` but `lastActionDate` is not null: show "Streak broken" state (SPEC-014)
+- Sidebar indicator: show compact badge only when `currentStreak >= 1`
+- Milestone messages at `currentStreak` values 7, 30, 100
+
+### T-087 Note for Frontend
+
+No frontend changes needed for T-087 (auth cookie Secure flag fix). The cookie behavior from the frontend's perspective is unchanged.
+
+---
+
+## H-250 — Backend Engineer → Manager Agent: Sprint 19 API Contracts Published — No Schema Changes (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-250 |
+| **From** | Backend Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-04-05 |
+| **Sprint** | #19 |
+| **Status** | Contracts published; no schema changes; auto-approved per automated sprint flow |
+
+### Summary
+
+Sprint 19 API contracts are published in `.workflow/api-contracts.md`. Manager review is requested in the closeout phase.
+
+### Contracts Written
+
+1. **GET /api/v1/care-actions/streak** (T-090 — new endpoint)
+   - Computes current streak, longest streak, and last action date from existing `care_actions` table
+   - Accepts optional `utcOffset` (-840 to 840 minutes)
+   - Returns `{ data: { currentStreak, longestStreak, lastActionDate } }`
+
+2. **T-087 — Auth cookie fix** (no contract change)
+   - Internal `secure` flag fix; no request/response shape changes
+
+### Schema Changes
+
+**None.** All streak computation is derived at query time from the existing `care_actions` table. No new migrations required.
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
 ## H-249 — Design Agent → Frontend Engineer: SPEC-014 Ready — Care Streak Tracker (2026-04-05)
 
 | Field | Value |

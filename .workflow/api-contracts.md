@@ -2941,3 +2941,174 @@ Any existing consumer calling `GET /api/v1/plants` without the new parameters re
 ---
 
 *Sprint 17 contracts written by Backend Engineer — 2026-04-01. One endpoint shape update: POST /api/v1/ai/advice (T-077, breaking response shape change). One new endpoint: POST /api/v1/ai/identify (T-078). Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*
+
+---
+
+## Sprint 19 Contracts
+
+---
+
+### GROUP 1 — Care Streak (T-090)
+
+---
+
+#### GET /api/v1/care-actions/streak
+
+**Auth:** Required — Bearer token in `Authorization: Bearer <access_token>` header. Returns `401` if token is missing or invalid.
+
+**Description:** Returns the authenticated user's current care streak (consecutive calendar days with ≥1 care action), their longest-ever streak, and the date of their most recent care action. All date calculations are shifted by the optional `utcOffset` query parameter so that "today" and "yesterday" match the user's local calendar day.
+
+**Streak Definition:**
+- A "streak day" is any calendar day (in the user's local timezone, as determined by `utcOffset`) on which the user logged ≥1 care action.
+- The current streak counts backwards from today (inclusive if today has an action) or from yesterday (if no action yet today but yesterday had one). If neither today nor yesterday has an action, the streak is 0.
+- `currentStreak = 0` if the user has no care actions ever recorded.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Validation | Default | Description |
+|-----------|------|----------|-----------|---------|-------------|
+| `utcOffset` | integer | No | Must be an integer in range `[-840, 840]` (minutes). Non-integer or out-of-range → 400. | `0` (UTC) | Minutes to offset UTC timestamps to the user's local timezone for date bucketing (e.g., `-300` for UTC-5, `+330` for UTC+5:30). |
+
+**Request Body:** None (GET request)
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "currentStreak": 7,
+    "longestStreak": 14,
+    "lastActionDate": "2026-04-05"
+  }
+}
+```
+
+**Response Field Descriptions:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `currentStreak` | integer ≥ 0 | Number of consecutive calendar days (user's local time) ending today (or yesterday) on which ≥1 care action was logged. `0` if no streak is active. |
+| `longestStreak` | integer ≥ 0 | Highest consecutive-day streak this user has ever achieved. `0` if the user has no care actions. |
+| `lastActionDate` | `"YYYY-MM-DD"` string or `null` | The user's local-timezone date of their most recent care action. `null` if the user has never logged a care action. |
+
+**Edge Cases / Examples:**
+
+| Scenario | `currentStreak` | `longestStreak` | `lastActionDate` |
+|----------|----------------|----------------|-----------------|
+| New user — no care actions ever | `0` | `0` | `null` |
+| Single action logged today | `1` | `1` | today |
+| Actions on today + yesterday | `2` | `2` | today |
+| 3 consecutive days ending today | `3` | `3` | today |
+| Streak broken — last action was 2+ days ago | `0` | (prior best) | (prior action date) |
+| Actions on yesterday only (none today) | `1` | ≥1 | yesterday |
+| utcOffset shifts yesterday's UTC action into today locally | streak reflects local-date calculation | — | local date |
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `utcOffset` provided but not an integer |
+| 400 | `VALIDATION_ERROR` | `utcOffset` is an integer outside the range `[-840, 840]` |
+| 401 | `UNAUTHORIZED` | Missing, malformed, or expired access token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Example Requests:**
+
+```bash
+# Default (UTC) — no offset
+GET /api/v1/care-actions/streak
+Authorization: Bearer <access_token>
+
+# User in UTC-5 (EST, no DST)
+GET /api/v1/care-actions/streak?utcOffset=-300
+Authorization: Bearer <access_token>
+
+# User in UTC+5:30 (IST)
+GET /api/v1/care-actions/streak?utcOffset=330
+Authorization: Bearer <access_token>
+
+# 400 — utcOffset out of range
+GET /api/v1/care-actions/streak?utcOffset=999
+
+# 401 — no auth header
+GET /api/v1/care-actions/streak
+```
+
+**Example Success Responses:**
+
+```json
+// Active 7-day streak
+{
+  "data": {
+    "currentStreak": 7,
+    "longestStreak": 30,
+    "lastActionDate": "2026-04-05"
+  }
+}
+
+// No actions ever (new user)
+{
+  "data": {
+    "currentStreak": 0,
+    "longestStreak": 0,
+    "lastActionDate": null
+  }
+}
+
+// Streak broken (last action was 3 days ago)
+{
+  "data": {
+    "currentStreak": 0,
+    "longestStreak": 14,
+    "lastActionDate": "2026-04-02"
+  }
+}
+```
+
+**Example Error Responses:**
+
+```json
+// 400 — utcOffset out of range
+{
+  "error": {
+    "message": "utcOffset must be an integer between -840 and 840",
+    "code": "VALIDATION_ERROR"
+  }
+}
+
+// 401 — no/invalid token
+{
+  "error": {
+    "message": "Unauthorized",
+    "code": "UNAUTHORIZED"
+  }
+}
+```
+
+---
+
+### T-087 — Auth Cookie Secure Flag Fix
+
+**No API contract change.** T-087 is an internal implementation fix only:
+- Changes the `secure` flag on the `refresh_token` cookie from always-`true` to `process.env.NODE_ENV === 'production'`
+- **Request and response shapes are unchanged** — no new fields, no removed fields, no status code changes
+- The existing `POST /api/v1/auth/register` and `POST /api/v1/auth/login` contracts in Sprint 1 remain fully authoritative
+- Frontend integration is unaffected — the cookie is set by the browser automatically; client-side code does not read the `secure` flag
+
+---
+
+### Schema Changes — Sprint 19
+
+**None.** No new tables, columns, or indexes are required for Sprint 19.
+
+- `GET /api/v1/care-actions/streak` (T-090): all streak computation is derived at query time from the existing `care_actions` table (specifically `created_at` timestamps and `user_id` via plant ownership join). No new columns or tables are needed.
+- T-087 auth cookie fix: no database changes.
+- No Knex migrations required this sprint.
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+*Sprint 19 contracts written by Backend Engineer — 2026-04-05. One new endpoint: GET /api/v1/care-actions/streak (T-090). T-087 is an internal cookie-flag fix — no contract change. Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*
