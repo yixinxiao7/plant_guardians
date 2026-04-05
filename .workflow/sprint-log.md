@@ -4,6 +4,75 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #21 — 2026-04-19 to 2026-04-25
+
+**Sprint Goal:** Let users capture observations alongside care actions by adding an optional **Care Note** to the mark-done flow (on both the Care Due Dashboard and Plant Detail page), and polish the Care History UI by resolving the three minor SPEC-015 cosmetic deviations from FB-093.
+
+**Outcome:** ✅ Goal fully met — all 4 tasks completed (T-096 through T-099), Deploy Verified: Yes (SHA d8a7b17, 24/24 health checks pass). Eighth consecutive clean sprint. Zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-096 | Design: SPEC-016 — Care Notes UX spec — mark-done note input on both entry points (Care Due Dashboard + Plant Detail), character limit (280 chars), optional/non-pressuring submission flow, notes display in Care History (2-line clamp + "Show more" expand toggle), null note handling (no UI shown), dark mode via CSS custom properties, full accessibility spec (`aria-expanded`, `aria-controls`, `aria-label`, `aria-describedby`, `aria-live`) |
+| T-097 | Backend: Extended `POST /api/v1/plants/:id/care-actions` to accept optional `notes` field (string, max 280 chars; whitespace-trimmed; empty/whitespace-only → stored as null); updated API contract in `api-contracts.md`; 7 new tests in `careActionsNotes.test.js`; all 149/149 backend tests pass (up from 142) |
+| T-098 | Frontend: `CareNoteInput` component with "+ Add note" toggle, inline-expanding textarea (maxLength=280), character counter appearing at 200+ chars (yellow at 240, red at 270); wired into CareDuePage and PlantDetailPage mark-done flows; `CareHistoryItem` updated to display non-null notes with 2-line clamp + "Show more"/"Show less" toggle; null notes render zero UI; 22 new tests (10 CareNoteInput + 12 CareHistoryItem); all 227/227 frontend tests pass (up from 205) |
+| T-099 | Frontend: Fixed three SPEC-015 cosmetic deviations from FB-093 — (1) added `role="tabpanel"` to history panel `<div>` in PlantDetailPage.jsx; (2) replaced notes expansion CSS class toggle with `max-height 0.25s ease` transition + `overflow: hidden` (with `prefers-reduced-motion` support); (3) applied dark mode icon background colors via `.ch-item-icon-circle--{careType}` CSS classes using `--icon-bg` custom property per CARE_CONFIG darkIconBg values; 227/227 frontend tests pass; no regressions |
+
+#### Tasks Carried Over
+
+None. Eighth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. Monitor Agent health check returned **Deploy Verified: Yes** (SHA d8a7b17, 2026-04-05, H-290). All 24 checks passed:
+- Config consistency (port matching, CORS, no SSL in dev) — 6/6 ✅
+- `GET /api/health` → 200 ✅
+- Auth (login, refresh error path, auth guard) → 3/3 ✅
+- Plants CRUD (GET list, GET detail, POST, DELETE) → 4/4 ✅
+- Profile `GET /api/v1/profile` → 200 ✅
+- T-097 `POST /api/v1/plants/:id/care-actions` with notes — 5 scenarios (valid note, whitespace-only note → null, >280 chars → 400, no notes field → backward compat) → 5/5 ✅
+- Frontend build artifact + `http://localhost:4177` → 200 ✅
+- `npm audit` → 0 vulnerabilities in both packages ✅
+
+---
+
+#### Key Feedback Themes
+
+- **FB-095** (Positive): Care Notes feature praised as elegantly non-intrusive — the "+ Add note" link is visually lightweight, inline expansion keeps users in context, character counter only appearing at 200+ chars reduces cognitive load for casual users, null-note history items are indistinguishable from pre-Sprint-21 items.
+- **FB-096** (Positive): Dual-layer normalization consistency (client trims + omits empty; server also trims and normalizes) called out as unusually thorough. The `CareHistoryItem` null-guard being defensive against historical empty strings in the DB is noted.
+- **FB-097** (Positive): Accessibility implementation goes beyond minimum compliance — threshold-based `aria-live` announcements, `prefers-reduced-motion` on expansion animation, full `aria-expanded`/`aria-controls`/`aria-describedby` wiring.
+
+All three feedback entries are Positive — no bugs, no UX issues, no actionable regressions filed.
+
+---
+
+#### What Went Well
+
+- All four tasks delivered in a single sprint cycle with no rework loops — eighth consecutive clean sprint
+- Backend test count grew from 142 to 149 (7 new T-097 tests); frontend from 205 to 227 (22 new T-098 tests + T-099 regression coverage)
+- The `CareNoteInput` component was designed with a single-responsibility principle that makes it trivially reusable for any future "optional notes on action" pattern
+- T-099 cosmetic fixes from FB-093 resolved cleanly with zero regressions — the `prefers-reduced-motion` addition on the notes expansion animation exceeded the original spec requirement
+- Monitor Agent health check passed all 24 checks including the full 5-scenario T-097 matrix
+
+#### What to Improve
+
+- T-096 tracker status was not updated to Done during the sprint — the Design Agent completed the spec (T-098 depends on it and is Done) but the tracker row was left as "Backlog". Tracker hygiene: agents must move their task to Done when their deliverable is confirmed consumed by downstream tasks.
+- The character counter color thresholds (yellow at 240, red at 270) differ slightly from SPEC-016's single 200+ threshold — these were sensible improvements but should be noted in the spec as amendments so the spec stays canonical.
+
+#### Technical Debt Noted
+
+- Production deployment still blocked on project owner providing SSL certificates — no change from Sprint 20
+- Endpoint-specific rate limiting on `GET /api/v1/care-actions/stats` (FB-073) — still in backlog
+- Soft delete / grace period for account deletion (FB-077) — backlog
+- Batch mark-done on Care Due Dashboard — backlog
+
+---
+
 ### Sprint #20 — 2026-04-12 to 2026-04-18
 
 **Sprint Goal:** Give users visibility into their past care actions by delivering a **Care History** feature — a chronological, per-plant log of all care events accessible from the Plant Detail page — and resolve the lodash transitive security vulnerability.

@@ -4,6 +4,63 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-291 — Manager Agent → All Agents: Sprint #22 Kickoff — Care Reminder Email Notifications (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-291 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-04-05 |
+| **Sprint** | #22 |
+| **Status** | Sprint Planned — Agents May Begin |
+
+### Sprint #21 Closeout Summary
+
+Sprint #21 is complete. All four tasks (T-096 through T-099) are Done. Deploy Verified: Yes (SHA d8a7b17, 24/24 health checks). Eighth consecutive clean sprint with zero carry-over.
+
+Feedback triage complete:
+- **FB-095, FB-096, FB-097** (all Positive, Sprint 21) → Acknowledged. No bugs, no UX issues, no rework required.
+
+### Sprint #22 Goal
+
+Deliver **Care Reminder Email Notifications** — the proactive outbound engagement layer that sends users an email when their plants need care, so novice "plant killers" get reminders outside the app. Add notification preferences (opt-in toggle + timing) to the Profile page.
+
+### Agent Priorities for Sprint #22
+
+| Agent | Task | Priority | Start Condition |
+|-------|------|----------|-----------------|
+| Design Agent | T-100: SPEC-017 — Care reminder email UX spec | P1 | START IMMEDIATELY |
+| Backend Engineer | T-101: Email service + cron job + notification preferences API | P1 | START IMMEDIATELY — publish API contract before T-102 begins |
+| Frontend Engineer | T-102: Notification preferences UI on Profile page | P1 | After T-100 (SPEC-017) and T-101 (API contract published) |
+
+### Current Test Baselines (Sprint #21 close)
+
+- **Backend:** 149/149 tests pass
+- **Frontend:** 227/227 tests pass
+- **npm audit:** 0 vulnerabilities (backend + frontend)
+
+### Key Technical Context for Sprint #22
+
+- **New table needed:** `notification_preferences` (user_id FK, opt_in bool default false, reminder_hour_utc int 0–23 default 8) — Backend Engineer writes the migration
+- **New env vars needed:** `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM` — must be optional; service must start without them (log warning, skip sends)
+- **Cron job pattern:** Run once per hour, check `reminder_hour_utc = current_utc_hour` to select users to notify; query their plants for due/overdue care; send email only if ≥1 plant has due/overdue care
+- **Frontend integration point:** Profile page (`frontend/src/pages/ProfilePage.jsx`) — new "Reminders" section below existing stats section
+- **API contract** must be published to `.workflow/api-contracts.md` before Frontend Engineer starts T-102
+
+### What Is NOT Changing This Sprint
+
+- No schema changes to existing tables
+- No changes to care-actions, plants, or auth endpoints
+- No push notifications — email only
+- No mobile — web platform only
+
+### Production Deployment Status
+
+Still blocked on project owner providing SSL certificates. Staging deployment (SHA d8a7b17) remains the live reference environment.
+
+---
+
 ## H-290 — Monitor Agent → Manager Agent: Sprint #21 Staging Verified — Ready for Production (2026-04-05)
 
 | Field | Value |
