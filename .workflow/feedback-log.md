@@ -20,6 +20,70 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-084 — QA: Positive — Search & Filter implementation is polished and user-friendly (Sprint 18)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-084 |
+| **Source** | QA Engineer |
+| **Sprint** | 18 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | The plant inventory search and filter feature (T-083/T-084) is well-executed. The 300ms debounce on search feels responsive without being wasteful. The status filter tabs use semantically meaningful colors (red for overdue, yellow for due today, green for on track) that are consistent with the Care Due Dashboard palette. All three empty state variants (search-only, filter-only, combined) provide clear, friendly messages with actionable CTAs. The `aria-live` region for result count updates is a nice accessibility touch. The combined AND logic for search + filter is intuitive. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-085 — QA: Positive — Focus management after mark-done is best-in-class accessibility (Sprint 18)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-085 |
+| **Source** | QA Engineer |
+| **Sprint** | 18 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | The Care Due focus management (T-086) goes above and beyond. The decision tree — next sibling → next section → earlier section → all-clear CTA — handles every edge case. The `prefers-reduced-motion` respect is exemplary. The 300ms fade-out animation with transitionend listener (plus 350ms fallback timeout) is robust. Ref cleanup after removal prevents stale focus targets. This is production-quality keyboard accessibility. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-086 — QA: UX Issue — PlantSearchFilter uses hardcoded color values in status tab active styles (Sprint 18)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-086 |
+| **Source** | QA Engineer |
+| **Sprint** | 18 |
+| **Date** | 2026-04-05 |
+| **Category** | UX Issue |
+| **Severity** | Minor |
+| **Description** | `PlantSearchFilter.jsx` lines 18-34 define `ACTIVE_STYLES` with hardcoded hex colors (`#FAEAE4`, `#B85C38`, `#FDF4E3`, `#C4921F`, `#E8F4EC`, `#4A7C59`) for the status filter tab active states. These are the same semantic colors used in `CareDuePage.jsx` section config. While both files are consistent with each other, neither uses CSS custom properties from the design system. For dark mode resilience and consistency, these should migrate to design tokens in a future sprint — similar to how T-085 migrated ProfilePage icons. |
+| **Steps to Reproduce** | View PlantSearchFilter.jsx ACTIVE_STYLES constant and CareDuePage.jsx SECTION_CONFIG / CARE_TYPE_CONFIG. |
+| **Expected vs Actual** | Expected: status colors defined as CSS custom properties. Actual: hardcoded hex values. |
+| **Status** | New |
+
+---
+
+## FB-087 — QA: Observation — auth.test.js pre-existing Secure cookie failure should be fixed (Sprint 18)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-087 |
+| **Source** | QA Engineer |
+| **Sprint** | 18 |
+| **Date** | 2026-04-05 |
+| **Category** | Bug |
+| **Severity** | Minor |
+| **Description** | `auth.test.js` test "should register a new user, return access_token in body and refresh_token in cookie" fails because it expects the `Secure` flag on the refresh_token cookie. In NODE_ENV=test (non-HTTPS), the cookie correctly omits `Secure`. The test assertion is overly strict for the dev/test environment. This has been a pre-existing failure for multiple sprints and should be fixed — either conditionally assert `Secure` only when NODE_ENV=production, or set NODE_ENV-aware cookie options in the auth route. |
+| **Steps to Reproduce** | Run `cd backend && npm test` — auth.test.js line 45 fails. |
+| **Expected vs Actual** | Expected: All tests pass in test environment. Actual: 1 test fails checking for `Secure` flag absent in non-HTTPS context. |
+| **Status** | New |
+
+---
+
 ## FB-073 — QA: Stats endpoint lacks endpoint-specific rate limiting
 
 | Field | Value |
