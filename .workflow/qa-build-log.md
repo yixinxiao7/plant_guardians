@@ -1289,3 +1289,53 @@ Confirmed healthy: `GET /api/v1/plants` returned 4 real rows from the staging da
 **Deploy Verified: Yes**
 **All 14 checks passed. Sprint 17 staging environment is healthy. T-081 → Done.**
 
+---
+
+## Sprint #18 — Post-Deploy Health Check
+**Date:** 2026-04-05
+**Environment:** Staging
+**Performed By:** Monitor Agent
+
+### Config Consistency Check
+
+- **Port match** (backend .env PORT vs Vite proxy target port): PASS — backend PORT=3000; Vite proxy target=http://localhost:3000 (port 3000). Match confirmed.
+- **Protocol match** (SSL config vs Vite proxy protocol): PASS — SSL_KEY_PATH and SSL_CERT_PATH are not set in backend/.env; backend serves HTTP. Vite proxy target uses `http://` (not `https://`). Consistent.
+- **CORS match** (CORS_ORIGIN includes frontend dev server): PASS — FRONTEND_URL=`http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175`. Includes http://localhost:5173 (Vite default dev port) and http://localhost:4175 (active preview server). All expected origins covered.
+- **Docker port match**: N/A — docker-compose.yml defines only PostgreSQL containers (ports 5432/5433). No backend or frontend app containers are defined. No mismatch possible.
+
+**Config Consistency Result:** PASS
+
+### Health Checks
+**Token:** acquired via POST /api/v1/auth/login with test@plantguardians.local — HTTP 200, access_token extracted successfully.
+
+**Note on health endpoint:** The actual health endpoint is `GET /api/health` (returns 200 `{"status":"ok","timestamp":"..."}`). `GET /api/v1/health` returns 404 (no route registered under `/api/v1/health`). This is consistent with prior sprint Monitor checks and is a known characteristic of the app — the health route is mounted outside the `/api/v1/` prefix.
+
+| Check | Result | Details |
+|-------|--------|---------|
+| App responds (GET /api/health → 200) | PASS | HTTP 200, body: `{"status":"ok","timestamp":"2026-04-05T16:55:23.254Z"}` |
+| GET /api/v1/health (versioned path) | INFO | HTTP 404 — route not registered at this path; actual health endpoint is /api/health (consistent with prior sprints) |
+| Auth works (POST /api/v1/auth/login → 200) | PASS | HTTP 200, access_token and user object returned |
+| GET /api/v1/plants (authenticated) | PASS | HTTP 200, paginated plant list returned |
+| GET /api/v1/plants (no auth) | PASS | HTTP 401 UNAUTHORIZED — auth enforcement confirmed |
+| GET /api/v1/plants?search=pothos (T-083) | PASS | HTTP 200, returns plants whose name contains "pothos" (case-insensitive) |
+| GET /api/v1/plants?status=overdue (T-083) | PASS | HTTP 200, filter applied correctly |
+| GET /api/v1/plants?status=on_track (T-083) | PASS | HTTP 200, filter applied correctly |
+| GET /api/v1/plants?search=pothos&status=on_track (T-083 combined) | PASS | HTTP 200, both params applied simultaneously |
+| GET /api/v1/plants?status=invalid (validation) | PASS | HTTP 400, body: `{"error":{"message":"status must be one of: overdue, due_today, on_track.","code":"VALIDATION_ERROR"}}` |
+| GET /api/v1/plants/:id (plant detail) | PASS | HTTP 200, full plant object with care_schedules returned |
+| POST /api/v1/plants/:id/care-actions | PASS | HTTP 201, care action created successfully |
+| GET /api/v1/care-actions (care history) | PASS | HTTP 200, care actions list returned |
+| GET /api/v1/care-actions/stats | PASS | HTTP 200 |
+| GET /api/v1/care-due | PASS | HTTP 200, care due dashboard data returned |
+| GET /api/v1/profile | PASS | HTTP 200, user profile with stats returned |
+| POST /api/v1/ai/advice (authenticated) | PASS | HTTP 200 |
+| POST /api/v1/ai/advice (no auth) | PASS | HTTP 401 UNAUTHORIZED — auth enforcement confirmed |
+| DELETE /api/v1/account (auth, no password body) | PASS | HTTP 400 VALIDATION_ERROR (password required) — correct behavior |
+| POST /api/v1/auth/refresh (no token) | PASS | HTTP 401 INVALID_REFRESH_TOKEN — correct rejection |
+| Frontend build exists (frontend/dist/) | PASS | dist/ directory present with index.html, assets/, favicon.svg, icons.svg |
+| Frontend preview server accessible (port 4175) | PASS | HTTP 200 |
+
+### Summary
+**Deploy Verified:** Yes
+**Error Summary:** No failures. All endpoints responded correctly. Config consistency validated across all four checks. Sprint 18 T-083 search/filter backend endpoints confirmed live and functioning (search, status filter, combined filter, validation error on invalid status). Frontend production build present and preview server serving on port 4175.
+

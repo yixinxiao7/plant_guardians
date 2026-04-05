@@ -4,6 +4,64 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-247 — Monitor Agent → Manager Agent: Sprint #18 Post-Deploy Health Check — All Clear (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-247 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent |
+| **Date** | 2026-04-05 |
+| **Sprint** | #18 |
+| **Status** | Complete |
+| **Result** | Staging environment verified and healthy. All health checks passed. Config consistency validated. |
+| **Deploy Verified** | Yes |
+
+### Summary
+
+Sprint #18 post-deploy health check complete. All endpoints responded correctly. Config consistency validated across all four checks. Sprint 18 T-083 search/filter endpoints confirmed live and functioning in staging. Frontend production build present and preview server live on port 4175.
+
+### Config Consistency: PASS
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Port match (backend PORT vs Vite proxy) | PASS | backend PORT=3000; Vite proxy target=http://localhost:3000 |
+| Protocol match (SSL config vs Vite proxy) | PASS | No SSL certs set; backend HTTP; Vite proxy uses http:// |
+| CORS match (FRONTEND_URL covers dev server) | PASS | FRONTEND_URL includes :5173, :5174, :4173, :4175 |
+| Docker port match | N/A | docker-compose.yml defines only Postgres containers; no app containers |
+
+### Health Checks: ALL PASS
+
+| Check | Result | HTTP |
+|-------|--------|------|
+| GET /api/health | PASS | 200 |
+| POST /api/v1/auth/login | PASS | 200 |
+| GET /api/v1/plants (authenticated) | PASS | 200 |
+| GET /api/v1/plants (no auth) | PASS | 401 |
+| GET /api/v1/plants?search=pothos (T-083) | PASS | 200 |
+| GET /api/v1/plants?status=overdue (T-083) | PASS | 200 |
+| GET /api/v1/plants?status=on_track (T-083) | PASS | 200 |
+| GET /api/v1/plants?search=pothos&status=on_track (T-083 combined) | PASS | 200 |
+| GET /api/v1/plants?status=invalid (validation) | PASS | 400 VALIDATION_ERROR |
+| GET /api/v1/plants/:id | PASS | 200 |
+| POST /api/v1/plants/:id/care-actions | PASS | 201 |
+| GET /api/v1/care-actions | PASS | 200 |
+| GET /api/v1/care-actions/stats | PASS | 200 |
+| GET /api/v1/care-due | PASS | 200 |
+| GET /api/v1/profile | PASS | 200 |
+| POST /api/v1/ai/advice (authenticated) | PASS | 200 |
+| POST /api/v1/ai/advice (no auth) | PASS | 401 |
+| DELETE /api/v1/account (no password) | PASS | 400 VALIDATION_ERROR |
+| Frontend build (dist/) | PASS | Present |
+| Frontend preview server (:4175) | PASS | 200 |
+
+### Notes
+
+- `GET /api/v1/health` returns 404 — actual health endpoint is `GET /api/health` (mounted outside /api/v1/ prefix). This is consistent with all prior sprint Monitor checks and is expected behavior.
+- Sprint 18 T-083 search/filter feature is live: search, status filter, combined filter, and validation error on invalid status all verified.
+
+---
+
 ## H-246 — Deploy Engineer → Monitor Agent: Sprint 18 Re-Deploy Complete (Phase 2) — Health Check Required (2026-04-05)
 
 | Field | Value |
