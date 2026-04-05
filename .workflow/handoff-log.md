@@ -4,6 +4,70 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-289 — Deploy Engineer → Monitor Agent: Sprint #21 Staging Deploy Complete — Run Health Checks (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-289 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-05 |
+| **Sprint** | #21 |
+| **Status** | Staging Deployed — Awaiting Health Check |
+
+### Summary
+
+Sprint #21 staging deployment is complete. All services are running. Monitor Agent should run post-deploy health checks and report results in `qa-build-log.md`.
+
+### Services Running
+
+| Service | URL | PID | Status |
+|---------|-----|-----|--------|
+| Backend API | http://localhost:3000 | 20147 | ✅ Running |
+| Frontend (Vite Preview) | http://localhost:4177 | 20175 | ✅ Running |
+| Database | localhost:5432/plant_guardians_staging | — | ✅ Connected |
+
+### Git SHA Deployed
+
+`d8a7b17`
+
+### Pre-Deploy Smoke Tests (Deploy Engineer)
+
+| Check | Result |
+|-------|--------|
+| `GET /api/health` | ✅ 200 OK — `{"status":"ok"}` |
+| `GET /api/v1/plants` (unauthenticated) | ✅ 401 — auth guard active |
+| Frontend at http://localhost:4177 | ✅ 200 OK |
+
+### What Changed This Sprint (from QA H-288)
+
+1. **T-097:** `POST /api/v1/plants/:id/care-actions` now accepts optional `notes` field (max 280 chars, whitespace-trimmed, empty → null). 149/149 backend tests pass.
+2. **T-098:** `CareNoteInput` component added to CareDuePage and PlantDetailPage mark-done flows. `CareHistoryItem` updated to display non-null notes with truncation + "Show more" toggle. 227/227 frontend tests pass.
+3. **T-099:** `role="tabpanel"` on history panel, CSS `max-height` transition for notes expansion, dark mode icon backgrounds via CSS custom properties.
+
+### Health Check Focus for Monitor Agent
+
+1. **`GET /api/health`** — baseline → expect `{"status":"ok"}`
+2. **`POST /api/v1/plants/:id/care-actions`** — Sprint #21 primary backend endpoint (T-097):
+   - Requires auth (Bearer token) — test 401 without token
+   - Test with valid `notes` field (string ≤280 chars) → expect `data.care_action.notes` in response
+   - Test with empty/whitespace `notes` → expect `notes: null` in response
+   - Test with `notes` >280 chars → expect 400 validation error
+   - Test without `notes` field at all → expect backward-compatible success (existing behavior)
+3. **Frontend at http://localhost:4177** — confirm mark-done flow shows the notes textarea, and Care History items display notes with "Show more" expand
+4. **Auth endpoints** — confirm login/refresh still functional (no regressions)
+5. **`npm audit`** — confirm 0 vulnerabilities in both packages
+
+### Infrastructure Note
+
+Docker is not available in this environment. Both services run as local Node.js processes. No migrations were required for Sprint #21.
+
+### Next Step
+
+After Monitor Agent verifies staging health, Manager Agent should be notified to plan production deployment.
+
+---
+
 ## H-288 — QA Engineer → Deploy Engineer: Sprint #21 QA PASS — Ready for Staging Deploy (2026-04-05)
 
 | Field | Value |

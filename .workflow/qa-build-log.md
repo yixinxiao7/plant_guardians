@@ -4,6 +4,75 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 21 — Deploy Engineer: Staging Build & Deploy (2026-04-05)
+
+**Date:** 2026-04-05
+**Agent:** Deploy Engineer
+**Sprint:** #21
+**Git SHA:** d8a7b17
+**Environment:** Staging (local Node.js processes — Docker not available in this environment)
+
+### Pre-Deploy Gate Check
+
+| Check | Result |
+|-------|--------|
+| QA Sign-off (H-288) | ✅ PASS — All T-097, T-098, T-099 Done |
+| Pending Migrations | ✅ None — No schema changes in Sprint #21 |
+| Sprint Tasks Done | ✅ T-097 Done, T-098 Done, T-099 Done |
+
+### Dependency Install
+
+| Package | Result |
+|---------|--------|
+| `backend/ npm install` | ✅ Success — 0 vulnerabilities |
+| `frontend/ npm install` | ✅ Success — 0 vulnerabilities |
+
+### Frontend Build
+
+| Step | Result |
+|------|--------|
+| `frontend/ npm run build` | ✅ Success |
+| Build output | `dist/assets/index-qg4qA6QZ.js` (445.38 kB / 127.09 kB gzip) |
+| CSS output | `dist/assets/index-BK0oV7hZ.css` (78.95 kB / 12.62 kB gzip) |
+| Build time | 336ms |
+| Errors | None |
+
+### Database Migrations
+
+| Step | Result |
+|------|--------|
+| `backend/ npm run migrate` | ✅ Already up to date — all 5 Sprint 1 migrations applied |
+| New migrations this sprint | None (T-097 required no schema changes) |
+
+### Staging Service Status
+
+| Component | URL | PID | Status |
+|-----------|-----|-----|--------|
+| Backend (Express API) | http://localhost:3000 | 20147 | ✅ Running |
+| Frontend (Vite Preview) | http://localhost:4177 | 20175 | ✅ Running |
+| Database | localhost:5432/plant_guardians_staging | — | ✅ Connected |
+
+### Smoke Tests (Deploy Engineer)
+
+| Check | Result |
+|-------|--------|
+| `GET /api/health` | ✅ 200 OK — `{"status":"ok"}` |
+| `GET /api/v1/plants` (no auth) | ✅ 401 Unauthorized — auth guard working |
+| Frontend at http://localhost:4177 | ✅ 200 OK |
+
+### Infrastructure Note
+
+Docker is not available in this environment. Services run as local Node.js processes:
+- Backend: `npm start` in `backend/` (port 3000)
+- Frontend: `npx vite preview` in `frontend/` (port 4177 — 4173–4176 in use from prior sprints)
+
+### Build Status: ✅ SUCCESS
+### Deploy Status: ✅ STAGING DEPLOYED
+
+Handoff H-289 sent to Monitor Agent for post-deploy health checks.
+
+---
+
 ## Sprint 21 — QA Engineer: Full QA Verification (2026-04-05)
 
 **Date:** 2026-04-05
