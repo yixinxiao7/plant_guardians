@@ -4,6 +4,67 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-287 — Manager → QA Engineer: T-097, T-098, T-099 Code Review PASS — Ready for Integration Testing (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-287 |
+| **From** | Manager |
+| **To** | QA Engineer |
+| **Sprint** | #21 |
+| **Status** | Integration Check — Ready for QA |
+
+### Summary
+
+All three Sprint 21 tasks have passed code review and moved to **Integration Check** status. QA Engineer should now verify end-to-end integration, run the security checklist, and perform product-perspective testing.
+
+### T-097 — Backend: Notes field on POST /care-actions (Backend Engineer)
+
+**Review findings:** PASS — No issues found.
+- Input validation is thorough: type check, whitespace trim, empty→null normalization, 280 char max enforcement
+- Parameterized queries via Knex — no SQL injection risk
+- Auth middleware + plant ownership check in place
+- Structured error responses (no stack traces or internal paths leaked)
+- Response correctly aliases DB column `note` → API field `notes`
+- 7 new tests in `careActionsNotes.test.js` covering: valid note (trimmed), omitted (backward compat), whitespace-only→null, empty→null, >280 rejected, exact 280 accepted, explicit null→null
+- 149/149 backend tests pass
+
+**Files changed:** `backend/src/routes/careActions.js`, `backend/tests/careActionsNotes.test.js`
+
+### T-098 — Frontend: Care Notes UI (Frontend Engineer)
+
+**Review findings:** PASS — No issues found.
+- CareNoteInput component matches SPEC-016: toggle button, textarea with maxLength=280, character counter at 200+ (yellow@240, red@270)
+- Full accessibility: `aria-expanded`, `aria-controls`, `aria-label`, `aria-describedby`, focus management
+- CareHistoryItem correctly renders zero UI for null/empty/whitespace notes; shows inline note with 2-line clamp + "Show more"/"Show less" for overflow
+- API client (`api.js`) trims notes client-side and only sends non-empty values
+- No XSS risk (React JSX auto-escapes)
+- 22 new tests (10 CareNoteInput, 12 CareHistoryItem)
+- 227/227 frontend tests pass
+
+**Files changed:** `CareNoteInput.jsx/css`, `CareHistoryItem.jsx`, `CareDuePage.jsx`, `PlantDetailPage.jsx`, `api.js`, plus test files
+
+### T-099 — Frontend: SPEC-015 Cosmetic Fixes (Frontend Engineer)
+
+**Review findings:** PASS — No issues found.
+- (1) `role="tabpanel"` correctly added to history panel `<div>` in PlantDetailPage.jsx
+- (2) Notes expansion uses `max-height 0.25s ease` CSS transition with `overflow: hidden`; respects `prefers-reduced-motion: reduce`
+- (3) Dark mode icon backgrounds applied via `[data-theme="dark"] .ch-item-icon-circle--{careType}` CSS rules overriding `--icon-bg` custom property
+- 227/227 frontend tests pass — no regressions
+
+**Files changed:** `PlantDetailPage.jsx`, `CareHistorySection.css`, `CareHistoryItem.jsx`
+
+### QA Focus Areas
+
+1. **Integration test:** Mark a care action done with a note → verify note persists and displays in care history
+2. **Edge cases:** Empty note, whitespace-only note, exactly 280 chars, >280 chars (should be blocked by both client and server)
+3. **Backward compat:** Mark done without a note → verify existing flow unchanged, no note UI in history
+4. **Dark mode:** Verify icon background colors in care history items
+5. **Accessibility:** Keyboard navigation through note toggle → textarea → submit; screen reader announces character counter thresholds
+6. **Security checklist:** Verify all applicable items before moving to Done
+
+---
+
 ## H-286 — Frontend Engineer → QA Engineer: T-098 & T-099 Implementation Complete — Ready for QA (2026-04-05)
 
 | Field | Value |
