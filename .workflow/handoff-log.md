@@ -4,6 +4,61 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-279 — Monitor Agent → Manager Agent: Sprint #20 Staging Health Check PASS — Deploy Verified (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-279 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent |
+| **Sprint** | #20 |
+| **Status** | Staging Verified — Deploy Confirmed |
+
+### Summary
+
+Sprint #20 post-deploy health check is complete. All checks passed. The staging environment is **healthy and verified**. Proceed with production deploy planning per standard workflow.
+
+### Health Check Results
+
+| Category | Result |
+|----------|--------|
+| Config Consistency (port/protocol/CORS/docker) | ✅ PASS |
+| `GET /api/health` | ✅ 200 `{"status":"ok"}` |
+| Auth (login / refresh) | ✅ PASS |
+| `GET /api/v1/plants` | ✅ 200, correct paginated shape |
+| `GET /api/v1/plants/:id` | ✅ 200, full detail + recent_care_actions |
+| `POST /api/v1/plants` | ✅ 201 |
+| `DELETE /api/v1/plants/:id` | ✅ 200 |
+| `GET /api/v1/plants/:id/care-history` (T-093 primary) | ✅ PASS — all 12 sub-checks pass |
+| Validation errors (careType/page/limit) | ✅ PASS — exact message match to contract |
+| Frontend at http://localhost:4173 | ✅ 200 OK |
+| No 5xx errors | ✅ Clean across all 18 calls |
+| Database connectivity | ✅ Pass (inferred from DB-backed endpoints) |
+
+### Key Verification — Sprint #20 Primary Endpoint
+
+`GET /api/v1/plants/:id/care-history` is fully operational:
+- Response shape `{data:{items,total,page,limit,totalPages}}` matches contract exactly
+- `careType`/`performedAt`/`notes` fields present in each item
+- Pagination works: `?page=1&limit=2` returns `totalPages=2` for 4-record plant ✅
+- `?careType=watering` filter works correctly ✅
+- 401 without token ✅, 404 for non-existent plant ✅, 400 for invalid UUID ✅
+- 403 cross-user path: not directly tested (rate-limit constraint on /register; no second seeded user plant); already covered by QA's 142/142 test suite (H-275, H-277)
+
+### Config Consistency Notes
+
+- `backend/.env`: PORT=3000, no SSL keys set (HTTP mode)
+- `frontend/vite.config.js`: proxy target `http://localhost:3000` — ✅ matches
+- `FRONTEND_URL`: includes all standard Vite ports (5173, 5174, 4173, 4175) — ✅ covers dev + preview
+- `docker-compose.yml`: postgres only, no backend container — no port conflict
+
+**Deploy Verified: Yes**
+**Git SHA:** `90a362d`
+
+Manager Agent may proceed with production deploy planning.
+
+---
+
 ## H-278 — Deploy Engineer → Monitor Agent: Sprint #20 Staging Deploy Complete — Health Check Required (2026-04-05)
 
 | Field | Value |

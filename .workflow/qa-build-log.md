@@ -4,6 +4,103 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 20 — Monitor Agent: Post-Deploy Health Check (2026-04-05)
+
+**Date:** 2026-04-05T19:47:xx UTC
+**Agent:** Monitor Agent
+**Sprint:** #20
+**Git SHA:** `90a362d`
+**Environment:** Staging (local)
+**Deploy Reference:** H-278 (Deploy Engineer → Monitor Agent)
+
+---
+
+### Test Type: Config Consistency
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Backend PORT | — | `3000` (from `backend/.env`) | ✅ |
+| SSL_KEY_PATH | — | Not set | ✅ HTTP mode |
+| SSL_CERT_PATH | — | Not set | ✅ HTTP mode |
+| CORS / FRONTEND_URL | Includes `http://localhost:5173` | `http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` | ✅ PASS |
+| Vite proxy target | `http://localhost:3000` (PORT match, HTTP) | `http://localhost:3000` | ✅ PORT match |
+| Protocol match | No SSL → both use `http://` | Vite proxy uses `http://` ✅ | ✅ PASS |
+| Docker port mapping | N/A — `docker-compose.yml` has no backend container (only postgres) | Postgres only: `${POSTGRES_PORT:-5432}:5432` | ✅ No conflict |
+
+**Config Consistency Result: PASS** — No mismatches detected. All three layers (backend, Vite proxy, CORS) are aligned.
+
+---
+
+### Test Type: Post-Deploy Health Check
+
+**Token acquisition:** `POST /api/v1/auth/login` with `test@plantguardians.local` / `TestPass123!`
+**Token status:** ✅ 200 OK — `access_token` returned (user ID: `51b28759-2987-47b3-8562-21eb443f232e`)
+**Note:** Login used (NOT /register) to preserve rate-limit quota per T-226 instructions.
+
+#### Baseline Checks
+
+| Check | Endpoint | Expected | Actual | Result |
+|-------|----------|----------|--------|--------|
+| App responds | `GET /api/health` | 200 `{status: ok}` | 200 `{"status":"ok","timestamp":"2026-04-05T19:46:54.791Z"}` | ✅ PASS |
+| Auth — login | `POST /api/v1/auth/login` | 200 + access_token | 200 + access_token | ✅ PASS |
+| Auth — refresh (error path) | `POST /api/v1/auth/refresh` (invalid token) | 401 INVALID_REFRESH_TOKEN | 401 `{"error":{"message":"Refresh token is invalid, expired, or already used.","code":"INVALID_REFRESH_TOKEN"}}` | ✅ PASS |
+| Frontend accessible | `GET http://localhost:4173` | 200 OK | 200 OK | ✅ PASS |
+| Frontend dist/ exists | `frontend/dist/index.html` | Present | Present (4643 modules, 1507 bytes) | ✅ PASS |
+| Database connected | Inferred from /api/health + plants query | No error | 200 on all DB-backed endpoints | ✅ PASS |
+
+#### API Endpoint Checks
+
+| Check | Endpoint | Expected | Actual | Result |
+|-------|----------|----------|--------|--------|
+| GET plants list | `GET /api/v1/plants` | 200, paginated | 200 `{"data":[...],"pagination":{"page":1,"limit":50,"total":4}}` | ✅ PASS |
+| GET single plant | `GET /api/v1/plants/:id` | 200, care_schedules + recent_care_actions | 200, shape matches contract | ✅ PASS |
+| POST plant | `POST /api/v1/plants` | 201, plant object | 201 `{"data":{"id":"...","name":"Monitor Health Check Plant Sprint 20",...}}` | ✅ PASS |
+| DELETE plant | `DELETE /api/v1/plants/:id` | 200, confirmation | 200 `{"data":{"message":"Plant deleted successfully.","id":"..."}}` | ✅ PASS |
+
+#### Sprint #20 Primary Endpoint: `GET /api/v1/plants/:id/care-history`
+
+| Check | Input | Expected | Actual | Result |
+|-------|-------|----------|--------|--------|
+| Auth guard | No `Authorization` header | 401 UNAUTHORIZED | 401 `{"error":{"message":"Missing or invalid authorization header.","code":"UNAUTHORIZED"}}` | ✅ PASS |
+| Invalid UUID | `:id = 00000000-0000-0000-0000-000000000001` (not v4) | 400 VALIDATION_ERROR | 400 `{"error":{"message":"id must be a valid UUID.","code":"VALIDATION_ERROR"}}` | ✅ PASS |
+| Non-existent plant | `:id = a1b2c3d4-e5f6-4789-abcd-ef1234567890` | 404 NOT_FOUND | 404 `{"error":{"message":"Plant not found.","code":"NOT_FOUND"}}` | ✅ PASS |
+| Happy path (empty) | plant with no care records | 200, `items:[], total:0` | 200 `{"data":{"items":[],"total":0,"page":1,"limit":20,"totalPages":0}}` | ✅ PASS |
+| Happy path (with data) | plant with 4 watering records | 200, items array, correct shape | 200 — 4 items, `careType`/`performedAt`/`notes` fields present, newest first | ✅ PASS |
+| Response shape | — | `{data:{items,total,page,limit,totalPages}}` | Exact match | ✅ PASS |
+| careType filter | `?careType=watering` | 200, filtered results | 200 — 4 watering records returned, 0 other types | ✅ PASS |
+| Pagination | `?page=1&limit=2` | 200, 2 items, totalPages=2 | 200 — 2 items, `total:4`, `totalPages:2`, `limit:2` | ✅ PASS |
+| Invalid careType | `?careType=pruning` | 400 `careType must be one of: watering, fertilizing, repotting` | 400 — exact message match | ✅ PASS |
+| limit out of range (low) | `?limit=0` | 400 `limit must be an integer between 1 and 100` | 400 — exact message match | ✅ PASS |
+| limit out of range (high) | `?limit=101` | 400 `limit must be an integer between 1 and 100` | 400 — exact message match | ✅ PASS |
+| page out of range | `?page=0` | 400 `page must be a positive integer` | 400 — exact message match | ✅ PASS |
+| 403 cross-user check | Plant belonging to a different user | 403 FORBIDDEN | ⚠️ NOT TESTED — No second-user plant in staging DB; cannot register (rate-limit preservation per T-226). All other auth/ownership paths verified. QA confirmed implementation in H-275/H-277. | ⚠️ SKIPPED |
+
+#### 5xx Error Check
+
+No 5xx errors observed across all 18 endpoint calls. All responses were either expected 2xx, 4xx, or appropriate error shapes.
+
+---
+
+### Summary
+
+| Category | Result |
+|----------|--------|
+| Config Consistency | ✅ PASS |
+| App responds (health) | ✅ PASS |
+| Authentication | ✅ PASS |
+| Plants CRUD | ✅ PASS |
+| `GET /api/v1/plants/:id/care-history` (Sprint #20) | ✅ PASS (403 cross-user skipped — rate-limit preservation) |
+| Validation error handling | ✅ PASS — all 4 error cases exact message match |
+| Frontend accessible | ✅ PASS |
+| No 5xx errors | ✅ PASS |
+| Database connectivity | ✅ PASS |
+
+**Deploy Verified: Yes**
+
+All checks pass. The 403 cross-user scenario was not directly tested due to the absence of a second seeded user's plant in the staging database and the rate-limit constraint on `/register`. This gap was already covered by QA Engineer's test suite (H-275, H-277) — 142/142 backend tests pass including T-093's 7 error-path tests.
+
+---
+
 ## Sprint 20 — Deploy Engineer: Staging Build & Deploy (2026-04-05)
 
 **Date:** 2026-04-05
