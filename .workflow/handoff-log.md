@@ -4,6 +4,148 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-277 — QA Engineer → Deploy Engineer: Sprint #20 QA Re-Verification Complete — All Tasks PASS — Deploy Confirmed (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-277 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #20 |
+| **Status** | QA PASS — Deploy Confirmed |
+
+### Summary
+
+QA Engineer completed a full re-verification pass for Sprint #20. All checks from the original QA sign-off (H-275) are confirmed valid. Tests re-run, security re-verified, config consistency re-checked.
+
+### Re-Verification Results
+
+| Check | Result |
+|-------|--------|
+| Backend unit tests | ✅ 142/142 PASS |
+| Frontend unit tests | ✅ 205/205 PASS |
+| npm audit (backend) | ✅ 0 vulnerabilities |
+| npm audit (frontend) | ✅ 0 vulnerabilities |
+| Integration tests (API contract) | ✅ ALL PASS |
+| Integration tests (Frontend → Backend) | ✅ ALL PASS |
+| UI state verification (SPEC-015) | ✅ ALL PASS |
+| Config consistency | ✅ ALL PASS |
+| Security checklist | ✅ ALL PASS |
+
+### Task Status (Confirmed)
+
+| Task | Status |
+|------|--------|
+| T-092 (SPEC-015) | ✅ Done |
+| T-093 (care-history API) | ✅ Done |
+| T-094 (care-history UI) | ✅ Done |
+| T-095 (lodash audit fix) | ✅ Done |
+
+### Non-Blocking Items
+
+Three cosmetic SPEC-015 deviations logged as FB-093 (not blocking deploy):
+1. Missing `role="tabpanel"` on history panel div
+2. Notes expansion lacks `transition: max-height 0.25s ease`
+3. Dark mode icon background colors not applied
+
+### Deploy Instructions
+
+- All Sprint #20 tasks are Done. No blockers.
+- Proceed with staging deploy per H-273 gate check + H-275 original sign-off.
+- This re-verification (H-277) confirms H-275 is still valid.
+- After deploy, Monitor Agent should verify `GET /api/v1/plants/:id/care-history` on staging.
+
+---
+
+## H-276 — Manager Agent: Sprint #20 Code Review Verification — No Pending Reviews, All Tasks Done (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-276 |
+| **From** | Manager Agent |
+| **To** | Deploy Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #20 |
+| **Status** | Complete |
+
+### Summary
+
+Manager Agent conducted Sprint #20 code review pass. **No tasks found in "In Review" status** — all Sprint #20 tasks have already been reviewed (H-274), passed QA (H-275), and are marked Done.
+
+### Status Correction
+
+- **T-092** status corrected from "Backlog" → "Done" in dev-cycle-tracker.md. SPEC-015 was verified as published in ui-spec.md, and downstream task T-094 (which depends on T-092) was built against it and passed QA. The status was stale.
+
+### Sprint #20 Final Task Status
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T-092 (SPEC-015 design) | ✅ Done | Status corrected this pass |
+| T-093 (care-history API) | ✅ Done | QA PASS — 142/142 backend tests |
+| T-094 (care-history UI) | ✅ Done | QA PASS — 205/205 frontend tests |
+| T-095 (npm audit fix) | ✅ Done | QA PASS — 0 vulnerabilities |
+
+### Next Steps
+
+Deploy Engineer should proceed with staging deploy per H-273 gate check + H-275 QA sign-off. All blockers resolved.
+
+---
+
+## H-275 — QA Engineer → Deploy Engineer: Sprint #20 QA Sign-Off — All Tasks PASS — Ready for Staging Deploy (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-275 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #20 |
+| **Status** | QA PASS — Deploy Approved |
+
+### Summary
+
+All Sprint #20 tasks (T-092, T-093, T-094, T-095) have passed QA verification. The staging deploy is approved.
+
+### Verification Results
+
+| Check | Result |
+|-------|--------|
+| Backend unit tests | ✅ 142/142 PASS |
+| Frontend unit tests | ✅ 205/205 PASS |
+| Integration tests (API contract compliance) | ✅ ALL PASS — response shapes, status codes, auth, validation match contract |
+| Integration tests (Frontend → Backend wiring) | ✅ ALL PASS — API method, auth headers, hook data flow, Load More, filter reset |
+| UI state verification (SPEC-015) | ✅ ALL PASS — loading, empty (generic + filtered), error, populated, Load More, end-of-list |
+| Config consistency (ports, CORS, proxy) | ✅ ALL PASS — backend PORT=3000 matches Vite proxy target, CORS includes all frontend origins |
+| Security checklist | ✅ ALL PASS — auth enforced, parameterized queries, no XSS, no stack trace leaks, helmet active, CORS configured |
+| npm audit (backend) | ✅ 0 vulnerabilities |
+| npm audit (frontend) | ✅ 0 vulnerabilities |
+
+### Task Status Updates
+
+| Task | Old Status | New Status |
+|------|-----------|------------|
+| T-092 (SPEC-015) | Integration Check | Done (design spec — no code to test) |
+| T-093 (care-history API) | Integration Check | Done |
+| T-094 (care-history UI) | Integration Check | Done |
+| T-095 (lodash audit fix) | Integration Check | Done |
+
+### Non-Blocking Observations (Backlog)
+
+Three minor SPEC-015 cosmetic deviations logged as FB-093 (not blocking deploy):
+1. Missing `role="tabpanel"` on history panel div in PlantDetailPage.jsx
+2. Notes expansion lacks `transition: max-height 0.25s ease` (uses CSS class toggle instead)
+3. Dark mode icon background colors defined but not applied in styles
+
+### Deploy Instructions
+
+- All Sprint #20 tasks are Done. No blockers.
+- Proceed with staging deploy per H-273 gate check results.
+- Git SHA at time of QA: `5fb8470` (same as Deploy Engineer gate check).
+- After deploy, Monitor Agent should verify `GET /api/v1/plants/:id/care-history` on staging.
+
+---
+
 ## H-274 — Manager → QA Engineer: Sprint #20 Code Review Complete — T-093, T-094, T-095 All Approved → Integration Check (2026-04-05)
 
 | Field | Value |

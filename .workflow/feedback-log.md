@@ -20,6 +20,68 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-091 — QA: Positive — Care History feature is well-architected and user-friendly (Sprint 20)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-091 |
+| **Source** | QA Engineer |
+| **Sprint** | 20 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The Care History feature is a natural companion to the Care Streak tracker from Sprint #19. The tab bar on Plant Detail is intuitive, the filter pills are clean, and the month-grouped list is easy to scan. The empty state messaging ("Mark your first care action done…") is encouraging and action-oriented — exactly right for the novice user persona. The "Go to Overview" CTA in the empty state is a smart touch that closes the loop. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-092 — QA: Positive — Race condition handling in usePlantCareHistory hook (Sprint 20)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-092 |
+| **Source** | QA Engineer |
+| **Sprint** | 20 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The `requestId` ref in `usePlantCareHistory.js` prevents stale API responses from overwriting newer data when users rapidly switch filters. This is a subtle but important detail that avoids UI flicker and data inconsistency. Well done. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-093 — QA: UX Issue — Minor SPEC-015 deviations noted by Manager (non-blocking) (Sprint 20)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-093 |
+| **Source** | QA Engineer |
+| **Sprint** | 20 |
+| **Date** | 2026-04-05 |
+| **Category** | UX Issue |
+| **Severity** | Cosmetic |
+| **Description** | Three minor SPEC-015 deviations were noted during Manager code review (H-274) and confirmed during QA: (1) Missing `role="tabpanel"` on the history panel div in PlantDetailPage.jsx — the overview panel has it correctly. (2) Notes expansion panel lacks `transition: max-height 0.25s ease` per SPEC-015 — uses a CSS class toggle instead. (3) Dark mode icon background colors are defined in CARE_CONFIG but not applied in CSS/styles. None of these are functional blockers. |
+| **Steps to Reproduce** | Inspect DOM of History tab; check notes expansion animation; toggle dark mode and check care type icon circle backgrounds. |
+| **Expected vs Actual** | Expected: animated notes expansion, dark mode icon backgrounds, tabpanel role. Actual: instant toggle, no dark icon backgrounds, missing role attribute. |
+| **Status** | Acknowledged — log as backlog items for future sprint. |
+
+---
+
+## FB-094 — QA: Positive — Backend error handling is consistent and secure (Sprint 20)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-094 |
+| **Source** | QA Engineer |
+| **Sprint** | 20 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The care-history endpoint follows the same error-handling patterns as all other endpoints: structured JSON errors with message + code, never leaking stack traces or internal paths. The 404 vs 403 distinction (plant not found vs plant not owned) is correctly implemented without leaking information about other users' plants. Parameterized Knex queries throughout. Exemplary. |
+| **Status** | Acknowledged |
+
+---
+
 ## FB-088 — QA: Positive — Care Streak feature delivers on core product mission (Sprint 19)
 
 | Field | Value |
