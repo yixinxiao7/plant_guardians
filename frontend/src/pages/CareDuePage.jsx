@@ -11,6 +11,7 @@ import {
 import { useCareDue } from '../hooks/useCareDue.js';
 import { useToast } from '../hooks/useToast.jsx';
 import Button from '../components/Button.jsx';
+import CareNoteInput from '../components/CareNoteInput.jsx';
 import './CareDuePage.css';
 
 const CARE_TYPE_CONFIG = {
@@ -147,6 +148,7 @@ export default function CareDuePage() {
   const [markingItems, setMarkingItems] = useState(new Set());
   const [removingItems, setRemovingItems] = useState(new Set());
   const [liveMessage, setLiveMessage] = useState('');
+  const [noteValues, setNoteValues] = useState({});
   const markDoneButtonRefs = useRef({});
   const viewMyPlantsButtonRef = useRef(null);
   const cardRefs = useRef({});
@@ -177,7 +179,9 @@ export default function CareDuePage() {
       setLiveMessage('');
 
       try {
-        await markDone(item.plant_id, item.care_type);
+        const noteText = noteValues[itemKey] || null;
+        const trimmedNote = noteText ? noteText.trim() : null;
+        await markDone(item.plant_id, item.care_type, trimmedNote || null);
         const careLabel = CARE_TYPE_CONFIG[item.care_type]?.label?.toLowerCase() || item.care_type;
         addToast(`${item.plant_name} ${careLabel} marked as done! 🌿`, 'success');
         setLiveMessage(`${item.plant_name} ${careLabel} marked as done.`);
@@ -458,6 +462,15 @@ export default function CareDuePage() {
                           'Mark as done'
                         )}
                       </button>
+                      <CareNoteInput
+                        noteValue={noteValues[itemKey] || ''}
+                        onNoteChange={(val) => setNoteValues(prev => ({ ...prev, [itemKey]: val }))}
+                        plantId={item.plant_id}
+                        careType={item.care_type}
+                        plantName={item.plant_name}
+                        disabled={isMarking}
+                        idPrefix="note-input"
+                      />
                     </li>
                   );
                 })}

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Drop, Leaf, PottedPlant, ChatText } from '@phosphor-icons/react';
+import { useState, useRef, useEffect } from 'react';
+import { Drop, Leaf, PottedPlant, CaretDown, CaretUp } from '@phosphor-icons/react';
 import { formatDate, formatFullDateTime } from '../utils/formatDate.js';
 import './CareHistorySection.css';
 
@@ -52,22 +52,33 @@ function formatCareRelativeDate(isoString) {
 }
 
 export default function CareHistoryItem({ item }) {
-  const [notesExpanded, setNotesExpanded] = useState(false);
+  const [noteExpanded, setNoteExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const noteTextRef = useRef(null);
   const config = CARE_CONFIG[item.careType] || CARE_CONFIG.watering;
   const { Icon, label, iconColor, iconBg } = config;
 
   const absoluteDate = formatDate(item.performedAt);
   const fullDateTime = formatFullDateTime(item.performedAt);
   const relativeDate = formatCareRelativeDate(item.performedAt);
-  const hasNotes = item.notes != null && item.notes !== '';
+  const hasNotes = item.notes != null && item.notes.trim() !== '';
 
-  const ariaLabel = `${label} on ${absoluteDate}${hasNotes ? '. Has notes.' : ''}`;
+  const ariaLabel = `${label} on ${absoluteDate}${hasNotes ? '. Includes note.' : ''}`;
+  const noteTextId = `note-text-${item.id}`;
+
+  // Check if note text overflows 2 lines
+  useEffect(() => {
+    if (hasNotes && noteTextRef.current) {
+      const el = noteTextRef.current;
+      setIsOverflowing(el.scrollHeight > el.clientHeight);
+    }
+  }, [hasNotes, item.notes]);
 
   return (
     <div className="ch-item" role="listitem" aria-label={ariaLabel} tabIndex={0}>
       <div className="ch-item-row">
         <div
-          className="ch-item-icon-circle"
+          className={`ch-item-icon-circle ch-item-icon-circle--${item.careType}`}
           style={{ '--icon-bg': iconBg }}
           aria-hidden="true"
         >
@@ -75,18 +86,6 @@ export default function CareHistoryItem({ item }) {
         </div>
 
         <span className="ch-item-label">{label}</span>
-
-        {hasNotes && (
-          <button
-            className={`ch-item-note-toggle ${notesExpanded ? 'ch-item-note-toggle--open' : ''}`}
-            onClick={() => setNotesExpanded(prev => !prev)}
-            aria-expanded={notesExpanded}
-            aria-label="Toggle notes"
-            title="Has notes"
-          >
-            <ChatText size={16} />
-          </button>
-        )}
 
         <time
           className="ch-item-date"
@@ -97,9 +96,31 @@ export default function CareHistoryItem({ item }) {
         </time>
       </div>
 
-      {hasNotes && notesExpanded && (
-        <div className="ch-item-notes-panel">
-          {item.notes}
+      {hasNotes && (
+        <div className="ch-item-note">
+          <hr className="ch-item-note-divider" />
+          <p
+            ref={noteTextRef}
+            id={noteTextId}
+            className={`ch-item-note-text ${noteExpanded ? '' : 'ch-item-note-text--clamped'}`}
+          >
+            {item.notes}
+          </p>
+          {isOverflowing && (
+            <button
+              className="ch-item-show-more"
+              onClick={() => setNoteExpanded(prev => !prev)}
+              aria-expanded={noteExpanded}
+              aria-controls={noteTextId}
+            >
+              {noteExpanded ? 'Show less' : 'Show more'}
+              {noteExpanded ? (
+                <CaretUp size={10} className="ch-item-show-more-caret" />
+              ) : (
+                <CaretDown size={10} className="ch-item-show-more-caret" />
+              )}
+            </button>
+          )}
         </div>
       )}
     </div>

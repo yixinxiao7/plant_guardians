@@ -16,6 +16,7 @@ vi.mock('@phosphor-icons/react', () => ({
   Drop: (props) => <span data-testid="icon-drop" {...props} />,
   Leaf: (props) => <span data-testid="icon-leaf" {...props} />,
   PottedPlant: (props) => <span data-testid="icon-potted" {...props} />,
+  PencilSimple: (props) => <span data-testid="icon-pencil" {...props} />,
 }));
 
 const mockCareDueGet = vi.fn();
@@ -248,7 +249,7 @@ describe('CareDuePage', () => {
     fireEvent.click(markDoneBtn);
 
     await waitFor(() => {
-      expect(mockCareActionsMarkDone).toHaveBeenCalledWith('p1', 'watering');
+      expect(mockCareActionsMarkDone).toHaveBeenCalledWith('p1', 'watering', null);
     });
 
     await waitFor(() => {

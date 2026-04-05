@@ -1,0 +1,112 @@
+/* ============================================
+   Care Note Input — SPEC-016 / T-098
+   ============================================ */
+
+.care-note-input-wrapper {
+  width: 100%;
+}
+
+.care-note-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 12px 8px;
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary, #6B6B5F);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.care-note-toggle:hover {
+  color: var(--color-text-primary, #2C2C2C);
+}
+
+.care-note-toggle:disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.care-note-toggle:focus-visible {
+  outline: 2px solid var(--color-accent-primary, #5C7A5C);
+  outline-offset: 2px;
+}
+
+.care-note-textarea-wrapper {
+  position: relative;
+  margin-top: 4px;
+  animation: noteExpand 0.3s ease;
+}
+
+@keyframes noteExpand {
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+  to {
+    max-height: 120px;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .care-note-textarea-wrapper {
+    animation: none;
+  }
+}
+
+.care-note-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--color-surface-alt, #F0EDE6);
+  border: 1px solid var(--color-border, #E0DDD6);
+  border-radius: 8px;
+  padding: 10px 12px;
+  padding-bottom: 24px;
+  font-size: 14px;
+  font-family: 'DM Sans', var(--font-display), sans-serif;
+  color: var(--color-text-primary, #2C2C2C);
+  line-height: 1.5;
+}
+
+.care-note-textarea::placeholder {
+  color: var(--color-text-disabled, #B0ADA5);
+}
+
+.care-note-textarea:focus {
+  outline: none;
+  border: 2px solid var(--color-border-focus, #5C7A5C);
+}
+
+.care-note-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Character counter */
+.care-note-counter {
+  position: absolute;
+  bottom: 6px;
+  right: 12px;
+  font-size: 11px;
+  color: var(--color-text-disabled, #B0ADA5);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.care-note-counter--visible {
+  opacity: 1;
+}
+
+.care-note-counter--yellow {
+  color: var(--color-status-yellow, #C4921F);
+}
+
+.care-note-counter--red {
+  color: var(--color-status-red, #B85C38);
+}

@@ -61,8 +61,8 @@ export function usePlantDetail() {
     }
   }, []);
 
-  const markCareAsDone = useCallback(async (plantId, careType) => {
-    const data = await careActionsApi.markDone(plantId, careType);
+  const markCareAsDone = useCallback(async (plantId, careType, notes = null) => {
+    const data = await careActionsApi.markDone(plantId, careType, notes);
     // Update local state with the new schedule
     setPlant(prev => {
       if (!prev) return prev;

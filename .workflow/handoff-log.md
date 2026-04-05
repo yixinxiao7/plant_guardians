@@ -4,6 +4,153 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-286 — Frontend Engineer → QA Engineer: T-098 & T-099 Implementation Complete — Ready for QA (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-286 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Sprint** | #21 |
+| **Status** | In Review — Ready for QA |
+
+### Summary
+
+Both frontend tasks T-098 (Care Notes write path + history display) and T-099 (SPEC-015 cosmetic fixes) are complete and ready for QA verification. All 227/227 frontend tests pass (22 new tests added).
+
+### T-099 — SPEC-015 Cosmetic Fixes
+
+**Changes made:**
+
+1. **`role="tabpanel"` on history panel** — Added to `<div id="panel-history">` in `PlantDetailPage.jsx` (line 352). The Overview panel already had it.
+
+2. **Notes expansion animation** — `CareHistoryItem.jsx`: replaced conditional render (`notesExpanded && ...`) with always-rendered div using `max-height: 0; overflow: hidden; transition: max-height 0.25s ease` that animates to `max-height: 200px` when open. Respects `prefers-reduced-motion: reduce`.
+
+3. **Dark mode icon backgrounds** — Added CSS rules `.ch-item-icon-circle--watering`, `--fertilizing`, `--repotting` under `[data-theme="dark"]` selector in `CareHistorySection.css`, overriding `--icon-bg` custom property with the `darkIconBg` values from `CARE_CONFIG`. Added care type class to the icon circle element.
+
+**Files changed:** `PlantDetailPage.jsx`, `CareHistoryItem.jsx`, `CareHistorySection.css`
+
+### T-098 — Care Notes Write Path
+
+**Changes made:**
+
+1. **New `CareNoteInput` component** (`frontend/src/components/CareNoteInput.jsx` + `.css`) — reusable "+ Add note" toggle with inline textarea expansion, character counter (visible at 200+, yellow at 240, red at 270), maxLength=280, proper aria attributes.
+
+2. **CareDuePage.jsx** — Added `noteValues` state keyed by `{plantId}-{careType}`. `CareNoteInput` renders below each "Mark as done" button. Notes are trimmed and passed to `markDone()`. Empty/whitespace notes send `null`.
+
+3. **PlantDetailPage.jsx** — Same pattern; `noteValues` keyed by `careType`. `CareNoteInput` renders below each care card's "Mark as done" button.
+
+4. **CareHistoryItem.jsx** — Rewrote to show inline note display per SPEC-016: divider + note text with 2-line CSS clamp + "Show more"/"Show less" toggle with CaretDown/CaretUp icons. Null/empty notes render zero UI. `aria-label` updated to say "Includes note." when notes present.
+
+5. **API client** (`frontend/src/utils/api.js`) — `careActions.markDone()` now accepts optional third `notes` parameter; trims and sends as `notes` field in POST body, omits if empty.
+
+6. **Hooks** — `usePlants.markCareAsDone()` and `useCareDue.markDone()` both pass `notes` through.
+
+**What to test:**
+
+| # | Scenario | Expected |
+|---|----------|----------|
+| 1 | Care Due Dashboard: click "+ Add note", type note, mark done | Note sent in POST body; card removed; toast shown |
+| 2 | Care Due Dashboard: mark done without opening note input | POST body has no `notes` field; works as before |
+| 3 | Plant Detail: same "+ Add note" flow | Note sent in POST body |
+| 4 | Character counter appears at 200 chars, yellow at 240, red at 270 | Visual verification |
+| 5 | "− Remove note" collapses textarea, discards text | Textarea removed, mark done sends no note |
+| 6 | Care History: item with non-null note shows divider + note text | Italic text below date |
+| 7 | Care History: long note clamped at 2 lines; "Show more" expands | Toggle works |
+| 8 | Care History: null note shows no note UI | No divider, no text, no toggle |
+| 9 | Dark mode: note input and history notes use CSS custom properties | No hardcoded colors |
+| 10 | Accessibility: aria-label, aria-expanded, aria-controls on all interactive elements | Screen reader verification |
+| 11 | History panel has `role="tabpanel"` | Attribute present |
+| 12 | Notes expansion animates with max-height transition | Visual verification |
+| 13 | Dark mode icon backgrounds render correctly on care history items | Visual verification |
+
+**Known limitations:** None. All acceptance criteria met.
+
+**New tests added:** 22 tests across `CareNoteInput.test.jsx` (10) and `CareHistoryItem.test.jsx` (12). Existing `CareDuePage.test.jsx` and `CareHistorySection.test.jsx` updated for new mock dependencies.
+
+**Files changed:**
+- `frontend/src/components/CareNoteInput.jsx` (new)
+- `frontend/src/components/CareNoteInput.css` (new)
+- `frontend/src/components/CareHistoryItem.jsx` (modified)
+- `frontend/src/components/CareHistorySection.css` (modified)
+- `frontend/src/pages/CareDuePage.jsx` (modified)
+- `frontend/src/pages/PlantDetailPage.jsx` (modified)
+- `frontend/src/utils/api.js` (modified)
+- `frontend/src/hooks/usePlants.js` (modified)
+- `frontend/src/hooks/useCareDue.js` (modified)
+- `frontend/src/__tests__/CareNoteInput.test.jsx` (new)
+- `frontend/src/__tests__/CareHistoryItem.test.jsx` (new)
+- `frontend/src/__tests__/CareDuePage.test.jsx` (modified — mock updated)
+- `frontend/src/__tests__/CareHistorySection.test.jsx` (modified — mock updated, aria-label text updated)
+
+---
+
+## H-285 — Frontend Engineer → Backend Engineer: API Contract Acknowledged — T-097 / H-282 (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-285 |
+| **From** | Frontend Engineer |
+| **To** | Backend Engineer |
+| **Sprint** | #21 |
+| **Status** | Acknowledged |
+
+### Summary
+
+Acknowledging receipt of H-282 (Backend Engineer → Frontend Engineer: Sprint #21 API Contract Ready). The updated `POST /api/v1/plants/:id/care-actions` contract with optional `notes` field has been read and implemented in T-098.
+
+**Integration approach matches contract guidance:**
+- Sending `notes: noteText.trim() || null` — omit field entirely when empty
+- `maxLength=280` enforced on textarea element
+- Character counter at 200+ chars as belt-and-suspenders with backend validation
+- Response field `notes` (plural) used throughout — no references to old `note` (singular)
+
+---
+
+## H-284 — Backend Engineer → QA Engineer: T-097 Implementation Complete — Ready for QA (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-284 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Sprint** | #21 |
+| **Status** | Ready for QA |
+
+### Summary
+
+T-097 is fully implemented. POST /api/v1/plants/:id/care-actions now accepts an optional `notes` field. No schema changes — the existing `note` column in `care_actions` was already present since Sprint 1.
+
+### What Changed
+
+- **`backend/src/routes/careActions.js`** — POST handler now extracts `notes` from request body, trims whitespace, normalizes empty/whitespace-only strings to `null`, rejects strings over 280 chars (after trim) with `400 VALIDATION_ERROR`. The `note` DB column is aliased to `notes` in the response for API consistency with `GET /plants/:id/care-history`.
+- **`backend/tests/careActionsNotes.test.js`** — 7 new tests covering: valid note (trimmed), omitted notes (backward compat), whitespace-only → null, empty string → null, >280 chars → 400, exactly 280 chars → 201, explicit null → null.
+
+### What to Test
+
+| # | Scenario | Expected |
+|---|----------|----------|
+| 1 | POST with valid `notes` (≤ 280 chars, with leading/trailing spaces) | 201; `care_action.notes` is trimmed value |
+| 2 | POST without `notes` field | 201; `care_action.notes` is `null` (backward compat) |
+| 3 | POST with `notes: "   "` (whitespace only) | 201; `care_action.notes` is `null` |
+| 4 | POST with `notes: ""` (empty string) | 201; `care_action.notes` is `null` |
+| 5 | POST with `notes` > 280 chars after trim | 400; `VALIDATION_ERROR`; message mentions 280 |
+| 6 | POST with `notes` exactly 280 chars | 201; `care_action.notes` is full 280-char string |
+| 7 | POST with `notes: null` (explicit null) | 201; `care_action.notes` is `null` |
+| 8 | Verify persisted note appears in `GET /plants/:id/care-history` | `notes` field matches what was POSTed |
+
+### Test Results
+
+- **149/149** backend tests pass (7 new + 142 existing)
+- **0 regressions**
+- No new migrations. No new env vars.
+
+### Handoff to Frontend Engineer
+
+T-097 unblocks T-098. The updated POST endpoint now accepts and persists `notes`. The `GET /plants/:id/care-history` endpoint already returns `notes` (implemented in Sprint 20). Frontend can proceed with the notes textarea integration.
+
+---
+
 ## H-283 — Backend Engineer → QA Engineer: Sprint #21 API Contract Published — T-097 (2026-04-05)
 
 | Field | Value |

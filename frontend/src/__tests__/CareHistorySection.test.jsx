@@ -20,6 +20,8 @@ vi.mock('@phosphor-icons/react', () => ({
   Plant: (props) => <span data-testid="icon-plant" {...props} />,
   WarningCircle: (props) => <span data-testid="icon-warning" {...props} />,
   ChatText: (props) => <span data-testid="icon-chat" {...props} />,
+  CaretDown: (props) => <span data-testid="icon-caret-down" {...props} />,
+  CaretUp: (props) => <span data-testid="icon-caret-up" {...props} />,
 }));
 
 vi.mock('../utils/formatDate.js', () => ({
@@ -114,7 +116,7 @@ describe('CareHistorySection', () => {
 
     // Check aria-labels on items
     expect(listItems[0]).toHaveAttribute('aria-label', 'Watering on April 2, 2026');
-    expect(listItems[1]).toHaveAttribute('aria-label', 'Fertilizing on April 2, 2026. Has notes.');
+    expect(listItems[1]).toHaveAttribute('aria-label', 'Fertilizing on April 2, 2026. Includes note.');
 
     // End message should show since hasMore is false
     expect(screen.getByText("You've seen all care history for this plant.")).toBeTruthy();
@@ -152,7 +154,7 @@ describe('CareHistorySection', () => {
     expect(mockLoadMore).toHaveBeenCalledTimes(1);
   });
 
-  it('items with notes have aria-label including "Has notes."', () => {
+  it('items with notes have aria-label including "Includes note."', () => {
     setupMock({
       items: [
         { id: '2', careType: 'fertilizing', performedAt: '2026-04-01T10:00:00.000Z', notes: 'Extra fertilizer' },
@@ -164,7 +166,7 @@ describe('CareHistorySection', () => {
     render(<CareHistorySection plantId="p1" onSwitchToOverview={vi.fn()} />);
 
     const item = screen.getByRole('listitem');
-    expect(item.getAttribute('aria-label')).toContain('Has notes.');
+    expect(item.getAttribute('aria-label')).toContain('Includes note.');
   });
 
   it('calls fetchHistory on mount', () => {

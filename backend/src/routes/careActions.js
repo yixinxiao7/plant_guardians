@@ -27,6 +27,7 @@ router.post(
   async (req, res, next) => {
     try {
       const { care_type, performed_at } = req.body;
+      let { notes } = req.body;
 
       // Validate performed_at if provided
       if (performed_at !== undefined && performed_at !== null) {
@@ -36,6 +37,21 @@ router.post(
         if (new Date(performed_at) > new Date()) {
           throw new ValidationError('performed_at must not be in the future.');
         }
+      }
+
+      // Validate and normalize notes (T-097)
+      if (notes !== undefined && notes !== null) {
+        if (typeof notes !== 'string') {
+          throw new ValidationError('notes must be a string.');
+        }
+        notes = notes.trim();
+        if (notes.length === 0) {
+          notes = null;
+        } else if (notes.length > 280) {
+          throw new ValidationError('notes must be 280 characters or fewer');
+        }
+      } else {
+        notes = null;
       }
 
       // Check plant ownership
@@ -59,6 +75,7 @@ router.post(
         plant_id: plant.id,
         care_type,
         performed_at: effectivePerformedAt,
+        note: notes,
       });
 
       // Update the schedule's last_done_at
@@ -78,7 +95,7 @@ router.post(
             plant_id: action.plant_id,
             care_type: action.care_type,
             performed_at: action.performed_at,
-            note: action.note,
+            notes: action.note !== undefined ? action.note : null,
           },
           updated_schedule: enriched,
         },

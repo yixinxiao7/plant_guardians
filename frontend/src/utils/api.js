@@ -199,10 +199,17 @@ export const plants = {
 
 // Care actions
 export const careActions = {
-  markDone(plantId, careType) {
+  markDone(plantId, careType, notes = null) {
+    const body = { care_type: careType };
+    if (notes != null) {
+      const trimmed = notes.trim();
+      if (trimmed !== '') {
+        body.notes = trimmed;
+      }
+    }
     return request(`/plants/${plantId}/care-actions`, {
       method: 'POST',
-      body: JSON.stringify({ care_type: careType }),
+      body: JSON.stringify(body),
     });
   },
   undo(plantId, actionId) {

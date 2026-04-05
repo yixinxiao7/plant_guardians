@@ -8,6 +8,7 @@ import StatusBadge from '../components/StatusBadge.jsx';
 import Button from '../components/Button.jsx';
 import Modal from '../components/Modal.jsx';
 import CareHistorySection from '../components/CareHistorySection.jsx';
+import CareNoteInput from '../components/CareNoteInput.jsx';
 import { formatDate, formatRelativeTime, formatDueDate } from '../utils/formatDate.js';
 import './PlantDetailPage.css';
 
@@ -35,6 +36,7 @@ export default function PlantDetailPage() {
   const [markingDone, setMarkingDone] = useState({});
   const [doneStates, setDoneStates] = useState({});
   const [undoTimers, setUndoTimers] = useState({});
+  const [noteValues, setNoteValues] = useState({});
   const timerRefs = useRef({});
 
   useEffect(() => {
@@ -52,7 +54,9 @@ export default function PlantDetailPage() {
     setMarkingDone(prev => ({ ...prev, [careType]: true }));
 
     try {
-      const data = await markCareAsDone(id, careType);
+      const noteText = noteValues[careType] || null;
+      const trimmedNote = noteText ? noteText.trim() : null;
+      const data = await markCareAsDone(id, careType, trimmedNote || null);
       const actionId = data.care_action?.id;
 
       // Trigger confetti
@@ -98,7 +102,7 @@ export default function PlantDetailPage() {
     } finally {
       setMarkingDone(prev => ({ ...prev, [careType]: false }));
     }
-  }, [id, markCareAsDone, plant, addToast]);
+  }, [id, markCareAsDone, plant, addToast, noteValues]);
 
   const handleUndo = useCallback(async (careType) => {
     const state = doneStates[careType];
@@ -296,16 +300,27 @@ export default function PlantDetailPage() {
                     ) : null}
 
                     {!isDone && (
-                      <Button
-                        variant="secondary"
-                        fullWidth
-                        loading={isMarking}
-                        onClick={() => handleMarkDone(careType)}
-                        aria-label={`Mark ${careType} as done for ${plant.name}`}
-                        className="care-mark-btn"
-                      >
-                        Mark as done
-                      </Button>
+                      <>
+                        <Button
+                          variant="secondary"
+                          fullWidth
+                          loading={isMarking}
+                          onClick={() => handleMarkDone(careType)}
+                          aria-label={`Mark ${careType} as done for ${plant.name}`}
+                          className="care-mark-btn"
+                        >
+                          Mark as done
+                        </Button>
+                        <CareNoteInput
+                          noteValue={noteValues[careType] || ''}
+                          onNoteChange={(val) => setNoteValues(prev => ({ ...prev, [careType]: val }))}
+                          plantId={id}
+                          careType={careType}
+                          plantName={plant.name}
+                          disabled={isMarking}
+                          idPrefix="note-input-detail"
+                        />
+                      </>
                     )}
 
                     {hasUndo && (
@@ -349,7 +364,7 @@ export default function PlantDetailPage() {
 
       {/* History Tab Panel */}
       {activeTab === 'history' && (
-        <div id="panel-history" aria-labelledby="tab-history">
+        <div id="panel-history" role="tabpanel" aria-labelledby="tab-history">
           <CareHistorySection
             plantId={id}
             onSwitchToOverview={() => setActiveTab('overview')}
