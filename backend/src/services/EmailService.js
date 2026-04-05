@@ -121,7 +121,7 @@ class EmailService {
    * Build the HTML body for a care reminder email.
    */
   _buildReminderHtml({ userName, overdueItems, dueTodayItems, unsubscribeUrl }) {
-    const greeting = userName ? `Hi ${userName},` : 'Hi there,';
+    const greeting = userName ? `Hi ${this._escape(userName)},` : 'Hi there,';
 
     let overdueSection = '';
     if (overdueItems.length > 0) {

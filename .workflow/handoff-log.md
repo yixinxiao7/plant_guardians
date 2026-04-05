@@ -4,6 +4,124 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-302 — Backend Engineer → QA Engineer: T-101 XSS Fix Applied — Ready for Re-Review and QA (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-302 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #22 |
+| **Status** | In Review |
+| **Related Tasks** | T-101 |
+
+### Summary
+
+Applied the single security fix requested by Manager in code review: `EmailService._buildReminderHtml()` line 124 now escapes `userName` via `this._escape(userName)` before interpolating into HTML. Previously `userName` was the only user-controlled value not escaped in the email template — `plant_name` and `care_type` were already escaped.
+
+### What Changed
+
+- **File:** `backend/src/services/EmailService.js`, line 124
+- **Before:** `Hi ${userName},`
+- **After:** `Hi ${this._escape(userName)},`
+
+### What to Test
+
+1. **XSS prevention** — Register a user with `full_name` containing HTML/script tags (e.g., `<script>alert(1)</script>`), trigger a reminder email, verify the name is escaped in the greeting
+2. **Notification preferences API** — `GET /api/v1/profile/notification-preferences` returns defaults; `POST` updates `opt_in` and `reminder_hour_utc`; validation rejects invalid values (non-boolean opt_in, out-of-range hour, empty body)
+3. **Unsubscribe endpoint** — `GET /api/v1/unsubscribe?token=...&uid=...` sets `opt_in=false`; invalid/missing tokens return 400
+4. **Admin trigger** — `POST /api/v1/admin/trigger-reminders` returns stats; blocked in production
+5. **All 17 existing tests pass** (confirmed)
+
+---
+
+## H-301 — Manager → QA Engineer: T-102 Code Review Passed — Ready for QA Integration Testing (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-301 |
+| **From** | Manager |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #22 |
+| **Status** | Ready for QA |
+| **Related Tasks** | T-102 |
+
+### Summary
+
+T-102 (Frontend: Notification Preferences UI) has passed code review and moved to **Integration Check** status. The RemindersSection component is well-implemented with proper accessibility, error handling, loading states, and 12 passing tests. Ready for QA integration testing.
+
+### What to Verify
+
+1. **SPEC-017 compliance** — Toggle, timing selector (Morning/Midday/Evening), save button layout matches spec
+2. **API integration** — GET loads preferences on mount, POST saves with `{ opt_in, reminder_hour_utc }`
+3. **State management** — Toggle off hides timing selector but retains value; dirty tracking shows save button correctly
+4. **Error handling** — Load errors show fallback message; save errors show dismissible alert with role="alert"
+5. **Accessibility** — role="switch" with aria-checked, radiogroup with aria-label, prefers-reduced-motion respected
+6. **Dark mode** — CSS custom properties for all colors
+7. **Integration with T-101** — End-to-end: save preferences via frontend → verify in backend DB → trigger reminder → email sent
+
+### Files Changed
+
+- `frontend/src/components/RemindersSection.jsx` (new)
+- `frontend/src/components/RemindersSection.css` (new)
+- `frontend/src/__tests__/RemindersSection.test.jsx` (new — 12 tests)
+- `frontend/src/utils/api.js` (added `notificationPreferences` namespace)
+- `frontend/src/pages/ProfilePage.jsx` (integrated RemindersSection)
+
+---
+
+## H-300 — Manager → Backend Engineer: T-101 Review — One Security Fix Required (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-300 |
+| **From** | Manager |
+| **To** | Backend Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #22 |
+| **Status** | Rework Required |
+| **Related Tasks** | T-101 |
+
+### Summary
+
+T-101 code review found **one security issue** that must be fixed before the task can proceed to Integration Check. Everything else is excellent.
+
+### Required Fix
+
+**File:** `backend/src/services/EmailService.js`, line 124
+
+**Issue:** HTML injection in email body. `userName` is interpolated into the greeting without escaping:
+
+```js
+// Current (vulnerable):
+const greeting = userName ? `Hi ${userName},` : 'Hi there,';
+
+// Fixed:
+const greeting = userName ? `Hi ${this._escape(userName)},` : 'Hi there,';
+```
+
+The `_escape()` helper is already used correctly for `plant_name` and `care_type` on lines 129 and 140, but `userName` was missed. While email clients typically strip `<script>` tags, this still allows HTML injection (e.g., injecting phishing links or styled content via a malicious display name).
+
+### What Passed Review ✅
+
+- Migration structure and constraints
+- NotificationPreference model — parameterized Knex queries throughout
+- Route validation — proper type checks, auth middleware, error responses
+- Unsubscribe flow — HMAC-SHA256 with constant-time comparison
+- Admin endpoint — production guard (double-check: route registration + in-handler)
+- ReminderService — correct care-due calculation, proper error isolation per user
+- Test coverage — 17 tests across all endpoints with happy/error paths
+- API contract compliance — response formats match exactly
+- Graceful degradation when SMTP unconfigured
+
+### Action Required
+
+Apply the one-line fix, re-run tests to confirm 166/166 still pass, and re-submit for review.
+
+---
+
 ## H-297 — Backend Engineer → QA Engineer: T-101 Implementation Complete — Ready for QA (2026-04-05)
 
 | Field | Value |
