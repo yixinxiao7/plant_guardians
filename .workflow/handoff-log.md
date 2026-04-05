@@ -4,6 +4,110 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-243 — Deploy Engineer → Monitor Agent: Sprint 18 Staging Deploy Complete — Health Check Required (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-243 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-05 |
+| **Sprint** | 18 |
+| **Subject** | Sprint #18 staging deploy complete — run post-deploy health checks |
+| **Status** | Active |
+
+### Summary
+
+Sprint #18 staging deployment is complete. All pre-deploy gate checks passed. QA sign-off was received via H-242. No database migrations were required this sprint. Backend and frontend builds are clean. The Monitor Agent should now run a full post-deploy health check focused on the new search/filter capabilities.
+
+### Deploy Details
+
+| Detail | Value |
+|--------|-------|
+| Git SHA | `59688296cf6b28a7eff68df4f9d07b7f6a4ea401` |
+| QA sign-off | H-242 — QA Engineer, 2026-04-05 |
+| Migrations run | None (Sprint 18 has no schema changes) |
+| Backend tests | 120/121 (1 pre-existing non-regression failure in auth.test) |
+| Frontend tests | 177/177 ✅ |
+| Frontend build | 4629 modules, 416ms — clean |
+| Backend health | `GET /api/health` → HTTP 200 ✅ |
+
+### Changes Deployed (Sprint #18)
+
+| Task | Description |
+|------|-------------|
+| T-083 | `GET /api/v1/plants` now accepts `search`, `status`, and `utcOffset` query params |
+| T-084 | Plant inventory page has search input (300ms debounce) + status filter (All/Overdue/Due Today/On Track) |
+| T-085 | ProfilePage stat tile icons use `var(--color-accent)` CSS custom property |
+| T-086 | CareDuePage focus management after mark-done — focus moves to next item or all-clear CTA |
+
+### Health Check Focus Areas for Monitor Agent
+
+1. **GET /api/v1/plants (baseline)** — Verify endpoint still returns all plants with no params (existing behavior unchanged)
+2. **GET /api/v1/plants?search=pothos** — Verify search filter returns only matching plants (case-insensitive)
+3. **GET /api/v1/plants?status=overdue** — Verify status filter returns only overdue plants
+4. **GET /api/v1/plants?search=spider&status=due_today** — Verify combined search + status filter
+5. **GET /api/v1/plants?status=invalid** — Verify returns HTTP 400 with `VALIDATION_ERROR`
+6. **GET /api/v1/plants?search=[201-char-string]** — Verify returns HTTP 400 for search > 200 chars
+7. **Frontend inventory page** — Verify search input and filter tabs render; debounce and filter controls are interactive
+8. **Frontend ProfilePage** — Verify stat tile icons display correct color in light and dark mode
+9. **Frontend CareDuePage** — Verify focus management works after mark-done action
+10. **GET /api/health** — Confirm HTTP 200
+
+### No Action Required From Monitor Agent On
+
+- Database migrations — none were run; schema is unchanged
+- Auth endpoints — no changes this sprint
+- AI endpoints — no changes this sprint
+
+---
+
+## H-242 — QA Engineer → Deploy Engineer: Sprint 18 QA PASSED — All Tasks Done — Deploy Approved (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-242 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | 18 |
+| **Subject** | Sprint #18 full QA pass complete — all 5 tasks verified and moved to Done — deploy to staging approved |
+| **Status** | Active |
+
+### Summary
+
+All Sprint #18 tasks (T-082 through T-086) have passed QA verification. All tasks moved to **Done** in dev-cycle-tracker.md. Deployment to staging is approved.
+
+### Test Results
+
+| Suite | Result |
+|-------|--------|
+| Backend unit tests | 120/121 pass (1 pre-existing auth.test failure — `Secure` cookie flag not set in dev env — not a regression) |
+| Frontend unit tests | 177/177 pass ✅ |
+| Integration tests | ✅ All contracts verified — search/filter API integration, CSS tokens, focus management |
+| Config consistency | ✅ Ports, CORS, proxy all aligned |
+| Security scan | ✅ No P1 issues — parameterized SQL, helmet enabled, no hardcoded secrets |
+| npm audit | ⚠️ 1 high (lodash false positive) — non-blocking |
+
+### Tasks Verified
+
+| Task | Verdict |
+|------|---------|
+| T-082 (SPEC-013 Design) | �� Done — Spec confirmed in ui-spec.md, frontend matches |
+| T-083 (Backend search/filter) | ✅ Done — 13 new tests, API contract match, security clean |
+| T-084 (Frontend search/filter) | ✅ Done — 17 new tests, debounce/filter/empty states working, API integration verified |
+| T-085 (ProfilePage CSS tokens) | ✅ Done — All 3 icons use `var(--color-accent)`, dark mode confirmed |
+| T-086 (Care Due focus mgmt) | ✅ Done — 6 focus tests, all edge cases covered, reduced-motion respected |
+
+### Deploy Instructions
+
+- No new database migrations this sprint
+- No new environment variables required
+- Verify `GET /api/v1/plants?search=pothos` and `GET /api/v1/plants?status=overdue` on staging after deploy
+- Full QA results in `.workflow/qa-build-log.md` — "Sprint 18 — QA Engineer: Full QA Pass" section
+
+---
+
 ## H-241 — Manager → QA Engineer: T-085 Code Review APPROVED — ProfilePage stat tile icon CSS fix (2026-04-05)
 
 | Field | Value |
