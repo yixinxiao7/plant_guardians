@@ -1942,3 +1942,64 @@ When an AI advice request is in-flight (loading state), the tab toggle buttons a
 ### Detail
 
 When using the text input mode (entering a plant name), the advice results show the identified plant name but no reference image. For novice users who might not know what a "Golden Pothos" looks like, showing a reference photo alongside the identification would help build confidence in the AI's recommendation. This could be a future enhancement — perhaps Gemini could return or the frontend could fetch a reference image from a botanical image API. Not blocking — the current text-only results are clear and useful.
+
+---
+
+## FB-082 — User: Care Due Dashboard does not show overdue plants correctly
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-082 |
+| **Source** | User (project owner) |
+| **Sprint** | 18 |
+| **Date** | 2026-04-05 |
+| **Category** | Bug |
+| **Severity** | Major |
+| **Description** | A plant named "long legs" is 2 days overdue for watering (visible on the plant detail/inventory view), but the Care Due Dashboard does not reflect this — the plant either does not appear in the overdue section or is categorized incorrectly. The care due section should prominently show any plant that is past its watering schedule. |
+
+### Steps to Reproduce
+
+1. Open the app and confirm the plant "long legs" shows as 2 days overdue for watering (e.g., on the inventory page or plant detail page).
+2. Navigate to the Care Due Dashboard.
+3. Observe that "long legs" is not displayed as overdue for watering, or is missing/miscategorized.
+
+### Expected vs Actual
+
+| | Behavior |
+|---|---|
+| **Expected** | "long legs" appears in the Care Due Dashboard's overdue section, clearly marked as 2 days overdue for watering. |
+| **Actual** | The Care Due Dashboard does not show "long legs" as overdue for watering, despite other views in the app correctly indicating it is 2 days past due. |
+
+### Status
+
+New — Needs triage by Manager Agent. Likely related to the care due query logic or timezone handling (see also FB-046 for prior timezone-related care due bug).
+
+---
+
+## FB-083 — User: Search bar placeholder shows raw unicode escape instead of ellipsis
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-083 |
+| **Source** | User (project owner) |
+| **Sprint** | 18 |
+| **Date** | 2026-04-05 |
+| **Category** | Bug |
+| **Severity** | Minor |
+| **Description** | The search bar placeholder on the My Plants / Inventory page displays `Search plants\u2026` instead of `Search plants…` (or simply `Search plants`). A unicode escape sequence is being rendered as literal text rather than being interpreted as the ellipsis character. The placeholder should just read "Search plants". |
+
+### Steps to Reproduce
+
+1. Log in and navigate to the My Plants (Inventory) page.
+2. Look at the search bar placeholder text.
+
+### Expected vs Actual
+
+| | Behavior |
+|---|---|
+| **Expected** | Placeholder reads "Search plants" (clean, no special characters or escape sequences). |
+| **Actual** | Placeholder reads `Search plants\u2026` — the unicode escape for an ellipsis is rendered as literal text. |
+
+### Status
+
+New — Needs triage by Manager Agent. Likely a string encoding issue in the frontend placeholder prop.
