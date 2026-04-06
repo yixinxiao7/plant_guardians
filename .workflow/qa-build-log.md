@@ -4,6 +4,58 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Build — Sprint #25 | 2026-04-06
+
+**Agent:** Deploy Engineer
+**Sprint:** 25
+**Timestamp:** 2026-04-06T14:41:00Z
+**Tasks:** T-115 (env cleanup), T-116 (care status date boundary fix)
+
+### Pre-Deploy Checks
+
+| Check | Result | Details |
+|-------|--------|---------|
+| QA confirmation (H-340) | ✅ PASS | 188/188 backend tests, 259/259 frontend tests — all pass |
+| All Sprint 25 tasks Done | ✅ PASS | T-112 (cancelled), T-113 (cancelled), T-114 (cancelled), T-115 Done, T-116 Done |
+| Pending migrations | ✅ None | `knex migrate:latest` → "Already up to date" — all 6 migrations previously applied |
+
+### Dependency Install
+
+| Step | Result | Details |
+|------|--------|---------|
+| `backend npm install` | ✅ PASS | 0 vulnerabilities |
+| `frontend npm install` | ✅ PASS | 0 vulnerabilities |
+
+### Frontend Build
+
+| Step | Result | Details |
+|------|--------|---------|
+| `npm run build` | ✅ PASS | Vite v8.0.2 — 4651 modules transformed |
+| Output | ✅ PASS | `dist/index.html` 1.50 kB, `dist/assets/index-*.js` 465.07 kB (131.48 kB gzip), `dist/assets/index-*.css` 92.65 kB |
+| Build time | ✅ PASS | 351ms |
+| Errors | None | Clean build, no warnings |
+
+### Staging Deployment
+
+**Environment:** Staging (local processes — Docker not available on this host)
+
+| Step | Result | Details |
+|------|--------|---------|
+| Docker availability | ⚠️ N/A | `docker` command not found — running local processes instead (same as Sprint #24) |
+| Database migrations | ✅ PASS | `npm run migrate` → "Already up to date" (all 6 migrations applied) |
+| Backend start | ✅ PASS | `node src/server.js` — PID 45166 |
+| Backend port | ✅ PASS | Listening on port 3000 |
+| DB pool | ✅ PASS | "Database pool warmed up with 2 connections" |
+| Email service | ✅ PASS (expected) | "EMAIL_HOST not configured — email sending disabled" — graceful degradation |
+| `GET /api/health` | ✅ PASS | HTTP 200 `{"status":"ok","timestamp":"2026-04-06T14:41:36.846Z"}` |
+
+**Build Status: ✅ SUCCESS**
+**Environment: Staging**
+**Backend URL:** http://localhost:3000
+**Frontend dist:** frontend/dist/ (ready to serve)
+
+---
+
 ## QA Verification — Sprint #25 | 2026-04-06
 
 **Agent:** QA Engineer

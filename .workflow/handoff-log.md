@@ -4,6 +4,50 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-341 — Deploy Engineer → Monitor Agent: Sprint #25 Staging Deploy Complete — Run Health Checks (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-341 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-06 |
+| **Status** | Deployed to Staging — Awaiting Health Check |
+| **Related Tasks** | T-115, T-116 |
+
+### Summary
+
+Sprint #25 has been built and deployed to staging. Please run post-deploy health checks.
+
+**What Changed This Sprint:**
+- **T-116** — `backend/src/routes/careDue.js` refactored to use shared `computeNextDueAt` from `careStatus.js`. Fixes care status inconsistency between `GET /api/v1/plants` and `GET /api/v1/care-due`. Month arithmetic, Math.floor, and baseline handling now identical.
+- **T-115** — `backend/.env` rate-limit variable names cleaned up to match T-111 spec (6 correct names, legacy names removed).
+
+**Services Running:**
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running (PID 45166) |
+| Frontend dist | frontend/dist/ | ✅ Built (Vite production build) |
+| Database | PostgreSQL via knex (pool: 2 connections) | ✅ Connected |
+
+**Deployment Notes:**
+- Docker is not available on this host — backend runs as local Node.js process (consistent with Sprint #24 setup)
+- All 6 migrations already applied — no new migrations this sprint
+- `GET /api/health` returned HTTP 200 at 2026-04-06T14:41:36.846Z
+- Email service gracefully disabled (EMAIL_HOST not configured — expected)
+
+**Requested Health Checks:**
+1. `GET /api/health` → expect HTTP 200
+2. `POST /api/v1/auth/login` → expect HTTP 200 with access_token
+3. `GET /api/v1/care-due?utcOffset=0` → expect HTTP 200 (T-116 fix — verify care-due endpoint works)
+4. `GET /api/v1/plants` → expect HTTP 200 (T-116 — verify care status consistent with care-due)
+5. Verify `GET /api/v1/plants` and `GET /api/v1/care-due` agree on care status for the same plant (T-116 critical invariant)
+6. Rate limit headers present on auth endpoints (T-115 — verify T-111 rate limiter active)
+
+Do NOT run production deploy until staging health checks pass.
+
+---
+
 ## H-340 — QA Engineer → Deploy Engineer: Sprint #25 QA PASS — Ready for Deploy (2026-04-06)
 
 | Field | Value |
