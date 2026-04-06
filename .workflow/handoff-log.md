@@ -5358,3 +5358,47 @@ Details:
 - T-116: Canonical date boundary algorithm verified in both `careStatus.js` and `careDue.js`; 5 regression tests in `careDueStatusConsistency.test.js` all pass
 - Backend test suite: 188/188 pass (21 suites)
 - Config consistency: PORT match, protocol match, CORS match, Docker port mapping — all PASS
+
+---
+
+## Handoff: Design Agent → Frontend Engineer
+**Sprint:** #26
+**Date:** 2026-04-06
+**Status:** Ready for Development
+**Spec:** SPEC-020 — Unsubscribe Error CTA Contextual Differentiation
+**Task:** T-118
+
+### What to build
+
+A targeted UX fix to `frontend/src/pages/UnsubscribePage.jsx`. When the unsubscribe API call fails with HTTP 404 (account already deleted), the error-state CTA must read "Go to Plant Guardians" and link to `/` instead of the current generic "Sign In" → `/login`. All other error paths (400, 401, 422, 5xx, missing params) keep the existing "Sign In" CTA unchanged.
+
+### Spec reference
+
+Full spec in `.workflow/ui-spec.md` → **SPEC-020** (at the bottom of the file).
+
+### Key implementation points
+
+1. **Add a single new state variable:** `const [errorIs404, setErrorIs404] = useState(false);`
+
+2. **Update the `catch` block** to set `errorIs404 = true` when `err?.status === 404` or `err?.code === 'USER_NOT_FOUND'`. All other error branches set `errorIs404 = false` (or leave it at its default).
+
+3. **Conditional CTA in JSX** — replace the hardcoded `<a href="/login" className="unsubscribe-cta">Sign In</a>` with:
+   ```jsx
+   {errorIs404 ? (
+     <a href="/" className="unsubscribe-cta">Go to Plant Guardians</a>
+   ) : (
+     <a href="/login" className="unsubscribe-cta">Sign In</a>
+   )}
+   ```
+
+4. **No CSS changes needed.** `.unsubscribe-cta` already styles both variants correctly.
+
+5. **Add at least 1 new test** in `frontend/src/__tests__/UnsubscribePage.test.jsx` covering the 404 CTA path. A ready-to-use test skeleton is in SPEC-020. All 7 existing tests must continue to pass.
+
+### Acceptance criteria (from T-118)
+
+- HTTP 404 responses → CTA: "Go to Plant Guardians" linking to `/`
+- All other errors → CTA: "Sign In" linking to `/login` (existing behavior preserved)
+- ≥ 1 new test for the 404 CTA differentiation
+- All 259/259 frontend tests pass (net +1 or more from new test)
+- FB-104 resolved

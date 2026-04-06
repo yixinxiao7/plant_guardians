@@ -5732,3 +5732,202 @@ Apply `data-theme="dark"` on `<html>` or `<body>` and override custom properties
 *SPEC-019 written by Design Agent on 2026-04-06. Auto-approved for Sprint #24.*
 
 *SPEC-018 written by Design Agent on 2026-04-05 for Sprint #23.*
+
+---
+
+### SPEC-020 — Unsubscribe Error CTA Contextual Differentiation
+
+**Status:** Approved
+**Related Task:** T-118 (Frontend Engineer)
+**Sprint:** 26
+**Type:** Spec Amendment — extends SPEC-017 Surface 3.2
+**Resolves:** FB-104
+
+---
+
+#### Summary
+
+This spec amends SPEC-017 Surface 3.2 ("Unsubscribe Outcome — Invalid or expired token") to differentiate the error-state CTA based on HTTP status code. The current implementation renders a generic "Sign In" CTA for **all** error cases. For HTTP 404 (account already deleted), directing the user to sign in is misleading — they cannot sign in. The fix replaces the generic CTA with a contextually appropriate one that depends on the specific error type.
+
+---
+
+#### Affected Screen
+
+**File:** `frontend/src/pages/UnsubscribePage.jsx`
+**State affected:** Error state only (`status === 'error'`)
+**No changes to:** loading state, success state, card layout, logo, divider, heading text, spinner, or any CSS.
+
+---
+
+#### Error Sub-State Differentiation
+
+The `UnsubscribePage` currently holds a single `status: 'error'` state. T-118 introduces a logical distinction within that state based on the **HTTP status code** of the failed `GET /api/v1/unsubscribe` response.
+
+##### Error Detection Logic
+
+The `ApiError` class (defined in `frontend/src/utils/api.js`) exposes both `err.code` (string from the API JSON body) and `err.status` (HTTP integer status code). Use `err.status === 404` as the primary discriminator — this is more reliable than string-matching `err.code` and survives any future renaming of backend error codes.
+
+The component must track **whether the error is a 404** as a separate boolean piece of state:
+
+```js
+const [status, setStatus] = useState('loading'); // 'loading' | 'success' | 'error'
+const [errorMessage, setErrorMessage] = useState('');
+const [errorIs404, setErrorIs404] = useState(false);
+```
+
+##### Catch Block Logic
+
+```js
+catch (err) {
+  if (!cancelled) {
+    setStatus('error');
+    if (err?.status === 404 || err?.code === 'USER_NOT_FOUND') {
+      setErrorIs404(true);
+      setErrorMessage(
+        'This account no longer exists. The unsubscribe link cannot be processed.'
+      );
+    } else if (err?.code === 'INVALID_TOKEN') {
+      setErrorIs404(false);
+      setErrorMessage(
+        "This unsubscribe link may have already been used or has expired. " +
+        "If you'd like to manage your reminder settings, sign in to your profile."
+      );
+    } else {
+      setErrorIs404(false);
+      setErrorMessage(
+        'Something went wrong. Please try again later or sign in to manage your reminder settings.'
+      );
+    }
+  }
+}
+```
+
+> **Note on missing params (no token/uid):** The early-return guard at the top of `useEffect` sets `status: 'error'` synchronously without making an API call, so `err.status` is never set. This path leaves `errorIs404` at its initial `false` value and renders the existing "Sign In" CTA. **No change required for this path.**
+
+---
+
+#### CTA Rendering Rules
+
+| Condition | CTA Label | CTA `href` |
+|-----------|-----------|------------|
+| `errorIs404 === true` | `"Go to Plant Guardians"` | `"/"` |
+| `errorIs404 === false` (all other errors + missing params) | `"Sign In"` | `"/login"` |
+
+Both CTA variants use the **identical** `.unsubscribe-cta` CSS class already in use on the success-state button. No new styles are needed.
+
+---
+
+#### Error State Visual Spec (Updated)
+
+Layout is **unchanged**. Only the `<a>` element at the bottom of the error block is conditionally swapped.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│   🌿  Plant Guardians                                       │
+│                                                             │
+│  ─────────────────────────────────────────────────────────  │
+│                                                             │
+│         ⚠   Link not valid                                 │  ← heading (unchanged)
+│                                                             │
+│   [Error body text — varies by error type, see table]      │
+│                                                             │
+│   ┌─────────────────────────────────────────────────────┐  │
+│   │  [CTA — "Go to Plant Guardians" or "Sign In"]       │  │  ← only this changes
+│   └─────────────────────────────────────────────────────┘  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Full states table:**
+
+| Error case | Heading | Body copy | CTA | CTA `href` |
+|------------|---------|-----------|-----|-----------|
+| HTTP 404 / `USER_NOT_FOUND` | `"Link not valid"` | `"This account no longer exists. The unsubscribe link cannot be processed."` | **"Go to Plant Guardians"** | **`/`** |
+| `INVALID_TOKEN` or missing params | `"Link not valid"` | `"This unsubscribe link may have already been used or has expired. If you'd like to manage your reminder settings, sign in to your profile."` | `"Sign In"` | `/login` |
+| Generic / 5xx | `"Link not valid"` | `"Something went wrong. Please try again later or sign in to manage your reminder settings."` | `"Sign In"` | `/login` |
+
+**JSX for the error block (updated):**
+
+```jsx
+{status === 'error' && (
+  <div className="unsubscribe-error">
+    <Warning size={36} color="var(--color-status-red)" weight="regular" aria-hidden="true" />
+    <h1 className="unsubscribe-heading">Link not valid</h1>
+    <p className="unsubscribe-body">{errorMessage}</p>
+    {errorIs404 ? (
+      <a href="/" className="unsubscribe-cta">Go to Plant Guardians</a>
+    ) : (
+      <a href="/login" className="unsubscribe-cta">Sign In</a>
+    )}
+  </div>
+)}
+```
+
+---
+
+#### Responsive Behavior
+
+No layout changes needed. The unsubscribe card is already fully responsive (single-column, centered, `max-width: 480px`). Both CTA label strings — "Go to Plant Guardians" and "Sign In" — fit comfortably on a single line at all viewport widths down to 320px using the existing full-width block-level `<a>` style.
+
+---
+
+#### Accessibility
+
+| Requirement | Implementation |
+|-------------|---------------|
+| CTA is a real `<a>` tag | Both variants are `<a href>` elements — correct semantic choice since they navigate to a new URL rather than triggering an action |
+| Keyboard accessible | `<a>` is natively keyboard-focusable; `Enter` activates the link |
+| Focus ring | Existing `.unsubscribe-cta:focus-visible` outline applies to both variants — no extra work needed |
+| Link text is descriptive | "Go to Plant Guardians" and "Sign In" are unambiguous even out of page context — no additional `aria-label` required |
+| Only one CTA rendered at a time | The ternary ensures exactly one `<a>` exists in the error block; no hidden duplicate links |
+
+---
+
+#### Files to Modify
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/UnsubscribePage.jsx` | Add `errorIs404` state variable; update `catch` block to set `errorIs404` based on `err.status === 404` or `err.code === 'USER_NOT_FOUND'`; conditionally render CTA `<a>` in the error block based on `errorIs404` |
+| `frontend/src/__tests__/UnsubscribePage.test.jsx` | Add at minimum 1 new test for the 404 CTA path (see below). Existing 7 tests must continue to pass. |
+
+**No CSS changes required.**
+
+---
+
+#### Minimum Test Coverage (T-118 — 1 new test required)
+
+| # | Test | Required? |
+|---|------|-----------|
+| 1 | **404 CTA** — mock `notificationPreferences.unsubscribe` to reject with `{ status: 404, code: 'USER_NOT_FOUND' }`; assert CTA label is `"Go to Plant Guardians"` with `href="/"` and that `"Sign In"` is **not** present | ✅ Required |
+| 2 | **Non-404 still shows "Sign In"** — mock a 400/422 error (`{ status: 400, code: 'INVALID_TOKEN' }`); assert CTA is `"Sign In"` with `href="/login"` | Strongly recommended |
+| 3 | **5xx still shows "Sign In"** — mock a 500 error (`{ status: 500, code: 'INTERNAL_ERROR' }`); assert CTA is `"Sign In"` with `href="/login"` | Recommended |
+
+**Test #1 example skeleton:**
+
+```js
+it('shows "Go to Plant Guardians" CTA when API returns 404 (deleted account)', async () => {
+  mockSearchParams.set('token', 'valid-token');
+  mockSearchParams.set('uid', 'deleted-user-id');
+
+  const err = new Error('Not found');
+  err.status = 404;
+  err.code = 'USER_NOT_FOUND';
+  mockUnsubscribe.mockRejectedValue(err);
+
+  render(<UnsubscribePage />);
+
+  await waitFor(() => {
+    expect(screen.getByText('Link not valid')).toBeInTheDocument();
+  });
+
+  const cta = screen.getByRole('link', { name: 'Go to Plant Guardians' });
+  expect(cta).toBeInTheDocument();
+  expect(cta).toHaveAttribute('href', '/');
+  expect(screen.queryByRole('link', { name: 'Sign In' })).not.toBeInTheDocument();
+});
+```
+
+---
+
+*SPEC-020 written by Design Agent on 2026-04-06. Auto-approved for Sprint #26.*
