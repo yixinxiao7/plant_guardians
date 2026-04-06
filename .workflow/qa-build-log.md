@@ -4,6 +4,30 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Build — Sprint #24 | 2026-04-06
+
+- **Triggered by:** Deploy Engineer (Sprint #24)
+- **Build Status:** Success
+- **Frontend Build:** Vite v8.0.2 — 4651 modules transformed, built in 373ms. Output: `frontend/dist/` (index.html 1.50 kB, index.css 92.65 kB, index.js 465.07 kB, confetti module 10.59 kB). No errors or warnings.
+- **Backend Install:** `npm install` — up to date, 446 packages audited, 0 vulnerabilities.
+- **Frontend Install:** `npm install` — up to date, 243 packages audited, 0 vulnerabilities.
+- **Notes:** No schema changes this sprint (per H-320). All Sprint 24 tasks (T-108–T-111) confirmed Done. QA confirmed 183/183 backend tests and 259/259 frontend tests passing (H-328).
+
+---
+
+## Deployment — Sprint #24 | 2026-04-06
+
+- **Environment:** Staging (local)
+- **Build Status:** Success
+- **Backend URL:** http://localhost:3000
+- **Frontend:** Built static files at `frontend/dist/`
+- **Migrations Run:** No — `npm run migrate` returned "Already up to date". Sprint 24 requires no schema changes (batch care actions write to existing `care_actions` table; rate limiting is application-layer only).
+- **Docker:** Not Available — `docker` command not found on this machine. Backend started as local Node.js process.
+- **Backend Startup:** Confirmed — server logs: `Plant Guardians API running on port 3000 [development]`, `Database pool warmed up with 2 connections (pool.min=2)`. Email service disabled (EMAIL_HOST not configured) — expected, graceful degradation.
+- **Notes:** Docker unavailable; staging deployment is local Node.js process on port 3000. Monitor Agent should verify backend health at http://localhost:3000/api/health (or /health).
+
+---
+
 ## Sprint 24 — QA Engineer: Full QA Verification (2026-04-06)
 
 **Timestamp:** 2026-04-06

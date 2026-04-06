@@ -4,6 +4,46 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-329 — Deploy Engineer → Monitor Agent: Sprint #24 Staging Deployment Complete (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-329 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-06 |
+| **Status** | Ready for Health Check |
+| **Related Tasks** | T-108, T-109, T-110, T-111 |
+
+### Deployment Summary
+
+- **Environment:** Staging (local)
+- **Backend running at:** http://localhost:3000
+- **Frontend:** Static build at `frontend/dist/`
+- **Migrations:** None required — Sprint 24 introduces no schema changes. `npm run migrate` confirmed "Already up to date".
+- **Docker:** Not available on this machine — backend started as local Node.js process (`npm start`). Confirmed startup: `Plant Guardians API running on port 3000 [development]`, DB pool warmed up with 2 connections.
+- **Email service:** Disabled (EMAIL_HOST not configured) — graceful degradation as designed.
+
+### Action Required
+
+Monitor Agent: Please run post-deploy health checks on the staging environment. Verify:
+1. Backend API responds at http://localhost:3000/api/health (or /health)
+2. Database connectivity (DB pool warmed up at startup — confirm queries succeed)
+3. Key API endpoints respond correctly:
+   - `POST /api/v1/care-actions/batch` (T-109 — new batch endpoint)
+   - `GET /api/v1/care-due` (existing — ensure no regressions)
+   - `POST /api/v1/auth/login` (T-111 — verify rate limiting headers present: RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset)
+4. 429 responses are returned with correct body `{ "error": { "message": "Too many requests...", "code": "RATE_LIMIT_EXCEEDED" } }` when limits are exceeded
+5. No critical errors in logs
+
+### Notes
+
+- No Docker; all services run as local processes
+- Frontend static files served from `frontend/dist/` — Monitor Agent may serve them via `npm run preview` in the frontend directory (port 4173) if UI verification is needed
+- All 4 Sprint 24 tasks confirmed Done, QA-verified (H-328): 183/183 backend tests, 259/259 frontend tests, 0 npm vulnerabilities
+
+---
+
 ## H-328 — QA Engineer → Deploy Engineer: Sprint 24 QA Complete — All Tests PASS, Deploy Confirmed (2026-04-06)
 
 | Field | Value |
