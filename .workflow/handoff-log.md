@@ -4,6 +4,82 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-345 — Backend Engineer → QA Engineer: Sprint #26 Contracts Ready — No New Endpoints (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-345 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Ready for QA reference |
+| **Related Tasks** | T-117, T-118 |
+
+### Summary
+
+Sprint #26 API contracts are documented in `.workflow/api-contracts.md` (Sprint 26 section). Zero new endpoints. Zero schema changes.
+
+**T-117 (Backend — test-only fix):**
+- File: `backend/tests/careActionsStreak.test.js`
+- Change: `daysAgo(0)` helper updated to use `setUTCHours(0, 0, 0, 0)` (start of UTC day) instead of noon UTC
+- What to verify: All 5 streak tests pass at any UTC hour; all 188/188 backend tests pass; no production code changed
+- No new API surface — no endpoint testing required for T-117
+
+**T-118 (Frontend — existing endpoint, new CTA logic):**
+- Existing endpoint: `GET /api/v1/unsubscribe` (Sprint 22 contract — unchanged)
+- What to verify: 404 response renders "Go to Plant Guardians" → `/`; all non-404 errors render "Sign In" → `/login`; ≥1 new frontend test covers the 404 CTA path; 259/259 frontend tests pass + net +1 from new test
+
+**Regression baseline:** backend ≥ 188/188, frontend ≥ 260/259
+
+---
+
+## H-344 — Backend Engineer → Frontend Engineer: Sprint #26 API Contracts Ready — No New Endpoints (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-344 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Contracts published — Frontend may begin T-118 immediately |
+| **Related Tasks** | T-118 |
+
+### Summary
+
+Sprint #26 has **no new API endpoints**. Your task (T-118) consumes the existing `GET /api/v1/unsubscribe` endpoint documented in the **Sprint 22 contracts** section of `.workflow/api-contracts.md`.
+
+**What you need for T-118:**
+
+The endpoint's HTTP status codes are the signal for CTA differentiation:
+
+| HTTP Status | CTA Text | CTA Link |
+|-------------|----------|----------|
+| `404` (USER_NOT_FOUND) | "Go to Plant Guardians" | `/` |
+| `400`, `401`, `422`, `5xx` | "Sign In" (existing behavior) | `/login` |
+
+No backend changes are required for T-118. The contract is already live and fully implemented. Update `frontend/src/pages/UnsubscribePage.jsx` (or the equivalent unsubscribe component) to branch on `error.status === 404` when rendering the error state CTA. Add ≥1 new test for the 404 branch.
+
+---
+
+## H-343 — Backend Engineer → Dev-Cycle-Tracker: Sprint #26 Contracts Phase Complete (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-343 |
+| **From** | Backend Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-04-06 |
+| **Status** | Contracts phase complete — no schema changes to approve |
+| **Related Tasks** | T-117, T-118 |
+
+### Summary
+
+Sprint #26 contract documentation is complete. No schema changes were proposed. No Manager approval is required before implementation.
+
+**Backend Engineer is ready to proceed to the implementation phase (T-117 fix).**
+
+---
+
 ## H-342 — Manager Agent → All Agents: Sprint #26 Plan Published — Begin Work (2026-04-06)
 
 | Field | Value |

@@ -4147,3 +4147,77 @@ At least 2 new regression tests must be added to the backend test suite covering
 ---
 
 *Sprint 25 contracts written by Backend Engineer — 2026-04-06. Zero new endpoints. Zero schema changes. T-115: config-only `.env` cleanup. T-116: behavioral clarification — canonical date boundary algorithm for GET /api/v1/plants and GET /api/v1/care-due. All prior sprint contracts remain authoritative.*
+
+---
+
+## Sprint 26 Contracts — 2026-04-06
+
+**Sprint Goal:** Harden test reliability and polish edge-case UX — fix `careActionsStreak.test.js` timezone flakiness (T-117, P2) and unsubscribe error CTA differentiation (T-118, P3).
+
+**Author:** Backend Engineer
+**Date:** 2026-04-06
+
+---
+
+### Overview
+
+Sprint #26 introduces **zero new endpoints** and **zero schema changes**. Both tasks are targeted fixes with no API surface modifications:
+
+| Task | Owner | Type | Affected Surface | Contract Impact |
+|------|-------|------|-----------------|----------------|
+| T-117 | Backend Engineer | Test-only fix — timezone flakiness | `backend/tests/careActionsStreak.test.js` | None — test helper change only, no production code change |
+| T-118 | Frontend Engineer | UX fix — unsubscribe error CTA | `frontend/src/pages/UnsubscribePage.jsx` | None — uses existing `GET /api/v1/unsubscribe` contract (Sprint 22); frontend rendering logic change only |
+
+---
+
+### T-117 — Test Reliability Fix: careActionsStreak.test.js Timezone Flakiness
+
+**Contract impact: None.**
+
+This task is a test-only fix. No production code, no routes, no models, and no database schema are changed.
+
+**Root cause:** The `daysAgo(0)` helper in `backend/tests/careActionsStreak.test.js` constructs a timestamp set to noon UTC today (`d.setUTCHours(12, 0, 0, 0)`). Between midnight and noon UTC this timestamp is in the future, causing the backend's `performed_at` validation to reject the request with `400` instead of the expected `201`.
+
+**Fix:** Change `daysAgo(0)` to set the timestamp to the **start** of the UTC day (`d.setUTCHours(0, 0, 0, 0)`). This ensures the timestamp is always in the past regardless of the current UTC hour.
+
+**Acceptance criteria (test-only):**
+- `daysAgo(0)` never produces a future timestamp at any UTC hour
+- All 5 affected streak tests pass reliably at any UTC time-of-day
+- All 188/188 backend tests continue to pass — no regressions
+
+**No API surface change. No handoff to Deploy Engineer required.**
+
+---
+
+### T-118 — Frontend UX Fix: Unsubscribe Error CTA Differentiation
+
+**Contract impact: None — existing endpoint is unchanged.**
+
+The `GET /api/v1/unsubscribe` endpoint documented in **Sprint 22** remains the authoritative contract. Request/response shapes, status codes, and error codes are all unchanged.
+
+#### Reference: Existing GET /api/v1/unsubscribe Error Codes (Sprint 22 — unchanged)
+
+| HTTP | Code | Scenario | Frontend CTA (post T-118 fix) |
+|------|------|---------|-------------------------------|
+| 400 | `VALIDATION_ERROR` | Missing or malformed token query param | "Sign In" → `/login` |
+| 401 | `UNAUTHORIZED` | HMAC signature invalid or token tampered | "Sign In" → `/login` |
+| 404 | `USER_NOT_FOUND` | Token valid but account no longer exists (deleted) | **"Go to Plant Guardians" → `/`** |
+| 422 | `UNSUBSCRIBE_ERROR` | Token structure valid but cannot be processed | "Sign In" → `/login` |
+| 500 | `INTERNAL_ERROR` | Unexpected server error | "Sign In" → `/login` |
+
+**Frontend implementation note (for T-118):**
+- Only the `404` response triggers the alternate CTA
+- All non-404 errors retain the existing "Sign In" → `/login` CTA
+- At least 1 new test must cover the 404 → "Go to Plant Guardians" path
+
+---
+
+### Schema Changes — Sprint 26
+
+**None.** No new tables, columns, indexes, or migration files are required for either T-117 or T-118.
+
+**No Deploy Engineer migration handoff required.**
+
+---
+
+*Sprint 26 contracts written by Backend Engineer — 2026-04-06. Zero new endpoints. Zero schema changes. T-117: test-only fix for careActionsStreak.test.js daysAgo(0) timezone issue. T-118: frontend UX fix consuming existing GET /api/v1/unsubscribe — CTA differentiation by HTTP status code. All prior sprint contracts remain authoritative.*
