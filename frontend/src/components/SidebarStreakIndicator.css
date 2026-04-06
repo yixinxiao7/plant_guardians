@@ -1,0 +1,38 @@
+/* SidebarStreakIndicator — compact pill in sidebar (SPEC-014 / T-091) */
+
+.sidebar-streak-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 4px 12px 8px;
+  background: var(--color-streak-sidebar-bg);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  outline: none;
+}
+
+.sidebar-streak-indicator:hover {
+  background: rgba(92, 122, 92, 0.14);
+}
+
+[data-theme="dark"] .sidebar-streak-indicator:hover {
+  background: rgba(107, 155, 107, 0.2);
+}
+
+.sidebar-streak-indicator:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.sidebar-streak-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.sidebar-streak-text {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}

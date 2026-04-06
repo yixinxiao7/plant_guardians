@@ -42,8 +42,14 @@ describe('POST /api/v1/auth/register', () => {
     const setCookie = res.headers['set-cookie'];
     const cookieStr = Array.isArray(setCookie) ? setCookie.find(c => c.startsWith('refresh_token=')) : setCookie;
     expect(cookieStr).toMatch(/HttpOnly/i);
-    expect(cookieStr).toMatch(/Secure/i);
-    expect(cookieStr).toMatch(/SameSite=Strict/i);
+    // T-087: Secure flag is only set when NODE_ENV=production.
+    // In test environment, the cookie should NOT have the Secure attribute.
+    if (process.env.NODE_ENV === 'production') {
+      expect(cookieStr).toMatch(/Secure/i);
+    } else {
+      expect(cookieStr).not.toMatch(/;\s*Secure/i);
+    }
+    expect(cookieStr).toMatch(/SameSite=Lax/i);
     expect(cookieStr).toMatch(/Path=\/api\/v1\/auth/);
     // Password hash should never be returned
     expect(res.body.data.user.password_hash).toBeUndefined();

@@ -2941,3 +2941,864 @@ Any existing consumer calling `GET /api/v1/plants` without the new parameters re
 ---
 
 *Sprint 17 contracts written by Backend Engineer — 2026-04-01. One endpoint shape update: POST /api/v1/ai/advice (T-077, breaking response shape change). One new endpoint: POST /api/v1/ai/identify (T-078). Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*
+
+---
+
+## Sprint 19 Contracts
+
+---
+
+### GROUP 1 — Care Streak (T-090)
+
+---
+
+#### GET /api/v1/care-actions/streak
+
+**Auth:** Required — Bearer token in `Authorization: Bearer <access_token>` header. Returns `401` if token is missing or invalid.
+
+**Description:** Returns the authenticated user's current care streak (consecutive calendar days with ≥1 care action), their longest-ever streak, and the date of their most recent care action. All date calculations are shifted by the optional `utcOffset` query parameter so that "today" and "yesterday" match the user's local calendar day.
+
+**Streak Definition:**
+- A "streak day" is any calendar day (in the user's local timezone, as determined by `utcOffset`) on which the user logged ≥1 care action.
+- The current streak counts backwards from today (inclusive if today has an action) or from yesterday (if no action yet today but yesterday had one). If neither today nor yesterday has an action, the streak is 0.
+- `currentStreak = 0` if the user has no care actions ever recorded.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Validation | Default | Description |
+|-----------|------|----------|-----------|---------|-------------|
+| `utcOffset` | integer | No | Must be an integer in range `[-840, 840]` (minutes). Non-integer or out-of-range → 400. | `0` (UTC) | Minutes to offset UTC timestamps to the user's local timezone for date bucketing (e.g., `-300` for UTC-5, `+330` for UTC+5:30). |
+
+**Request Body:** None (GET request)
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "currentStreak": 7,
+    "longestStreak": 14,
+    "lastActionDate": "2026-04-05"
+  }
+}
+```
+
+**Response Field Descriptions:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `currentStreak` | integer ≥ 0 | Number of consecutive calendar days (user's local time) ending today (or yesterday) on which ≥1 care action was logged. `0` if no streak is active. |
+| `longestStreak` | integer ≥ 0 | Highest consecutive-day streak this user has ever achieved. `0` if the user has no care actions. |
+| `lastActionDate` | `"YYYY-MM-DD"` string or `null` | The user's local-timezone date of their most recent care action. `null` if the user has never logged a care action. |
+
+**Edge Cases / Examples:**
+
+| Scenario | `currentStreak` | `longestStreak` | `lastActionDate` |
+|----------|----------------|----------------|-----------------|
+| New user — no care actions ever | `0` | `0` | `null` |
+| Single action logged today | `1` | `1` | today |
+| Actions on today + yesterday | `2` | `2` | today |
+| 3 consecutive days ending today | `3` | `3` | today |
+| Streak broken — last action was 2+ days ago | `0` | (prior best) | (prior action date) |
+| Actions on yesterday only (none today) | `1` | ≥1 | yesterday |
+| utcOffset shifts yesterday's UTC action into today locally | streak reflects local-date calculation | — | local date |
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `utcOffset` provided but not an integer |
+| 400 | `VALIDATION_ERROR` | `utcOffset` is an integer outside the range `[-840, 840]` |
+| 401 | `UNAUTHORIZED` | Missing, malformed, or expired access token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Example Requests:**
+
+```bash
+# Default (UTC) — no offset
+GET /api/v1/care-actions/streak
+Authorization: Bearer <access_token>
+
+# User in UTC-5 (EST, no DST)
+GET /api/v1/care-actions/streak?utcOffset=-300
+Authorization: Bearer <access_token>
+
+# User in UTC+5:30 (IST)
+GET /api/v1/care-actions/streak?utcOffset=330
+Authorization: Bearer <access_token>
+
+# 400 — utcOffset out of range
+GET /api/v1/care-actions/streak?utcOffset=999
+
+# 401 — no auth header
+GET /api/v1/care-actions/streak
+```
+
+**Example Success Responses:**
+
+```json
+// Active 7-day streak
+{
+  "data": {
+    "currentStreak": 7,
+    "longestStreak": 30,
+    "lastActionDate": "2026-04-05"
+  }
+}
+
+// No actions ever (new user)
+{
+  "data": {
+    "currentStreak": 0,
+    "longestStreak": 0,
+    "lastActionDate": null
+  }
+}
+
+// Streak broken (last action was 3 days ago)
+{
+  "data": {
+    "currentStreak": 0,
+    "longestStreak": 14,
+    "lastActionDate": "2026-04-02"
+  }
+}
+```
+
+**Example Error Responses:**
+
+```json
+// 400 — utcOffset out of range
+{
+  "error": {
+    "message": "utcOffset must be an integer between -840 and 840",
+    "code": "VALIDATION_ERROR"
+  }
+}
+
+// 401 — no/invalid token
+{
+  "error": {
+    "message": "Unauthorized",
+    "code": "UNAUTHORIZED"
+  }
+}
+```
+
+---
+
+### T-087 — Auth Cookie Secure Flag Fix
+
+**No API contract change.** T-087 is an internal implementation fix only:
+- Changes the `secure` flag on the `refresh_token` cookie from always-`true` to `process.env.NODE_ENV === 'production'`
+- **Request and response shapes are unchanged** — no new fields, no removed fields, no status code changes
+- The existing `POST /api/v1/auth/register` and `POST /api/v1/auth/login` contracts in Sprint 1 remain fully authoritative
+- Frontend integration is unaffected — the cookie is set by the browser automatically; client-side code does not read the `secure` flag
+
+---
+
+### Schema Changes — Sprint 19
+
+**None.** No new tables, columns, or indexes are required for Sprint 19.
+
+- `GET /api/v1/care-actions/streak` (T-090): all streak computation is derived at query time from the existing `care_actions` table (specifically `created_at` timestamps and `user_id` via plant ownership join). No new columns or tables are needed.
+- T-087 auth cookie fix: no database changes.
+- No Knex migrations required this sprint.
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+*Sprint 19 contracts written by Backend Engineer — 2026-04-05. One new endpoint: GET /api/v1/care-actions/streak (T-090). T-087 is an internal cookie-flag fix — no contract change. Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*
+
+---
+
+## Sprint 20 Contracts
+
+---
+
+### T-093 — Care History Endpoint
+
+---
+
+#### GET /api/v1/plants/:id/care-history
+
+**Auth:** Required — `Authorization: Bearer <access_token>`. Returns 401 if token is missing or invalid.
+
+**Description:** Returns a paginated, reverse-chronological list of care actions logged for a specific plant owned by the authenticated user. Supports optional filtering by care type. Used by the Care History section on the Plant Detail page (SPEC-015).
+
+**URL Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | UUID string | The plant's UUID. Must belong to the authenticated user. |
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Constraints | Description |
+|-----------|------|---------|-------------|-------------|
+| `page` | integer | `1` | ≥ 1 | Page number (1-indexed) |
+| `limit` | integer | `20` | 1–100 (inclusive) | Items per page |
+| `careType` | string | *(none — all types)* | `watering` \| `fertilizing` \| `repotting` | Filter to a single care type. Omit to return all types. |
+
+**Validation Rules:**
+- `page`: optional; must be a positive integer (≥ 1); 400 if present and out of range
+- `limit`: optional; must be an integer between 1 and 100 inclusive; 400 if present and out of range
+- `careType`: optional; if provided must be exactly one of `"watering"`, `"fertilizing"`, `"repotting"` (case-sensitive); 400 if any other value
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "id": "uuid",
+        "careType": "watering",
+        "performedAt": "2026-04-04T09:00:00.000Z",
+        "notes": "string | null"
+      }
+    ],
+    "total": 42,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 3
+  }
+}
+```
+
+**Response Field Descriptions:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `items` | array | Ordered list of care action records for this page, newest first |
+| `items[].id` | UUID string | Unique identifier of the care action record |
+| `items[].careType` | string | One of: `"watering"`, `"fertilizing"`, `"repotting"` |
+| `items[].performedAt` | ISO 8601 UTC string | When the care action was performed (maps to `performed_at` column) |
+| `items[].notes` | string \| null | Optional note attached to the care action (maps to `note` column); `null` when no note was recorded |
+| `total` | integer | Total number of matching records across all pages |
+| `page` | integer | Current page number (matches the `page` query param used) |
+| `limit` | integer | Page size used for this response (matches the `limit` query param used) |
+| `totalPages` | integer | Total number of pages: `Math.ceil(total / limit)` |
+
+**Ordering:** Items are always returned `performed_at DESC` (most recent first), within each page.
+
+**Empty Result:** A plant with no care history (or no matching care history for the given filter) returns a 200 with `items: []`, `total: 0`, `totalPages: 0`.
+
+**Field Mapping Note:** The underlying `care_actions` database column is `note` (singular). The API response exposes this as `notes` (plural) for naming consistency with the rest of the API surface. The implementation will alias `note AS notes` in the query.
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `careType` is not one of the allowed values; or `page` / `limit` is out of range. `message` identifies the failing field. |
+| 401 | `UNAUTHORIZED` | No `Authorization` header, or token is expired/invalid |
+| 403 | `FORBIDDEN` | Plant `:id` exists but does not belong to the authenticated user |
+| 404 | `NOT_FOUND` | No plant with `:id` exists |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Example Requests:**
+
+```
+GET /api/v1/plants/a1b2c3d4-.../care-history
+Authorization: Bearer eyJ...
+
+GET /api/v1/plants/a1b2c3d4-.../care-history?careType=watering&page=2&limit=10
+Authorization: Bearer eyJ...
+```
+
+**Example Success Response (page 1, careType=watering, 2 of 5 items):**
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        "careType": "watering",
+        "performedAt": "2026-04-04T09:00:00.000Z",
+        "notes": "Soil was very dry — gave extra water"
+      },
+      {
+        "id": "c9bf9e57-1685-4c89-bafb-ff5af830be8a",
+        "careType": "watering",
+        "performedAt": "2026-03-28T08:30:00.000Z",
+        "notes": null
+      }
+    ],
+    "total": 5,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1
+  }
+}
+```
+
+**Example Error Responses:**
+
+```json
+// 400 — invalid careType
+{
+  "error": {
+    "message": "careType must be one of: watering, fertilizing, repotting",
+    "code": "VALIDATION_ERROR"
+  }
+}
+
+// 400 — limit out of range
+{
+  "error": {
+    "message": "limit must be an integer between 1 and 100",
+    "code": "VALIDATION_ERROR"
+  }
+}
+
+// 400 — page out of range
+{
+  "error": {
+    "message": "page must be a positive integer",
+    "code": "VALIDATION_ERROR"
+  }
+}
+
+// 401 — no/invalid token
+{
+  "error": {
+    "message": "Unauthorized",
+    "code": "UNAUTHORIZED"
+  }
+}
+
+// 403 — plant belongs to a different user
+{
+  "error": {
+    "message": "You do not have access to this plant",
+    "code": "FORBIDDEN"
+  }
+}
+
+// 404 — plant does not exist
+{
+  "error": {
+    "message": "Plant not found",
+    "code": "NOT_FOUND"
+  }
+}
+```
+
+---
+
+### T-095 — Lodash Security Fix
+
+**No API contract change.** T-095 is a dependency-only security fix:
+- Runs `npm audit fix` in `backend/` and `frontend/` to resolve the lodash ≤4.17.23 prototype-pollution / code-injection advisory
+- If lodash cannot be auto-fixed (pinned by a parent dep), adds an `overrides` entry in `package.json` to pin lodash to `>=4.17.24`
+- **No endpoints added, removed, or modified**
+- **No request or response shapes change**
+- All existing contracts remain fully authoritative
+
+---
+
+### Schema Changes — Sprint 20
+
+**None.** No new tables, columns, or indexes are required for Sprint 20.
+
+- `GET /api/v1/plants/:id/care-history` (T-093): queries the existing `care_actions` table using columns `id`, `care_type`, `performed_at`, and `note` — all present since Sprint 1 migration `20260323_05_create_care_actions.js`. The `idx_care_actions_performed_at` index on `(plant_id, performed_at DESC)` already covers the primary query pattern.
+- The API field name `notes` (plural) maps to the existing `note` (singular) column via a SQL alias — this is not a schema change.
+- No new Knex migrations required.
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+*Sprint 20 contracts written by Backend Engineer — 2026-04-05. One new endpoint: GET /api/v1/plants/:id/care-history (T-093). T-095 is a security dependency fix — no contract change. Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*
+
+---
+
+## Sprint 21 Contracts
+
+---
+
+### T-097 — Extend POST /plants/:id/care-actions to Accept Optional `notes` Field
+
+---
+
+#### UPDATED: POST /api/v1/plants/:id/care-actions
+
+**Auth:** Bearer token (required)
+
+**Description:** Records a care action for a plant owned by the authenticated user. **Sprint 21 update:** Adds an optional `notes` field to the request body so users can attach a care observation when marking a care action done. All existing behavior is unchanged — callers that omit `notes` continue to work exactly as before.
+
+**This is a non-breaking change.** The `notes` field is entirely optional and defaults to `null` when absent. No previously valid request will fail.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | UUID string | Yes | The plant's unique identifier. Must belong to the authenticated user. |
+
+**Request Body:**
+
+```json
+{
+  "care_type": "watering",           // required; enum: watering | fertilizing | repotting
+  "performed_at": "ISO8601 | null",  // optional; if null/omitted, server defaults to current UTC time
+  "notes": "string | null"           // optional (NEW in Sprint 21); freeform observation text; max 280 characters
+}
+```
+
+**Validation Rules:**
+
+| Field | Rule |
+|-------|------|
+| `care_type` | Required. Must be exactly one of: `"watering"`, `"fertilizing"`, `"repotting"`. Case-sensitive. |
+| `performed_at` | Optional ISO 8601 datetime string. Must not be in the future. If omitted or `null`, server defaults to `NOW()`. |
+| `notes` | Optional. If present, must be a string. Maximum 280 characters after whitespace-trimming. If the value is `null`, an empty string, or whitespace-only (e.g. `"   "`), it is stored as `null`. Returns `400 VALIDATION_ERROR` if length exceeds 280 chars after trim. |
+
+**Normalization rules for `notes`:**
+- `null` → stored as `null`
+- `""` (empty string) → stored as `null`
+- `"   "` (whitespace-only) → trimmed to `""` → stored as `null`
+- `"  Great watering session  "` → trimmed to `"Great watering session"` → stored as provided trimmed value
+- `"x".repeat(281)` → 400 `VALIDATION_ERROR` (exceeds 280 chars after trim)
+
+**Success Response — 201 Created:**
+
+```json
+{
+  "data": {
+    "care_action": {
+      "id": "uuid",
+      "plant_id": "uuid",
+      "care_type": "watering",
+      "performed_at": "ISO8601",
+      "notes": "string | null"
+    },
+    "updated_schedule": {
+      "id": "uuid",
+      "care_type": "watering",
+      "frequency_value": 7,
+      "frequency_unit": "days",
+      "last_done_at": "ISO8601",
+      "next_due_at": "ISO8601",
+      "status": "on_track",
+      "days_overdue": 0
+    }
+  }
+}
+```
+
+**Response Field Notes:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `care_action.id` | UUID string | The newly created care action record's unique identifier |
+| `care_action.plant_id` | UUID string | The plant this action was recorded against |
+| `care_action.care_type` | string | One of: `"watering"`, `"fertilizing"`, `"repotting"` |
+| `care_action.performed_at` | ISO 8601 UTC string | When the care action was performed |
+| `care_action.notes` | string \| null | The (trimmed) note text, or `null` if none provided. Maps to the `note` column in `care_actions` (aliased to `notes` for API consistency with `GET /plants/:id/care-history`). |
+| `updated_schedule.*` | — | Recalculated care schedule state after this action — same shape as in prior sprints |
+
+**Naming alignment note:** The underlying `care_actions` database column is `note` (singular, established Sprint 1). The API consistently exposes it as `notes` (plural) across both read (`GET /plants/:id/care-history`) and write (`POST /plants/:id/care-actions`) paths. The implementation aliases `note AS notes` in SELECT queries. The Sprint 1 contract showed `"note"` (singular) in the POST response — Sprint 21 aligns the POST response to `"notes"` (plural) for consistency with the GET contract; no DB schema change is required.
+
+**Example — request with note:**
+
+```
+POST /api/v1/plants/a1b2c3d4-.../care-actions
+Authorization: Bearer eyJ...
+Content-Type: application/json
+
+{
+  "care_type": "watering",
+  "notes": "Soil was very dry today — gave a deep soak"
+}
+```
+
+**Example — request without note (backward-compatible, unchanged behavior):**
+
+```
+POST /api/v1/plants/a1b2c3d4-.../care-actions
+Authorization: Bearer eyJ...
+Content-Type: application/json
+
+{
+  "care_type": "fertilizing"
+}
+```
+
+**Example — whitespace-only note stored as null:**
+
+```json
+// Request body
+{ "care_type": "watering", "notes": "   " }
+
+// Response: care_action.notes will be null
+```
+
+**Example — note too long (400):**
+
+```json
+// Request body — notes field is 281 characters after trim
+{ "care_type": "watering", "notes": "a...a" }
+
+// Error response
+{
+  "error": {
+    "message": "notes must be 280 characters or fewer",
+    "code": "VALIDATION_ERROR"
+  }
+}
+```
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | Missing or invalid `care_type`; `performed_at` is in the future; `notes` exceeds 280 characters (after trimming) |
+| 401 | `UNAUTHORIZED` | Missing or invalid access token |
+| 404 | `PLANT_NOT_FOUND` | Plant does not exist or belongs to another user |
+| 422 | `NO_SCHEDULE_FOR_CARE_TYPE` | Plant does not have a care schedule configured for the given `care_type` |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+### Frontend Integration Notes (for T-098)
+
+The following guidance applies when integrating the updated contract on the frontend:
+
+1. **Sending `notes`:** Include `"notes": noteText.trim() || null` in the POST body. If the textarea is empty or contains only whitespace, send `null` (or omit the field entirely — the server will default it to `null`).
+
+2. **Character limit enforcement:** Hard-limit the textarea to `maxLength=280`. Display a character counter when the user has typed ≥ 200 characters.
+
+3. **Backward compatibility:** No changes needed for existing mark-done flows that do not include notes — they continue to work exactly as before.
+
+4. **Care History display:** The `GET /api/v1/plants/:id/care-history` response already includes `notes` for each care action (Sprint 20 contract). After a successful POST, the new care action's `notes` will appear in the history on next fetch. No additional backend changes are required for display.
+
+---
+
+### Schema Changes — Sprint 21
+
+**No schema changes required.** The `care_actions` table has contained a `note` (nullable text) column since Sprint 1 (migration `20260323_05_create_care_actions.js`). T-097 wires up the write path to persist values into this existing column — no `ALTER TABLE`, no new indexes, and no new migration files are needed.
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+*Auto-approved (automated sprint) — Manager will review in closeout phase.*
+
+---
+
+*Sprint 21 contracts written by Backend Engineer — 2026-04-05. No new endpoints — one updated endpoint: POST /api/v1/plants/:id/care-actions now accepts optional `notes` field (T-097). Zero schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*
+
+---
+
+## Sprint 22 Contracts
+
+**Sprint Goal:** Care Reminder Email Notifications — notification preferences API + email service + daily cron job (T-101).
+
+---
+
+### GROUP — Notification Preferences & Email Reminders (T-101)
+
+---
+
+#### GET /api/v1/profile/notification-preferences
+
+**Auth:** Bearer token required (`Authorization: Bearer <access_token>`)
+
+**Description:** Returns the current authenticated user's notification preferences. If no preference row exists yet (new user or first call), creates a default row (`opt_in: false`, `reminder_hour_utc: 8`) and returns it. This means the endpoint is always safe to call on page load — it will never 404 for an authenticated user.
+
+**Request Body:** None
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "opt_in": false,           // boolean — true = user wants email reminders
+    "reminder_hour_utc": 8     // integer 0–23 — hour of day (UTC) to send reminder
+  }
+}
+```
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+#### POST /api/v1/profile/notification-preferences
+
+**Auth:** Bearer token required (`Authorization: Bearer <access_token>`)
+
+**Description:** Updates the authenticated user's notification preferences. Accepts partial updates — only the fields provided are changed; omitted fields retain their current value. Creates the preference row if it does not yet exist (upsert semantics). Returns the full updated preference object.
+
+**Request Body:**
+
+```json
+{
+  "opt_in": true,              // optional; boolean
+  "reminder_hour_utc": 8      // optional; integer 0–23 inclusive
+}
+```
+
+**Validation Rules:**
+- At least one of `opt_in` or `reminder_hour_utc` must be present
+- `opt_in`: optional, boolean; non-boolean values → 400
+- `reminder_hour_utc`: optional, integer; must be in range 0–23 inclusive; non-integer or out-of-range → 400
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "opt_in": true,
+    "reminder_hour_utc": 8
+  }
+}
+```
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `reminder_hour_utc` is not an integer or is outside 0–23; or body is empty / no valid fields provided |
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+#### GET /api/v1/unsubscribe
+
+**Auth:** Public — no Bearer token required. Authentication is provided by a signed `token` query parameter generated at email-send time.
+
+**Description:** One-click unsubscribe endpoint linked from the email footer. When clicked, verifies the HMAC-signed token, sets `opt_in = false` for the corresponding user, and returns a plain-text or minimal-HTML confirmation. Designed to be safe to call from a browser via a link click (GET semantics are appropriate because this is an idempotent, user-initiated unsubscribe — one-click from email requires GET).
+
+**Query Parameters:**
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `token` | string | yes | HMAC-SHA256 signed token encoding `user_id`; signed with `UNSUBSCRIBE_SECRET` env var |
+
+**Token Format (server-side):** `base64url(HMAC-SHA256(UNSUBSCRIBE_SECRET, user_id))`  
+The email service constructs this token at send time. The unsubscribe endpoint re-derives the expected HMAC and compares via constant-time comparison.
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "message": "You have been unsubscribed from Plant Guardians care reminder emails."
+  }
+}
+```
+
+*Note: The frontend may render a full confirmation page at `/unsubscribe?token=…` instead of consuming this JSON response directly — the UI team may choose to redirect to a confirmation page. The backend endpoint returns JSON; the frontend SPA catches the route.*
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `INVALID_TOKEN` | `token` param is missing, malformed, or HMAC verification fails |
+| 404 | `USER_NOT_FOUND` | Token is valid but user no longer exists |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+#### POST /api/v1/admin/trigger-reminders *(Dev/Test Only)*
+
+**Auth:** Bearer token required (`Authorization: Bearer <access_token>`)
+
+**Description:** Manually triggers the care reminder cron job for the current UTC hour. Intended for development and QA testing — allows testers to fire the reminder job on demand without waiting for the scheduled hour. **This endpoint must only be registered when `NODE_ENV !== 'production'`** — it is never exposed in production.
+
+In non-production environments this endpoint is available to any authenticated user (no special admin role required in Sprint 22 — a future sprint may add role-based access).
+
+**Request Body:** None (or optional override — see below)
+
+**Optional Request Body:**
+
+```json
+{
+  "hour_utc": 8   // optional; integer 0–23; if omitted, uses current UTC hour
+}
+```
+
+**Validation Rules:**
+- `hour_utc`: optional, integer 0–23; if provided and invalid → 400
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "triggered_at": "2026-04-05T08:00:00.000Z",   // ISO 8601 UTC — actual time trigger ran
+    "hour_utc": 8,                                  // UTC hour that was evaluated
+    "users_evaluated": 3,                           // users with opt_in=true and matching hour
+    "emails_sent": 2,                               // users with ≥1 due/overdue care event
+    "users_skipped": 1                              // opted-in users with no due/overdue care
+  }
+}
+```
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `hour_utc` provided but invalid (not integer or out of 0–23 range) |
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 403 | `FORBIDDEN` | Endpoint called in production environment |
+| 500 | `INTERNAL_ERROR` | Unexpected server error (includes SMTP failure summary in `message`) |
+
+---
+
+### Schema Changes — Sprint 22
+
+**New table: `notification_preferences`**
+
+See proposal in `.workflow/technical-context.md` (Sprint 22 entry). Migration status: **Auto-approved (automated sprint)** — Manager will review in closeout phase.
+
+---
+
+### Environment Variables — Sprint 22
+
+The following new environment variables are required by the email service. All are **optional** — if not set, the backend starts and runs without crashing; email sending is skipped with a logged warning at startup.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `EMAIL_HOST` | string | — | SMTP server hostname (e.g., `smtp.mailpit.local`) |
+| `EMAIL_PORT` | integer | `587` | SMTP port |
+| `EMAIL_USER` | string | — | SMTP username |
+| `EMAIL_PASS` | string | — | SMTP password |
+| `EMAIL_FROM` | string | — | Sender address (e.g., `Plant Guardians <noreply@plantguardians.app>`) |
+| `UNSUBSCRIBE_SECRET` | string | — | Secret key used to HMAC-sign unsubscribe tokens; required for unsubscribe links to work |
+| `APP_BASE_URL` | string | `http://localhost:5173` | Frontend base URL; used to construct the CTA button and unsubscribe link in emails |
+
+**Graceful degradation rule:** If `EMAIL_HOST` or `UNSUBSCRIBE_SECRET` is unset, the email service logs `[EmailService] WARNING: EMAIL_HOST not configured — email sending disabled` at startup and returns early (no-op) on every send call. The cron job and trigger endpoint still run — they just skip sending.
+
+---
+
+### Frontend Integration Notes (for T-102)
+
+1. **Page load:** Call `GET /api/v1/profile/notification-preferences` on ProfilePage mount. Pre-populate toggle (`opt_in`) and timing selector (`reminder_hour_utc` → map 8→Morning, 12→Midday, 18→Evening).
+
+2. **Save action:** Call `POST /api/v1/profile/notification-preferences` with `{ opt_in, reminder_hour_utc }`. Both fields should always be sent (not partial) since the UI always has a value for each after initial fetch.
+
+3. **Timing selector mapping:**
+
+| Display label | UTC hour sent in POST body |
+|---------------|---------------------------|
+| Morning (~8 AM) | `8` |
+| Midday (~12 PM) | `12` |
+| Evening (~6 PM) | `18` |
+
+4. **Default state:** If `opt_in` is `false`, the timing selector should be hidden (but retain the last selected value in local state so it re-appears when the user toggles on).
+
+5. **Unsubscribe:** The unsubscribe URL is constructed by the backend email service and embedded in the email HTML. The frontend SPA should handle the route `/unsubscribe?token=…` and display a confirmation message after the backend call succeeds. The `api.js` module should expose `notificationPreferences.unsubscribe(token)` → `GET /api/v1/unsubscribe?token=<token>`.
+
+---
+
+*Sprint 22 contracts written by Backend Engineer — 2026-04-05. New endpoints: GET + POST /api/v1/profile/notification-preferences, GET /api/v1/unsubscribe, POST /api/v1/admin/trigger-reminders (dev only). Schema change: notification_preferences table (see technical-context.md). All prior sprint contracts remain authoritative.*
+
+---
+
+## Sprint 23 Contracts — 2026-04-05
+
+**Sprint Goal:** Account deletion endpoint (T-106). No new tables required — this sprint deletes across existing tables within a transaction.
+
+---
+
+### GROUP — Account Deletion (T-106)
+
+---
+
+#### DELETE /api/v1/profile
+
+**Auth:** Required — Bearer token in `Authorization: Bearer <access_token>` header
+
+**Description:** Permanently deletes the authenticated user's account and all associated data. Deletes records in dependency order within a single database transaction: `care_actions` → `notification_preferences` → `care_schedules` → `plants` → `refresh_tokens` → `users`. Returns no body on success. This is a hard delete — there is no grace period or soft-delete (post-MVP concern).
+
+**Request Body:** None
+
+**Query Parameters:** None
+
+**Success Response — 204 No Content:**
+
+```
+(no response body)
+```
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 401 | `UNAUTHORIZED` | No `Authorization` header provided, token is missing, expired, or invalid |
+| 404 | `USER_NOT_FOUND` | Authenticated user ID does not match any row in the `users` table (edge case: account already deleted via another request or race condition) |
+| 500 | `INTERNAL_ERROR` | Unexpected server error; transaction rolled back — no partial data deletion |
+
+**Auth Flow Notes:**
+- User ID is extracted from the verified JWT payload (`req.user.id`). No request body or query param is needed — the token is the identity proof.
+- After a successful deletion, the access token is technically still valid until it expires (15 min) but all protected endpoints will return 404 or 401 as the user row no longer exists. The frontend must clear tokens client-side immediately on 204.
+
+**Transaction Deletion Order (explicit, not relying on DB cascade):**
+
+```
+BEGIN TRANSACTION
+  DELETE FROM care_actions   WHERE plant_id IN (SELECT id FROM plants WHERE user_id = ?)
+  DELETE FROM notification_preferences   WHERE user_id = ?
+  DELETE FROM care_schedules WHERE plant_id IN (SELECT id FROM plants WHERE user_id = ?)
+  DELETE FROM plants         WHERE user_id = ?
+  DELETE FROM refresh_tokens WHERE user_id = ?
+  DELETE FROM users          WHERE id = ?
+COMMIT
+```
+
+**Implementation Notes:**
+- All deletes must be inside a single Knex transaction (`knex.transaction(trx => { ... })`)
+- If any step throws, the transaction rolls back automatically — no partial data loss
+- The model method should be `User.deleteWithAllData(userId, trx)`
+- Route handler is a new `DELETE /` handler on `backend/src/routes/profile.js`
+- Auth middleware (`requireAuth`) must be applied before this handler
+
+---
+
+### Schema Changes — Sprint 23
+
+**No new tables or columns required.** This sprint only reads from and deletes rows across existing tables:
+- `users` (existing)
+- `plants` (existing)
+- `care_actions` (existing)
+- `care_schedules` (existing)
+- `notification_preferences` (existing, added Sprint 22)
+- `refresh_tokens` (existing)
+
+No Knex migration file is needed. No Deploy Engineer migration handoff is required for this sprint.
+
+---
+
+### Frontend Integration Notes (for T-107)
+
+1. **Trigger:** `DELETE /api/v1/profile` is called when the user confirms account deletion (types "DELETE" exactly and clicks confirm button in the modal).
+
+2. **Request:** Send `Authorization: Bearer <access_token>` header. No request body.
+
+3. **On 204 success:**
+   - Clear all auth tokens from client state (call `logout()` / clear token storage)
+   - Redirect to `/login?deleted=true`
+   - On the login page, detect `?deleted=true` in query string and show dismissible banner: *"Your account has been permanently deleted."*
+
+4. **On 401:** Treat as a session expiry — redirect to `/login`. (Should not happen if auth is checked before showing the modal, but handle defensively.)
+
+5. **On 404:** Show inline modal error: *"Could not delete your account. Please try again."* (This is an edge case — the user's session is valid but the account is already gone.)
+
+6. **On 500 / network error:** Show inline modal error: *"Could not delete your account. Please try again."* Retry is safe — the endpoint is idempotent for the user's data state.
+
+7. **api.js helper:** Expose `profile.delete()` → sends `DELETE /api/v1/profile` with auth header. Returns the raw response (204 or throws on error).
+
+---
+
+*Sprint 23 contracts written by Backend Engineer — 2026-04-05. New endpoint: DELETE /api/v1/profile (T-106). No schema changes. T-104 (streak test flakiness fix) has no API surface changes — test-only fix. All prior sprint contracts remain authoritative.*

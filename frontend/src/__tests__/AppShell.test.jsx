@@ -17,6 +17,9 @@ vi.mock('../utils/api.js', () => ({
   careDue: {
     get: vi.fn().mockResolvedValue({ overdue: [], due_today: [], upcoming: [] }),
   },
+  careStreak: {
+    get: vi.fn().mockResolvedValue({ currentStreak: 0, longestStreak: 0, lastActionDate: null }),
+  },
 }));
 
 vi.mock('../hooks/useAuth.jsx', () => ({

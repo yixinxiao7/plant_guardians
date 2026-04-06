@@ -30,8 +30,8 @@ export function useCareDue() {
     }
   }, []);
 
-  const markDone = useCallback(async (plantId, careType) => {
-    await careActions.markDone(plantId, careType);
+  const markDone = useCallback(async (plantId, careType, notes = null) => {
+    await careActions.markDone(plantId, careType, notes);
 
     // Optimistic local removal
     setData((prev) => {

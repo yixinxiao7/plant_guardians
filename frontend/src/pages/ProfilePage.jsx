@@ -1,18 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Plant, CalendarBlank, CheckCircle, SignOut } from '@phosphor-icons/react';
-import { profile as profileApi, auth as authApi, clearTokens } from '../utils/api.js';
+import { Plant, CalendarBlank, CheckCircle, SignOut, CaretRight } from '@phosphor-icons/react';
+import { profile as profileApi, clearTokens } from '../utils/api.js';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useToast } from '../hooks/useToast.jsx';
+import { useStreak } from '../hooks/useStreak.jsx';
 import { formatMonthYear } from '../utils/formatDate.js';
 import Button from '../components/Button.jsx';
 import DeleteAccountModal from '../components/DeleteAccountModal.jsx';
 import ThemeToggle from '../components/ThemeToggle.jsx';
+import StreakTile from '../components/StreakTile.jsx';
+import RemindersSection from '../components/RemindersSection.jsx';
 import './ProfilePage.css';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
   const { addToast } = useToast();
+  const { data: streakData, loading: streakLoading, error: streakError } = useStreak();
   const navigate = useNavigate();
 
   const [profileData, setProfileData] = useState(null);
@@ -20,6 +24,8 @@ export default function ProfilePage() {
   const [error, setError] = useState(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [dangerZoneOpen, setDangerZoneOpen] = useState(false);
+  const deleteButtonRef = useRef(null);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -46,28 +52,14 @@ export default function ProfilePage() {
     }
   };
 
-  const handleDeleteAccount = async (password) => {
-    // This is called from the modal's onConfirm with the entered password
+  const handleConfirmDelete = async () => {
+    // Called from the modal when user types DELETE and clicks confirm
     // If it throws, the modal catches it and shows inline error
-    const err = await authApi.deleteAccount(password).then(() => null, (e) => e);
-
-    if (err) {
-      if (err.status === 401) {
-        // Session expired — redirect after 2s
-        setTimeout(() => {
-          clearTokens();
-          sessionStorage.removeItem('pg_user');
-          navigate('/login');
-        }, 2000);
-      }
-      throw err;
-    }
+    await profileApi.delete();
 
     // Success: clear everything and redirect
-    clearTokens();
-    sessionStorage.removeItem('pg_user');
-    addToast('Your account has been deleted.', 'danger');
-    navigate('/login');
+    await logout();
+    navigate('/login?deleted=true', { replace: true });
   };
 
   const getInitials = (name) => {
@@ -149,6 +141,12 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* Care Streak (T-091) */}
+      <StreakTile data={streakData} loading={streakLoading} error={streakError} />
+
+      {/* Reminders (T-102) */}
+      <RemindersSection />
+
       {/* Appearance */}
       <div className="profile-appearance-card">
         <ThemeToggle />
@@ -160,20 +158,51 @@ export default function ProfilePage() {
         <Button variant="secondary" onClick={handleLogout} loading={loggingOut}>
           <SignOut size={18} /> Log Out
         </Button>
+      </div>
+
+      {/* Danger Zone (T-107 / SPEC-018) */}
+      <hr className="danger-zone-hr" />
+      <div className="danger-zone">
         <button
-          className="profile-delete-btn"
-          onClick={() => setShowDeleteModal(true)}
-          aria-label="Delete account"
-          aria-haspopup="dialog"
+          className="danger-zone-trigger"
+          aria-expanded={dangerZoneOpen}
+          aria-controls="danger-zone-content"
+          onClick={() => setDangerZoneOpen(prev => !prev)}
         >
-          Delete Account
+          <CaretRight
+            size={16}
+            className={`danger-zone-chevron${dangerZoneOpen ? ' danger-zone-chevron--open' : ''}`}
+            aria-hidden="true"
+          />
+          <span className="danger-zone-label">Danger Zone</span>
         </button>
+
+        <div
+          id="danger-zone-content"
+          role="region"
+          aria-label="Danger Zone"
+          className={`danger-zone-content${dangerZoneOpen ? ' danger-zone-content--open' : ''}`}
+        >
+          <div className="danger-zone-inner">
+            <p className="danger-zone-body">
+              Permanently delete your account and all associated data. This action cannot be undone.
+            </p>
+            <button
+              ref={deleteButtonRef}
+              className="danger-zone-delete-btn"
+              onClick={() => setShowDeleteModal(true)}
+              aria-haspopup="dialog"
+            >
+              Delete my account
+            </button>
+          </div>
+        </div>
       </div>
 
       <DeleteAccountModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
-        onDeleteSuccess={handleDeleteAccount}
+        onConfirmDelete={handleConfirmDelete}
       />
     </div>
   );

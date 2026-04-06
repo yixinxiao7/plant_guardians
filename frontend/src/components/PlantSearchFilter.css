@@ -144,12 +144,12 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #FAEAE4;
-  border: 1px solid #B85C38;
+  background: var(--color-status-overdue-bg);
+  border: 1px solid var(--color-status-overdue-border);
   border-radius: 8px;
   padding: 12px 16px;
   font-size: 14px;
-  color: #B85C38;
+  color: var(--color-status-overdue-text);
   margin-bottom: 16px;
 }
 

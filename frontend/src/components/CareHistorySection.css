@@ -1,0 +1,487 @@
+/* ============================================
+   Care History Section — SPEC-015 / T-094
+   ============================================ */
+
+.care-history-section {
+  max-width: 1280px;
+}
+
+/* --- Tab Bar (Overview / History) --- */
+
+.plant-detail-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 24px;
+}
+
+.plant-detail-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 12px 0;
+  margin-right: 32px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.plant-detail-tab:hover {
+  color: var(--color-text-primary);
+}
+
+.plant-detail-tab--active {
+  color: var(--color-text-primary);
+  border-bottom-color: var(--color-accent-primary, #5C7A5C);
+}
+
+.plant-detail-tab:focus-visible {
+  outline: 2px solid var(--color-accent-primary, #5C7A5C);
+  outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  .plant-detail-tab {
+    font-size: 14px;
+    margin-right: 24px;
+  }
+}
+
+/* --- Filter Bar --- */
+
+.ch-filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ch-filter-pill {
+  border: none;
+  border-radius: 24px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  scroll-snap-align: start;
+  background: var(--color-surface-alt, #F0EDE6);
+  color: var(--color-text-secondary, #6B6B5F);
+  transition: background 0.15s, color 0.15s;
+}
+
+.ch-filter-pill:hover {
+  background: var(--color-border, #E0DDD6);
+  color: var(--color-text-primary, #2C2C2C);
+}
+
+.ch-filter-pill--active {
+  background: var(--color-accent-primary, #5C7A5C);
+  color: #FFFFFF;
+}
+
+.ch-filter-pill--active:hover {
+  background: var(--color-accent-primary, #5C7A5C);
+  color: #FFFFFF;
+}
+
+.ch-filter-pill:focus-visible {
+  outline: 2px solid var(--color-accent-primary, #5C7A5C);
+  outline-offset: 2px;
+}
+
+/* --- Month Group Headers --- */
+
+.ch-month-group {
+  margin-bottom: 4px;
+}
+
+.ch-month-header {
+  padding: 16px 0 8px;
+}
+
+.ch-month-label {
+  font-family: 'DM Sans', var(--font-display), sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-disabled, #B0ADA5);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.ch-month-divider {
+  border: none;
+  border-top: 1px solid var(--color-border, #E0DDD6);
+  margin-top: 8px;
+}
+
+/* --- List --- */
+
+.ch-list {
+  /* role="list" applied in JSX */
+}
+
+/* --- Item Card --- */
+
+.ch-item {
+  background: var(--color-surface, #FFFFFF);
+  border: 1px solid var(--color-border, #E0DDD6);
+  border-radius: 12px;
+  padding: 14px 20px;
+  margin-bottom: 8px;
+  box-shadow: 0 2px 8px rgba(44, 44, 44, 0.06);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.ch-item:hover {
+  box-shadow: 0 4px 12px rgba(44, 44, 44, 0.10);
+  transform: translateY(-1px);
+}
+
+.ch-item:focus-visible {
+  outline: 2px solid var(--color-accent-primary, #5C7A5C);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ch-item:hover {
+    transform: none;
+  }
+}
+
+.ch-item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ch-item-icon-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--icon-bg);
+}
+
+.ch-item-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text-primary, #2C2C2C);
+}
+
+.ch-item-note-toggle {
+  background: none;
+  border: none;
+  color: var(--color-text-disabled, #B0ADA5);
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.ch-item-note-toggle--open {
+  transform: rotate(15deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ch-item-note-toggle--open {
+    transform: none;
+  }
+}
+
+.ch-item-note-toggle:focus-visible {
+  outline: 2px solid var(--color-accent-primary, #5C7A5C);
+  outline-offset: 2px;
+}
+
+.ch-item-date {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--color-text-secondary, #6B6B5F);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Notes Expansion */
+.ch-item-notes-panel {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+  margin-top: 0;
+}
+
+.ch-item-notes-panel--open {
+  max-height: 200px;
+  margin-top: 10px;
+}
+
+.ch-item-notes-panel-inner {
+  background: var(--color-surface-alt, #F0EDE6);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--color-text-secondary, #6B6B5F);
+  font-style: italic;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ch-item-notes-panel {
+    transition: none;
+  }
+}
+
+/* --- SPEC-016: Inline note display in history items --- */
+
+.ch-item-note {
+  margin-left: 52px; /* align past icon */
+}
+
+.ch-item-note-divider {
+  border: none;
+  border-top: 1px solid var(--color-border, #E0DDD6);
+  margin: 6px 0 8px 0;
+}
+
+.ch-item-note-text {
+  font-size: 13px;
+  color: var(--color-text-secondary, #6B6B5F);
+  font-style: italic;
+  line-height: 1.5;
+  padding: 0;
+  margin: 0;
+}
+
+.ch-item-note-text--clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ch-item-show-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: var(--color-accent-primary, #5C7A5C);
+  cursor: pointer;
+  padding: 8px 4px;
+  min-height: 44px;
+  min-width: 44px;
+  float: right;
+}
+
+.ch-item-show-more:focus-visible {
+  outline: 2px solid var(--color-accent-primary, #5C7A5C);
+  outline-offset: 2px;
+}
+
+.ch-item-show-more-caret {
+  transition: transform 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ch-item-show-more-caret {
+    transition: none;
+  }
+}
+
+/* --- Responsive: mobile stack --- */
+@media (max-width: 479px) {
+  .ch-item-row {
+    flex-wrap: wrap;
+  }
+
+  .ch-item-date {
+    margin-left: 52px; /* align under label, past icon */
+    width: 100%;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 767px) {
+  .care-history-section {
+    padding: 0;
+  }
+
+  .care-history-load-more-btn {
+    width: 100%;
+  }
+}
+
+/* --- Load More --- */
+
+.care-history-load-more {
+  text-align: center;
+  margin: 16px auto;
+}
+
+.care-history-load-more-btn {
+  color: var(--color-text-secondary, #6B6B5F);
+  padding: 10px 24px;
+}
+
+.care-history-load-more-error {
+  color: #B85C38;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.care-history-end-message {
+  font-size: 13px;
+  color: var(--color-text-disabled, #B0ADA5);
+  text-align: center;
+  padding: 16px 0;
+}
+
+/* --- Empty State --- */
+
+.ch-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 24px;
+  gap: 16px;
+  text-align: center;
+}
+
+.ch-empty-icon {
+  color: var(--color-text-disabled, #C4C0B8);
+}
+
+.ch-empty-heading {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary, #2C2C2C);
+  font-family: 'DM Sans', var(--font-display), sans-serif;
+  margin: 0;
+}
+
+.ch-empty-body {
+  font-size: 14px;
+  color: var(--color-text-secondary, #6B6B5F);
+  max-width: 280px;
+  margin: 0;
+}
+
+/* --- Error State --- */
+
+.ch-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 24px;
+  gap: 12px;
+  text-align: center;
+}
+
+.ch-error-icon {
+  color: #B85C38;
+}
+
+.ch-error-heading {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text-primary, #2C2C2C);
+  margin: 0;
+}
+
+.ch-error-body {
+  font-size: 14px;
+  color: var(--color-text-secondary, #6B6B5F);
+  margin: 0;
+}
+
+/* --- Skeleton --- */
+
+.ch-skeleton-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.ch-skeleton-pill {
+  height: 32px;
+  border-radius: 24px;
+  background: var(--color-border, #E0DDD6);
+}
+
+.ch-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ch-skeleton-card {
+  height: 64px;
+  width: 100%;
+  border-radius: 12px;
+  background: var(--color-border, #E0DDD6);
+}
+
+/* Shimmer animation */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-border, #E0DDD6) 25%,
+    var(--color-surface-alt, #F0EDE6) 50%,
+    var(--color-border, #E0DDD6) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    animation: none;
+    background: var(--color-border, #E0DDD6);
+  }
+}
+
+/* --- Dark Mode overrides for care type icon backgrounds --- */
+
+/* Dark mode icon backgrounds per care type — uses values from CARE_CONFIG */
+[data-theme="dark"] .ch-item-icon-circle--watering {
+  --icon-bg: #1E3028;
+}
+
+[data-theme="dark"] .ch-item-icon-circle--fertilizing {
+  --icon-bg: #2E2018;
+}
+
+[data-theme="dark"] .ch-item-icon-circle--repotting {
+  --icon-bg: #2A2A24;
+}
+
+[data-theme="dark"] .ch-skeleton-pill,
+[data-theme="dark"] .ch-skeleton-card {
+  background: #2E2E28;
+}
+
+[data-theme="dark"] .shimmer {
+  background: linear-gradient(90deg, #2E2E28 25%, #3A3A34 50%, #2E2E28 75%);
+  background-size: 200% 100%;
+}

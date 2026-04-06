@@ -20,6 +20,330 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-102 — QA: Positive — Unsubscribe page UX is clean and handles all edge cases (Sprint 23)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-102 |
+| **Source** | QA Engineer |
+| **Sprint** | 23 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | The unsubscribe page (T-103) handles all edge cases gracefully: missing params show error immediately without making an API call, the cancelled flag prevents stale state updates on fast unmount, and the success page provides clear next-step guidance ("re-enable from Profile page"). The loading → success/error transitions are smooth. Dark mode and accessibility are solid. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-103 — QA: Positive — Account deletion flow has excellent safety gates (Sprint 23)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-103 |
+| **Source** | QA Engineer |
+| **Sprint** | 23 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | The account deletion flow (T-106 + T-107) is well-designed for safety: the Danger Zone is collapsed by default (users can't stumble into it), the "DELETE" text-match gate is case-sensitive and exact (no accidental deletions), the modal has focus trapping and Escape key support, and the backend uses a single transaction to avoid partial data loss. The inline error with retry on failure is a good UX pattern. The login page deletion banner provides clear closure. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-104 — QA: UX Issue — Unsubscribe page error state has generic "Sign In" CTA even when user may not have an account (Sprint 23)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-104 |
+| **Source** | QA Engineer |
+| **Sprint** | 23 |
+| **Category** | UX Issue |
+| **Severity** | Cosmetic |
+| **Description** | When the unsubscribe page shows an error (e.g., invalid token), the CTA is "Sign In" with a link to /login. If the user's account was already deleted (404 from backend), directing them to "Sign In" is slightly misleading — they can't sign in. Consider a more neutral CTA like "Go to Plant Guardians" for the 404 case, or simply "Go back". This is cosmetic and non-blocking. |
+| **Steps to Reproduce** | Visit `/unsubscribe?token=valid&uid=deleted-user-id` → API returns 404 → page shows "Link not valid" with "Sign In" CTA. |
+| **Expected vs Actual** | Expected: contextual CTA. Actual: generic "Sign In" CTA regardless of error type. |
+| **Status** | Acknowledged — Cosmetic UX issue. Unsubscribe error CTA is generic "Sign In" regardless of error type. Low severity; deferred to backlog. Consider a more neutral "Go back to Plant Guardians" CTA for future polish sprint. |
+
+---
+
+## FB-101 — QA: Bug — careActionsStreak.test.js timezone-dependent flakiness (Sprint 22)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-101 |
+| **Source** | QA Engineer |
+| **Sprint** | 22 |
+| **Category** | Bug |
+| **Severity** | Minor |
+| **Description** | 5 tests in `backend/tests/careActionsStreak.test.js` fail when run between midnight and noon UTC. The `daysAgo(0)` helper sets timestamp to noon UTC today, which is "in the future" during those hours, causing the backend's `performed_at` validation to reject with 400. |
+| **Steps to Reproduce** | Run `npm test` in backend when the current UTC time is before 12:00 UTC (e.g., 00:07 UTC). The 5 streak tests that call `recordCareAction` with `daysAgo(0)` will fail. |
+| **Expected vs Actual** | Expected: all streak tests pass regardless of time of day. Actual: 5 tests fail with 400 instead of 201 due to future-timestamp rejection. |
+| **Fix** | Change `daysAgo(0)` to use `new Date()` (current time) or set hours to a value guaranteed to be in the past (e.g., `d.setUTCHours(0, 0, 0, 0)` for start-of-day). |
+| **Status** | Acknowledged — Minor bug. Backlog for a future sprint. Fix: change `daysAgo(0)` to use `new Date()` or `d.setUTCHours(0, 0, 0, 0)` so the timestamp is never "in the future" during early UTC hours. |
+
+---
+
+## FB-098 — QA: Positive — RemindersSection dirty-tracking and micro-copy are exemplary (Sprint 22)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-098 |
+| **Source** | QA Engineer |
+| **Sprint** | 22 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The RemindersSection component tracks "dirty" state by comparing current values against the last server-confirmed state (`serverOptIn`, `serverHour`). This means the Save button only appears when there's an actual unsaved change — no false "you have unsaved changes" warnings. The micro-copy distinction between "Save reminder settings" (when toggling on) and "Save changes" (when toggling off) is a thoughtful UX touch that gives the user clear intent feedback. The toast message similarly differentiates "Reminder settings saved" from "Email reminders turned off". This level of contextual copy should be the standard for all toggle-based settings going forward. |
+| **Status** | Acknowledged — Positive feedback. Dirty-tracking pattern and contextual micro-copy are team standards. |
+
+---
+
+## FB-099 — QA: Positive — EmailService graceful degradation is production-safe (Sprint 22)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-099 |
+| **Source** | QA Engineer |
+| **Sprint** | 22 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The EmailService is a singleton that checks `EMAIL_HOST` at construction time and sets `this.enabled = false` if not configured. Every send method short-circuits with `if (!this.enabled) return false`. The trigger-reminders endpoint still executes its full logic (querying opted-in users, evaluating due plants) and returns accurate stats (`emails_sent: 0`) — only the actual SMTP send is skipped. This means QA and staging environments can test the full reminder pipeline without SMTP infrastructure. The warning log at startup (`[EmailService] WARNING: EMAIL_HOST not configured — email sending disabled`) is clear and not noisy. Excellent graceful degradation pattern. |
+| **Status** | Acknowledged — Positive feedback. |
+
+---
+
+## FB-100 — QA: UX Issue — Frontend unsubscribe() missing uid parameter (Sprint 22)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-100 |
+| **Source** | QA Engineer |
+| **Sprint** | 22 |
+| **Date** | 2026-04-05 |
+| **Category** | UX Issue |
+| **Severity** | Minor |
+| **Description** | `frontend/src/utils/api.js` defines `notificationPreferences.unsubscribe(token)` which calls `GET /unsubscribe?token=<token>`, but the backend endpoint requires both `token` and `uid` query parameters. This will cause unsubscribe to fail (400 INVALID_TOKEN) when a frontend unsubscribe page is eventually built. Not blocking for Sprint 22 since no unsubscribe page exists yet (T-102 covered Surface 1 only). |
+| **Steps to Reproduce** | Call `notificationPreferences.unsubscribe(someToken)` — backend returns 400 because `uid` is missing. |
+| **Expected vs Actual** | Expected: unsubscribe function sends both `token` and `uid`. Actual: only sends `token`. |
+| **Status** | Acknowledged — Minor UX issue. Will be resolved in Sprint 23 when the unsubscribe landing page (SPEC-017 Surface 3) is built. The api.js function must be updated to pass both `token` and `uid` query params to `GET /api/v1/unsubscribe`. |
+
+---
+
+## FB-095 — QA: Positive — Care Notes feature is elegantly non-intrusive (Sprint 21)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-095 |
+| **Source** | QA Engineer |
+| **Sprint** | 21 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The Care Notes feature nails the "quiet, natural extension" design constraint from SPEC-016. The "+ Add note" link is visually lightweight — it doesn't pressure users to write anything, which is exactly right for the novice persona who might feel overwhelmed by extra fields. The inline expand animation keeps the user in context (no modal interruption). The character counter appearing only at 200+ chars is a thoughtful touch — users typing short notes never see it, reducing cognitive load. The null-note handling in history is flawless: items without notes look identical to pre-Sprint-21 items, so the timeline stays clean for users who never use notes. |
+| **Status** | Acknowledged — Positive feedback. The "quiet, non-intrusive" design pattern should be carried forward as a standard for all optional input features. |
+
+---
+
+## FB-096 — QA: Positive — Excellent edge case handling in notes normalization (Sprint 21)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-096 |
+| **Source** | QA Engineer |
+| **Sprint** | 21 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | Both frontend and backend handle the full matrix of edge cases for notes: null, undefined, empty string, whitespace-only, and the 280-char boundary. The belt-and-suspenders approach (client trims and omits empty; server also trims and normalizes) means even a buggy or stale frontend cache can't produce junk data in the database. The `CareHistoryItem` guard `notes != null && notes.trim() !== ''` is defensive enough to handle any historical data that might have empty strings stored. This level of normalization consistency between layers is unusual and commendable. |
+| **Status** | Acknowledged — Positive feedback. The dual-layer normalization pattern (client + server) should be adopted as a team standard for all user-provided text fields going forward. |
+
+---
+
+## FB-097 — QA: Positive — Accessibility implementation exceeds minimum requirements (Sprint 21)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-097 |
+| **Source** | QA Engineer |
+| **Sprint** | 21 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The accessibility implementation goes beyond basic compliance. `aria-expanded`/`aria-controls` on the toggle, `aria-label` on the textarea, `aria-describedby` linking to the character counter, and `aria-live="polite"` on the counter with threshold-based announcements (not every keystroke) — this is a screen-reader-friendly implementation. The `role="tabpanel"` fix on the history panel (T-099) closes the last accessibility gap in the Plant Detail page. The `prefers-reduced-motion` support for the notes expansion animation is a nice inclusive touch. |
+| **Status** | Acknowledged — Positive feedback. Threshold-based aria-live announcements and prefers-reduced-motion support should be carried forward as standards for all new interactive components. |
+
+---
+
+## FB-091 — QA: Positive — Care History feature is well-architected and user-friendly (Sprint 20)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-091 |
+| **Source** | QA Engineer |
+| **Sprint** | 20 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The Care History feature is a natural companion to the Care Streak tracker from Sprint #19. The tab bar on Plant Detail is intuitive, the filter pills are clean, and the month-grouped list is easy to scan. The empty state messaging ("Mark your first care action done…") is encouraging and action-oriented — exactly right for the novice user persona. The "Go to Overview" CTA in the empty state is a smart touch that closes the loop. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-092 — QA: Positive — Race condition handling in usePlantCareHistory hook (Sprint 20)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-092 |
+| **Source** | QA Engineer |
+| **Sprint** | 20 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The `requestId` ref in `usePlantCareHistory.js` prevents stale API responses from overwriting newer data when users rapidly switch filters. This is a subtle but important detail that avoids UI flicker and data inconsistency. Well done. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-093 — QA: UX Issue — Minor SPEC-015 deviations noted by Manager (non-blocking) (Sprint 20)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-093 |
+| **Source** | QA Engineer |
+| **Sprint** | 20 |
+| **Date** | 2026-04-05 |
+| **Category** | UX Issue |
+| **Severity** | Cosmetic |
+| **Description** | Three minor SPEC-015 deviations were noted during Manager code review (H-274) and confirmed during QA: (1) Missing `role="tabpanel"` on the history panel div in PlantDetailPage.jsx — the overview panel has it correctly. (2) Notes expansion panel lacks `transition: max-height 0.25s ease` per SPEC-015 — uses a CSS class toggle instead. (3) Dark mode icon background colors are defined in CARE_CONFIG but not applied in CSS/styles. None of these are functional blockers. |
+| **Steps to Reproduce** | Inspect DOM of History tab; check notes expansion animation; toggle dark mode and check care type icon circle backgrounds. |
+| **Expected vs Actual** | Expected: animated notes expansion, dark mode icon backgrounds, tabpanel role. Actual: instant toggle, no dark icon backgrounds, missing role attribute. |
+| **Status** | Acknowledged — log as backlog items for future sprint. |
+
+---
+
+## FB-094 — QA: Positive — Backend error handling is consistent and secure (Sprint 20)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-094 |
+| **Source** | QA Engineer |
+| **Sprint** | 20 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The care-history endpoint follows the same error-handling patterns as all other endpoints: structured JSON errors with message + code, never leaking stack traces or internal paths. The 404 vs 403 distinction (plant not found vs plant not owned) is correctly implemented without leaking information about other users' plants. Parameterized Knex queries throughout. Exemplary. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-088 — QA: Positive — Care Streak feature delivers on core product mission (Sprint 19)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-088 |
+| **Source** | QA Engineer |
+| **Sprint** | 19 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | The Care Streak feature (T-090 + T-091) directly addresses the product's core mission of helping "plant-killers" build care habits. The motivational copy is well-calibrated — empathetic for broken streaks ("That's okay. Every day is a fresh start"), encouraging for active streaks, and celebratory for milestones. The 30-day message ("officially no longer a plant-killer") is a particularly nice touch that ties to the target user persona. Sidebar indicator provides gentle positive reinforcement without requiring a Profile page visit. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-089 — QA: Positive — Accessibility implementation in streak components is thorough (Sprint 19)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-089 |
+| **Source** | QA Engineer |
+| **Sprint** | 19 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | Streak components have comprehensive accessibility: `aria-label` on all counts and badges, `aria-live="polite"` on motivational messages, `aria-busy` on loading skeleton, keyboard navigation (Enter + Space) on sidebar indicator, and `prefers-reduced-motion` compliance for confetti and pop animations. The `StreakProvider` context also prevents duplicate fetches, which is both a performance and accessibility win (avoids redundant screen reader announcements). |
+| **Status** | Acknowledged |
+
+---
+
+## FB-090 — QA: Suggestion — Run `npm audit fix` for lodash vulnerability (Sprint 19)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-090 |
+| **Source** | QA Engineer |
+| **Sprint** | 19 |
+| **Date** | 2026-04-05 |
+| **Category** | Suggestion |
+| **Severity** | Minor |
+| **Description** | `npm audit` reports 1 high severity vulnerability in lodash (≤4.17.23) — prototype pollution via `_.unset`/`_.omit` and code injection via `_.template`. This is a transitive dependency and the vulnerable functions are not directly called in application code, so risk is low. However, `npm audit fix` should resolve it. Recommend addressing in Sprint 20 backlog. |
+| **Status** | Acknowledged — Minor suggestion. Vulnerability is in a transitive dependency with no direct call site in application code. Tasked → T-095 (Sprint 20) as a quick security housekeeping task. |
+
+---
+
+## FB-084 — QA: Positive — Search & Filter implementation is polished and user-friendly (Sprint 18)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-084 |
+| **Source** | QA Engineer |
+| **Sprint** | 18 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | The plant inventory search and filter feature (T-083/T-084) is well-executed. The 300ms debounce on search feels responsive without being wasteful. The status filter tabs use semantically meaningful colors (red for overdue, yellow for due today, green for on track) that are consistent with the Care Due Dashboard palette. All three empty state variants (search-only, filter-only, combined) provide clear, friendly messages with actionable CTAs. The `aria-live` region for result count updates is a nice accessibility touch. The combined AND logic for search + filter is intuitive. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-085 — QA: Positive — Focus management after mark-done is best-in-class accessibility (Sprint 18)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-085 |
+| **Source** | QA Engineer |
+| **Sprint** | 18 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | The Care Due focus management (T-086) goes above and beyond. The decision tree — next sibling → next section → earlier section → all-clear CTA — handles every edge case. The `prefers-reduced-motion` respect is exemplary. The 300ms fade-out animation with transitionend listener (plus 350ms fallback timeout) is robust. Ref cleanup after removal prevents stale focus targets. This is production-quality keyboard accessibility. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-086 — QA: UX Issue — PlantSearchFilter uses hardcoded color values in status tab active styles (Sprint 18)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-086 |
+| **Source** | QA Engineer |
+| **Sprint** | 18 |
+| **Date** | 2026-04-05 |
+| **Category** | UX Issue |
+| **Severity** | Minor |
+| **Description** | `PlantSearchFilter.jsx` lines 18-34 define `ACTIVE_STYLES` with hardcoded hex colors (`#FAEAE4`, `#B85C38`, `#FDF4E3`, `#C4921F`, `#E8F4EC`, `#4A7C59`) for the status filter tab active states. These are the same semantic colors used in `CareDuePage.jsx` section config. While both files are consistent with each other, neither uses CSS custom properties from the design system. For dark mode resilience and consistency, these should migrate to design tokens in a future sprint — similar to how T-085 migrated ProfilePage icons. |
+| **Steps to Reproduce** | View PlantSearchFilter.jsx ACTIVE_STYLES constant and CareDuePage.jsx SECTION_CONFIG / CARE_TYPE_CONFIG. |
+| **Expected vs Actual** | Expected: status colors defined as CSS custom properties. Actual: hardcoded hex values. |
+| **Status** | Acknowledged — Minor UX issue. PlantSearchFilter status-tab colors and CareDuePage section colors should migrate to CSS custom properties in a future sprint for full dark-mode resilience. Tasked → T-088 (Sprint 19). |
+
+---
+
+## FB-087 — QA: Observation — auth.test.js pre-existing Secure cookie failure should be fixed (Sprint 18)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-087 |
+| **Source** | QA Engineer |
+| **Sprint** | 18 |
+| **Date** | 2026-04-05 |
+| **Category** | Bug |
+| **Severity** | Minor |
+| **Description** | `auth.test.js` test "should register a new user, return access_token in body and refresh_token in cookie" fails because it expects the `Secure` flag on the refresh_token cookie. In NODE_ENV=test (non-HTTPS), the cookie correctly omits `Secure`. The test assertion is overly strict for the dev/test environment. This has been a pre-existing failure for multiple sprints and should be fixed — either conditionally assert `Secure` only when NODE_ENV=production, or set NODE_ENV-aware cookie options in the auth route. |
+| **Steps to Reproduce** | Run `cd backend && npm test` — auth.test.js line 45 fails. |
+| **Expected vs Actual** | Expected: All tests pass in test environment. Actual: 1 test fails checking for `Secure` flag absent in non-HTTPS context. |
+| **Status** | Tasked → T-087 (Sprint 19) — Pre-existing minor bug. Fix auth.test.js to conditionally assert the Secure cookie flag only when NODE_ENV=production (or update auth route to use NODE_ENV-aware cookie options). |
+
+---
+
 ## FB-073 — QA: Stats endpoint lacks endpoint-specific rate limiting
 
 | Field | Value |
@@ -1942,3 +2266,81 @@ When an AI advice request is in-flight (loading state), the tab toggle buttons a
 ### Detail
 
 When using the text input mode (entering a plant name), the advice results show the identified plant name but no reference image. For novice users who might not know what a "Golden Pothos" looks like, showing a reference photo alongside the identification would help build confidence in the AI's recommendation. This could be a future enhancement — perhaps Gemini could return or the frontend could fetch a reference image from a botanical image API. Not blocking — the current text-only results are clear and useful.
+
+---
+
+## FB-082 — User: Care Due Dashboard does not show overdue plants correctly
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-082 |
+| **Source** | User (project owner) |
+| **Sprint** | 18 |
+| **Date** | 2026-04-05 |
+| **Category** | Bug |
+| **Severity** | Major |
+| **Description** | A plant named "long legs" is 2 days overdue for watering (visible on the plant detail/inventory view), but the Care Due Dashboard does not reflect this — the plant either does not appear in the overdue section or is categorized incorrectly. The care due section should prominently show any plant that is past its watering schedule. |
+
+### Steps to Reproduce
+
+1. Open the app and confirm the plant "long legs" shows as 2 days overdue for watering (e.g., on the inventory page or plant detail page).
+2. Navigate to the Care Due Dashboard.
+3. Observe that "long legs" is not displayed as overdue for watering, or is missing/miscategorized.
+
+### Expected vs Actual
+
+| | Behavior |
+|---|---|
+| **Expected** | "long legs" appears in the Care Due Dashboard's overdue section, clearly marked as 2 days overdue for watering. |
+| **Actual** | The Care Due Dashboard does not show "long legs" as overdue for watering, despite other views in the app correctly indicating it is 2 days past due. |
+
+### Status
+
+New — Needs triage by Manager Agent. Likely related to the care due query logic or timezone handling (see also FB-046 for prior timezone-related care due bug).
+
+---
+
+## FB-083 — User: Search bar placeholder shows raw unicode escape instead of ellipsis
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-083 |
+| **Source** | User (project owner) |
+| **Sprint** | 18 |
+| **Date** | 2026-04-05 |
+| **Category** | Bug |
+| **Severity** | Minor |
+| **Description** | The search bar placeholder on the My Plants / Inventory page displays `Search plants\u2026` instead of `Search plants…` (or simply `Search plants`). A unicode escape sequence is being rendered as literal text rather than being interpreted as the ellipsis character. The placeholder should just read "Search plants". |
+
+### Steps to Reproduce
+
+1. Log in and navigate to the My Plants (Inventory) page.
+2. Look at the search bar placeholder text.
+
+### Expected vs Actual
+
+| | Behavior |
+|---|---|
+| **Expected** | Placeholder reads "Search plants" (clean, no special characters or escape sequences). |
+| **Actual** | Placeholder reads `Search plants\u2026` — the unicode escape for an ellipsis is rendered as literal text. |
+
+### Status
+
+New — Needs triage by Manager Agent. Likely a string encoding issue in the frontend placeholder prop.
+
+---
+
+**Type:** Monitor Alert
+**Sprint:** 23
+**Date:** 2026-04-05
+**Severity:** Critical
+**Issue:** Backend process not running at time of post-deploy health check — all API endpoints unreachable.
+**Details:**
+- `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/v1/health` → HTTP 000, curl exit code 7 (connection refused). No process is bound to port 3000.
+- `curl -s -X POST http://localhost:3000/api/v1/auth/login` → curl exit code 7 (connection refused). Login endpoint unreachable.
+- All other protected endpoints (GET /api/v1/plants, GET /api/v1/care-due, GET /api/v1/care-actions, GET /api/v1/profile) not tested — backend prerequisite not met.
+- Frontend dev server (http://localhost:5173) also not running — curl exit code 7.
+- Frontend production build artifacts confirmed present in `frontend/dist/` (index.html + assets).
+- Deploy Engineer log confirms backend started successfully during the deploy phase — process has since terminated.
+- Config consistency checks all passed (PORT=3000 matches Vite proxy, no SSL mismatch, CORS includes http://localhost:5173).
+- Action required: Deploy Engineer to restart backend (`npm start` in `backend/`) and confirm sustained operation before Monitor Agent re-runs health checks.

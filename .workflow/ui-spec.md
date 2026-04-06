@@ -3478,3 +3478,1842 @@ Minimum 6 new tests:
 ---
 
 *SPEC-013 written by Design Agent on 2026-04-01 for Sprint #18.*
+
+---
+
+### SPEC-014 — Care Streak Tracker
+
+**Status:** Approved
+**Related Tasks:** T-089 (Design), T-091 (Frontend)
+**Sprint:** #19
+
+#### Description
+
+The Care Streak Tracker is a motivational feature that rewards users for building a daily care habit. It tracks consecutive calendar days on which the user logged at least one care action (watering, fertilizing, or repotting any plant). The feature surfaces in two places: (1) a prominent streak section on the Profile page, and (2) a compact indicator in the sidebar nav that surfaces the streak count without requiring a trip to the Profile page.
+
+Tone: warm and encouraging. Plant Guardians exists for plant-killers trying to do better. The streak should feel like a gentle coach, not a punishing task-tracker. Milestone moments (7, 30, 100 days) deserve genuine celebration — these users have done something genuinely hard.
+
+---
+
+#### API Source
+
+`GET /api/v1/care-actions/streak?utcOffset={offset}` — authenticated endpoint.
+
+Response shape:
+```json
+{
+  "data": {
+    "currentStreak": 7,
+    "longestStreak": 12,
+    "lastActionDate": "2026-04-05"
+  }
+}
+```
+
+- `currentStreak` — 0 if no active streak; N if the user has logged care actions on N consecutive calendar days (including today if an action was logged today)
+- `longestStreak` — the highest consecutive-day count this user has ever achieved
+- `lastActionDate` — the local-timezone date of the most recent care action; `null` if the user has never logged a care action
+
+`utcOffset` param: integer, minutes offset from UTC (-840 to +840). The frontend should pass `new Date().getTimezoneOffset() * -1` to ensure streak calculation aligns with the user's local calendar days.
+
+---
+
+#### Streak States
+
+| State | Condition | Description |
+|-------|-----------|-------------|
+| **New User / No Actions** | `currentStreak = 0` AND `lastActionDate = null` | User has never logged a care action. Show empty-state CTA. |
+| **Streak Broken** | `currentStreak = 0` AND `lastActionDate` is not null AND is older than yesterday | User had a streak but missed at least one day. Show broken-state with sympathetic message. |
+| **Active — Early (1–6 days)** | `currentStreak` 1–6 | Building momentum. Warm, encouraging tone. Leaf icon. |
+| **Active — Established (7–29 days)** | `currentStreak` 7–29 | Strong habit forming. Elevated tone. Flame icon from day 7 onwards. |
+| **Milestone: 7 days** | `currentStreak === 7` | One-week milestone. Celebration animation fires. |
+| **Active — Extended (8–29 days)** | `currentStreak` 8–29 | Post-milestone continuation. Flame icon, elevated message. |
+| **Milestone: 30 days** | `currentStreak === 30` | One-month milestone. Celebration animation fires. |
+| **Active — Long (31–99 days)** | `currentStreak` 31–99 | Long-haul engagement. Enthusiastic tone. |
+| **Milestone: 100 days** | `currentStreak === 100` | Century milestone. Biggest celebration animation. |
+| **Active — Century+ (100+ days)** | `currentStreak > 100` | Legendary territory. Sustained milestone treatment. |
+
+**Milestone trigger rule:** celebration animation fires when `currentStreak` equals exactly 7, 30, or 100. Users already past these thresholds (e.g., `currentStreak = 45`) do not see a celebration — they missed it in a prior session. The `currentStreak = 100` threshold also acts as a permanent milestone: users with streaks > 100 keep the 100-day milestone badge visible.
+
+---
+
+#### Visual Design — Profile Page Streak Section
+
+**Placement:** Below the three existing stat tiles ("Plants in care", "Days as a Guardian", "Care actions completed") as a full-width card. The streak section is visually distinct — it has more visual weight than the stat tiles because it is the app's primary motivational element.
+
+---
+
+##### Streak Card (Active State — streak ≥ 1)
+
+**Container:**
+- `background: var(--color-streak-tile-bg)`
+- `border-radius: 12px`
+- `padding: 32px`
+- `border: 1.5px solid var(--color-border)` — default border
+- For milestone days only: add `border-left: 4px solid var(--color-streak-tile-border-milestone)` and change background to `var(--color-streak-tile-bg-milestone)`
+
+**Section heading row (top of card):**
+- Left: Label "Your Care Streak" — DM Sans, `font-size: 18px`, `font-weight: 600`, `color: var(--color-text-primary)`
+- Right (desktop only): small pill showing last action date — "Last cared: [relative date, e.g., 'today' or '2 days ago']" — `font-size: 12px`, `color: var(--color-text-secondary)`, `background: var(--color-surface-alt)`, `border-radius: 24px`, `padding: 4px 10px`
+
+**Tile body — two-column grid (desktop) / stacked (mobile):**
+
+**Left tile — Current Streak:**
+- Icon:
+  - Streaks 1–6 days: Phosphor `Plant` icon, 40px, `color: var(--color-streak-icon-leaf)`
+  - Streaks 7+ days: Phosphor `Fire` icon, 40px, `color: var(--color-streak-icon-fire)`
+- Streak number: Playfair Display, `font-size: 48px`, `font-weight: 600`, `color: var(--color-streak-number)`, `line-height: 1`
+  - Accompanied by `aria-label="Current care streak: [N] days"` on the container
+- Sub-label: "day streak" — DM Sans, `font-size: 14px`, `color: var(--color-streak-label)`, lowercase, `margin-top: 4px`
+- Milestone badge (conditional — only when `currentStreak === 7`, `30`, or `100+`):
+  - Pill badge positioned below the sub-label
+  - Content per milestone:
+    - 7 days: "🎉 One week!"
+    - 30 days: "🌟 One month!"
+    - 100+ days: "🏆 100 days!"
+  - Style: `background: var(--color-streak-milestone-badge-bg)`, `color: var(--color-streak-milestone-badge-text)`, `border: 1px solid var(--color-streak-milestone-badge-border)`, `border-radius: 24px`, `padding: 4px 12px`, `font-size: 12px`, `font-weight: 500`
+  - `aria-label="Milestone: [N] day streak"` on the badge element
+
+**Right tile — Longest Streak:**
+- Icon: Phosphor `TrendUp`, 28px, `color: var(--color-streak-secondary-number)`
+- Number: Playfair Display, `font-size: 32px`, `font-weight: 600`, `color: var(--color-streak-secondary-number)`
+  - `aria-label="Longest streak: [N] days"` on the container
+- Sub-label: "personal best" — DM Sans, `font-size: 13px`, `color: var(--color-streak-label)`, italic, `margin-top: 4px`
+- If `longestStreak === currentStreak` and streak ≥ 7: add small note "(current record!)" in `color: var(--color-streak-icon-leaf)`, `font-size: 12px`
+
+**Motivational message (full width, below tile body):**
+- `margin-top: 20px`, `padding-top: 16px`, `border-top: 1px solid var(--color-border)`
+- `aria-live="polite"` on this container so screen readers announce it when data loads
+- Message content by state:
+
+| `currentStreak` | Message | Weight |
+|-----------------|---------|--------|
+| 1 | "Great start! 🌱 You've begun your streak." | 400 |
+| 2–6 | "Keep it up! [N] days and counting." | 400 |
+| 7 | "One week strong! 🌿 You're building a real habit." | 500 |
+| 8–29 | "You're on a roll — [N] days of consistent care!" | 400 |
+| 30 | "30 days! 🌟 You're officially no longer a plant-killer." | 600 |
+| 31–99 | "Your plants are so lucky to have you. [N] days!" | 400 |
+| 100 | "100 days! 🏆 You are a certified Plant Guardian." | 600 |
+| >100 | "[N] days. Legendary. Your plants will outlive us all." | 500 |
+
+- Message `font-size: 14px` (600-weight messages: `font-size: 15px`)
+- Active streak (1–6): `color: var(--color-text-secondary)`
+- Active streak (7+): `color: var(--color-streak-icon-leaf)` (sage green — positive reinforcement)
+- Milestone messages: `color: var(--color-streak-icon-leaf)`, `font-size: 15px`
+
+---
+
+##### Streak Card — Empty State (New User / No Actions)
+
+When `currentStreak = 0` and `lastActionDate = null`.
+
+Replace the tile body entirely with a centered illustration block:
+- Phosphor `Plant` icon, 56px, `color: var(--color-streak-empty-icon)`, `margin-bottom: 16px`
+- Heading: "Start your streak today!" — Playfair Display, 20px, `color: var(--color-text-primary)`
+- Body: "Log your first care action to begin your streak. Come back every day and watch it grow." — DM Sans, 14px, `color: var(--color-text-secondary)`, `max-width: 400px`, centered, `line-height: 1.6`, `margin-top: 8px`
+- CTA button: "Go to your plants" — Secondary variant, links to `/` (inventory), `margin-top: 20px`
+- No "personal best" tile shown — there is no data yet
+
+Section heading still reads "Your Care Streak." The card has the default border (no milestone accent).
+
+---
+
+##### Streak Card — Broken State (Streak Lost)
+
+When `currentStreak = 0` and `lastActionDate` is not null.
+
+Show the streak tile with broken/muted treatment:
+- Left tile — Current Streak:
+  - Icon: Phosphor `Plant` (wilted treatment — use muted color `var(--color-streak-broken-icon)`, 40px)
+  - Streak number: "0" in Playfair Display, 48px, `color: var(--color-streak-broken-icon)` (muted)
+  - Sub-label: "day streak"
+  - No milestone badge
+- Right tile — Longest Streak: shown normally (personal best is preserved as encouragement)
+- Motivational message: "Your streak ended — but that's okay. 🌱 Every day is a fresh start." — 14px, `color: var(--color-text-secondary)`, neutral tone (do not use warning colors; this is sympathetic, not punishing)
+- Card border: default (no milestone accent). Background: default tile background.
+- The "last action date" pill still appears in the heading row showing when they last cared for a plant.
+
+---
+
+#### Milestone Celebration Animation
+
+Triggered on the Profile page when the streak tile mounts and `currentStreak` is exactly 7, 30, or 100.
+
+**Trigger logic:**
+1. On mount, check `currentStreak` value
+2. Check `sessionStorage.getItem(`streak_celebrated_${currentStreak}`)` — if already set, do NOT trigger
+3. If not previously celebrated: fire the animation, then set `sessionStorage.setItem(`streak_celebrated_${currentStreak}`, 'true')`
+4. This ensures the celebration fires at most once per browser session, even if the user navigates away and back
+
+**Animation:**
+- Confetti burst using `canvas-confetti` (or equivalent lightweight library — no heavy deps)
+- Colors: `['#5C7A5C', '#A67C5B', '#C4921F', '#FFFFFF', '#4A7C59']`
+- `particleCount`: 60 (7-day), 90 (30-day), 130 (100-day)
+- `spread`: 80
+- `origin`: `{ x: 0.5, y: 0.75 }` — centered below the streak number
+- `startVelocity`: 35
+- Duration: ~2.5 seconds via gravity decay
+- The streak card itself also gets a brief "pop": `scale(1.0) → scale(1.04) → scale(1.0)`, duration `0.4s`, easing `cubic-bezier(0.34, 1.56, 0.64, 1)` (spring — same as the "mark as done" celebration in SPEC-005)
+
+**`prefers-reduced-motion: reduce`:**
+- Skip confetti burst entirely
+- Skip scale animation
+- The milestone badge and motivational message are ALWAYS displayed regardless of motion preference — information must never be hidden behind animation
+
+---
+
+#### Compact Sidebar Streak Indicator
+
+**Location:** In the App Shell sidebar (`AppShell.jsx` or the sidebar component), placed between the navigation links and the bottom user profile section.
+
+**Visibility rule:** Rendered only when `currentStreak ≥ 1`. Not rendered (not just hidden) when `currentStreak = 0`. This keeps the sidebar clean for new users and users who have lost their streak.
+
+**Interaction:** Clicking the indicator navigates to `/profile` (the Profile page). This doubles as a shortcut to the streak detail view.
+
+---
+
+##### Sidebar Expanded (Desktop, 240px)
+
+Compact pill below the nav links:
+```
+┌─────────────────────────────────┐
+│  🔥  7 day streak               │
+└─────────────────────────────────┘
+```
+
+- Container: `display: flex`, `align-items: center`, `gap: 8px`, `padding: 8px 16px`, `margin: 4px 12px 8px`, `background: var(--color-streak-sidebar-bg)`, `border-radius: 8px`, cursor: pointer
+- Hover: `background` darkens slightly — `rgba(92,122,92,0.14)`, `transition: background 0.15s ease`
+- Icon:
+  - Streaks 1–6: Phosphor `Plant`, 18px, `color: var(--color-streak-icon-leaf)`
+  - Streaks 7+: Phosphor `Fire`, 18px, `color: var(--color-streak-icon-fire)`
+- Text: streak count in `font-size: 14px`, `font-weight: 600`, `color: var(--color-text-primary)` + " day streak" in `font-size: 12px`, `color: var(--color-text-secondary)`
+- `aria-label="Care streak: [N] days. Go to your profile."` on the container
+- `role="link"` (or use an actual `<a>` wrapping the pill)
+- `tabindex="0"`, keyboard activatable with Enter/Space
+
+##### Sidebar Collapsed / Mobile Drawer Closed
+
+When the sidebar is in icon-only or collapsed mode (tablet/mobile where the sidebar is a hamburger-triggered drawer):
+- The streak indicator is revealed inside the open drawer using the same expanded layout as desktop
+- On the collapsed icon sidebar (if ever implemented): show the icon alone with a small count badge overlaid at top-right:
+  - Badge: 16px × 16px circle, `background: var(--color-streak-sidebar-badge-bg)`, `color: #FFFFFF`, `font-size: 10px`, `font-weight: 700`, `border-radius: 50%`
+  - Counts ≥ 100 display as "99+"
+
+**Loading behavior:** The sidebar indicator simply does not render until the streak API call resolves. No skeleton shown in the sidebar (avoids visual noise in a persistent navigation element).
+
+---
+
+#### Loading State
+
+**Profile page streak section:**
+- While `GET /api/v1/care-actions/streak` is in-flight: render a skeleton shimmer block in place of the streak card
+- Skeleton structure:
+  - Full-width container with `border-radius: 12px`, matching the card dimensions (~160px height)
+  - Two side-by-side shimmer rectangles (`height: 100px`, `border-radius: 8px`, `background: var(--color-skeleton)`) representing the left and right tiles
+  - Shimmer animation: same `@keyframes shimmer` used elsewhere in the app (left-to-right gradient sweep)
+  - `aria-busy="true"` on the streak section container; `aria-label="Loading streak data"` on the skeleton wrapper
+
+**Sidebar indicator:** No loading skeleton. Indicator simply absent until data resolves.
+
+---
+
+#### Dark Mode Token Definitions
+
+All new CSS custom properties added to `design-tokens.css` in both `[data-theme="light"]` and `[data-theme="dark"]` blocks:
+
+| Token | Light Value | Dark Value |
+|-------|-------------|------------|
+| `--color-streak-tile-bg` | `#FFFFFF` | `#1E2220` |
+| `--color-streak-tile-bg-milestone` | `#F7FAF7` | `#1C2419` |
+| `--color-streak-tile-border-milestone` | `#5C7A5C` | `#5C7A5C` |
+| `--color-streak-icon-fire` | `#C4921F` | `#D4A832` |
+| `--color-streak-icon-leaf` | `#5C7A5C` | `#6B9B6B` |
+| `--color-streak-number` | `#2C2C2C` | `#F0EDE6` |
+| `--color-streak-label` | `#6B6B5F` | `#9B9B8F` |
+| `--color-streak-secondary-number` | `#6B6B5F` | `#9B9B8F` |
+| `--color-streak-milestone-badge-bg` | `#FDF4E3` | `#2A2518` |
+| `--color-streak-milestone-badge-text` | `#C4921F` | `#D4A832` |
+| `--color-streak-milestone-badge-border` | `#C4921F` | `#D4A832` |
+| `--color-streak-sidebar-bg` | `rgba(92, 122, 92, 0.08)` | `rgba(107, 155, 107, 0.12)` |
+| `--color-streak-sidebar-badge-bg` | `#C4921F` | `#D4A832` |
+| `--color-streak-broken-icon` | `#B0ADA5` | `#6B6B60` |
+| `--color-streak-empty-icon` | `#B8CEB8` | `#4A5E4A` |
+
+Note: `--color-skeleton` is assumed to already exist from prior token migrations. If not, add: light `#E0DDD6`, dark `#2E3330`.
+
+---
+
+#### Responsive Behavior
+
+| Breakpoint | Profile Page | Sidebar |
+|-----------|--------------|---------|
+| Desktop (≥1024px) | Streak card below stat tiles; current + longest in 2-col grid inside card | Expanded pill in left sidebar (240px); always visible when streak ≥ 1 |
+| Tablet (768–1023px) | Same layout, `padding: 24px`; tiles remain 2-col | Sidebar collapsed to hamburger; indicator appears inside the open drawer |
+| Mobile (<768px) | Streak card full-width below stats; current streak and longest streak tiles stack vertically (single column); CTA full-width | Inside mobile drawer (opened via hamburger); same expanded layout as desktop |
+
+---
+
+#### Accessibility Summary
+
+| Requirement | Implementation |
+|-------------|---------------|
+| Streak count | `aria-label="Current care streak: [N] days"` on the number container |
+| Longest streak | `aria-label="Longest streak: [N] days"` on the personal best container |
+| Milestone badge | `aria-label="Milestone: [N] day streak"` on the badge element |
+| Motivational message | `aria-live="polite"` on the message container — announced to screen readers after data loads |
+| Sidebar indicator | `role="link"`, `aria-label="Care streak: [N] days. Go to your profile."`, keyboard activatable |
+| Loading skeleton | `aria-busy="true"` on streak section during fetch; `aria-busy="false"` when resolved |
+| Confetti animation | Purely decorative — no ARIA; always respects `prefers-reduced-motion: reduce` |
+| Milestone badge visibility | Badge always visible (not behind animation); milestone state never conveyed by color alone |
+| Broken/empty states | All state descriptions include text — icon color changes are supplemental, not the sole signal |
+| Color contrast | All text on tile backgrounds must meet WCAG AA (4.5:1 for normal text). Milestone badge: `#C4921F` on `#FDF4E3` — verify contrast at implementation time; use `font-weight: 600` if needed to reach 3:1 for large text threshold |
+| Icon decorative treatment | All Phosphor icons are accompanied by visible text; standalone icons use `aria-hidden="true"` |
+| No color-only info | Streak state is communicated via icon, numeral, text label, and motivational copy — never by color alone |
+| Focus management | Sidebar indicator is in the natural tab order; confetti canvas is `aria-hidden="true"` and outside tab order |
+
+---
+
+#### Component Structure (Implementation Guidance for T-091)
+
+```
+ProfilePage.jsx
+  └── StreakTile.jsx                    (new component — handles all streak states)
+        ├── StreakLoadingSkeleton       (renders during fetch)
+        ├── StreakEmptyState            (currentStreak=0, no lastActionDate)
+        ├── StreakBrokenState           (currentStreak=0, lastActionDate exists)
+        └── StreakActiveState           (currentStreak ≥ 1)
+              ├── CurrentStreakDisplay  (icon + number + optional milestone badge)
+              ├── LongestStreakDisplay  (personal best)
+              ├── MotivationalMessage  (aria-live)
+              └── MilestoneCelebration (confetti + scale animation, conditional)
+
+AppShell.jsx (or sidebar component)
+  └── SidebarStreakIndicator.jsx        (new component — shows when currentStreak ≥ 1)
+```
+
+**Data fetching strategy:**
+- `ProfilePage.jsx` fetches streak data on mount: `GET /api/v1/care-actions/streak?utcOffset=<localOffset>`
+- `AppShell.jsx` (or sidebar) also needs streak data. To avoid a second API call, consider one of:
+  - Option A (recommended): a `useStreak()` custom hook backed by a React Context that shares a single fetch result across `ProfilePage` and `AppShell`
+  - Option B (simpler): duplicate the fetch in `AppShell` with its own independent state — acceptable if caching is not yet in place; results in two parallel requests on Profile page load
+- Either approach is acceptable for Sprint 19. Document the chosen approach in a code comment.
+
+**`utcOffset` calculation:**
+```js
+const utcOffset = new Date().getTimezoneOffset() * -1;
+// e.g., UTC-5 → getTimezoneOffset() = 300 → utcOffset = -300
+// e.g., UTC+9 → getTimezoneOffset() = -540 → utcOffset = 540
+```
+Pass this value as the `utcOffset` query parameter on every streak fetch.
+
+---
+
+#### Streak Freeze / Grace Period (Advisory — Post-MVP)
+
+This is a suggestion for a future sprint, not required for Sprint 19.
+
+A "streak freeze" could allow users to preserve a streak when they miss a day due to illness or travel. Three approaches considered:
+
+1. **Automatic 1-day grace (server-side):** Count the streak as active if the last action was 2 days ago instead of just 1. Simple but may feel unearned.
+2. **Earned freeze token:** User earns a freeze every 7 days; can spend it to protect a streak once. Adds engagement depth but requires additional backend + UI.
+3. **No freeze (current Sprint 19 implementation):** Honest and simple. A broken streak is a learning moment — "Every day is a fresh start." is the message we show.
+
+**Recommendation:** Ship Sprint 19 without freeze. Revisit after user feedback. If feedback shows frustration with streak loss due to travel, implement option 2 (earned freeze) as it is the most satisfying game mechanic.
+
+---
+
+*SPEC-014 written by Design Agent on 2026-04-05 for Sprint #19.*
+
+---
+
+### SPEC-015 — Care History Section (Plant Detail Page)
+
+**Status:** Approved
+**Related Tasks:** T-092 (Design), T-094 (Frontend)
+**Sprint:** #20
+**Written by:** Design Agent — 2026-04-05
+
+---
+
+#### Description
+
+The Care History section gives users a chronological, per-plant log of every care action they have marked done. It appears on the existing Plant Detail page — the same page that shows the plant's name, photo, and care schedule status badges. The goal is to close the feedback loop for novice plant owners: they can confirm they watered last Tuesday, spot patterns ("I fertilize every 6 weeks, not 4"), and feel confidence in their routine rather than anxiety about what they may have forgotten.
+
+**Who uses it:** Primarily novice users who need reassurance, and intermediate users building conscious care habits. The history view is secondary to the care schedule — it should feel like a supportive companion panel, not a clinical audit log.
+
+---
+
+#### Entry Point — "History" Tab on Plant Detail Page
+
+The Plant Detail page currently shows care schedule status (watering, fertilizing, repotting badges + mark-done CTA). SPEC-015 adds a **tab bar** below the plant name/photo hero section, above the schedule content:
+
+```
+[ Overview ]  [ History ]
+```
+
+- **Overview tab (existing):** Current care schedule status, mark-done actions, AI advice section — unchanged.
+- **History tab (new — SPEC-015):** The care history log. Renders the full SPEC-015 layout described below.
+
+**Tab bar design:**
+- Tabs are text labels with an active indicator: a 2px bottom border in `#5C7A5C` (Accent Primary)
+- Inactive tabs: `color: #6B6B5F` (Text Secondary), no underline
+- Active tab: `color: #2C2C2C` (Text Primary), 2px bottom border `#5C7A5C`
+- Tab bar bottom border: 1px `#E0DDD6` — the active tab's 2px indicator sits on top of this
+- `font-size: 15px`, `font-weight: 500`, `padding: 12px 0`, `margin-right: 32px`
+- Tab switch: instant (no animation needed), content below swaps
+- On mobile: tab labels shrink to `font-size: 14px`, spacing between tabs: `margin-right: 24px`
+- `role="tablist"` on the container; each tab is `role="tab"` with `aria-selected` and `aria-controls` pointing to the respective panel; panels use `role="tabpanel"`
+
+---
+
+#### Care History Layout (History Tab Content)
+
+The History tab renders inside the same content container as the Overview tab. Max content width: 1280px (matching global convention), left-aligned in the Plant Detail layout.
+
+**Top-level structure (top to bottom):**
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Care Type Filter Bar                                    │
+│  [ All ]  [ Watering ]  [ Fertilizing ]  [ Repotting ]  │
+├──────────────────────────────────────────────────────────┤
+│  Month Group Header: "April 2026"                        │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │ 💧 Watering    3 days ago     [note icon if notes] │  │
+│  └────────────────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │ 🌿 Fertilizing  12 days ago                        │  │
+│  └────────────────────────────────────────────────────┘  │
+│  Month Group Header: "March 2026"                        │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │ 💧 Watering    18 days ago                         │  │
+│  └────────────────────────────────────────────────────┘  │
+├──────────────────────────────────────────────────────────┤
+│  [ Load More ]  (centered, Ghost button variant)        │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### Care Type Filter Bar
+
+A row of pill-style filter tabs directly below the Overview/History tab bar (within the History tab panel), with `margin-bottom: 24px`.
+
+| Filter | careType param sent to API | Default |
+|--------|---------------------------|---------|
+| All | (no careType filter) | ✅ Active |
+| Watering | `watering` | |
+| Fertilizing | `fertilizing` | |
+| Repotting | `repotting` | |
+
+**Visual design:**
+- Pills: `border-radius: 24px`, `padding: 6px 16px`, `font-size: 13px`, `font-weight: 500`
+- Active pill: background `#5C7A5C`, text `#FFFFFF`
+- Inactive pill: background `#F0EDE6` (Surface Alt), text `#6B6B5F`, border: none
+- Hover (inactive): background `#E0DDD6`, text `#2C2C2C`
+- Gap between pills: 8px
+- On mobile: pills scroll horizontally if they overflow (single row, `overflow-x: auto`, no wrap); `scroll-snap-type: x mandatory`, each pill `scroll-snap-align: start`
+
+**Behavior:**
+- Clicking a filter pill immediately re-fetches the history list with `careType=<value>` (or no careType for "All")
+- The active page resets to 1 (any previously loaded pages are cleared)
+- A new loading skeleton is shown during the refetch
+- Changing filter does NOT scroll the page to the top — the tab panel stays in view
+
+**Accessibility:**
+- Filter bar container: `role="group"` with `aria-label="Filter care history by type"`
+- Each pill: `role="button"` or `<button>` element; active pill: `aria-pressed="true"`, inactive: `aria-pressed="false"`
+- Do not use color alone to indicate active filter — active pill also changes text (white on sage) and can be identified by `aria-pressed`
+
+---
+
+#### Month Group Headers
+
+Care history entries are grouped by calendar month. Within each month group, entries are ordered reverse-chronologically (most recent first), which matches the API's `performed_at DESC` ordering.
+
+**Header visual:**
+- Text: month name + year, e.g., "April 2026"
+- `font-family: 'DM Sans'`, `font-size: 12px`, `font-weight: 600`, `color: #B0ADA5` (Text Disabled / muted label)
+- `text-transform: uppercase`, `letter-spacing: 0.08em`
+- `padding: 16px 0 8px` (top spacing from previous group or filter bar)
+- A 1px `#E0DDD6` horizontal rule below the header label, full width of the list
+
+**Grouping logic (frontend):** After fetching a page of items, group items by `new Date(item.performedAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })`. When Load More appends the next page, new month group headers are inserted at the correct position in the running list.
+
+---
+
+#### Care History List Item
+
+Each care event is a card row. The list container: `role="list"`, no extra `list-style`.
+
+**Item anatomy (horizontal flex row):**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ [Care Icon]  [Care Type Label]   [Relative Date]  [Note 🗒]  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| Column | Details |
+|--------|---------|
+| **Care Icon** | 32×32px icon, outlined (Phosphor Icons): Drop (`💧`) for watering, Plant (`🌿` / leaf) for fertilizing, Flower Pot for repotting. Icon color: care-type tint (see table below). Centered in a 40×40px circle with care-type background tint. |
+| **Care Type Label** | `font-size: 15px`, `font-weight: 500`, `color: #2C2C2C`. Text: "Watering" / "Fertilizing" / "Repotting". |
+| **Relative Date** | Right-aligned in the flex row. `font-size: 14px`, `color: #6B6B5F`. Text: e.g., "3 days ago", "Today", "Yesterday". Wrapped in a `<time>` element with `dateTime="<ISO-8601 value>"`. Absolute date shown on hover via `title` attribute AND a native tooltip (accessible via keyboard focus). Tooltip text format: "April 2, 2026 at 2:30 PM" (locale-appropriate). |
+| **Note Icon** | Only rendered if `item.notes` is not null/empty. A small speech-bubble or note icon (`16px`, `color: #B0ADA5`) after the care type label, with `title="Has notes"` and `aria-label="This entry has notes"`. Clicking the icon expands an inline notes panel below the item row (see Notes Expansion below). |
+
+**Care type icon tints:**
+
+| Care Type | Icon Color | Icon Background |
+|-----------|-----------|-----------------|
+| Watering | `#4A7C59` (Status Green) | `#E8F4EC` |
+| Fertilizing | `#A67C5B` (Accent Warm) | `#F5EDE4` |
+| Repotting | `#6B6B5F` (Text Secondary) | `#F0EDE6` |
+
+**Item card:**
+- Background: `#FFFFFF` (Surface)
+- `border: 1px solid #E0DDD6`
+- `border-radius: 12px`
+- `padding: 14px 20px`
+- `margin-bottom: 8px`
+- `box-shadow: 0 2px 8px rgba(44,44,44,0.06)` (Card Shadow)
+- Hover: subtle lift — `box-shadow: 0 4px 12px rgba(44,44,44,0.10)`, `transform: translateY(-1px)`, `transition: all 0.2s ease`
+- `role="listitem"` on each card
+- `aria-label` on each card: `"Watering on April 2, 2026"` (always uses the absolute date for the aria-label, regardless of relative display) — e.g., `aria-label="Fertilizing on March 15, 2026. Has notes."`
+
+**Notes Expansion (inline):**
+- When the note icon is clicked, a notes panel slides open below the item row using a CSS `max-height` transition (0 → auto via JS, `transition: max-height 0.25s ease`)
+- Notes panel: background `#F0EDE6` (Surface Alt), `border-radius: 8px`, `padding: 12px 16px`, `margin-top: 10px`, `font-size: 14px`, `color: #6B6B5F`, `font-style: italic`
+- Note icon toggles open/closed — icon rotates 15° when open (CSS transform)
+- `aria-expanded` on the note toggle button reflects current state
+
+---
+
+#### Relative Date Calculation
+
+Compute relative date on the frontend from `item.performedAt` (ISO-8601, UTC). Display:
+
+| Condition | Display |
+|-----------|---------|
+| Same calendar day (local time) | "Today" |
+| 1 day ago | "Yesterday" |
+| 2–6 days ago | "N days ago" |
+| 7–13 days ago | "1 week ago" |
+| 14–20 days ago | "2 weeks ago" |
+| 21–27 days ago | "3 weeks ago" |
+| 28+ days ago | "About N months ago" or just use the absolute date via `toLocaleDateString` |
+
+Prefer `Intl.RelativeTimeFormat` for implementation — it handles locale automatically and is screen-reader friendly. The `<time>` element's `dateTime` attribute always carries the full ISO-8601 string.
+
+---
+
+#### Pagination — Load More
+
+- Default: 20 items per page (`limit=20`), most recent first
+- After the last item in the current list, render the **Load More button** if `page < totalPages`
+- If `page >= totalPages` (all items loaded): the Load More button is hidden; render a friendly end-of-list message: `"You've seen all care history for this plant."` in `font-size: 13px`, `color: #B0ADA5`, centered, `padding: 16px 0`
+
+**Load More button:**
+- Variant: Ghost (transparent background, `color: #6B6B5F`, no border)
+- Text: "Load More"
+- Centered below the list: `margin: 16px auto`, `display: block`
+- Width: `fit-content`, `padding: 10px 24px`
+- Loading state: spinner icon (16px, `color: #6B6B5F`) replaces text; button disabled with `aria-busy="true"`
+- On success: new items appended to the existing list (no scroll jump); month group headers inserted as needed
+- On error: Load More button re-enables; a small inline error message below the button: `"Couldn't load more. Try again."` in `#B85C38`, `font-size: 13px`
+
+**Focus management:** After Load More completes, focus is NOT moved (user stays where they were scrolling).
+
+---
+
+#### States
+
+##### Loading State (Initial Fetch)
+
+Shown while the first page of history is being fetched (`isLoading: true` before any data has loaded).
+
+- Replace the filter bar and list with a skeleton layout
+- **Filter bar skeleton:** 4 pill-shaped skeletons (`border-radius: 24px`, width 64/80/88/80px, height 32px, `background: #E0DDD6`) with a shimmer animation
+- **List skeleton:** 4 card-shaped skeletons (`border-radius: 12px`, `height: 64px`, full width, `background: #E0DDD6`) with shimmer
+- Shimmer: `background: linear-gradient(90deg, #E0DDD6 25%, #F0EDE6 50%, #E0DDD6 75%)`, `background-size: 200%`, animated `backgroundPosition` from `100%` to `-100%` over 1.4s infinite
+- The history tab panel container: `aria-busy="true"` during skeleton display; `aria-busy="false"` once data renders or error displays
+- `prefers-reduced-motion`: if the user has enabled reduced motion, skip the shimmer animation — use a static muted background instead
+
+##### Empty State (No History Yet)
+
+Shown when the API returns `total: 0` — the plant has no logged care actions yet. This is common for newly added plants.
+
+**Layout:** Centered in the history panel, `padding: 48px 24px`, flex column, `align-items: center`, `gap: 16px`
+
+**Elements:**
+- Illustration: a small SVG/icon of a seedling or calendar with a leaf (64×64px, `color: #B0ADA5`) — use Phosphor `Plant` or `CalendarBlank` icon at 64px, outlined, `color: #C4C0B8`
+- Heading: `"No care history yet."` — `font-size: 18px`, `font-weight: 600`, `color: #2C2C2C`, `font-family: 'DM Sans'`
+- Body: `"Mark your first care action done and it will show up here."` — `font-size: 14px`, `color: #6B6B5F`, `text-align: center`, `max-width: 280px`
+- CTA button: `"Go to Overview"` — Secondary variant, switches the active tab back to Overview tab so the user can find the mark-done controls
+- If a care type filter is active and there are no results: show a filter-specific empty state: `"No [Watering/Fertilizing/Repotting] history yet."` with body `"Switch to 'All' to see all care actions."` — replace the CTA with a Ghost button `"Show All"` that resets the filter to "All"
+
+##### Error State (Fetch Failed)
+
+Shown when the API call fails (network error, 5xx, etc.). Must not break the rest of the Plant Detail page.
+
+**Layout:** Inline within the history panel — replaces the list content. `padding: 32px 24px`, centered.
+
+**Elements:**
+- Icon: `Warning` or `WarningCircle` (Phosphor), 32px, `color: #B85C38`
+- Message: `"Couldn't load care history."` — `font-size: 15px`, `font-weight: 500`, `color: #2C2C2C`
+- Sub-message: `"Check your connection and try again."` — `font-size: 14px`, `color: #6B6B5F`
+- Retry button: Secondary variant, text `"Try Again"`, re-triggers the fetch for page 1 with current filter
+- The rest of the Plant Detail page (Overview tab content, plant info, etc.) is unaffected
+
+---
+
+#### Responsive Behavior
+
+| Breakpoint | Behavior |
+|-----------|----------|
+| **Desktop** (≥ 1024px) | Full layout as described. History panel fills the same column as the Overview tab content — typically 60–70% of the page width, leaving room for the right sidebar (if the plant detail page has one). List items are single-row flex. |
+| **Tablet** (768px–1023px) | Same layout. Filter bar pill row scrolls horizontally if it overflows at narrow widths. |
+| **Mobile** (< 768px) | History panel is full viewport width (minus 16px side padding each side). List item cards stack vertically — care type icon + label on one line, date on the next line (flex column on the item row at < 480px). Filter pills horizontally scrollable. Load More button: full width (`width: 100%`). |
+
+**Touch targets:** All interactive elements (filter pills, Load More, note toggle, tab buttons) have a minimum 44×44px touch target on mobile, achieved via `min-height: 44px` and `padding` expansion as needed.
+
+---
+
+#### Dark Mode
+
+All new elements use CSS custom properties from the app's existing dark mode variable set. Spec describes the expected dark-mode appearance:
+
+| Element | Dark Mode Value |
+|---------|----------------|
+| Panel background | `var(--color-bg)` → dark: `#1A1A16` |
+| Card background | `var(--color-surface)` → dark: `#242420` |
+| Card border | `var(--color-border)` → dark: `#3A3A34` |
+| Month header text | `var(--color-text-disabled)` → dark: `#6B6B5F` |
+| Care type label | `var(--color-text-primary)` → dark: `#F0EDE6` |
+| Relative date text | `var(--color-text-secondary)` → dark: `#9B9B8F` |
+| Filter pill active bg | `var(--color-accent-primary)` → dark: `#5C7A5C` (unchanged) |
+| Filter pill inactive bg | `var(--color-surface-alt)` → dark: `#2E2E28` |
+| Filter pill inactive text | `var(--color-text-secondary)` → dark: `#9B9B8F` |
+| Watering icon bg | dark: `#1E3028` |
+| Fertilizing icon bg | dark: `#2E2018` |
+| Repotting icon bg | dark: `#2A2A24` |
+| Skeleton shimmer | dark: linear-gradient from `#2E2E28` → `#3A3A34` → `#2E2E28` |
+| Notes panel bg | `var(--color-surface-alt)` → dark: `#2E2E28` |
+| Tab active indicator | `var(--color-accent-primary)` → dark: `#5C7A5C` (unchanged) |
+
+No hardcoded color values in new component code — all colors via `var(--color-*)` tokens.
+
+---
+
+#### Accessibility
+
+| Requirement | Implementation |
+|-------------|---------------|
+| Tab navigation | `role="tablist"`, `role="tab"`, `aria-selected`, `aria-controls` on tab bar |
+| History list | `role="list"` on list container; `role="listitem"` on each card |
+| Item description | `aria-label="[Care Type] on [Absolute Date]"` (e.g., `"Watering on April 2, 2026"`) — absolute date always used for screen reader label regardless of relative display |
+| Items with notes | `aria-label` appended: `"Watering on April 2, 2026. Has notes."` |
+| Note toggle | `<button>` with `aria-expanded="true/false"` and `aria-label="Toggle notes"` |
+| Filter pills | `role="group"` with `aria-label="Filter care history by type"` on container; each pill `<button>` with `aria-pressed` |
+| Date element | `<time dateTime="ISO-8601">` wraps all relative date text |
+| Loading state | `aria-busy="true"` on history panel container during skeleton; `aria-busy="false"` after |
+| Load More button | `aria-busy="true"` when loading next page |
+| Color independence | Care types identified by label AND icon, not color alone. Filter active state identified by `aria-pressed` + visual change, not color alone. |
+| Keyboard navigation | Tab through filter pills, list items (each card focusable), note toggles, Load More button. Focus ring: 2px solid `#5C7A5C`, `outline-offset: 2px`. |
+| Reduced motion | Skeleton shimmer animation disabled; note expansion is instant (no `max-height` transition); card hover lift suppressed |
+| Screen reader text | Care type icon: `aria-hidden="true"` (the icon is decorative; the `aria-label` on the card provides full context) |
+
+---
+
+#### Component Architecture (Suggested)
+
+```
+PlantDetailPage.jsx
+  └── PlantDetailTabs.jsx          (new — Overview/History tab bar)
+        ├── PlantOverviewPanel.jsx  (existing content, moved into tab panel)
+        └── CareHistorySection.jsx  (new — SPEC-015 scope)
+              ├── CareHistoryFilterBar.jsx   (filter pills)
+              ├── CareHistoryList.jsx        (month-grouped list)
+              │     └── CareHistoryItem.jsx  (individual card)
+              ├── CareHistorySkeleton.jsx    (loading state)
+              ├── CareHistoryEmpty.jsx       (empty state)
+              └── CareHistoryError.jsx       (error state)
+```
+
+**API method** (to be added to `frontend/src/api.js`):
+```js
+// GET /api/v1/plants/:id/care-history
+// params: { page?, limit?, careType? }
+getCareHistory(plantId, params = {})
+```
+
+**State shape** for `CareHistorySection`:
+```js
+{
+  items: [],          // flat array of all loaded items (across pages)
+  total: 0,
+  page: 1,
+  totalPages: 1,
+  filter: 'all',      // 'all' | 'watering' | 'fertilizing' | 'repotting'
+  isLoading: false,   // true only on initial fetch (page 1, items empty)
+  isLoadingMore: false, // true when Load More is in progress
+  error: null,        // string | null
+}
+```
+
+---
+
+### SPEC-016 — Care Notes: Mark-Done Input & History Display
+
+**Status:** Approved
+**Related Tasks:** T-096 (Design), T-098 (Frontend)
+**Date Written:** 2026-04-05
+**Sprint:** #21
+
+---
+
+#### Overview
+
+Care Notes lets users optionally capture a short freeform observation whenever they mark a care action as done. The note is stored alongside the care action and surfaced in the Care History view. The feature is entirely opt-in — the mark-done flow is unchanged for users who do not add a note. Null notes produce zero UI in the history list.
+
+**Design constraints:**
+- Japandi aesthetic — the note UI must feel like a quiet, natural extension of the existing mark-done flow, not an interruption.
+- No modals. The note input expands inline beneath the mark-done button with a smooth animation.
+- The note display in history is compact and unobtrusive — text only, no borders or extra chrome around it.
+
+---
+
+#### Entry Points
+
+There are two surfaces where a user can mark a care action done, and both receive the note input:
+
+| Surface | Component | Location of note input |
+|---------|-----------|----------------------|
+| Care Due Dashboard | `CareDuePage.jsx` — plant-care-type card | Inline, below the "Mark Done" button, toggled by "Add note" link |
+| Plant Detail — Care Schedule | `PlantDetailPage.jsx` — Overview tab, care schedule row | Inline, below the "Mark Done" button for the relevant care type |
+
+---
+
+#### Entry Point A — Care Due Dashboard Card
+
+**Current card anatomy (before this sprint):**
+```
+┌──────────────────────────────────────────────────────┐
+│  [Plant photo or leaf icon]  Monstera                │
+│  Watering · 3 days overdue                          │
+│                                                      │
+│                          [ Mark Done ]               │
+└──────────────────────────────────────────────────────┘
+```
+
+**Updated card anatomy (Sprint 21):**
+```
+┌──────────────────────────────────────────────────────┐
+│  [Plant photo or leaf icon]  Monstera                │
+│  Watering · 3 days overdue                          │
+│                                                      │
+│                          [ Mark Done ]               │
+│                          + Add note                  │
+│  ┌────────────────────────────────────────────────┐  │
+│  │ e.g. "Soil was very dry — used extra water"    │  │
+│  │                                                │  │
+│  │                                   0 / 280      │  │
+│  └────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────┘
+```
+
+**"Add note" toggle link:**
+- Rendered as a ghost/text button: no background, no border, `color: var(--color-text-secondary)`, `font-size: 12px`, `font-weight: 500`
+- Icon: `PencilSimple` (Phosphor, outlined, 12px) inline-left of the text
+- Label: `"+ Add note"` in default state; `"− Remove note"` when the textarea is expanded
+- Positioned flush-right, below the "Mark Done" button, aligned to the right edge of the card's action area
+- Keyboard-accessible `<button>` element; `aria-expanded="false"` / `"true"` reflecting the expansion state; `aria-controls="note-input-{plantId}-{careType}"` linking it to the textarea
+
+**Note textarea (expanded state):**
+- Appears with `transition: max-height 0.3s ease, opacity 0.2s ease` — max-height animates from `0` to `120px`; opacity 0 → 1
+- Background: `var(--color-surface-alt)` (`#F0EDE6` light / `#2E2E28` dark)
+- Border: `1px solid var(--color-border)` (`#E0DDD6` light / `#3A3A34` dark); on focus: `2px solid var(--color-border-focus)` (`#5C7A5C`)
+- Border radius: `8px`
+- Padding: `10px 12px`
+- Font: `14px`, `font-family: 'DM Sans'`, `color: var(--color-text-primary)`
+- Placeholder text: `"e.g. 'Soil was very dry — gave extra water'"` in `color: var(--color-text-disabled)`
+- Resize: `none` (fixed height, no resize handle)
+- `maxLength={280}` enforced on the element
+- `rows={3}` (approximately 72px tall with 14px line-height × 3)
+- Full width of the card's content area minus 16px padding each side
+- `id="note-input-{plantId}-{careType}"` — unique across the page when multiple cards are visible
+- `aria-label="Care note for {plantName} {careType}"` (e.g., `"Care note for Monstera watering"`)
+- `aria-describedby="note-counter-{plantId}-{careType}"` — linking to the character counter
+
+**Character counter:**
+- Positioned bottom-right of the textarea, visually inside the textarea border
+- Text: `"{n} / 280"`, `font-size: 11px`, `color: var(--color-text-disabled)`
+- Counter is hidden (or renders at `opacity: 0`) when character count is below 200
+- Counter becomes visible (`opacity: 1`, `transition: opacity 0.15s`) when count reaches 200
+- Counter text turns `color: var(--color-status-yellow)` (`#C4921F`) at 240 characters
+- Counter text turns `color: var(--color-status-red)` (`#B85C38`) at 270–280 characters
+- `id="note-counter-{plantId}-{careType}"` — matches the `aria-describedby` on the textarea
+- Screen readers should announce: `aria-live="polite"` on the counter so character count changes are announced when typing slows; update announcement at 200, 240, 270, 280 characters only (not every keystroke)
+
+**Collapsed state (default):**
+- Textarea is not in the DOM (or has `display: none`) when collapsed — do not leave a hidden textarea that can be tab-focused
+- "Add note" link is visible and focusable
+- No blank space below the mark-done button
+
+**Interaction sequence:**
+1. User sees card with "Mark Done" button and "+ Add note" link
+2. User clicks "+ Add note" → textarea expands with animation; link label changes to "− Remove note"; textarea receives focus automatically
+3. User types a note (optional)
+4. User clicks "Mark Done" — the note value (trimmed) is included in the `POST /api/v1/care-actions` request body as `notes`; if the textarea is collapsed or empty, `notes` is omitted from the request body (backend defaults to `null`)
+5. On success: card is removed from the dashboard (existing mark-done behavior); textarea and link are torn down with the card
+6. If user clicks "− Remove note" before marking done: textarea collapses with reverse animation; note value is discarded; link returns to "+ Add note"
+
+---
+
+#### Entry Point B — Plant Detail Page, Care Schedule Section
+
+**Context:** In the Plant Detail Overview tab, each active care schedule type (watering, fertilizing, repotting) is shown as a row with a status badge and a "Mark Done" button. After Sprint 21, a "+ Add note" link appears below the "Mark Done" button for each row.
+
+**Care schedule row anatomy (Sprint 21):**
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  💧  Watering          [Overdue 2 days]          [ Mark Done ]     │
+│                                                  + Add note        │
+│                        ┌─────────────────────────────────────────┐ │
+│                        │ e.g. "Leaves were drooping..."          │ │
+│                        │                                         │ │
+│                        │                              0 / 280    │ │
+│                        └─────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+**Note textarea placement:**
+- Below the "Mark Done" button, right-aligned (same column as the button)
+- On desktop (≥768px): textarea width matches the "Mark Done" button column width (≈ 240px minimum, expanding to fill available space right of the care type label)
+- On mobile (<768px): textarea is full-width beneath the entire row, same as the button stacks to full-width
+
+All behavior (toggle, animation, character counter, ARIA) is identical to Entry Point A. The `id` and `aria-label` attributes use the Plant Detail context:
+- `id="note-input-detail-{careType}"` (e.g., `"note-input-detail-watering"`)
+- `aria-label="Care note for {plantName} {careType}"` (e.g., `"Care note for Peace Lily fertilizing"`)
+
+---
+
+#### Submission Flow
+
+The note is **always optional**. The mark-done action works identically to today when no note is provided.
+
+| User action | `notes` value in POST body |
+|-------------|---------------------------|
+| Mark done, "Add note" never opened | Omit `notes` field entirely (backend defaults to `null`) |
+| Mark done, "Add note" opened but textarea is empty | Omit `notes` field (empty string → backend stores as `null`; either approach is valid) |
+| Mark done, "Add note" opened with text | Send `notes: trimmedValue` (trim whitespace before sending) |
+
+**Client-side trim:** Before submitting, call `noteValue.trim()`. If the trimmed value is `""` (empty), omit the field.
+
+**Hard character limit:** `maxLength={280}` is enforced on the textarea DOM element. The form/button should also guard against `note.length > 280` before submitting (belt-and-suspenders, since the backend also validates).
+
+**POST body shape (when note is present):**
+```json
+{
+  "plantId": "uuid",
+  "careType": "watering",
+  "notes": "Soil was very dry — gave extra water and misted leaves."
+}
+```
+
+**Loading state during submission:**
+- "Mark Done" button shows spinner and becomes disabled (existing behavior)
+- The "+ Add note" link is also disabled (pointer-events: none, opacity 0.5) during the pending state
+- The textarea is `disabled` during submission to prevent edits mid-flight
+
+**Error state:**
+- If the POST fails, the existing error toast is shown (no change)
+- The textarea re-enables, preserving the user's note text
+- The user can retry by clicking "Mark Done" again
+
+---
+
+#### Notes Display in Care History
+
+The `CareHistoryItem` component (in `CareHistorySection.jsx`) already receives `notes` from the API. If `notes` is non-null and non-empty, a note preview is shown below the date line.
+
+**History list item anatomy — with note:**
+```
+┌──────────────────────────────────────────────────────────┐
+│  [💧]  Watering                          3 days ago      │
+│        April 2, 2026                                     │
+│        ─────────────────────────────────────────         │
+│        "Soil was very dry — gave extra water and         │
+│         misted leaves."                                  │
+│                                              Show more ↓ │
+└──────────────────────────────────────────────────────────┘
+```
+
+**History list item anatomy — without note (null):**
+```
+┌──────────────────────────────────────────────────────────┐
+│  [💧]  Watering                          3 days ago      │
+│        April 2, 2026                                     │
+└──────────────────────────────────────────────────────────┘
+```
+No note row, no "No note" placeholder, no divider. The item is visually identical to the pre-Sprint-21 history items.
+
+**Note text styling:**
+- `font-size: 13px`
+- `color: var(--color-text-secondary)` (`#6B6B5F` light / `#9B9B8F` dark)
+- `font-style: italic`
+- `line-height: 1.5`
+- Padding: `8px 0 4px 0` (top gap from date line, small bottom padding before "Show more")
+- A subtle `1px solid var(--color-border)` horizontal rule (full-width, no horizontal margins) visually separates the date from the note area when a note is present
+
+**Divider (note separator):**
+- Only rendered when `notes` is non-null
+- `border-top: 1px solid var(--color-border)`
+- `margin: 6px 0 8px 0`
+- No divider when note is null
+
+**Truncation (2-line clamp):**
+- Default state: note text is clamped to 2 lines via `display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden`
+- If the full note fits within 2 lines, no "Show more" toggle is rendered
+- If the full note overflows 2 lines, a "Show more" toggle button is rendered
+
+**"Show more" / "Show less" toggle:**
+- Rendered as a ghost text button: `font-size: 12px`, `color: var(--color-accent-primary)` (`#5C7A5C`)
+- Icon: `CaretDown` (Phosphor, 10px) right of text in collapsed state; `CaretUp` in expanded state
+- Label: `"Show more"` (collapsed) / `"Show less"` (expanded)
+- Positioned flush-right, below the truncated text
+- Clicking "Show more": removes the `line-clamp` CSS property, reveals full note text; label changes to "Show less" + caret rotates 180° (`transition: transform 0.2s ease`)
+- No animation on the text itself — just the caret rotation and instant reveal (to remain lightweight in a list)
+- `aria-expanded="false"` / `"true"` on the toggle button
+- `aria-controls="note-text-{itemId}"` linking to the note text container
+- `id="note-text-{itemId}"` on the note text `<p>` element
+
+**State where full note ≤ 2 lines:**
+- No divider is still present (the divider appears whenever `notes !== null`)
+- No "Show more" button
+- Note text is simply displayed in full, styled as above
+
+---
+
+#### Empty Note Handling (History)
+
+When `notes` is `null` (or `undefined`):
+- Render nothing. No divider, no italicized text area, no "No note" label, no empty space.
+- The care history item renders in its original form (care type + date line only).
+- This is the default state for all care actions recorded before Sprint 21.
+
+**Guard condition in `CareHistoryItem`:**
+```jsx
+{notes != null && notes.trim() !== '' && (
+  <div className="care-history-item__note">
+    <hr className="care-history-item__note-divider" />
+    <p id={`note-text-${id}`} className="care-history-item__note-text">
+      {notes}
+    </p>
+    {/* Show more toggle — only if text overflows */}
+  </div>
+)}
+```
+
+---
+
+#### States Summary
+
+| State | Dashboard Card | Plant Detail Row | History Item |
+|-------|---------------|-----------------|--------------|
+| Default (no note) | "+ Add note" link visible | "+ Add note" link visible | No note UI |
+| Note input open | Textarea expanded, "− Remove note" | Textarea expanded, "− Remove note" | — |
+| Note typed, <200 chars | Counter hidden | Counter hidden | — |
+| Note typed, 200–239 chars | Counter visible (muted) | Counter visible (muted) | — |
+| Note typed, 240–269 chars | Counter yellow | Counter yellow | — |
+| Note typed, 270–280 chars | Counter red | Counter red | — |
+| Submitting | Button+link disabled, textarea disabled | Button+link disabled, textarea disabled | — |
+| Submit success | Card removed | Row refreshes (existing behavior) | Note shown (if non-null) |
+| Submit error | Error toast, textarea re-enabled | Error toast, textarea re-enabled | — |
+| History item, note null | — | — | No note UI rendered |
+| History item, note ≤ 2 lines | — | — | Full note, no toggle |
+| History item, note > 2 lines | — | — | 2-line clamp + "Show more" |
+| History item, note expanded | — | — | Full note, "Show less" |
+
+---
+
+#### Responsive Behavior
+
+| Breakpoint | Dashboard Card | Plant Detail Row | History Item |
+|------------|---------------|-----------------|-------------|
+| Desktop (≥1024px) | Card layout unchanged; note textarea fills card content width below mark-done button | Textarea right-aligned, same column as button (~240–320px wide) | Note text wraps naturally within card |
+| Tablet (768–1023px) | Same as desktop | Textarea full-width beneath the row (button + note stack vertically) | Same as desktop |
+| Mobile (<768px) | Card is full-width; textarea is full-width below mark-done button | Textarea full-width, stacks below button | Note text wraps naturally; "Show more" toggle on its own line |
+
+**Touch targets:** "Add note" link minimum touch target 44×44px (use `padding: 12px 8px` even though the visual text is smaller). "Show more" / "Show less" button minimum touch target 44×44px.
+
+---
+
+#### Dark Mode
+
+All new elements use CSS custom properties from the existing dark mode variable set.
+
+| Element | Light | Dark |
+|---------|-------|------|
+| Note textarea background | `var(--color-surface-alt)` → `#F0EDE6` | `#2E2E28` |
+| Note textarea border | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+| Note textarea border (focus) | `var(--color-border-focus)` → `#5C7A5C` | `#5C7A5C` |
+| Note textarea text | `var(--color-text-primary)` → `#2C2C2C` | `#F0EDE6` |
+| Note textarea placeholder | `var(--color-text-disabled)` → `#B0ADA5` | `#6B6B5F` |
+| "Add note" / "Remove note" link | `var(--color-text-secondary)` → `#6B6B5F` | `#9B9B8F` |
+| Character counter (muted) | `var(--color-text-disabled)` → `#B0ADA5` | `#6B6B5F` |
+| Character counter (yellow) | `var(--color-status-yellow)` → `#C4921F` | `#C4921F` |
+| Character counter (red) | `var(--color-status-red)` → `#B85C38` | `#B85C38` |
+| History note text | `var(--color-text-secondary)` → `#6B6B5F` | `#9B9B8F` |
+| History note divider | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+| "Show more" / "Show less" | `var(--color-accent-primary)` → `#5C7A5C` | `#5C7A5C` |
+
+No hardcoded color values in any new component code — all via `var(--color-*)` tokens.
+
+---
+
+#### Accessibility
+
+| Requirement | Implementation |
+|-------------|---------------|
+| "Add note" toggle | `<button>` with `aria-expanded`, `aria-controls` pointing to textarea `id` |
+| Note textarea | `aria-label="Care note for {plantName} {careType}"` |
+| Character counter | `aria-describedby` on textarea → counter `id`; counter has `aria-live="polite"`, announces at 200 / 240 / 270 / 280 only |
+| Textarea disabled during submit | `disabled` attribute (not just `pointer-events: none`) |
+| History note container | `id="note-text-{itemId}"` for `aria-controls` reference |
+| "Show more" toggle | `<button>` with `aria-expanded`, `aria-controls` linking to note `p` element |
+| Keyboard navigation | Tab order: Mark Done button → Add note link → textarea (when open) → character counter (skip, non-interactive) |
+| Focus management | When "Add note" is clicked, textarea receives focus via `ref.focus()` after animation starts |
+| Reduced motion | When `prefers-reduced-motion: reduce`, textarea expansion is instant (no `max-height` transition); caret rotation on "Show more" is instant |
+| Color independence | Character counter severity communicated via text value ("270 / 280") in addition to color; note presence in history communicated by the text content itself, not by color alone |
+| Screen reader — note in history | `CareHistoryItem` `aria-label` is extended: `"Watering on April 2, 2026. Includes note."` when `notes` is non-null |
+
+---
+
+#### Component Changes Summary
+
+| Component | Change |
+|-----------|--------|
+| `CareDuePage.jsx` | Add `noteValue` state per card (keyed by `{plantId}-{careType}`); add "+ Add note" toggle button; render note textarea on expand; pass `notes` to `careActions.create()` |
+| `PlantDetailPage.jsx` | Same pattern as CareDuePage for each care-type row in the Overview tab; `noteValue` state keyed by `careType` |
+| `CareHistorySection.jsx` / `CareHistoryItem.jsx` | Render note block when `notes` is non-null; implement 2-line clamp + "Show more" toggle |
+| `CareHistorySection.css` (or equivalent) | Add `.care-history-item__note`, `.care-history-item__note-text`, `.care-history-item__note-divider`, `.care-history-item__show-more` styles; all using CSS custom properties |
+| `frontend/src/api.js` | Update `careActions.create(payload)` to accept and pass through optional `notes` field |
+
+---
+
+#### File Locations
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/CareDuePage.jsx` | Note input for mark-done flow |
+| `frontend/src/pages/PlantDetailPage.jsx` | Note input for mark-done flow |
+| `frontend/src/components/CareHistorySection.jsx` | Note display in history list item |
+| `frontend/src/components/CareHistorySection.css` | Note styles (dark mode, truncation, toggle) |
+| `frontend/src/api.js` | `careActions.create` updated to accept `notes` |
+
+---
+
+*SPEC-015 written by Design Agent on 2026-04-05 for Sprint #20.*
+
+---
+
+### SPEC-017 — Care Reminder Email Notifications
+
+**Status:** Approved
+**Related Tasks:** T-100 (Design), T-102 (Frontend)
+**Date Written:** 2026-04-05
+**Sprint:** #22
+
+---
+
+#### Overview
+
+Care Reminder Email Notifications close the engagement loop for the "plant killer" persona by sending proactive email reminders when plants need care. Users who never open the app on a busy day still get a nudge at a time that fits their routine. The feature is entirely opt-in — users who do not enable reminders experience zero change. The preferences UI is a new "Reminders" section at the bottom of the Profile page.
+
+**Design constraints:**
+- Japandi botanical aesthetic — the Reminders section is calm and purposeful, not promotional. No upsell language.
+- The toggle and timing selector are the entire UI surface. Keep it minimal: label, toggle, conditional timing selector, one save button.
+- The email template is warm and botanical — not a cold transactional email. It should feel like a gentle note from a trusted plant-care companion.
+- Opt-out must be effortless: one click from the email footer, no confirmation gate, no dark patterns.
+
+---
+
+#### Surface 1 — Notification Preferences UI (Profile Page)
+
+##### 1.1 — Profile Page Layout (Post-Sprint-22)
+
+The Profile page currently has three sections stacked vertically: **Account Info** (avatar, name, member since), **Stats** (plant count, longest streak, etc.), and now a new **Reminders** section added below Stats.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  [Avatar]  Yixin Xiao                                       │
+│            Member since January 2026                        │
+│  ─────────────────────────────────────────────────────────  │
+│  📊  Stats                                                  │
+│       3 plants  ·  12-day streak  ·  48 care actions        │
+│  ─────────────────────────────────────────────────────────  │
+│  🔔  Reminders                          ← NEW SECTION       │
+│       Get email reminders when care is due                  │
+│                                      [ ○ ] OFF              │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+When the toggle is turned ON:
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🔔  Reminders                                              │
+│       Get email reminders when care is due                  │
+│                                      [ ● ] ON               │
+│                                                             │
+│       Reminder time                                         │
+│       ● Morning  (8 AM)                                     │
+│       ○ Midday   (12 PM)                                    │
+│       ○ Evening  (6 PM)                                     │
+│                                                             │
+│                           [ Save reminder settings ]        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+##### 1.2 — Reminders Section — Component Anatomy
+
+**Section header row:**
+- Icon: `Bell` (Phosphor, outlined, 18px), `color: var(--color-accent-primary)` (`#5C7A5C`)
+- Label: `"Reminders"`, `font-size: 18px`, `font-weight: 600`, `font-family: 'DM Sans'`, `color: var(--color-text-primary)`
+- Same visual style as other section headers on the Profile page (border-bottom rule or equivalent)
+- `padding-bottom: 16px`
+
+**Toggle row:**
+- Layout: flex row, `justify-content: space-between`, `align-items: center`
+- Left side: descriptive label text
+  - Primary label: `"Get email reminders when care is due"`, `font-size: 15px`, `font-weight: 500`, `color: var(--color-text-primary)`
+  - Secondary label below it: `"We'll email you at your chosen time on days when plant care is due or overdue."`, `font-size: 13px`, `color: var(--color-text-secondary)`, `margin-top: 4px`
+  - `id="reminder-toggle-desc"` on the secondary label — referenced by `aria-describedby` on the toggle
+- Right side: the toggle switch (see below)
+- `margin-bottom: 20px` when timing selector is hidden; `margin-bottom: 16px` when timing selector is visible
+
+**Toggle switch component:**
+- Render as a `<button>` element (not a checkbox, not an `<input type="checkbox">`)
+- `role="switch"`
+- `aria-checked="false"` (off) / `"true"` (on)
+- `aria-label="Email reminders"`
+- `aria-describedby="reminder-toggle-desc"`
+- Visual appearance:
+  - Track: `width: 44px`, `height: 24px`, `border-radius: 12px`
+  - OFF state: track background `var(--color-border)` (`#E0DDD6` light / `#3A3A34` dark); thumb background `#FFFFFF`
+  - ON state: track background `var(--color-accent-primary)` (`#5C7A5C`); thumb background `#FFFFFF`
+  - Thumb: `width: 18px`, `height: 18px`, `border-radius: 50%`, `box-shadow: 0 1px 3px rgba(0,0,0,0.2)`
+  - Thumb position: OFF → `translateX(3px)`; ON → `translateX(23px)`
+  - Transition: `transition: background 0.2s ease` on track; `transition: transform 0.2s ease` on thumb
+  - Focus ring: `outline: 2px solid var(--color-border-focus)` (`#5C7A5C`), `outline-offset: 2px`
+- Minimum tap target: `48px × 48px` (use negative margin or padding to expand hit area without affecting layout)
+
+**Timing selector (conditional — only shown when toggle is ON):**
+- Appears with `transition: max-height 0.3s ease, opacity 0.2s ease` — max-height animates from `0` to `160px`; opacity 0 → 1
+- When toggle is turned OFF, the selector collapses with reverse animation; timing selection state is preserved in memory (re-appears at the user's last choice if toggled back on during the same session)
+- Container: `background: var(--color-surface-alt)` (`#F0EDE6` light / `#2E2E28` dark), `border-radius: 8px`, `padding: 16px`, `margin-top: 4px`
+- Section label above the radio group: `"Send reminder at:"`, `font-size: 12px`, `font-weight: 500`, `text-transform: uppercase`, `letter-spacing: 0.06em`, `color: var(--color-text-secondary)`, `margin-bottom: 12px`
+- `role="radiogroup"` on the container wrapping the three options
+- `aria-label="Reminder time"` on the `role="radiogroup"` element
+- Three options rendered as custom-styled radio buttons (visually consistent, but backed by `<input type="radio">` for native keyboard support):
+
+| Label | Value sent to API (`reminder_hour_utc`) | Helper text |
+|-------|-----------------------------------------|-------------|
+| Morning | `8` | `"~8:00 AM your local time"` |
+| Midday | `12` | `"~12:00 PM your local time"` |
+| Evening | `18` | `"~6:00 PM your local time"` |
+
+> **Note on UTC hours:** The three values (8, 12, 18) are UTC integers stored on the server. The helper text says "your local time" because the backend will be enhanced in a future sprint to handle user timezones — for now, documenting as UTC but displaying as approximate local time is acceptable for MVP. The Frontend Engineer should send the raw integer values (8, 12, 18) in the POST body; the display label is the only user-facing text.
+
+- Radio option anatomy:
+  ```
+  ● Morning
+    ~8:00 AM your local time
+  ```
+  - Radio circle: custom styled `<input type="radio" name="reminderTime" value="8">`, visually replaced by a circle — selected state uses `var(--color-accent-primary)` fill; unselected state uses `var(--color-border)` stroke only
+  - Primary label: `font-size: 14px`, `font-weight: 500`, `color: var(--color-text-primary)`
+  - Helper text: `font-size: 12px`, `color: var(--color-text-secondary)`, `margin-top: 2px`, rendered as `<label>` associated with the radio input
+  - `padding: 10px 0`; each option separated by `8px` gap
+  - Selected option's container: subtle left accent — `border-left: 3px solid var(--color-accent-primary)`, `padding-left: 12px` (only on the selected item; de-selects with `border-left: 3px solid transparent`)
+  - Hover: background `var(--color-surface-alt)` lightens slightly; cursor pointer
+  - Focus (on radio input): `outline: 2px solid var(--color-border-focus)`, `outline-offset: 2px`
+  - Keyboard: native radio group behavior — arrow keys move between options; `Tab` exits the group
+
+**Save button:**
+- Only visible when toggle is ON
+- Appears below the timing selector container with `margin-top: 16px`
+- Variant: **Primary** (`background: #5C7A5C`, `color: #FFFFFF`)
+- Label: `"Save reminder settings"`
+- Width: auto, `align-self: flex-end` (right-aligned in the section's flex column)
+- Height: `40px`, `padding: 0 20px`, `border-radius: 8px`, `font-size: 14px`, `font-weight: 600`
+- Loading state: button shows spinner (16px, white) and `"Saving…"` label; disabled during the request
+- `aria-label="Save reminder settings"`
+
+---
+
+##### 1.3 — Preference Save Flow
+
+**Page load (pre-population):**
+1. Profile page mounts → dispatches `GET /api/v1/profile/notification-preferences`
+2. While fetching: toggle and timing selector render in a skeleton/disabled state (toggle is unresponsive, timing selector is hidden); a subtle `opacity: 0.5` on the section indicates loading
+3. On success: populate `opt_in` → toggle state; populate `reminder_hour_utc` → selected radio option; section becomes interactive
+4. On API error: section becomes interactive with default state (toggle OFF, Morning selected); show a subtle inline note: `"Could not load your current settings."` in `color: var(--color-status-red)`, `font-size: 12px` below the toggle row; user can still interact and save
+
+**Save action (triggered by "Save reminder settings" button):**
+1. User clicks "Save reminder settings"
+2. Button enters loading state (spinner + "Saving…", disabled)
+3. POST `/api/v1/profile/notification-preferences` with body:
+   ```json
+   { "opt_in": true, "reminder_hour_utc": 8 }
+   ```
+   (or `{ "opt_in": false }` if toggling off — still saves to persist the preference)
+4. **On success:**
+   - Button returns to default state
+   - Show a success toast (using the app's existing toast component):
+     - Icon: `CheckCircle` (Phosphor, 16px, green)
+     - Message: `"Reminder settings saved"` when opt_in=true; `"Email reminders turned off"` when opt_in=false
+     - Duration: 3 seconds, auto-dismiss
+     - Position: bottom-center (consistent with other toasts in the app)
+5. **On error:**
+   - Button returns to default state
+   - Show an inline error directly below the save button (not a toast, to keep it contextual):
+     - Text: `"Couldn't save your settings — please try again."`, `font-size: 13px`, `color: var(--color-status-red)`
+     - `role="alert"` on the error element so screen readers announce it immediately
+     - Error clears on the next successful save or when the user dismisses manually (× icon at the right of the error message)
+
+**Toggle-off quick save:**
+- When user toggles OFF while reminders were previously ON, the "Save reminder settings" button remains visible and active (user must still click save). This prevents accidental opt-out without confirmation.
+- The save button label changes to `"Save changes"` in the toggle-OFF state to feel more neutral.
+
+**Unsaved state warning:**
+- If the user navigates away from the Profile page with unsaved changes (toggle or timing was modified but not saved), no warning modal is shown (MVP — keep it simple). The unsaved state is silently discarded. Future sprint may add a "You have unsaved changes" warning.
+
+---
+
+##### 1.4 — States Summary (Reminders Section)
+
+| State | Toggle | Timing selector | Save button | Section appearance |
+|-------|--------|-----------------|-------------|-------------------|
+| Loading preferences | Disabled, OFF | Hidden | Hidden | `opacity: 0.5` |
+| Load error | Enabled, OFF (default) | Hidden | Hidden | Inline error note |
+| Off (opt_in=false) | OFF | Hidden | Hidden | Minimal — toggle row only |
+| On (opt_in=true), not yet saved | ON | Visible, one option selected | Visible (`"Save reminder settings"`) | Full section |
+| Saving in progress | Disabled | Disabled (pointer-events: none) | Spinner + `"Saving…"`, disabled | — |
+| Save success | Current state | Current state | Default | Toast shown |
+| Save error | Current state | Current state | Default, error message below | Inline error |
+| Toggle OFF, not yet saved | OFF | Hidden (collapses) | Visible (`"Save changes"`) | Toggle + save button |
+
+---
+
+#### Surface 2 — Email Template Layout
+
+The care reminder email is an HTML email rendered by the backend's Nodemailer service. This spec defines the **visual layout and content structure**. The Frontend Engineer is not responsible for email template code — this section guides the Backend Engineer's HTML email construction and informs QA's email rendering checks.
+
+##### 2.1 — Email Template Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│              🌿  Plant Guardians                            │  ← Header
+│                                                             │
+│  ─────────────────────────────────────────────────────────  │
+│                                                             │
+│  Hi [First Name],                                           │
+│                                                             │
+│  Your plants need some attention today.                     │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  💧  Monstera Deliciosa                             │    │  ← Plant row
+│  │      Watering · 3 days overdue                      │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  🪴  Peace Lily                                     │    │  ← Plant row
+│  │      Watering · due today                           │    │
+│  │      Fertilizing · due today                        │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│                   [ Open Plant Guardians ]                  │  ← CTA
+│                                                             │
+│  ─────────────────────────────────────────────────────────  │
+│                                                             │
+│  You're receiving this because you opted in to             │  ← Footer
+│  care reminders in Plant Guardians.                         │
+│  Unsubscribe · Help                                         │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+##### 2.2 — Header
+
+- Background: `#F7F4EF` (warm off-white, matching app background)
+- Logo area: app name `"Plant Guardians"` in `'Playfair Display', Georgia, serif`, `font-size: 24px`, `font-weight: 600`, `color: #2C2C2C`, centered
+- Leaf emoji or inline SVG leaf icon (16×16) left of the app name as a botanical accent: `color: #5C7A5C`
+- Tagline below app name: `"Your plant care companion"`, `font-size: 13px`, `color: #6B6B5F`, centered
+- `padding: 32px 24px 24px`
+- Bottom border: `1px solid #E0DDD6`
+
+##### 2.3 — Body
+
+- Background: `#FFFFFF`
+- Max width: `600px`, centered (standard email width)
+- Outer padding: `32px 24px`
+
+**Greeting line:**
+- `"Hi [user.name],"` — use the user's first name if available, otherwise `"Hi there,"`
+- `font-size: 16px`, `color: #2C2C2C`, `margin-bottom: 8px`
+
+**Intro line:**
+- `"Your plants need some attention today."` (when all items are due today or overdue)
+- Or: `"A few of your plants need attention today."` (when only some plants have care due)
+- `font-size: 15px`, `color: #6B6B5F`, `margin-bottom: 24px`
+
+**Plant rows:**
+Each plant that has ≥1 care type due or overdue is rendered as a card:
+
+- Card: `background: #F7F4EF`, `border-radius: 8px`, `padding: 14px 16px`, `margin-bottom: 12px`, `border: 1px solid #E0DDD6`
+- Plant name: `font-size: 15px`, `font-weight: 600`, `color: #2C2C2C`, `margin-bottom: 6px`
+- Care type rows inside the card (one per due/overdue care type):
+  - Care type icon (inline emoji or text): 💧 Watering, 🌱 Fertilizing, 🪴 Repotting
+  - Care type label: `"Watering"` / `"Fertilizing"` / `"Repotting"`, `font-size: 14px`, `color: #2C2C2C`
+  - Status text (inline separator `·`):
+    - Due today: `"due today"`, `color: #C4921F`
+    - Overdue 1 day: `"1 day overdue"`, `color: #B85C38`
+    - Overdue N days: `"N days overdue"`, `color: #B85C38`
+  - Example rendered row: `💧 Watering · 3 days overdue`
+  - `margin-bottom: 4px` between rows
+
+**Plant row ordering:**
+- Sort plants: overdue plants first (most days overdue → least), then due today
+- Within a plant's card: sort care types overdue → due today; alphabetical within the same status
+
+**Empty state:** If no plants have due or overdue care, no email is sent (backend cron job check). This template is never rendered for "all clear" days.
+
+##### 2.4 — CTA Button
+
+- Centered below the plant rows, `margin-top: 28px`, `margin-bottom: 28px`
+- Button: `display: inline-block`, `background: #5C7A5C`, `color: #FFFFFF`, `padding: 14px 32px`, `border-radius: 8px`, `font-size: 15px`, `font-weight: 600`, `font-family: 'DM Sans', Arial, sans-serif`, `text-decoration: none`
+- Label: `"Open Plant Guardians"`
+- Href: deep link to the Care Due page (e.g., `https://app.plantguardians.com/care-due` — or the staging equivalent)
+- Email client fallback: the anchor must have `target="_blank"` and inline styles only (no CSS classes — email clients strip `<style>` blocks)
+
+##### 2.5 — Footer
+
+- Background: `#F7F4EF`
+- Top border: `1px solid #E0DDD6`
+- `padding: 20px 24px`
+- Text line 1: `"You're receiving this because you enabled care reminders in Plant Guardians."`
+  - `font-size: 12px`, `color: #6B6B5F`, `text-align: center`, `margin-bottom: 8px`
+- Text line 2 (links):
+  - `"Unsubscribe"` — link to the unsubscribe endpoint (see Surface 3); `color: #5C7A5C`, `text-decoration: underline`
+  - Separator: ` · ` in `color: #B0ADA5`
+  - `"Help"` — link to a mailto or help URL (placeholder: `mailto:support@plantguardians.com`); `color: #5C7A5C`, `text-decoration: underline`
+  - `font-size: 12px`, `text-align: center`
+
+---
+
+#### Surface 3 — Unsubscribe / Opt-Out Flow
+
+##### 3.1 — Unsubscribe Link Construction
+
+- The unsubscribe link in the email footer is a GET endpoint: `GET /api/v1/profile/notification-preferences/unsubscribe?token={unsubscribeToken}`
+- The `unsubscribeToken` is a signed, user-specific token generated by the backend when the email is sent (implementation detail for the Backend Engineer — this spec defines the UX outcome only)
+- The link works without the user being logged in — it is a one-click, no-login-required opt-out
+
+##### 3.2 — Unsubscribe Outcome (Browser Page)
+
+When the user clicks the unsubscribe link, the backend:
+1. Validates the token
+2. Sets `opt_in = false` for the user in `notification_preferences`
+3. Responds with a simple HTML confirmation page (server-rendered, no React)
+
+**Confirmation page layout:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│              🌿  Plant Guardians                            │
+│                                                             │
+│  ─────────────────────────────────────────────────────────  │
+│                                                             │
+│         ✓  You've been unsubscribed                        │
+│                                                             │
+│         You won't receive any more care reminder           │
+│         emails from Plant Guardians.                        │
+│                                                             │
+│         Changed your mind? You can re-enable reminders     │
+│         anytime from your Profile page.                     │
+│                                                             │
+│                   [ Go to Plant Guardians ]                 │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+- Page background: `#F7F4EF`
+- Max width: `480px`, centered, `margin: 80px auto`, `padding: 48px 32px`
+- Card: `background: #FFFFFF`, `border-radius: 12px`, `box-shadow: 0 2px 8px rgba(44,44,44,0.06)`, `padding: 48px 40px`, `text-align: center`
+- Check icon: `✓` or `CheckCircle` SVG, `color: #4A7C59`, `font-size: 36px`, `margin-bottom: 16px`
+- Heading: `"You've been unsubscribed"`, `font-family: 'Playfair Display', Georgia, serif`, `font-size: 24px`, `color: #2C2C2C`, `margin-bottom: 12px`
+- Body text: two lines as above, `font-size: 15px`, `color: #6B6B5F`, `line-height: 1.6`, `margin-bottom: 24px`
+- CTA button: `"Go to Plant Guardians"`, Primary button style (`background: #5C7A5C`, `color: #FFFFFF`), links to `https://app.plantguardians.com` (or staging equivalent)
+
+**Invalid or expired token:**
+- If the token is invalid or already used, show an alternate state on the same page:
+  - Heading: `"Link not valid"`
+  - Body: `"This unsubscribe link may have already been used or has expired. If you'd like to manage your reminder settings, sign in to your profile."`
+  - CTA: `"Sign In"` — links to the login page
+
+##### 3.3 — Profile Page Sync After Unsubscribe
+
+- When the user later visits the Profile page, `GET /api/v1/profile/notification-preferences` will return `opt_in: false`
+- The toggle will correctly render as OFF, reflecting the unsubscribed state
+- No special handling needed on the frontend — the existing pre-population logic handles this
+
+---
+
+#### Surface 4 — Empty-State Handling (No Email Sent)
+
+This is a **backend behavior**, not a UI surface. It is documented here for QA completeness and to communicate the product intent clearly.
+
+| Condition | Behavior |
+|-----------|----------|
+| User has `opt_in = false` | Cron job skips this user entirely — no email sent |
+| User has `opt_in = true` but no care is due or overdue for any plant | No email sent — silence is the right UX here (no "all clear" spam) |
+| User has `opt_in = true` and ≥1 plant has due or overdue care | Email sent with plant list |
+| User has no plants | No email sent |
+| SMTP env vars are not configured | Backend logs a warning, skips all sends, does not crash |
+
+**No "all clear" email:** The product principle is that silence means everything is fine. Sending a daily "nothing is due" email trains users to ignore reminders. Only send when action is needed.
+
+---
+
+#### Dark Mode — Reminders Section (Profile Page)
+
+All new elements in the Reminders section use CSS custom properties. No hardcoded color values.
+
+| Element | Light value | Dark value |
+|---------|-------------|------------|
+| Section background | Inherits page `var(--color-background)` → `#F7F4EF` | `#1E1E1A` |
+| Toggle track (OFF) | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+| Toggle track (ON) | `var(--color-accent-primary)` → `#5C7A5C` | `#5C7A5C` |
+| Toggle thumb | `#FFFFFF` | `#FFFFFF` |
+| Timing selector container bg | `var(--color-surface-alt)` → `#F0EDE6` | `#2E2E28` |
+| Radio selected accent border | `var(--color-accent-primary)` → `#5C7A5C` | `#5C7A5C` |
+| Radio unselected circle | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+| Primary label text | `var(--color-text-primary)` → `#2C2C2C` | `#F0EDE6` |
+| Secondary/helper text | `var(--color-text-secondary)` → `#6B6B5F` | `#9B9B8F` |
+| Save button | `var(--color-accent-primary)` → `#5C7A5C` | `#5C7A5C` |
+| Save button text | `#FFFFFF` | `#FFFFFF` |
+| Inline error text | `var(--color-status-red)` → `#B85C38` | `#B85C38` |
+| Section divider / border | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+
+The email template does not support dark mode (email client dark mode support is inconsistent and out of scope for MVP). Use light-mode values only in the email HTML.
+
+---
+
+#### Responsive Behavior — Reminders Section
+
+| Breakpoint | Layout |
+|------------|--------|
+| Desktop (≥1024px) | Toggle row: label left, toggle right (flex row, space-between). Timing selector: full width of section. Save button: right-aligned (align-self: flex-end). |
+| Tablet (768–1023px) | Same as desktop — Profile page is single-column, no sidebar adjustment needed. |
+| Mobile (<768px) | Toggle row: label stacks above toggle (flex column, or label takes full width and toggle sits on the right of same row — whichever is tighter). Timing selector: full width. Save button: full width (`width: 100%`). |
+
+**Touch targets (mobile):**
+- Toggle: minimum 44×44px tap area around the toggle track
+- Each radio option row: minimum 44px tall
+- Save button: minimum 44px tall (`height: 44px` on mobile)
+
+---
+
+#### Accessibility — Reminders Section
+
+| Requirement | Implementation |
+|-------------|---------------|
+| Toggle semantics | `<button role="switch" aria-checked="false/true" aria-label="Email reminders" aria-describedby="reminder-toggle-desc">` |
+| Toggle description | Secondary label text has `id="reminder-toggle-desc"` — linked via `aria-describedby` on the toggle |
+| Timing selector group | `<div role="radiogroup" aria-label="Reminder time">` wrapping the three radio inputs |
+| Radio inputs | Native `<input type="radio" name="reminderTime">` — preserves keyboard arrow-key navigation between options |
+| Radio labels | `<label>` elements properly associated with each radio `id` — clicking the label text activates the radio |
+| Save button | `<button aria-label="Save reminder settings">` (or "Save changes" in toggle-OFF state) |
+| Loading state | Reminders section container has `aria-busy="true"` during preferences fetch; remove once loaded |
+| Inline error | `<p role="alert">` so screen readers announce the error immediately without requiring focus |
+| Toggle disabled (loading) | `<button disabled>` (not just `pointer-events: none`) during preferences fetch and during save |
+| Focus management | After save succeeds, focus stays on the save button (no focus jump); after error, focus stays on the save button |
+| Keyboard navigation order | Page heading → Account Info section → Stats section → Reminders heading → Toggle → (if ON) Morning radio → Midday radio → Evening radio → Save button |
+| Reduced motion | Timing selector expansion is instant (`transition: none`) when `prefers-reduced-motion: reduce` |
+| Color independence | Toggle ON/OFF state communicated by `aria-checked` — not color alone; radio selection communicated by `checked` attribute — not the accent border alone |
+
+---
+
+#### Component Changes Summary
+
+| Component | Change |
+|-----------|--------|
+| `frontend/src/pages/ProfilePage.jsx` | Add `RemindersSection` (inline or extracted component); add `useNotificationPreferences` hook logic or inline state; fetch on mount; handle toggle, radio, save |
+| `frontend/src/pages/ProfilePage.css` | Add `.reminders-section`, `.reminders-toggle-row`, `.reminders-toggle-switch`, `.reminders-timing-selector`, `.reminders-save-btn`, `.reminders-error` styles; all using CSS custom properties |
+| `frontend/src/api.js` | Add `notificationPreferences.get()` → `GET /api/v1/profile/notification-preferences`; add `notificationPreferences.update(payload)` → `POST /api/v1/profile/notification-preferences` |
+
+---
+
+#### File Locations
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/ProfilePage.jsx` | New Reminders section below Stats |
+| `frontend/src/pages/ProfilePage.css` | New Reminders section styles |
+| `frontend/src/api.js` | `notificationPreferences.get`, `notificationPreferences.update` |
+
+---
+
+*SPEC-017 written by Design Agent on 2026-04-05 for Sprint #22.*
+
+---
+
+### SPEC-018 — Account Deletion Flow
+
+**Status:** Approved
+**Related Tasks:** T-105 (Design), T-107 (Frontend Implementation)
+**Sprint:** #23
+
+---
+
+#### Overview
+
+Account deletion is a rare but critical action. The design must make deletion deliberate and irreversible-feeling without being so hostile that it erodes trust. Three principles guide this spec:
+
+1. **Progressive disclosure** — the delete option is never prominent; it is buried under a collapsed "Danger Zone" at the bottom of the Profile page.
+2. **Hard gate** — the user must type "DELETE" (exact match, case-sensitive) before the confirm button becomes active; accidental taps are impossible.
+3. **Clear consequence communication** — the modal lists every piece of data being destroyed so the user makes a fully informed choice.
+
+---
+
+#### Surface 1 — Danger Zone Section (Profile Page)
+
+**Location:** Bottom of `ProfilePage.jsx`, below the existing Reminders section. Separated from the rest of the page by a full-width horizontal rule (`<hr>`) styled with `var(--color-border)`.
+
+##### Visual Design
+
+```
+──────────────────────────────────────────────
+  ▼  Danger Zone                              ← collapsed trigger row
+──────────────────────────────────────────────
+```
+
+When **collapsed** (default state on every page load):
+
+- A single row containing a chevron icon (pointing **right** when collapsed, **down** when expanded) on the left and the label **"Danger Zone"** in `14px / font-weight: 500 / color: var(--color-status-red)` (#B85C38 light / #C96B44 dark).
+- The entire row is a `<button>` with `aria-expanded="false"` and `aria-controls="danger-zone-content"`.
+- The row has a subtle left border accent: `border-left: 3px solid var(--color-status-red-muted)` where `--color-status-red-muted` = `rgba(184, 92, 56, 0.35)`.
+- Row background: inherits page background. No fill until hover.
+- Hover state: background transitions to `rgba(184, 92, 56, 0.05)` (`0.2s ease`). Border-left accent darkens to `rgba(184, 92, 56, 0.60)`.
+- Padding: `12px 16px`. Full width of the section content area.
+
+When **expanded**:
+
+- Chevron rotates to point down (`transform: rotate(90deg)`, `transition: transform 0.2s ease`).
+- `aria-expanded` becomes `"true"`.
+- Content area slides open below the trigger row: `max-height` animation from `0` to `auto` (`overflow: hidden`, `transition: max-height 0.3s ease, opacity 0.2s ease`), `opacity` 0 → 1.
+- Content area has `id="danger-zone-content"` (linked via `aria-controls` on the trigger button).
+- `@media (prefers-reduced-motion: reduce)`: skip height/opacity animation, show instantly.
+
+##### Expanded Content
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Permanently delete your account and all associated data.   │  ← body copy, text-secondary
+│  This action cannot be undone.                              │
+│                                                             │
+│  [  Delete my account  ]                                    │  ← Danger button variant
+└─────────────────────────────────────────────────────────────┘
+```
+
+- Body copy: `font-size: 14px`, `color: var(--color-text-secondary)`, `margin-bottom: 16px`.
+- "Delete my account" button: **Danger** variant (`background: var(--color-status-red)` → `#B85C38`; `color: #FFFFFF`; `border-radius: 8px`; `padding: 10px 20px`; `font-weight: 600`; `font-size: 14px`).
+- Button is left-aligned within the content area (not full-width on desktop; full-width on mobile ≤ 480px).
+- Clicking the button opens the **Confirmation Modal** (Surface 2).
+- The content area itself has `padding: 16px` (inside the `id="danger-zone-content"` wrapper), `background: rgba(184, 92, 56, 0.04)`, `border-radius: 0 0 8px 8px`.
+
+##### State — Section Collapsed (Default)
+
+- `aria-expanded="false"` on trigger button.
+- Content `div` has `max-height: 0`, `overflow: hidden`, `opacity: 0`.
+- Chevron icon points right.
+
+##### State — Section Expanded
+
+- `aria-expanded="true"` on trigger button.
+- Content `div` animates to full height, `opacity: 1`.
+- Chevron icon points down.
+
+---
+
+#### Surface 2 — Confirmation Modal
+
+Opened by clicking "Delete my account". Must be closeable via "Cancel" button, pressing `Escape`, or clicking the backdrop. Closed state means returning to the Profile page with the Danger Zone still expanded.
+
+##### Modal Anatomy
+
+```
+┌──────────────────────────────────────────┐
+│  Delete your account?              [  ×  ]│  ← modal header
+├──────────────────────────────────────────┤
+│  This will permanently delete:            │
+│    • Your account and profile             │
+│    • All your plants (N plants)           │
+│    • All care history and notes           │
+│    • All care schedules and reminders     │
+│                                           │
+│  This action cannot be undone.            │
+│                                           │
+│  To confirm, type DELETE below:           │
+│  ┌──────────────────────────────────────┐ │
+│  │                                      │ │  ← text input
+│  └──────────────────────────────────────┘ │
+│                                           │
+│  [    Cancel    ]  [  Delete my account  ]│  ← action row
+└──────────────────────────────────────────┘
+```
+
+##### Modal Container
+
+- `role="dialog"`, `aria-modal="true"`, `aria-labelledby="delete-modal-title"`.
+- Width: `480px` on desktop, `100% - 32px` on mobile (max-width: 480px, centered).
+- `border-radius: 12px`, `background: var(--color-surface)`, `box-shadow: 0 8px 32px rgba(44, 44, 44, 0.18)`.
+- Backdrop: `rgba(44, 44, 44, 0.45)` covering full viewport, `z-index: 1000`.
+- On open: backdrop fades in (`opacity 0→1, 0.2s ease`), modal slides up from `translateY(8px)` to `translateY(0)` (`0.2s ease`).
+- On close: reverse of open animation.
+- `@media (prefers-reduced-motion: reduce)`: skip translate/fade, appear/disappear instantly.
+
+##### Modal Header
+
+- Title: **"Delete your account?"** — `id="delete-modal-title"`, `font-family: 'DM Sans'`, `font-size: 18px`, `font-weight: 600`, `color: var(--color-text-primary)`.
+- Close button: icon-only `×` (`aria-label="Close dialog"`) in the top-right corner. Ghost variant, `color: var(--color-text-secondary)`. On click: closes modal (same as Cancel).
+- Header `padding: 24px 24px 0 24px`.
+
+##### Modal Body
+
+Padding: `16px 24px 0 24px`.
+
+**Consequence list:**
+- Intro line: "This will permanently delete:" — `font-size: 14px`, `color: var(--color-text-secondary)`.
+- Bulleted list (`<ul>`, no custom bullets — use browser default `list-style: disc`, `padding-left: 20px`):
+  - "Your account and profile"
+  - "All your plants" (if the frontend can cheaply know the count, append `(N plants)` — optional, skip if it requires an extra API call)
+  - "All care history and notes"
+  - "All care schedules and reminders"
+- Each list item: `font-size: 14px`, `color: var(--color-text-secondary)`, `line-height: 1.6`.
+- Warning line after the list: **"This action cannot be undone."** — `font-size: 14px`, `font-weight: 600`, `color: var(--color-status-red)`, `margin-top: 12px`.
+
+**Confirmation input:**
+- Label above the input: "To confirm, type DELETE below:" — `font-size: 13px`, `font-weight: 500`, `color: var(--color-text-secondary)`, `margin-top: 20px`, `margin-bottom: 6px`, `display: block`.
+- Text input: `<input type="text" aria-label="Type DELETE to confirm" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="DELETE">`.
+- Input styles: full-width of modal body, `padding: 10px 12px`, `border: 1.5px solid var(--color-border)`, `border-radius: 8px`, `font-size: 14px`, `font-family: 'DM Sans'`, `color: var(--color-text-primary)`, `background: var(--color-surface)`.
+- Focus ring: `border-color: var(--color-border-focus)` (`#5C7A5C`), `outline: none`, `box-shadow: 0 0 0 3px rgba(92, 122, 92, 0.18)`.
+- **Validation:** the input is compared character-by-character against the string `"DELETE"` (exact, case-sensitive) on every `onChange` event. Do NOT use `toLowerCase()` — lowercase "delete" must NOT satisfy the gate.
+- When value equals `"DELETE"` exactly: confirm button becomes enabled.
+- When value does not equal `"DELETE"`: confirm button is disabled + `aria-disabled="true"`.
+- Do not show a visible validation error on the input itself — the disabled confirm button communicates the gate state.
+
+##### Modal Footer (Action Row)
+
+`padding: 16px 24px 24px 24px`, `display: flex`, `justify-content: flex-end`, `gap: 12px`.
+
+| Button | Variant | Label | Behavior |
+|--------|---------|-------|----------|
+| Cancel | Secondary | "Cancel" | Closes modal. No API call. Danger Zone stays expanded on Profile page. |
+| Confirm delete | Danger | "Delete my account" | Disabled (`aria-disabled="true"`) until input === "DELETE". On click (when enabled): fires `DELETE /api/v1/profile`. |
+
+- On mobile (< 480px): buttons stack vertically, full-width, Cancel on top, Confirm below.
+
+---
+
+#### Surface 3 — Loading State (In-Modal)
+
+Triggered immediately when the user clicks the enabled "Delete my account" confirm button.
+
+- Confirm button: text replaced by a spinner (16px circular indeterminate spinner, `color: #FFFFFF`) + "Deleting…" label. `padding` unchanged.
+- Confirm button: `disabled` attribute set (`pointer-events: none` via CSS as backup).
+- Cancel button: `disabled` attribute set — user cannot cancel a deletion in flight.
+- Close `×` button: `disabled` attribute set.
+- Text input: `disabled` — user cannot edit while request is in flight.
+- Backdrop: non-dismissible (clicking backdrop does nothing while in-flight).
+- All disabled elements: `opacity: 0.5` to communicate disabled state visually.
+
+Spinner implementation: a simple CSS `@keyframes` rotating border spinner using `var(--color-accent-primary)` on the track and `#FFFFFF` as the spinning arc — consistent with other loading patterns in the app.
+
+---
+
+#### Surface 4 — Success State
+
+Triggered when `DELETE /api/v1/profile` returns **204 No Content**.
+
+**In-modal (brief flash, then redirect — do NOT linger):**
+- No success state rendered inside the modal. Immediately proceed to the redirect sequence.
+
+**Redirect sequence:**
+1. Call `logout()` (or equivalent — clear access token, refresh token, and all auth state from memory/localStorage/sessionStorage).
+2. Close the modal.
+3. Navigate to `/login?deleted=true` (React Router `navigate('/login?deleted=true', { replace: true })`).
+
+**On the Login Page (`/login?deleted=true`):**
+
+A dismissible one-time banner is shown above the login form when `?deleted=true` is present in the URL.
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  ℹ  Your account has been permanently deleted.        [×]  │
+└────────────────────────────────────────────────────────────┘
+```
+
+- Banner position: above the login form container, below the page header/logo.
+- Background: `rgba(184, 92, 56, 0.08)`, `border: 1px solid rgba(184, 92, 56, 0.30)`, `border-radius: 8px`, `padding: 12px 16px`.
+- Icon: info circle (Phosphor `Info`, outlined), `color: var(--color-status-red)`, `16px`.
+- Text: "Your account has been permanently deleted." — `font-size: 14px`, `color: var(--color-status-red)`, `font-weight: 500`.
+- Dismiss button: `×` icon-only (`aria-label="Dismiss"`), `color: var(--color-status-red)`, Ghost variant, aligned right.
+- Banner is shown once; clicking `×` hides it. It does NOT reappear on page refresh or navigation (use React local state — no persistence needed; if the user navigates away and back, the `?deleted=true` is gone anyway since we used `replace: true`).
+- `role="status"` on the banner container so screen readers announce it without stealing focus.
+- The login form below the banner is fully functional — existing users can log in to a different account.
+
+---
+
+#### Surface 5 — Error State (In-Modal)
+
+Triggered when `DELETE /api/v1/profile` returns a non-2xx status (e.g., 500, network failure, or an unexpected 4xx).
+
+**In-modal behavior:**
+- Spinner resolves. Confirm button returns to its enabled state with original label "Delete my account".
+- Cancel button and Close `×` button re-enable.
+- Text input re-enables with the text `"DELETE"` still typed (do not clear it — the user typed it deliberately).
+- An inline error message appears **below the confirmation input**, above the action row buttons.
+
+```
+  ┌──────────────────────────────────────────┐
+  │ DELETE                                   │  ← input (still filled)
+  └──────────────────────────────────────────┘
+  ⚠  Could not delete your account. Please try again.
+```
+
+- Error text: `font-size: 13px`, `color: var(--color-status-red)`, `margin-top: 8px`, `display: flex`, `gap: 6px`, `align-items: center`.
+- Prepend a `⚠` warning icon (Phosphor `Warning`, outlined, 14px, `color: var(--color-status-red)`).
+- Full error message: **"Could not delete your account. Please try again."**
+- Error is rendered in a `<p role="alert">` so screen readers announce it immediately upon appearance.
+- The user can retry by clicking "Delete my account" again (confirm button is re-enabled since the input still reads "DELETE").
+- The user can also click Cancel or Close to dismiss the modal entirely.
+
+---
+
+#### Dark Mode
+
+All new elements must use CSS custom properties exclusively. No hardcoded hex values in the component or stylesheet.
+
+| Element | Light value | Dark value |
+|---------|-------------|------------|
+| Danger Zone trigger label | `var(--color-status-red)` → `#B85C38` | `#C96B44` |
+| Danger Zone trigger border-left | `rgba(184, 92, 56, 0.35)` | `rgba(201, 107, 68, 0.35)` |
+| Danger Zone expanded bg | `rgba(184, 92, 56, 0.04)` | `rgba(201, 107, 68, 0.06)` |
+| "Delete my account" button bg | `var(--color-status-red)` → `#B85C38` | `#C96B44` |
+| "Delete my account" button text | `#FFFFFF` | `#FFFFFF` |
+| Modal background | `var(--color-surface)` → `#FFFFFF` | `#2A2A24` |
+| Modal title | `var(--color-text-primary)` → `#2C2C2C` | `#F0EDE6` |
+| Consequence list text | `var(--color-text-secondary)` → `#6B6B5F` | `#9B9B8F` |
+| "Cannot be undone" warning | `var(--color-status-red)` → `#B85C38` | `#C96B44` |
+| Confirmation input bg | `var(--color-surface)` → `#FFFFFF` | `#1E1E1A` |
+| Confirmation input border | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+| Confirmation input text | `var(--color-text-primary)` → `#2C2C2C` | `#F0EDE6` |
+| Confirm button (disabled) | `#B85C38` at `opacity: 0.5` | `#C96B44` at `opacity: 0.5` |
+| Cancel button text | `var(--color-accent-primary)` → `#5C7A5C` | `#7A9E7A` |
+| Cancel button border | `var(--color-accent-primary)` → `#5C7A5C` | `#7A9E7A` |
+| Modal backdrop | `rgba(44, 44, 44, 0.45)` | `rgba(10, 10, 8, 0.65)` |
+| Inline error text | `var(--color-status-red)` → `#B85C38` | `#C96B44` |
+| Login page deletion banner bg | `rgba(184, 92, 56, 0.08)` | `rgba(201, 107, 68, 0.10)` |
+| Login page deletion banner border | `rgba(184, 92, 56, 0.30)` | `rgba(201, 107, 68, 0.35)` |
+| Login page deletion banner text | `var(--color-status-red)` → `#B85C38` | `#C96B44` |
+| Section divider hr | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+
+---
+
+#### Responsive Behavior
+
+| Breakpoint | Behavior |
+|------------|---------|
+| Desktop (≥1024px) | Danger Zone section: full width of Profile content column. Modal: `480px` centered in viewport. Action row: buttons right-aligned, side-by-side. |
+| Tablet (768–1023px) | Same as desktop. Profile page is single-column so no sidebar adjustment needed. Modal: `480px` or `90vw`, whichever is smaller. |
+| Mobile (<768px) | Danger Zone: full width. Modal: `calc(100vw - 32px)`, max-width `480px`. Action row buttons: stack vertically, full-width, Cancel above Confirm. Login page banner: full width, text wraps naturally. |
+| Mobile touch targets | "Delete my account" button in Danger Zone: min height `44px`. Confirm button in modal: min height `44px`. Cancel button: min height `44px`. Close `×` in modal header: min `44×44px` tap area. |
+
+---
+
+#### Accessibility
+
+| Requirement | Implementation |
+|-------------|---------------|
+| Danger Zone trigger | `<button aria-expanded="false/true" aria-controls="danger-zone-content">` — native button for full keyboard support |
+| Danger Zone content region | `<div id="danger-zone-content" role="region" aria-label="Danger Zone">` |
+| Chevron icon | `aria-hidden="true"` — decorative; state communicated by `aria-expanded` |
+| Modal container | `role="dialog" aria-modal="true" aria-labelledby="delete-modal-title"` |
+| Modal title | `id="delete-modal-title"` on the `<h2>` element |
+| Close × button | `<button aria-label="Close dialog">` |
+| Confirmation input | `<input aria-label="Type DELETE to confirm" autocomplete="off" spellcheck="false">` |
+| Confirm button — disabled state | Both HTML `disabled` attribute AND `aria-disabled="true"` — so screen readers announce "Delete my account, dimmed, button" |
+| Confirm button — enabled state | Remove `disabled` attribute AND `aria-disabled="false"` |
+| Inline error | `<p role="alert">` — announced immediately by screen readers without focus move |
+| Login page deletion banner | `role="status"` — polite announcement; does not steal focus |
+| Focus management on modal open | On modal open, move focus to the confirmation input (`inputRef.current.focus()`) — this is the primary interactive element |
+| Focus management on modal close | On modal close (Cancel / ×), return focus to the "Delete my account" trigger button in the Danger Zone |
+| Focus trap | While modal is open, Tab and Shift+Tab cycle only through modal's focusable elements: close button → input → Cancel → Confirm (loop) |
+| Escape key | Pressing `Escape` triggers Cancel behavior (closes modal, returns focus to trigger) — but ONLY when not in loading state |
+| Color independence | Disabled state of confirm button communicated by `aria-disabled` + `disabled`, not solely by color |
+| Reduced motion | `@media (prefers-reduced-motion: reduce)` — Danger Zone expansion is instant; modal open/close animations are instant |
+
+---
+
+#### User Flow — End to End
+
+1. User is on the Profile page, scrolled to the bottom.
+2. User sees the "Danger Zone" collapsed row with a right-pointing chevron.
+3. User clicks (or presses Enter/Space on) the row.
+4. Row expands with animation. Chevron rotates down. Body copy + "Delete my account" button appear.
+5. User clicks "Delete my account" (Danger variant button).
+6. Confirmation modal opens. Focus moves to the text input.
+7. User reads the consequence list: sees that all plants, care history, notes, schedules, and reminders will be deleted.
+8. User types "DELETE" in the input (case-sensitive). After each keystroke, the confirm button is re-evaluated.
+9. Once input === "DELETE" exactly, confirm button transitions from disabled (muted red, `opacity: 0.5`) to enabled (full red).
+10. User clicks "Delete my account" confirm button.
+11. Loading state: spinner shows in button, all controls disabled.
+12. **Success path:** 204 received → auth cleared → navigate to `/login?deleted=true` → deletion banner shown above login form. User can log in with a different account or leave the page.
+13. **Error path:** non-2xx received → spinner clears → controls re-enable → inline error "Could not delete your account. Please try again." appears below input → user can retry or cancel.
+
+---
+
+#### Component and File Changes
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/ProfilePage.jsx` | Add collapsible Danger Zone section at bottom; "Delete my account" button that opens `DeleteAccountModal` |
+| `frontend/src/pages/ProfilePage.css` | Add `.danger-zone`, `.danger-zone-trigger`, `.danger-zone-content`, `.danger-zone-body-copy`, `.danger-zone-delete-btn` styles |
+| `frontend/src/components/DeleteAccountModal.jsx` | New component: confirmation modal with all states (idle, loading, error) |
+| `frontend/src/components/DeleteAccountModal.css` | New stylesheet: modal styles, input, action row, inline error, dark mode vars |
+| `frontend/src/pages/LoginPage.jsx` | Read `?deleted=true` from query string on mount; conditionally render dismissible deletion banner above login form |
+| `frontend/src/utils/api.js` | Add `profile.delete()` → `DELETE /api/v1/profile` (authenticated) |
+
+---
+
+#### Minimum Test Coverage (T-107 acceptance criteria — 6 new tests minimum)
+
+| Test | Assertion |
+|------|-----------|
+| Danger Zone renders collapsed by default | Section content not visible; `aria-expanded="false"` on trigger |
+| Toggle Danger Zone open | Click trigger → content visible; `aria-expanded="true"` |
+| Modal opens on "Delete my account" click | `DeleteAccountModal` renders after button click |
+| Confirm button disabled until "DELETE" typed | Button disabled when input is empty or "delete" or "DELET"; enabled when input is exactly "DELETE" |
+| API success → auth cleared + redirect | Mock `profile.delete()` resolving 204; assert `logout()` called; assert `navigate('/login?deleted=true')` called |
+| API error → inline error shown | Mock `profile.delete()` rejecting; assert inline error "Could not delete your account. Please try again." appears |
+| Login page banner renders with `?deleted=true` | Mount `LoginPage` with `?deleted=true` in URL; assert banner text present |
+| Login page banner dismissed on `×` click | Click dismiss button; assert banner disappears |
+
+---
+
+*SPEC-018 written by Design Agent on 2026-04-05 for Sprint #23.*

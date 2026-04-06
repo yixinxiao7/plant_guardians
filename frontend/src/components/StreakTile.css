@@ -1,0 +1,202 @@
+/* StreakTile — Care Streak card (SPEC-014 / T-091) */
+
+.streak-tile {
+  background: var(--color-streak-tile-bg);
+  border-radius: 12px;
+  padding: 32px;
+  border: 1.5px solid var(--color-border);
+  margin-bottom: 24px;
+}
+
+.streak-tile--milestone {
+  background: var(--color-streak-tile-bg-milestone);
+  border-left: 4px solid var(--color-streak-tile-border-milestone);
+}
+
+.streak-tile--loading {
+  min-height: 160px;
+}
+
+/* Pop animation for milestone celebrations */
+@keyframes streak-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+.streak-tile--pop {
+  animation: streak-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streak-tile--pop {
+    animation: none;
+  }
+}
+
+/* Header */
+.streak-tile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.streak-tile-heading {
+  font-family: var(--font-body);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.streak-last-action-pill {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-alt);
+  border-radius: 24px;
+  padding: 4px 10px;
+}
+
+/* Body — 2-col grid */
+.streak-tile-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+/* Current streak */
+.streak-current {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.streak-number {
+  font-family: var(--font-display);
+  font-size: 48px;
+  font-weight: 600;
+  color: var(--color-streak-number);
+  line-height: 1;
+}
+
+.streak-number--broken {
+  color: var(--color-streak-broken-icon);
+}
+
+.streak-sub-label {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--color-streak-label);
+  text-transform: lowercase;
+  margin-top: 4px;
+}
+
+.streak-milestone-badge {
+  display: inline-block;
+  background: var(--color-streak-milestone-badge-bg);
+  color: var(--color-streak-milestone-badge-text);
+  border: 1px solid var(--color-streak-milestone-badge-border);
+  border-radius: 24px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 8px;
+}
+
+/* Longest streak */
+.streak-longest {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.streak-longest-number {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--color-streak-secondary-number);
+}
+
+.streak-longest-label {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-streak-label);
+  font-style: italic;
+  margin-top: 4px;
+}
+
+.streak-record-note {
+  font-size: 12px;
+  color: var(--color-streak-icon-leaf);
+  margin-top: 2px;
+}
+
+/* Motivational message */
+.streak-message {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.streak-message--highlight {
+  color: var(--color-streak-icon-leaf);
+}
+
+.streak-message--bold {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* Empty state */
+.streak-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 16px 0;
+}
+
+.streak-empty-heading {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--color-text-primary);
+  margin: 16px 0 0;
+}
+
+.streak-empty-body {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  max-width: 400px;
+  line-height: 1.6;
+  margin-top: 8px;
+}
+
+/* Loading skeleton blocks */
+.streak-skeleton-title {
+  border-radius: 4px;
+}
+
+.streak-skeleton-block {
+  width: 100%;
+}
+
+/* Responsive: stack on mobile */
+@media (max-width: 767px) {
+  .streak-tile {
+    padding: 24px;
+  }
+
+  .streak-tile-body {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .streak-last-action-pill {
+    display: none;
+  }
+}

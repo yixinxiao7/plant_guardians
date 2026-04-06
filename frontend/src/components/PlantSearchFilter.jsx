@@ -13,23 +13,23 @@ const STATUS_TABS = [
 const ACTIVE_STYLES = {
   all: {
     background: 'var(--color-accent-primary)',
-    color: '#FFFFFF',
+    color: 'var(--color-text-inverse)',
     borderColor: 'var(--color-accent-primary)',
   },
   overdue: {
-    background: '#FAEAE4',
-    color: '#B85C38',
-    borderColor: '#B85C38',
+    background: 'var(--color-status-overdue-bg)',
+    color: 'var(--color-status-overdue-text)',
+    borderColor: 'var(--color-status-overdue-border)',
   },
   due_today: {
-    background: '#FDF4E3',
-    color: '#C4921F',
-    borderColor: '#C4921F',
+    background: 'var(--color-status-due-today-bg)',
+    color: 'var(--color-status-due-today-text)',
+    borderColor: 'var(--color-status-due-today-border)',
   },
   on_track: {
-    background: '#E8F4EC',
-    color: '#4A7C59',
-    borderColor: '#4A7C59',
+    background: 'var(--color-status-on-track-bg)',
+    color: 'var(--color-status-on-track-text)',
+    borderColor: 'var(--color-status-on-track-border)',
   },
 };
 
@@ -198,7 +198,7 @@ export default function PlantSearchFilter({
       {/* Error banner */}
       {fetchError && (
         <div className="psf-error-banner" role="alert">
-          <WarningCircle size={18} color="#B85C38" aria-hidden="true" />
+          <WarningCircle size={18} color="var(--color-status-overdue-text)" aria-hidden="true" />
           <span>Could not load plants. Please try again.</span>
           <Button variant="ghost" size="small" onClick={onRetry}>
             Try again

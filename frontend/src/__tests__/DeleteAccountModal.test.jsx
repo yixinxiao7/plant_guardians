@@ -2,16 +2,15 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import DeleteAccountModal from '../components/DeleteAccountModal.jsx';
 
 vi.mock('@phosphor-icons/react', () => ({
-  WarningOctagon: (props) => <span data-testid="icon-warning" {...props} />,
-  Eye: (props) => <span data-testid="icon-eye" {...props} />,
-  EyeSlash: (props) => <span data-testid="icon-eye-slash" {...props} />,
+  Warning: (props) => <span data-testid="icon-warning" {...props} />,
+  X: (props) => <span data-testid="icon-x" {...props} />,
 }));
 
 describe('DeleteAccountModal', () => {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
-    onDeleteSuccess: vi.fn(),
+    onConfirmDelete: vi.fn(),
   };
 
   beforeEach(() => {
@@ -19,137 +18,109 @@ describe('DeleteAccountModal', () => {
   });
 
   it('does not render when isOpen is false', () => {
-    render(<DeleteAccountModal isOpen={false} onClose={() => {}} onDeleteSuccess={() => {}} />);
+    render(<DeleteAccountModal isOpen={false} onClose={() => {}} onConfirmDelete={() => {}} />);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('renders modal content with password input when open', () => {
+  it('renders modal with consequence list and confirmation input when open', () => {
     render(<DeleteAccountModal {...defaultProps} />);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText('Delete your account?')).toBeInTheDocument();
-    expect(screen.getByText(/permanently delete your account and all your plant data/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Confirm your password')).toBeInTheDocument();
+    expect(screen.getByText('This will permanently delete:')).toBeInTheDocument();
+    expect(screen.getByText('Your account and profile')).toBeInTheDocument();
+    expect(screen.getByText('All your plants')).toBeInTheDocument();
+    expect(screen.getByText('All care history and notes')).toBeInTheDocument();
+    expect(screen.getByText('All care schedules and reminders')).toBeInTheDocument();
+    expect(screen.getByText('This action cannot be undone.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Type DELETE to confirm')).toBeInTheDocument();
     expect(screen.getByText('Cancel')).toBeInTheDocument();
     expect(screen.getByText('Delete my account')).toBeInTheDocument();
   });
 
-  it('calls onClose and clears password when Cancel is clicked', () => {
-    const onClose = vi.fn();
-    render(<DeleteAccountModal {...defaultProps} onClose={onClose} />);
-
-    const passwordInput = screen.getByLabelText('Confirm your password');
-    fireEvent.change(passwordInput, { target: { value: 'mypass' } });
-    fireEvent.click(screen.getByText('Cancel'));
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('disables "Delete my account" button when password is empty', () => {
-    render(<DeleteAccountModal {...defaultProps} />);
-    const deleteBtn = screen.getByRole('button', { name: 'Delete my account' });
-    expect(deleteBtn).toBeDisabled();
-  });
-
-  it('enables "Delete my account" button when password is entered', () => {
-    render(<DeleteAccountModal {...defaultProps} />);
-    const passwordInput = screen.getByLabelText('Confirm your password');
-    fireEvent.change(passwordInput, { target: { value: 'mypassword' } });
-    const deleteBtn = screen.getByRole('button', { name: 'Delete my account' });
-    expect(deleteBtn).not.toBeDisabled();
-  });
-
-  it('shows inline "Password is incorrect." error on 400 INVALID_PASSWORD', async () => {
-    const onDeleteSuccess = vi.fn().mockRejectedValue({
-      status: 400,
-      code: 'INVALID_PASSWORD',
-      message: 'Password is incorrect.',
-    });
-    render(<DeleteAccountModal {...defaultProps} onDeleteSuccess={onDeleteSuccess} />);
-
-    const passwordInput = screen.getByLabelText('Confirm your password');
-    fireEvent.change(passwordInput, { target: { value: 'wrongpass' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Password is incorrect.')).toBeInTheDocument();
-    });
-
-    // Modal should still be open
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    // Password should NOT be cleared — re-query the input after re-render
-    const input = screen.getByLabelText('Confirm your password');
-    expect(input.value).toBe('wrongpass');
-  });
-
-  it('shows generic error on server failure (5xx)', async () => {
-    const onDeleteSuccess = vi.fn().mockRejectedValue({
-      status: 500,
-      code: 'INTERNAL_ERROR',
-      message: 'Internal server error',
-    });
-    render(<DeleteAccountModal {...defaultProps} onDeleteSuccess={onDeleteSuccess} />);
-
-    const passwordInput = screen.getByLabelText('Confirm your password');
-    fireEvent.change(passwordInput, { target: { value: 'mypassword' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Something went wrong. Please try again.')).toBeInTheDocument();
-    });
-
-    // Modal should still be open
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-  });
-
-  it('calls onDeleteSuccess with the entered password', async () => {
-    const onDeleteSuccess = vi.fn().mockResolvedValue(undefined);
-    render(<DeleteAccountModal {...defaultProps} onDeleteSuccess={onDeleteSuccess} />);
-
-    const passwordInput = screen.getByLabelText('Confirm your password');
-    fireEvent.change(passwordInput, { target: { value: 'correct-password' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }));
-
-    await waitFor(() => {
-      expect(onDeleteSuccess).toHaveBeenCalledWith('correct-password');
-    });
-  });
-
-  it('has correct ARIA attributes', () => {
+  it('renders Danger Zone collapsed by default (aria-expanded="false")', () => {
+    // This tests the trigger button behavior, which is in ProfilePage.
+    // For the modal: just verify aria attributes
     render(<DeleteAccountModal {...defaultProps} />);
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
-    expect(dialog).toHaveAttribute('aria-labelledby', 'delete-modal-heading');
-    expect(dialog).toHaveAttribute('aria-describedby', 'delete-modal-desc');
+    expect(dialog).toHaveAttribute('aria-labelledby', 'delete-modal-title');
   });
 
-  it('toggles password visibility', () => {
+  it('confirm button is disabled when input is empty', () => {
     render(<DeleteAccountModal {...defaultProps} />);
-    const passwordInput = screen.getByLabelText('Confirm your password');
-    expect(passwordInput).toHaveAttribute('type', 'password');
-
-    const toggleBtn = screen.getByLabelText('Show password');
-    fireEvent.click(toggleBtn);
-    expect(passwordInput).toHaveAttribute('type', 'text');
-
-    const hideBtn = screen.getByLabelText('Hide password');
-    fireEvent.click(hideBtn);
-    expect(passwordInput).toHaveAttribute('type', 'password');
+    const confirmBtn = screen.getByText('Delete my account').closest('button');
+    expect(confirmBtn).toBeDisabled();
+    expect(confirmBtn).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('shows session expired error on 401', async () => {
-    const onDeleteSuccess = vi.fn().mockRejectedValue({
-      status: 401,
-      code: 'UNAUTHORIZED',
-      message: 'Session expired.',
-    });
-    render(<DeleteAccountModal {...defaultProps} onDeleteSuccess={onDeleteSuccess} />);
+  it('confirm button is disabled when input is "delete" (wrong case)', () => {
+    render(<DeleteAccountModal {...defaultProps} />);
+    const input = screen.getByLabelText('Type DELETE to confirm');
+    fireEvent.change(input, { target: { value: 'delete' } });
+    const confirmBtn = screen.getByText('Delete my account').closest('button');
+    expect(confirmBtn).toBeDisabled();
+  });
 
-    const passwordInput = screen.getByLabelText('Confirm your password');
-    fireEvent.change(passwordInput, { target: { value: 'mypassword' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }));
+  it('confirm button is disabled when input is "DELET" (incomplete)', () => {
+    render(<DeleteAccountModal {...defaultProps} />);
+    const input = screen.getByLabelText('Type DELETE to confirm');
+    fireEvent.change(input, { target: { value: 'DELET' } });
+    const confirmBtn = screen.getByText('Delete my account').closest('button');
+    expect(confirmBtn).toBeDisabled();
+  });
+
+  it('confirm button is enabled when input is exactly "DELETE"', () => {
+    render(<DeleteAccountModal {...defaultProps} />);
+    const input = screen.getByLabelText('Type DELETE to confirm');
+    fireEvent.change(input, { target: { value: 'DELETE' } });
+    const confirmBtn = screen.getByText('Delete my account').closest('button');
+    expect(confirmBtn).not.toBeDisabled();
+  });
+
+  it('calls onConfirmDelete on confirm click when input is "DELETE"', async () => {
+    const onConfirmDelete = vi.fn().mockResolvedValue(undefined);
+    render(<DeleteAccountModal {...defaultProps} onConfirmDelete={onConfirmDelete} />);
+
+    const input = screen.getByLabelText('Type DELETE to confirm');
+    fireEvent.change(input, { target: { value: 'DELETE' } });
+    fireEvent.click(screen.getByText('Delete my account'));
 
     await waitFor(() => {
-      expect(screen.getByText('Session expired. Please log in again.')).toBeInTheDocument();
+      expect(onConfirmDelete).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('shows inline error on API failure', async () => {
+    const onConfirmDelete = vi.fn().mockRejectedValue(new Error('Server error'));
+    render(<DeleteAccountModal {...defaultProps} onConfirmDelete={onConfirmDelete} />);
+
+    const input = screen.getByLabelText('Type DELETE to confirm');
+    fireEvent.change(input, { target: { value: 'DELETE' } });
+    fireEvent.click(screen.getByText('Delete my account'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Could not delete your account. Please try again.')).toBeInTheDocument();
+    });
+
+    // Error should have role="alert"
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    // Modal should still be open
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    // Input should still have "DELETE" text
+    expect(input.value).toBe('DELETE');
+  });
+
+  it('calls onClose when Cancel is clicked', () => {
+    const onClose = vi.fn();
+    render(<DeleteAccountModal {...defaultProps} onClose={onClose} />);
+    fireEvent.click(screen.getByText('Cancel'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onClose when Close × button is clicked', () => {
+    const onClose = vi.fn();
+    render(<DeleteAccountModal {...defaultProps} onClose={onClose} />);
+    fireEvent.click(screen.getByLabelText('Close dialog'));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

@@ -60,6 +60,52 @@ const User = {
   },
 
   /**
+   * Delete a user and ALL associated data within a single transaction.
+   * Deletes in explicit dependency order (not relying on DB cascade):
+   *   care_actions → notification_preferences → care_schedules → plants → refresh_tokens → users
+   *
+   * Returns the number of user rows deleted (0 or 1).
+   * Throws if any step fails — transaction auto-rolls-back.
+   *
+   * Added in Sprint 23 (T-106).
+   */
+  async deleteWithAllData(userId) {
+    return db.transaction(async (trx) => {
+      // 1. Delete care_actions for all plants owned by this user
+      await trx('care_actions')
+        .whereIn('plant_id', trx('plants').select('id').where('user_id', userId))
+        .del();
+
+      // 2. Delete notification_preferences
+      await trx('notification_preferences')
+        .where('user_id', userId)
+        .del();
+
+      // 3. Delete care_schedules for all plants owned by this user
+      await trx('care_schedules')
+        .whereIn('plant_id', trx('plants').select('id').where('user_id', userId))
+        .del();
+
+      // 4. Delete plants
+      await trx('plants')
+        .where('user_id', userId)
+        .del();
+
+      // 5. Delete refresh_tokens
+      await trx('refresh_tokens')
+        .where('user_id', userId)
+        .del();
+
+      // 6. Delete user row
+      const deletedCount = await trx('users')
+        .where('id', userId)
+        .del();
+
+      return deletedCount;
+    });
+  },
+
+  /**
    * Find all photo_urls for plants owned by a given user.
    * Used before account deletion to clean up uploaded files.
    */

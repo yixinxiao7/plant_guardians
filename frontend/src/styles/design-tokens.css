@@ -25,6 +25,45 @@
   --shadow-card: 0 2px 8px rgba(44, 44, 44, 0.06);
   --shadow-card-hover: 0 6px 20px rgba(44, 44, 44, 0.12);
 
+  /* Text inverse (T-088) */
+  --color-text-inverse: #FFFFFF;
+
+  /* Status tab tokens (T-088) */
+  --color-status-overdue-bg: #FAEAE4;
+  --color-status-overdue-text: #B85C38;
+  --color-status-overdue-border: #B85C38;
+  --color-status-due-today-bg: #FDF4E3;
+  --color-status-due-today-text: #C4921F;
+  --color-status-due-today-border: #C4921F;
+  --color-status-on-track-bg: #E8F4EC;
+  --color-status-on-track-text: #4A7C59;
+  --color-status-on-track-border: #4A7C59;
+
+  /* Care type tokens (T-088) */
+  --color-care-watering-bg: #EBF4F7;
+  --color-care-watering-icon: #5B8FA8;
+  --color-care-fertilizing-bg: #E8F4EC;
+  --color-care-fertilizing-icon: #4A7C59;
+  --color-care-repotting-bg: #F4EDE8;
+  --color-care-repotting-icon: #A67C5B;
+
+  /* Streak tokens (SPEC-014 / T-091) */
+  --color-streak-tile-bg: #FFFFFF;
+  --color-streak-tile-bg-milestone: #F7FAF7;
+  --color-streak-tile-border-milestone: #5C7A5C;
+  --color-streak-icon-fire: #C4921F;
+  --color-streak-icon-leaf: #5C7A5C;
+  --color-streak-number: #2C2C2C;
+  --color-streak-label: #6B6B5F;
+  --color-streak-secondary-number: #6B6B5F;
+  --color-streak-milestone-badge-bg: #FDF4E3;
+  --color-streak-milestone-badge-text: #C4921F;
+  --color-streak-milestone-badge-border: #C4921F;
+  --color-streak-sidebar-bg: rgba(92, 122, 92, 0.08);
+  --color-streak-sidebar-badge-bg: #C4921F;
+  --color-streak-broken-icon: #B0ADA5;
+  --color-streak-empty-icon: #B8CEB8;
+
   /* Typography */
   --font-body: 'DM Sans', sans-serif;
   --font-display: 'Playfair Display', serif;
@@ -79,6 +118,45 @@
   --color-skeleton-highlight: #383530;
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
   --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.4);
+
+  /* Text inverse (T-088) */
+  --color-text-inverse: #FFFFFF;
+
+  /* Status tab tokens (T-088) */
+  --color-status-overdue-bg: #2E1A14;
+  --color-status-overdue-text: #E07A60;
+  --color-status-overdue-border: #E07A60;
+  --color-status-due-today-bg: #2B220D;
+  --color-status-due-today-text: #E8B94A;
+  --color-status-due-today-border: #E8B94A;
+  --color-status-on-track-bg: #1A2F22;
+  --color-status-on-track-text: #6EB88A;
+  --color-status-on-track-border: #6EB88A;
+
+  /* Care type tokens (T-088) */
+  --color-care-watering-bg: #162328;
+  --color-care-watering-icon: #7AB3CC;
+  --color-care-fertilizing-bg: #1A2F22;
+  --color-care-fertilizing-icon: #6EB88A;
+  --color-care-repotting-bg: #2A2118;
+  --color-care-repotting-icon: #C2956A;
+
+  /* Streak tokens (SPEC-014 / T-091) */
+  --color-streak-tile-bg: #1E2220;
+  --color-streak-tile-bg-milestone: #1C2419;
+  --color-streak-tile-border-milestone: #5C7A5C;
+  --color-streak-icon-fire: #D4A832;
+  --color-streak-icon-leaf: #6B9B6B;
+  --color-streak-number: #F0EDE6;
+  --color-streak-label: #9B9B8F;
+  --color-streak-secondary-number: #9B9B8F;
+  --color-streak-milestone-badge-bg: #2A2518;
+  --color-streak-milestone-badge-text: #D4A832;
+  --color-streak-milestone-badge-border: #D4A832;
+  --color-streak-sidebar-bg: rgba(107, 155, 107, 0.12);
+  --color-streak-sidebar-badge-bg: #D4A832;
+  --color-streak-broken-icon: #6B6B60;
+  --color-streak-empty-icon: #4A5E4A;
 }
 
 /* System preference fallback (when no manual override is set) */
@@ -108,5 +186,44 @@
     --color-skeleton-highlight: #383530;
     --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
     --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.4);
+
+    /* Text inverse (T-088) */
+    --color-text-inverse: #FFFFFF;
+
+    /* Status tab tokens (T-088) */
+    --color-status-overdue-bg: #2E1A14;
+    --color-status-overdue-text: #E07A60;
+    --color-status-overdue-border: #E07A60;
+    --color-status-due-today-bg: #2B220D;
+    --color-status-due-today-text: #E8B94A;
+    --color-status-due-today-border: #E8B94A;
+    --color-status-on-track-bg: #1A2F22;
+    --color-status-on-track-text: #6EB88A;
+    --color-status-on-track-border: #6EB88A;
+
+    /* Care type tokens (T-088) */
+    --color-care-watering-bg: #162328;
+    --color-care-watering-icon: #7AB3CC;
+    --color-care-fertilizing-bg: #1A2F22;
+    --color-care-fertilizing-icon: #6EB88A;
+    --color-care-repotting-bg: #2A2118;
+    --color-care-repotting-icon: #C2956A;
+
+    /* Streak tokens (SPEC-014 / T-091) */
+    --color-streak-tile-bg: #1E2220;
+    --color-streak-tile-bg-milestone: #1C2419;
+    --color-streak-tile-border-milestone: #5C7A5C;
+    --color-streak-icon-fire: #D4A832;
+    --color-streak-icon-leaf: #6B9B6B;
+    --color-streak-number: #F0EDE6;
+    --color-streak-label: #9B9B8F;
+    --color-streak-secondary-number: #9B9B8F;
+    --color-streak-milestone-badge-bg: #2A2518;
+    --color-streak-milestone-badge-text: #D4A832;
+    --color-streak-milestone-badge-border: #D4A832;
+    --color-streak-sidebar-bg: rgba(107, 155, 107, 0.12);
+    --color-streak-sidebar-badge-bg: #D4A832;
+    --color-streak-broken-icon: #6B6B60;
+    --color-streak-empty-icon: #4A5E4A;
   }
 }

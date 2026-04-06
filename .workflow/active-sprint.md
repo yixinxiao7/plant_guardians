@@ -4,116 +4,98 @@ The operational reference for the current development cycle. Refreshed at the st
 
 ---
 
-## Sprint #18 — 2026-04-01 to 2026-04-07
+## Sprint #24 — 2026-05-10 to 2026-05-16
 
-**Sprint Goal:** Improve the inventory experience for users with growing plant collections by adding search and filter capabilities, complete the design system by finishing the ProfilePage CSS token migration, and improve accessibility with focus management on the Care Due Dashboard.
+**Sprint Goal:** Empower "plant killer" users to clear multiple overdue care items in a single action by delivering **Batch Mark-Done on the Care Due Dashboard**. Simultaneously harden the API with **rate limiting on high-frequency endpoints** to prepare for production readiness. These two workstreams run in parallel and combine into a clean staging deploy.
 
-**Context:** Sprint #17 delivered the AI Recommendations feature — the last major unbuilt MVP capability — in a clean fourth consecutive sprint. Backend sits at 108/108 tests, frontend at 162/162. Deploy Verified: Yes at SHA f9481eb. Sprint #18 now turns to post-MVP quality and UX: a search/filter feature on the plant inventory (the highest-value UX improvement for users with growing collections), two polish items from feedback (ProfilePage CSS tokens + Care Due focus management), and a Design spec to guide the new frontend work.
+**Context:** Sprint #23 closed the email notification loop (unsubscribe page) and added account deletion — tenth consecutive clean sprint. The Care Due Dashboard is the most-visited page for users with neglected plants, but currently requires tapping each plant's care item individually. For a "plant killer" persona with 5+ overdue items across multiple plants, batch mark-done dramatically reduces friction. Rate limiting (FB-073) has been deferred three sprints and is a quick backend task with outsized security/stability value.
 
 ---
 
 ## In Scope
 
-### P1 — Plant Inventory Search & Filter
+### P2 — Batch Mark-Done on Care Due Dashboard
 
-- [ ] **T-082** — Design Agent: Write SPEC-013 — Inventory Search & Filter UX **(P1)**
-  - **Description:** Create a detailed UI spec for search and filter capabilities on the Plant Inventory page (`/`). Cover: (1) search input — user types a plant name and the list filters in real-time (debounced); (2) status filter — dropdown or tab strip letting the user filter by All, Overdue, Due Today, On Track; (3) combined search + filter — both active simultaneously; (4) empty states — no results for query, no results for filter, and the existing "no plants yet" empty state; (5) clear/reset behaviour; (6) loading and skeleton states.
+- [ ] **T-108** — Design Agent: Write SPEC-019 — Batch mark-done UX spec **(P2)**
+  - **Description:** Design the batch mark-done flow on the Care Due Dashboard end-to-end. Cover: (1) **Selection mode** — a "Select" toggle button in the dashboard header enters selection mode; in selection mode, each care item card shows a checkbox; a "Select all" checkbox in the header selects/deselects all visible items; (2) **Batch action bar** — when ≥1 item is selected, a sticky bottom action bar appears with count ("3 selected") and a "Mark done" button; (3) **Confirmation** — clicking "Mark done" shows a brief inline confirmation ("Mark 3 items as done?") with a confirm button and cancel; (4) **Loading state** — action bar shows spinner + "Marking done…" while request is in flight; (5) **Success state** — marked items are removed from the list with a smooth exit animation; if the list is now empty, the empty state appears; a toast notification "3 care actions marked done"; (6) **Partial failure state** — if the batch endpoint returns a partial success (some items failed), show an inline error: "2 of 3 marked done. 1 failed — tap to retry failed items"; (7) **Cancel** — a "Cancel" button in selection mode exits selection mode and deselects all; (8) **Dark mode** — all new elements use CSS custom properties; (9) **Accessibility** — checkboxes have `aria-label`, action bar has `role="toolbar"`, "Mark done" button is `aria-disabled` when 0 items selected, count is `aria-live="polite"`.
   - **Acceptance Criteria:**
-    - SPEC-013 written to `.workflow/ui-spec.md` (appended as a new section)
-    - Covers search input placement, visual design, and debounce note
-    - Covers status filter UI (All / Overdue / Due Today / On Track) — tab strip or segmented control preferred
-    - Covers combined search + filter behaviour
-    - Covers all empty states: no query match, no status filter match, no plants at all
-    - Covers clear/reset controls
-    - Covers loading/skeleton state during filter
-    - Dark mode and accessibility notes included (keyboard nav, aria-label, aria-live for results count)
+    - SPEC-019 written to `.workflow/ui-spec.md` (appended as new section)
+    - Covers selection mode toggle and per-item checkboxes
+    - Covers "Select all" behavior
+    - Covers sticky action bar with count and "Mark done" button
+    - Covers confirmation, loading, success, partial-failure states
+    - Covers cancel/exit selection mode
+    - Dark mode and accessibility notes included
   - **Dependencies:** None — start immediately.
   - **Fix locations:** `.workflow/ui-spec.md`
 
 ---
 
-- [ ] **T-083** — Backend Engineer: Add `search` and `status` query parameters to `GET /api/v1/plants` **(P1)**
-  - **Description:** Extend the existing `GET /api/v1/plants` endpoint to accept `search` (name substring) and `status` (overdue | due_today | on_track) query parameters. Both are optional and can be combined. The response shape stays identical.
+- [ ] **T-109** — Backend Engineer: Batch care actions endpoint **(P2)**
+  - **Description:** Implement `POST /api/v1/care-actions/batch` (auth required). The endpoint accepts a JSON body `{ "actions": [{ "plant_id": <int>, "care_type": <string>, "performed_at": <ISO8601> }] }`. Behavior: (1) Validates array is non-empty and each item has valid `plant_id`, `care_type`, `performed_at`; (2) Verifies the requesting user owns all plants in the batch (user ID from JWT) — rejects any plant_id not owned by caller with 403; (3) Inserts all valid care actions in a single transaction; (4) Returns `207 Multi-Status` with a results array: `{ "results": [{ "plant_id": <int>, "care_type": <string>, "status": "created" | "error", "error": <string|null> }] }` — each item reports its individual outcome; (5) Returns `400` if the array is empty or any required field is missing; (6) Returns `401` for unauthenticated requests. Maximum batch size: 50 items (return `400` if exceeded). Publish the updated API contract to `.workflow/api-contracts.md` before T-110 begins.
   - **Acceptance Criteria:**
-    - `GET /api/v1/plants?search=pothos` returns only plants whose name contains "pothos" (case-insensitive)
-    - `GET /api/v1/plants?status=overdue` returns only plants that have at least one care schedule currently overdue
-    - `GET /api/v1/plants?search=spider&status=due_today` applies both filters simultaneously
-    - Both params are optional — omitting them returns all plants (existing behaviour unchanged)
-    - `search` is trimmed and has a max length of 200 chars; returns 400 `VALIDATION_ERROR` if exceeded
-    - `status` must be one of `overdue | due_today | on_track`; any other value returns 400 `VALIDATION_ERROR`
-    - Status filtering uses the same UTC-offset-aware logic as `GET /api/v1/care-due` (accept optional `utcOffset` param)
-    - Pagination (`page`, `limit`) continues to work correctly with filtered results
-    - Unit tests: search match (case-insensitive), search no match (empty array), status filter (overdue), status filter (on_track), combined search + status, invalid status value (400), search too long (400), existing no-param behaviour unchanged
-    - All 108/108 backend tests still pass; add minimum 6 new tests
-    - API contract published to `.workflow/api-contracts.md` before Frontend Engineer begins T-084
-  - **Dependencies:** None — start immediately. Publish API contract before T-084 begins.
-  - **Fix locations:** `backend/src/routes/plants.js` (extend GET handler), `backend/src/routes/plants.js` (query param validation)
+    - `POST /api/v1/care-actions/batch` implemented and registered in `app.js`
+    - Validates array length (1–50), required fields, and user plant ownership
+    - Returns `207` with per-item status array on (full or partial) success
+    - Returns `400` for empty array, missing fields, or batch > 50 items
+    - Returns `401` for unauthenticated requests; `403` for unauthorized plant access
+    - Single transaction for all valid inserts
+    - Unit tests: happy path (all succeed → 207), partial failure (some plants not owned → 207 with mixed results), empty array → 400, too many items → 400, 401 (no auth), all-fail case; minimum 6 new tests
+    - All 171/171 backend tests still pass; add minimum 6 new tests
+    - Updated API contract published to `.workflow/api-contracts.md` before T-110 begins
+  - **Blocked By:** None — start immediately. Publish updated contract before T-110 begins.
+  - **Fix locations:** `backend/src/routes/careActions.js` (add POST /batch handler), `backend/src/models/CareAction.js` (add batchCreate method), `.workflow/api-contracts.md`
 
 ---
 
-- [ ] **T-084** — Frontend Engineer: Plant inventory search & filter UI **(P1)**
-  - **Description:** Add a search input and status filter control to the Plant Inventory page. Calls the updated `GET /api/v1/plants` endpoint with `search` and `status` params. Debounce the search input (300ms). Display result counts and all empty states per SPEC-013.
+- [ ] **T-110** — Frontend Engineer: Batch mark-done UI on Care Due Dashboard **(P2)**
+  - **Description:** Implement the batch mark-done flow on the Care Due Dashboard per SPEC-019. (1) Add a "Select" toggle button to the dashboard header — clicking it enters selection mode; (2) In selection mode, each care item card shows a checkbox (`<input type="checkbox">`); (3) "Select all" checkbox in header selects/deselects all visible items; (4) Sticky bottom action bar (fixed position) — visible when ≥1 item is selected — shows count ("3 selected") with `aria-live="polite"` and a "Mark done" button (`aria-disabled` when 0 selected); (5) On "Mark done" click: show confirmation inline ("Mark 3 items as done?"), on confirm call `POST /api/v1/care-actions/batch`, show loading spinner; (6) On success (207 all created): remove marked items from list with exit animation, show toast "3 care actions marked done", exit selection mode; (7) On partial failure (207 with some errors): show inline message in action bar "2 of 3 marked done. 1 failed — tap to retry"; retry sends only the failed items; (8) "Cancel" button exits selection mode and clears all selections; (9) Dark mode via CSS custom properties; (10) Accessibility: checkboxes have `aria-label="Mark [plant name] [care type] as done"`, action bar `role="toolbar"`, confirm button has descriptive `aria-label`.
   - **Acceptance Criteria:**
-    - Search input visible above the plant grid on the inventory page
-    - Typing debounces at 300ms then re-fetches with `?search=query`
-    - Status filter (All / Overdue / Due Today / On Track) triggers immediate re-fetch with `?status=value`
-    - Combined search + filter: both params sent simultaneously
-    - Clear/reset: an ✕ button on the search input clears the query; selecting "All" in the filter resets status
-    - Empty state — no query match: friendly message ("No plants match your search.")
-    - Empty state — no status match: ("No plants are currently overdue." etc.)
-    - Empty state — no plants at all: existing empty state preserved
-    - Loading: skeleton cards shown while fetching
-    - Result count: "Showing N plants" displayed when a filter is active
-    - Dark mode: all new elements use CSS custom properties
-    - Accessibility: search input has `aria-label`; result list has `aria-live` region for count updates; keyboard navigation works for filter controls
-    - Unit tests: search input triggers debounced fetch, status filter triggers immediate fetch, combined params sent correctly, empty state renders for no results, clear button resets query, skeleton shown during load
-    - All 162/162 frontend tests still pass; add minimum 6 new tests
-  - **Blocked By:** T-082 (SPEC-013 must exist), T-083 (API contract for updated `GET /plants` must be published)
-  - **Fix locations:** `frontend/src/pages/InventoryPage.jsx` (or `HomePage.jsx`), new `PlantSearchFilter.jsx` component
+    - "Select" toggle enters/exits selection mode; item checkboxes visible in selection mode
+    - "Select all" selects/deselects all visible items
+    - Sticky action bar shows count and "Mark done" button; hidden when 0 items selected
+    - API call uses `POST /api/v1/care-actions/batch` with correct request shape
+    - Success: items removed from list with animation, toast shown, selection mode exited
+    - Partial failure: inline retry message shown; retry sends only failed items
+    - Cancel clears selections and exits selection mode
+    - Dark mode: new elements use CSS custom properties
+    - Accessibility: `aria-label` on checkboxes, `role="toolbar"`, `aria-live="polite"` on count
+    - Unit tests: selection mode toggle, checkbox select/deselect, select all, action bar shows on selection, confirm and API call on mark-done, success removes items + shows toast, partial failure shows retry, cancel clears selection, empty state after all items marked; minimum 8 new tests
+    - All frontend tests still pass; add minimum 8 new tests
+  - **Blocked By:** T-108 (SPEC-019 must exist), T-109 (updated API contract must be published)
+  - **Fix locations:** `frontend/src/pages/CareDuePage.jsx`, `frontend/src/pages/CareDuePage.css`, `frontend/src/components/BatchActionBar.jsx` (new), `frontend/src/utils/api.js` (add `careActions.batch()`)
 
 ---
 
-### P2 — Design System Polish & Accessibility
+### P3 — Rate Limiting on High-Frequency Endpoints
 
-- [ ] **T-085** — Frontend Engineer: ProfilePage stat tile icons → CSS custom properties **(P2)**
-  - **Description:** Complete the design system token migration started in Sprint 16 (T-072). `ProfilePage.jsx` still passes hardcoded `color="#5C7A5C"` to three Phosphor icon components (Plant, CalendarBlank, CheckCircle) at lines 136, 141, 146. Replace with `color="var(--color-accent-primary)"` to match the AnalyticsPage pattern.
+- [ ] **T-111** — Backend Engineer: Endpoint-specific rate limiting (FB-073) **(P3)**
+  - **Description:** Add `express-rate-limit` (or equivalent) rate limiting to high-frequency and sensitive endpoints. Implement as Express middleware, configured per route group: (1) **Auth endpoints** (`POST /api/v1/auth/login`, `POST /api/v1/auth/register`, `POST /api/v1/auth/refresh`) — stricter limit: 10 requests per 15 minutes per IP, returns `429 Too Many Requests` with `{ "error": { "message": "Too many requests. Please try again later.", "code": "RATE_LIMIT_EXCEEDED" } }`; (2) **Stats/read-heavy endpoints** (`GET /api/v1/care-actions/stats`, `GET /api/v1/care-actions/streak`) — moderate limit: 60 requests per minute per IP; (3) **All other API routes** — permissive global fallback: 200 requests per 15 minutes per IP. Rate limit headers (`RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`) should be included in all responses. Configuration via environment variables (`RATE_LIMIT_AUTH_MAX`, `RATE_LIMIT_WINDOW_MS`) with sensible defaults so existing tests are unaffected. Must not break existing tests — use `skip` option in test environment (`NODE_ENV === 'test'`).
   - **Acceptance Criteria:**
-    - `ProfilePage.jsx` lines 136, 141, 146: `color="#5C7A5C"` replaced with `color="var(--color-accent-primary)"`
-    - No hardcoded hex color values remain in `ProfilePage.jsx`
-    - Dark mode: icons adopt the correct `--color-accent-primary` token value in both light and dark themes
-    - No test changes expected — visual-only change; confirm 162/162 tests still pass
-  - **Dependencies:** None — can start immediately, parallel to T-082/T-083.
-  - **Fix locations:** `frontend/src/pages/ProfilePage.jsx` (lines 136, 141, 146)
-
----
-
-- [ ] **T-086** — Frontend Engineer: Focus management after mark-done on Care Due Dashboard **(P2)**
-  - **Description:** After a user successfully marks a care action as done on the Care Due Dashboard (`/due`), the item fades out and is removed from the list. Currently, keyboard focus is lost at that point (the focused element is removed from the DOM). Implement SPEC-009's intended behaviour: move focus to the next item's "Mark as done" button after an item is removed, or to the "View my plants" / "All plants cared for!" CTA if the last item in the section (or the entire list) is cleared.
-  - **Acceptance Criteria:**
-    - After mark-done removes an item, focus moves to the next sibling item's "Mark as done" button within the same urgency section (if one exists)
-    - If the removed item was the last in its urgency section, focus moves to the first item's button in the next populated section
-    - If the removed item was the last item in all sections (list becomes empty), focus moves to the "View my plants" button or the primary CTA in the all-clear state
-    - Focus transition happens after the fade-out animation completes (not before the item is removed from DOM)
-    - Screen readers announce the mark-done result via existing `aria-live` region — no changes needed there
-    - Keyboard navigation remains logical throughout
-    - Unit tests: focus moves to next item after mark-done, focus moves to CTA when list empties
-    - All 162/162 frontend tests still pass; add minimum 2 new tests
-  - **Dependencies:** None — can start immediately.
-  - **Fix locations:** `frontend/src/pages/CareDuePage.jsx` (mark-done handler, focus management logic)
+    - `express-rate-limit` (or equivalent) installed and configured
+    - Auth endpoints limited to 10 req/15 min per IP
+    - Stats/streak endpoints limited to 60 req/min per IP
+    - Global fallback: 200 req/15 min per IP
+    - 429 response uses structured `{ error: { message, code } }` format matching existing error shape
+    - Rate limiter skipped in `test` environment (no test regressions)
+    - Unit tests: at minimum, verify 429 is returned after threshold exceeded for auth endpoint; 2+ new tests
+    - All 177/177 (estimated) backend tests still pass; no regressions
+  - **Blocked By:** None — start immediately. Can be done in parallel with T-109.
+  - **Fix locations:** `backend/src/app.js` (add rate limiter middleware), `backend/src/middleware/rateLimiter.js` (new)
 
 ---
 
 ## Out of Scope
 
+- Push notifications (browser or mobile) — requires service worker / APNs infrastructure — post-sprint
 - Social auth (Google OAuth) — B-001 — post-sprint
-- Push/email notifications for care reminders — B-002 — post-sprint
 - Plant sharing / public profiles — B-003 — post-sprint
-- Reference photo in AI advice results (FB-081) — requires botanical image API, post-MVP
 - Production deployment execution — blocked on project owner providing SSL certs
-- Express 5 migration — advisory backlog; no breaking-change-safe path yet
-- Care streak / gamification features — post-sprint
-- Soft delete / grace period for account deletion (FB-077) — backlog
-- `/ai/identify` 502 message specificity improvement — backlog
+- Unsubscribe error CTA contextual differentiation (FB-104) — cosmetic, backlog
+- Express 5 migration — advisory backlog
+- Soft-delete / grace period for account deletion — post-MVP
+- Plant photo gallery / multiple photo management — post-MVP
+- Individual care item notes in batch context — batch is mark-done only, no notes in this sprint
 
 ---
 
@@ -121,77 +103,73 @@ The operational reference for the current development cycle. Refreshed at the st
 
 | Agent | Focus Area This Sprint | Key Tasks |
 |-------|----------------------|-----------|
-| Design Agent | Inventory Search & Filter UX spec | T-082 (P1, start immediately) |
-| Backend Engineer | Extend GET /plants with search + status filter | T-083 (P1, start immediately, publish API contract before T-084) |
-| Frontend Engineer | Inventory search/filter UI + ProfilePage polish + Care Due focus management | T-084 (P1, after T-082 spec + T-083 contract), T-085 (P2, start immediately), T-086 (P2, start immediately) |
-| QA Engineer | Full QA of T-082–T-086, security checklist | After T-084, T-085, T-086 complete |
+| Design Agent | Batch mark-done UX spec | T-108 (P2, start immediately) |
+| Backend Engineer | Batch care actions endpoint + rate limiting | T-109 (P2, start immediately, publish contract before T-110), T-111 (P3, start immediately, parallel with T-109) |
+| Frontend Engineer | Batch mark-done UI on Care Due Dashboard | T-110 (P2, after T-108 spec + T-109 contract) |
+| QA Engineer | Full QA of T-108–T-111, security checklist (rate limiting) | After all tasks complete |
 | Deploy Engineer | Staging re-deploy after QA sign-off | After all tasks QA-verified |
-| Monitor Agent | Post-deploy health check — verify updated `GET /plants` endpoint with search/filter params | After Deploy Engineer re-deploy |
-| Manager | Sprint coordination, API contract review/approval, code review | Ongoing |
+| Monitor Agent | Post-deploy health check — note: restart backend if process terminated before running checks | After Deploy Engineer re-deploy |
+| Manager | Sprint coordination, API contract review, code review | Ongoing |
 
 ---
 
 ## Dependency Chain (Critical Path)
 
 ```
-T-082 (SPEC-013 — Design Agent, START IMMEDIATELY)
-  ↓ (spec complete → Frontend can begin T-084 UI layout)
+T-108 (SPEC-019 — Design Agent, START IMMEDIATELY)
+  ↓ (spec complete)
 
-T-083 (GET /plants search+filter — Backend, START IMMEDIATELY)
-  ↓ (publish API contract to api-contracts.md)
-T-084 (Inventory search/filter UI — Frontend, after T-082 spec + T-083 contract)
-  ↓
-QA verifies T-082 + T-083 + T-084 end-to-end
+T-109 (Batch endpoint — Backend Engineer, START IMMEDIATELY — publish contract before T-110)
+  ↓ (publish updated API contract)
 
-[Parallel — no dependencies]
-T-085 (ProfilePage CSS tokens — Frontend, start immediately)
-T-086 (Care Due focus management — Frontend, start immediately)
+T-110 (Batch UI — Frontend Engineer, after T-108 spec + T-109 contract)
   ↓
-QA verifies T-085 + T-086
+T-111 (Rate limiting — Backend Engineer, START IMMEDIATELY — parallel with T-109)
+  ↓
+QA verifies T-108 + T-109 + T-110 + T-111 end-to-end
 
 [After all tasks QA-verified]
 Deploy Engineer re-deploys to staging
   ↓
-Monitor Agent health check — verify GET /plants?search=&status= on staging
+Monitor Agent health check — verify POST /care-actions/batch + rate limiting 429 responses on staging
 ```
 
-**Critical path:** T-082 + T-083 (parallel start) → T-084 → QA → Deploy → Monitor → staging verified.
-**Parallel path:** T-085 + T-086 can proceed independently of T-082/T-083/T-084.
+**Critical path:** T-108 + T-109 (parallel start) → T-110 → QA → Deploy → Monitor → staging verified.
+**Note:** T-111 has no blockers and can run in parallel with T-108/T-109. Monitor Agent: if backend process is not running at health check time, restart it before checking endpoints (known local staging limitation from Sprint #23).
 
 ---
 
 ## Definition of Done
 
-Sprint #18 is complete when:
+Sprint #24 is complete when:
 
-- [ ] T-082: SPEC-013 written covering search input, status filter, combined use, all empty states, dark mode notes
-- [ ] T-083: `GET /api/v1/plants?search=&status=` implemented; API contract published; 6+ new tests; all 108/108 backend tests pass
-- [ ] T-084: Search input and status filter functional on inventory page; debounce works; all empty states handled; 6+ new tests; all 162/162 frontend tests pass
-- [ ] T-085: `ProfilePage.jsx` lines 136/141/146 updated to `var(--color-accent-primary)`; no hardcoded hex remains; 162/162 frontend tests pass
-- [ ] T-086: Focus management after mark-done implemented; 2+ new tests; all 162/162 frontend tests pass
-- [ ] Deploy Verified: Yes from Monitor Agent post-deploy health check
-- [ ] No regressions: backend ≥ 108/108, frontend ≥ 162/162
+- [ ] T-108: SPEC-019 written — covers selection mode, per-item checkboxes, select all, sticky action bar, confirmation, loading/success/partial-failure states, cancel/exit, dark mode, accessibility
+- [ ] T-109: `POST /api/v1/care-actions/batch` endpoint returns 207 with per-item results; single transaction; ownership check; 6+ new tests; all backend tests pass; API contract published
+- [ ] T-110: Selection mode, per-item checkboxes, select all, action bar, batch API call, success/partial-failure/cancel flows all implemented; 8+ new tests; all frontend tests pass
+- [ ] T-111: Rate limiting applied to auth (10/15min), stats/streak (60/min), global fallback (200/15min); 429 uses structured error shape; skipped in test env; 2+ new tests; all backend tests pass
+- [ ] Deploy Verified: Yes from Monitor Agent post-deploy health check (note: restart backend if process terminated)
+- [ ] No regressions: backend ≥ 179/179 (estimated: 171 + 6 T-109 + 2 T-111), frontend ≥ 257/257 (estimated: 249 + 8 T-110)
 
 ---
 
 ## Success Criteria
 
-- **Search works** — User types "pothos" in the inventory search bar and sees only pothos plants within 300ms (debounce)
-- **Status filter works** — User selects "Overdue" and sees only plants with overdue care schedules
-- **Combined filter works** — User combines search + status filter; both params sent; results correctly narrowed
-- **Empty states handled** — No-match empty state is friendly and doesn't look broken
-- **Design system complete** — ProfilePage stat tile icons adopt theme color via CSS variable; no hardcoded hex values remain in the page
-- **Accessibility improved** — Keyboard users on Care Due Dashboard don't lose focus after marking a plant as cared for
-- **Test suite grows** — Backend adds minimum 6 new tests; frontend adds minimum 14 new tests; no regressions
+- **Batch mark-done works end-to-end** — A user with 5 overdue care items can select all, tap "Mark done", and clear them in two taps instead of ten
+- **Partial failure handled gracefully** — If 1 of 5 batch items fails (ownership issue or DB error), the user sees exactly which ones failed and can retry them
+- **Rate limiting is invisible to normal users** — Regular usage never hits limits; only aggressive automated requests or brute-force attempts are throttled
+- **Auth endpoints are brute-force protected** — 10 failed login attempts in 15 minutes triggers 429; subsequent attempts are blocked
+- **Test suite grows** — Backend adds minimum 8 new tests (T-109 6+, T-111 2+); frontend adds minimum 8 new tests (T-110 8+); no regressions
 
 ---
 
 ## Blockers
 
-- T-084 (frontend search/filter UI) is blocked until: (1) Design Agent publishes SPEC-013; (2) Backend Engineer publishes updated `GET /plants` API contract
-- T-085 and T-086 have no blockers — start immediately in parallel with T-082/T-083
-- T-083 can start immediately — no dependencies
+- T-110 is blocked until: (1) Design Agent publishes SPEC-019; (2) Backend Engineer publishes updated API contract for `POST /api/v1/care-actions/batch`
+- T-108, T-109, T-111 have no blockers — all can start immediately
+- Production deployment remains blocked on project owner providing SSL certificates
+- Production email delivery blocked on project owner providing SMTP credentials
+- **Infrastructure note:** Local staging backend process may terminate between Deploy and Monitor phases — Monitor Agent must restart it if connection refused (not a code issue; local process-based staging limitation)
 
 ---
 
-*Sprint #18 plan written by Manager Agent on 2026-04-01.*
+*Sprint #24 plan written by Manager Agent on 2026-04-05.*

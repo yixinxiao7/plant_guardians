@@ -72,12 +72,15 @@ Your task: IMPLEMENT all your assigned infrastructure tasks that are in Backlog 
 Write clean, production-quality configurations. Follow security best practices. Do not skip testing your changes."
 
     # Check which agents have work
+    # Pattern anchors to the table's status column (col 5) to avoid false-positives
+    # from agent names or status words appearing in notes text of Done rows.
+    # Table format: | T-XXX | desc | type | Agent | Status | ...
     local backend_tasks frontend_tasks deploy_tasks
-    backend_tasks=$(grep -cE 'Backend Engineer.*(Backlog|In Progress)' "${WORKFLOW_DIR}/dev-cycle-tracker.md" 2>/dev/null || true)
+    backend_tasks=$(grep -cE '^\| T-[0-9]+ \|[^|]+\|[^|]+\| Backend Engineer \| (Backlog|In Progress) \|' "${WORKFLOW_DIR}/dev-cycle-tracker.md" 2>/dev/null || true)
     backend_tasks="${backend_tasks:-0}"
-    frontend_tasks=$(grep -cE 'Frontend Engineer.*(Backlog|In Progress)' "${WORKFLOW_DIR}/dev-cycle-tracker.md" 2>/dev/null || true)
+    frontend_tasks=$(grep -cE '^\| T-[0-9]+ \|[^|]+\|[^|]+\| Frontend Engineer \| (Backlog|In Progress) \|' "${WORKFLOW_DIR}/dev-cycle-tracker.md" 2>/dev/null || true)
     frontend_tasks="${frontend_tasks:-0}"
-    deploy_tasks=$(grep -cE 'Deploy Engineer.*(Backlog|In Progress)' "${WORKFLOW_DIR}/dev-cycle-tracker.md" 2>/dev/null || true)
+    deploy_tasks=$(grep -cE '^\| T-[0-9]+ \|[^|]+\|[^|]+\| Deploy Engineer \| (Backlog|In Progress) \|' "${WORKFLOW_DIR}/dev-cycle-tracker.md" 2>/dev/null || true)
     deploy_tasks="${deploy_tasks:-0}"
 
     # Build list of agents to run (pipe-delimited: agent|turns|model|prompt)

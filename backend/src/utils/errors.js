@@ -55,6 +55,12 @@ class UnprocessableError extends AppError {
   }
 }
 
+class ForbiddenError extends AppError {
+  constructor(message = 'You do not have access to this resource.') {
+    super(message, 403, 'FORBIDDEN');
+  }
+}
+
 class ExternalServiceError extends AppError {
   constructor(message, code) {
     super(message, 502, code || 'EXTERNAL_SERVICE_ERROR');
@@ -67,6 +73,7 @@ module.exports = {
   UnauthorizedError,
   InvalidCredentialsError,
   InvalidRefreshTokenError,
+  ForbiddenError,
   NotFoundError,
   ConflictError,
   UnprocessableError,

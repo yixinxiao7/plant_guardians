@@ -59,6 +59,14 @@ const Plant = {
   },
 
   /**
+   * Find a single plant by ID (no user scoping).
+   * Used to distinguish 404 (plant doesn't exist) from 403 (plant belongs to another user).
+   */
+  async findById(id) {
+    return db('plants').where({ id }).first();
+  },
+
+  /**
    * Find a single plant by ID, scoped to user.
    */
   async findByIdAndUser(id, userId) {

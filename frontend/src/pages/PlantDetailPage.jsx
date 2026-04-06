@@ -7,6 +7,8 @@ import { plants as plantsApi } from '../utils/api.js';
 import StatusBadge from '../components/StatusBadge.jsx';
 import Button from '../components/Button.jsx';
 import Modal from '../components/Modal.jsx';
+import CareHistorySection from '../components/CareHistorySection.jsx';
+import CareNoteInput from '../components/CareNoteInput.jsx';
 import { formatDate, formatRelativeTime, formatDueDate } from '../utils/formatDate.js';
 import './PlantDetailPage.css';
 
@@ -28,11 +30,13 @@ export default function PlantDetailPage() {
   const { addToast } = useToast();
   const { plant, loading, error, notFound, fetchPlant, markCareAsDone, undoCareAction } = usePlantDetail();
 
+  const [activeTab, setActiveTab] = useState('overview');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [markingDone, setMarkingDone] = useState({});
   const [doneStates, setDoneStates] = useState({});
   const [undoTimers, setUndoTimers] = useState({});
+  const [noteValues, setNoteValues] = useState({});
   const timerRefs = useRef({});
 
   useEffect(() => {
@@ -50,7 +54,9 @@ export default function PlantDetailPage() {
     setMarkingDone(prev => ({ ...prev, [careType]: true }));
 
     try {
-      const data = await markCareAsDone(id, careType);
+      const noteText = noteValues[careType] || null;
+      const trimmedNote = noteText ? noteText.trim() : null;
+      const data = await markCareAsDone(id, careType, trimmedNote || null);
       const actionId = data.care_action?.id;
 
       // Trigger confetti
@@ -96,7 +102,7 @@ export default function PlantDetailPage() {
     } finally {
       setMarkingDone(prev => ({ ...prev, [careType]: false }));
     }
-  }, [id, markCareAsDone, plant, addToast]);
+  }, [id, markCareAsDone, plant, addToast, noteValues]);
 
   const handleUndo = useCallback(async (careType) => {
     const state = doneStates[careType];
@@ -216,104 +222,154 @@ export default function PlantDetailPage() {
         </div>
       </div>
 
-      {/* Care Schedule */}
-      <section className="detail-care-section">
-        <h2 className="detail-section-title">Care Schedule</h2>
-        <div className="detail-care-grid">
-          {orderedTypes.map(careType => {
-            const schedule = scheduleMap[careType];
-            const Icon = CARE_ICONS[careType];
-            const isDone = doneStates[careType]?.done;
-            const isMarking = markingDone[careType];
-            const hasUndo = undoTimers[careType];
+      {/* Tab Bar */}
+      <div className="plant-detail-tabs" role="tablist">
+        <button
+          role="tab"
+          aria-selected={activeTab === 'overview'}
+          aria-controls="panel-overview"
+          className={`plant-detail-tab ${activeTab === 'overview' ? 'plant-detail-tab--active' : ''}`}
+          onClick={() => setActiveTab('overview')}
+          id="tab-overview"
+        >
+          Overview
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'history'}
+          aria-controls="panel-history"
+          className={`plant-detail-tab ${activeTab === 'history' ? 'plant-detail-tab--active' : ''}`}
+          onClick={() => setActiveTab('history')}
+          id="tab-history"
+        >
+          History
+        </button>
+      </div>
 
-            if (!schedule) {
-              return (
-                <div key={careType} className="care-card care-card-empty" role="region" aria-label={`${CARE_LABELS[careType]} schedule`}>
-                  <div className="care-card-header">
-                    <span className="care-card-label"><Icon size={20} /> {CARE_LABELS[careType]}</span>
-                    <StatusBadge status="not_set" />
+      {/* Overview Tab Panel */}
+      {activeTab === 'overview' && (
+        <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+          {/* Care Schedule */}
+          <section className="detail-care-section">
+            <h2 className="detail-section-title">Care Schedule</h2>
+            <div className="detail-care-grid">
+              {orderedTypes.map(careType => {
+                const schedule = scheduleMap[careType];
+                const Icon = CARE_ICONS[careType];
+                const isDone = doneStates[careType]?.done;
+                const isMarking = markingDone[careType];
+                const hasUndo = undoTimers[careType];
+
+                if (!schedule) {
+                  return (
+                    <div key={careType} className="care-card care-card-empty" role="region" aria-label={`${CARE_LABELS[careType]} schedule`}>
+                      <div className="care-card-header">
+                        <span className="care-card-label"><Icon size={20} /> {CARE_LABELS[careType]}</span>
+                        <StatusBadge status="not_set" />
+                      </div>
+                      <p className="care-card-frequency">Schedule not configured</p>
+                      <button className="care-card-add-link" onClick={() => navigate(`/plants/${id}/edit`)}>
+                        Add Schedule →
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={careType} className="care-card" role="region" aria-label={`${CARE_LABELS[careType]} schedule`}>
+                    <div className="care-card-header">
+                      <span className="care-card-label"><Icon size={20} /> {CARE_LABELS[careType]}</span>
+                      <StatusBadge
+                        status={isDone ? 'on_track' : schedule.status}
+                        daysOverdue={schedule.days_overdue}
+                      />
+                    </div>
+                    <p className="care-card-frequency">Every {schedule.frequency_value} {schedule.frequency_unit}</p>
+                    <p className="care-card-last-done">
+                      Last {careType === 'watering' ? 'watered' : careType === 'fertilizing' ? 'fertilized' : 'repotted'}:{' '}
+                      {isDone ? 'Just now' : (schedule.last_done_at ? formatRelativeTime(schedule.last_done_at) : 'Never')}
+                    </p>
+                    <p className="care-card-next-due">
+                      Next due: <span className={schedule.status === 'due_today' ? 'text-yellow' : ''}>{formatDueDate(schedule.next_due_at)}</span>
+                    </p>
+
+                    {isDone && hasUndo ? (
+                      <button className={`care-done-btn care-done-success`} aria-label={`${CARE_LABELS[careType]} marked as done`}>
+                        Done!
+                      </button>
+                    ) : null}
+
+                    {!isDone && (
+                      <>
+                        <Button
+                          variant="secondary"
+                          fullWidth
+                          loading={isMarking}
+                          onClick={() => handleMarkDone(careType)}
+                          aria-label={`Mark ${careType} as done for ${plant.name}`}
+                          className="care-mark-btn"
+                        >
+                          Mark as done
+                        </Button>
+                        <CareNoteInput
+                          noteValue={noteValues[careType] || ''}
+                          onNoteChange={(val) => setNoteValues(prev => ({ ...prev, [careType]: val }))}
+                          plantId={id}
+                          careType={careType}
+                          plantName={plant.name}
+                          disabled={isMarking}
+                          idPrefix="note-input-detail"
+                        />
+                      </>
+                    )}
+
+                    {hasUndo && (
+                      <button className="care-undo-btn" onClick={() => handleUndo(careType)}>
+                        Undo
+                      </button>
+                    )}
                   </div>
-                  <p className="care-card-frequency">Schedule not configured</p>
-                  <button className="care-card-add-link" onClick={() => navigate(`/plants/${id}/edit`)}>
-                    Add Schedule →
-                  </button>
-                </div>
-              );
-            }
+                );
+              })}
+            </div>
+          </section>
 
-            return (
-              <div key={careType} className="care-card" role="region" aria-label={`${CARE_LABELS[careType]} schedule`}>
-                <div className="care-card-header">
-                  <span className="care-card-label"><Icon size={20} /> {CARE_LABELS[careType]}</span>
-                  <StatusBadge
-                    status={isDone ? 'on_track' : schedule.status}
-                    daysOverdue={schedule.days_overdue}
-                  />
-                </div>
-                <p className="care-card-frequency">Every {schedule.frequency_value} {schedule.frequency_unit}</p>
-                <p className="care-card-last-done">
-                  Last {careType === 'watering' ? 'watered' : careType === 'fertilizing' ? 'fertilized' : 'repotted'}:{' '}
-                  {isDone ? 'Just now' : (schedule.last_done_at ? formatRelativeTime(schedule.last_done_at) : 'Never')}
-                </p>
-                <p className="care-card-next-due">
-                  Next due: <span className={schedule.status === 'due_today' ? 'text-yellow' : ''}>{formatDueDate(schedule.next_due_at)}</span>
-                </p>
-
-                {isDone && hasUndo ? (
-                  <button className={`care-done-btn care-done-success`} aria-label={`${CARE_LABELS[careType]} marked as done`}>
-                    Done!
-                  </button>
-                ) : null}
-
-                {!isDone && (
-                  <Button
-                    variant="secondary"
-                    fullWidth
-                    loading={isMarking}
-                    onClick={() => handleMarkDone(careType)}
-                    aria-label={`Mark ${careType} as done for ${plant.name}`}
-                    className="care-mark-btn"
-                  >
-                    Mark as done
-                  </Button>
-                )}
-
-                {hasUndo && (
-                  <button className="care-undo-btn" onClick={() => handleUndo(careType)}>
-                    Undo
-                  </button>
-                )}
+          {/* Recent Activity */}
+          {plant.recent_care_actions && plant.recent_care_actions.length > 0 && (
+            <section className="detail-activity">
+              <h2 className="detail-section-title">Recent Activity</h2>
+              <div className="activity-list">
+                {plant.recent_care_actions.map(action => {
+                  const Icon = CARE_ICONS[action.care_type] || Leaf;
+                  return (
+                    <div key={action.id} className="activity-item">
+                      <Icon size={16} />
+                      <span>You {action.care_type === 'watering' ? 'watered' : action.care_type === 'fertilizing' ? 'fertilized' : 'repotted'} {plant.name}</span>
+                      <span className="activity-time">{formatRelativeTime(action.performed_at)}</span>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
-      </section>
+            </section>
+          )}
 
-      {/* Recent Activity */}
-      {plant.recent_care_actions && plant.recent_care_actions.length > 0 && (
-        <section className="detail-activity">
-          <h2 className="detail-section-title">Recent Activity</h2>
-          <div className="activity-list">
-            {plant.recent_care_actions.map(action => {
-              const Icon = CARE_ICONS[action.care_type] || Leaf;
-              return (
-                <div key={action.id} className="activity-item">
-                  <Icon size={16} />
-                  <span>You {action.care_type === 'watering' ? 'watered' : action.care_type === 'fertilizing' ? 'fertilized' : 'repotted'} {plant.name}</span>
-                  <span className="activity-time">{formatRelativeTime(action.performed_at)}</span>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+          {(!plant.recent_care_actions || plant.recent_care_actions.length === 0) && (
+            <section className="detail-activity">
+              <h2 className="detail-section-title">Recent Activity</h2>
+              <p className="activity-empty">No care history yet.</p>
+            </section>
+          )}
+        </div>
       )}
 
-      {(!plant.recent_care_actions || plant.recent_care_actions.length === 0) && (
-        <section className="detail-activity">
-          <h2 className="detail-section-title">Recent Activity</h2>
-          <p className="activity-empty">No care history yet.</p>
-        </section>
+      {/* History Tab Panel */}
+      {activeTab === 'history' && (
+        <div id="panel-history" role="tabpanel" aria-labelledby="tab-history">
+          <CareHistorySection
+            plantId={id}
+            onSwitchToOverview={() => setActiveTab('overview')}
+          />
+        </div>
       )}
 
       {/* Delete modal */}

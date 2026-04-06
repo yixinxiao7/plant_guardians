@@ -59,6 +59,52 @@
   max-width: 420px;
 }
 
+/* Account deleted banner (T-107) */
+.login-deleted-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(184, 92, 56, 0.08);
+  border: 1px solid rgba(184, 92, 56, 0.30);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+}
+
+[data-theme="dark"] .login-deleted-banner {
+  background: rgba(201, 107, 68, 0.10);
+  border-color: rgba(201, 107, 68, 0.35);
+}
+
+.login-deleted-banner-text {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-status-red);
+}
+
+[data-theme="dark"] .login-deleted-banner-text {
+  color: #C96B44;
+}
+
+.login-deleted-banner-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 4px;
+}
+
+.login-deleted-banner-dismiss:hover {
+  background: rgba(184, 92, 56, 0.08);
+}
+
 .login-mobile-logo {
   display: none;
   align-items: center;

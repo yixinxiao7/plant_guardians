@@ -199,10 +199,17 @@ export const plants = {
 
 // Care actions
 export const careActions = {
-  markDone(plantId, careType) {
+  markDone(plantId, careType, notes = null) {
+    const body = { care_type: careType };
+    if (notes != null) {
+      const trimmed = notes.trim();
+      if (trimmed !== '') {
+        body.notes = trimmed;
+      }
+    }
     return request(`/plants/${plantId}/care-actions`, {
       method: 'POST',
-      body: JSON.stringify({ care_type: careType }),
+      body: JSON.stringify(body),
     });
   },
   undo(plantId, actionId) {
@@ -217,6 +224,26 @@ export const careActions = {
     if (params.plant_id) query.set('plant_id', params.plant_id);
     const qs = query.toString();
     return request(`/care-actions${qs ? `?${qs}` : ''}`, { _returnFull: true });
+  },
+};
+
+// Plant care history (per-plant, paginated)
+export const careHistory = {
+  get(plantId, params = {}) {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', String(params.page));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.careType) query.set('careType', params.careType);
+    const qs = query.toString();
+    return request(`/plants/${plantId}/care-history${qs ? `?${qs}` : ''}`);
+  },
+};
+
+// Care streak
+export const careStreak = {
+  get() {
+    const utcOffset = new Date().getTimezoneOffset() * -1;
+    return request(`/care-actions/streak?utcOffset=${utcOffset}`);
   },
 };
 
@@ -257,5 +284,60 @@ export const ai = {
 export const profile = {
   get() {
     return request('/profile');
+  },
+  async delete() {
+    const url = `${API_BASE}/profile`;
+    const headers = {};
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
+    let res = await fetch(url, { method: 'DELETE', headers, credentials: 'include' });
+
+    // Auto-refresh on 401
+    if (res.status === 401) {
+      try {
+        await refreshAccessToken();
+        headers['Authorization'] = `Bearer ${accessToken}`;
+        res = await fetch(url, { method: 'DELETE', headers, credentials: 'include' });
+      } catch {
+        throw new ApiError('Session expired. Please log in again.', 'UNAUTHORIZED', 401);
+      }
+    }
+
+    if (res.status === 204) {
+      return null; // Success — no content
+    }
+
+    // Handle errors
+    let err = {};
+    try {
+      const json = await res.json();
+      err = json.error || {};
+    } catch {
+      // Response may not have a JSON body
+    }
+    throw new ApiError(err.message || 'Something went wrong.', err.code || 'UNKNOWN', res.status);
+  },
+};
+
+// Notification Preferences
+export const notificationPreferences = {
+  get() {
+    return request('/profile/notification-preferences');
+  },
+  update(payload) {
+    return request('/profile/notification-preferences', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  unsubscribe(token, uid) {
+    const params = new URLSearchParams();
+    params.set('token', token);
+    if (uid) params.set('uid', uid);
+    return request(`/unsubscribe?${params.toString()}`, {
+      skipAuth: true,
+    });
   },
 };

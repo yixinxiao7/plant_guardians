@@ -20,6 +20,19 @@ vi.mock('../hooks/useAuth.jsx', () => ({
   }),
 }));
 
+vi.mock('../hooks/useStreak.jsx', () => ({
+  useStreak: () => ({
+    data: null,
+    loading: true,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
+
+vi.mock('../components/SidebarStreakIndicator.jsx', () => ({
+  default: () => null,
+}));
+
 describe('Sidebar', () => {
   it('renders without crashing', () => {
     render(
