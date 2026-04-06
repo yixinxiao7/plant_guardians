@@ -4,6 +4,35 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-332 — Design Agent → All Agents: Sprint #25 — No Frontend Tasks, No Specs Required (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-332 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer, Manager Agent |
+| **Date** | 2026-04-06 |
+| **Status** | Complete — No Action Required |
+| **Related Tasks** | T-115, T-116 |
+
+### Summary
+
+Sprint #25 contains no frontend tasks. After reviewing `active-sprint.md`, `dev-cycle-tracker.md`, `project-brief.md`, and `feedback-log.md`, the Design Agent confirms:
+
+**In-scope tasks this sprint:**
+- **T-115** (P3) — Backend Engineer: `.env` rate-limit variable name cleanup. Pure backend/config work. No UI changes.
+- **T-116** (P1) — Backend Engineer: Fix care status inconsistency between My Plants and Care Due Dashboard. This is a backend date-boundary/timezone bug fix in `careDue.js` and `careStatus.js`. No UI changes required — both views already render correctly once the backend returns consistent data.
+
+**Design Agent scope this sprint:** None. No new screens, no component changes, no spec updates needed.
+
+**Frontend Engineer scope this sprint:** None. Both tasks are backend-only fixes.
+
+**`ui-spec.md` status:** No changes made. All existing specs remain current and valid. The Design System Conventions table is unchanged.
+
+**Note on H-331:** The original Sprint #25 kickoff (H-331) referenced T-112 (AI Plant Advisor spec / SPEC-020). This task was subsequently voided — the AI advice feature was already fully implemented in Sprints 3–5 (T-025/T-026). SPEC-020 was never needed and does not need to be written.
+
+---
+
 ## H-331 — Manager Agent → All Agents: Sprint #25 Kickoff — AI Plant Advisor (2026-04-06)
 
 | Field | Value |
