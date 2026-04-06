@@ -20,6 +20,34 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-111 — QA: Positive — Unsubscribe CTA differentiation is a thoughtful UX improvement (Sprint 26)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-111 |
+| Source | QA Engineer |
+| Sprint | 26 |
+| Category | Positive |
+| Severity | — |
+| Description | The 404 → "Go to Plant Guardians" vs other errors → "Sign In" differentiation on the unsubscribe page is a genuinely considerate UX detail. Users whose accounts are deleted won't be confused by a "Sign In" CTA they can't use. The error messages are clear and human-readable. |
+| Status | Acknowledged |
+
+---
+
+## FB-112 — QA: Positive — Timezone flakiness fix eliminates a persistent CI pain point (Sprint 26)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-112 |
+| Source | QA Engineer |
+| Sprint | 26 |
+| Category | Positive |
+| Severity | — |
+| Description | The `daysAgo(0)` fix from noon UTC to start-of-day UTC is a clean, minimal solution. The comment explaining the rationale is excellent documentation. This removes a flaky test that could erode CI trust over time. |
+| Status | Acknowledged |
+
+---
+
 ## FB-109 — QA: Positive — Care status consistency fix (T-116) directly addresses core user confusion (Sprint 25)
 
 | Field | Value |

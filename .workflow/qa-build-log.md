@@ -4,6 +4,107 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## QA Verification — Sprint #26 | 2026-04-06
+
+**Agent:** QA Engineer
+**Sprint:** 26
+**Timestamp:** 2026-04-06T19:30:00Z
+**Tasks:** T-117 (careActionsStreak.test.js timezone fix), T-118 (unsubscribe CTA differentiation)
+
+---
+
+### Unit Tests — Backend (Test Type: Unit Test)
+
+| Metric | Result |
+|--------|--------|
+| Test Suites | 21 passed, 21 total |
+| Tests | 188 passed, 188 total |
+| Failures | 0 |
+| Duration | 46.5s |
+| Command | `cd backend && npm test` |
+| Result | ✅ PASS |
+
+**T-117 specific:** All 9 streak tests in `careActionsStreak.test.js` pass. The `daysAgo(0)` helper uses `setUTCHours(0,0,0,0)` — always produces a past timestamp regardless of UTC hour. No production code was changed.
+
+---
+
+### Unit Tests — Frontend (Test Type: Unit Test)
+
+| Metric | Result |
+|--------|--------|
+| Test Suites | 33 passed, 33 total |
+| Tests | 262 passed, 262 total |
+| Failures | 0 |
+| Duration | 3.36s |
+| Command | `cd frontend && npm test` |
+| Result | ✅ PASS |
+
+**T-118 specific:** 3 new test cases in `UnsubscribePage.test.jsx` cover: (1) 404 → "Go to Plant Guardians" CTA linking to `/`, (2) 400 INVALID_TOKEN → "Sign In" CTA linking to `/login`, (3) 500 server error → "Sign In" CTA linking to `/login`. Net +3 tests from 259 baseline.
+
+---
+
+### Integration Test — T-117 & T-118 (Test Type: Integration Test)
+
+| Check | Result | Details |
+|-------|--------|---------|
+| T-117: daysAgo(0) always past | ✅ PASS | `setUTCHours(0,0,0,0)` — start of UTC day is always ≤ now |
+| T-117: No production code changes | ✅ PASS | Only `backend/tests/careActionsStreak.test.js` modified |
+| T-117: 188/188 backend tests | ✅ PASS | Full suite green, no regressions |
+| T-118: 404 → "Go to Plant Guardians" CTA | ✅ PASS | `errorIs404` state correctly branches rendering |
+| T-118: Non-404 errors → "Sign In" CTA | ✅ PASS | 400, 401, 422, 5xx all render "Sign In" → `/login` |
+| T-118: Error states render correctly | ✅ PASS | Loading, success, error (missing params, INVALID_TOKEN, 404, generic) |
+| T-118: API contract compliance | ✅ PASS | Uses existing `GET /api/v1/unsubscribe` from Sprint 22 — no changes needed |
+| T-118: 262/262 frontend tests | ✅ PASS | Full suite green, no regressions |
+
+---
+
+### Config Consistency Check (Test Type: Config Consistency)
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Backend PORT vs Vite proxy target | ✅ PASS | Backend PORT=3000, Vite proxy target=`http://localhost:3000` |
+| SSL consistency | ✅ PASS | No SSL in dev; Vite uses `http://` — consistent |
+| CORS includes frontend origin | ✅ PASS | `FRONTEND_URL` includes `http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` |
+| Docker postgres port vs DATABASE_URL | ✅ PASS | Both use port 5432 |
+
+No config mismatches found.
+
+---
+
+### Security Scan (Test Type: Security Scan)
+
+| Check | Result | Details |
+|-------|--------|---------|
+| npm audit (backend) | ✅ PASS | 0 vulnerabilities |
+| Hardcoded secrets in source | ✅ PASS | All secrets via env vars (`JWT_SECRET`, `GEMINI_API_KEY`, `UNSUBSCRIBE_SECRET`) |
+| .env in .gitignore | ✅ PASS | `.env`, `.env.local`, `.env.*.local`, `.env.production` all gitignored |
+| SQL injection vectors | ✅ PASS | All queries use Knex parameterized builder — no string concatenation |
+| XSS vulnerabilities | ✅ PASS | No `dangerouslySetInnerHTML` in production code; `innerHTML` only in test assertions |
+| Password hashing | ✅ PASS | bcrypt with 12 rounds |
+| Error response safety | ✅ PASS | Error handler returns generic message + code, never leaks stack traces |
+| Security headers (helmet) | ✅ PASS | `helmet()` middleware applied in `app.js` |
+| CORS enforcement | ✅ PASS | Restricted to configured `FRONTEND_URL` origins |
+| Auth enforcement | ✅ PASS | All protected endpoints require Bearer token; 401 returned without auth |
+| Rate limiting | ✅ PASS | Auth, stats, and global rate limiters configured |
+| Refresh token security | ✅ PASS | SHA-256 hashed, rotation on use, revocation support |
+
+No security failures found. All checklist items pass.
+
+---
+
+### Verdict
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T-117 | ✅ QA PASS | 188/188 backend, timezone fix verified, no prod code changes |
+| T-118 | ✅ QA PASS | 262/262 frontend, CTA differentiation verified, 3 new tests |
+| Security | ✅ PASS | All checklist items verified |
+| Config | ✅ PASS | No mismatches |
+
+**Sprint #26 QA Status: PASS — Ready for Deploy**
+
+---
+
 ## Build — Sprint #25 | 2026-04-06
 
 **Agent:** Deploy Engineer

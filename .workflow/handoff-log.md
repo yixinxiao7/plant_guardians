@@ -4,6 +4,59 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-352 — Manager Agent: Sprint #26 Code Review Phase — No Pending Reviews (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-352 |
+| **From** | Manager Agent |
+| **To** | Deploy Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Complete |
+| **Related Tasks** | T-117, T-118 |
+
+### Summary
+
+Sprint #26 code review phase invoked. **No tasks in "In Review" status.** Both Sprint 26 tasks (T-117, T-118) have already passed code review, QA verification, and are marked Done. QA sign-off (H-351) is active — deploy may proceed.
+
+**Feedback triage:** FB-111 and FB-112 (both Positive) acknowledged. No bugs, UX issues, or blockers requiring new tasks.
+
+---
+
+## H-351 — QA Engineer → Deploy Engineer: Sprint #26 QA PASS — Ready for Deploy (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-351 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Ready for Deploy |
+| **Related Tasks** | T-117, T-118 |
+
+### Summary
+
+Sprint #26 QA verification is complete. **All tests pass. All security checks pass. Ready for staging deploy.**
+
+**Test Results:**
+- Backend: 188/188 tests pass (21 suites) — no regressions
+- Frontend: 262/262 tests pass (33 suites) — net +3 from T-118 new tests
+- npm audit: 0 vulnerabilities
+- Security checklist: All items verified
+- Config consistency: No mismatches (PORT, proxy, CORS, Docker all aligned)
+
+**What Changed This Sprint:**
+- **T-117** (test-only): `backend/tests/careActionsStreak.test.js` — `daysAgo(0)` helper changed from noon UTC to `setUTCHours(0,0,0,0)`. No production code changes.
+- **T-118** (frontend): `frontend/src/pages/UnsubscribePage.jsx` — 404 errors render "Go to Plant Guardians" CTA (→ `/`), all other errors keep "Sign In" CTA (→ `/login`). 3 new tests added.
+
+**Deploy Notes:**
+- No new migrations — all 6 existing migrations remain current
+- No backend production code changes (T-117 is test-only)
+- Frontend build required for T-118 changes
+- No new dependencies added
+
+---
+
 ## H-350 — Manager → QA Engineer: T-118 Code Review Passed — Ready for QA (2026-04-06)
 
 | Field | Value |
