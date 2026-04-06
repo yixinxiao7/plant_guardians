@@ -4,6 +4,109 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Build & Staging Deploy — Sprint #26 | 2026-04-06
+
+**Agent:** Deploy Engineer
+**Sprint:** 26
+**Timestamp:** 2026-04-06T15:36:00Z
+**Tasks:** T-117, T-118
+**QA Sign-off:** H-351 (2026-04-06) — All tests pass, ready for deploy
+
+---
+
+### Pre-Deploy Checks
+
+| Check | Result |
+|-------|--------|
+| QA confirmation in handoff log | ✅ H-351 — All 188/188 backend + 262/262 frontend tests pass |
+| Manager code review sign-off | ✅ H-352 — Both tasks passed review, marked Done |
+| T-117 status | ✅ Done |
+| T-118 status | ✅ Done |
+| Pending migrations | ✅ None — all 6 migrations already applied (`Already up to date`) |
+| New dependencies | ✅ None added this sprint |
+
+---
+
+### Dependency Install
+
+| Package | Result |
+|---------|--------|
+| `cd backend && npm install` | ✅ 0 vulnerabilities |
+| `cd frontend && npm install` | ✅ 0 vulnerabilities |
+
+---
+
+### Frontend Build
+
+| Metric | Result |
+|--------|--------|
+| Command | `cd frontend && npm run build` |
+| Build Tool | Vite v8.0.2 |
+| Modules Transformed | 4651 |
+| Output | `dist/index.html` (1.50 kB), `dist/assets/index-CBkBJ25P.js` (465.30 kB / 131.53 kB gzip), `dist/assets/index-C061Bu2J.css` (92.65 kB / 14.66 kB gzip) |
+| Build Time | 326ms |
+| Errors | 0 |
+| **Build Status** | ✅ **SUCCESS** |
+
+---
+
+### Infrastructure — Docker Availability
+
+| Check | Result |
+|-------|--------|
+| Docker CLI | ❌ Not installed on this machine |
+| Fallback | Local process deployment (backend via `npm start`) |
+| `docker-compose.yml` | Present in `infra/` — ready for environments with Docker |
+
+**Note:** Docker is not available in this environment. Staging deploy proceeds via local Node.js process as documented. Docker Compose files (`infra/docker-compose.yml`, `infra/docker-compose.staging.yml`) are in place and functional for environments where Docker is installed.
+
+---
+
+### Database Migrations
+
+| Command | Result |
+|---------|--------|
+| `cd backend && npm run migrate` | ✅ `Already up to date` — all 6 migrations current |
+
+**Migrations applied (cumulative):**
+1. `20260323_01_create_users.js` — ✅
+2. `20260323_02_create_refresh_tokens.js` — ✅
+3. `20260323_03_create_plants.js` — ✅
+4. `20260323_04_create_care_schedules.js` — ✅
+5. `20260323_05_create_care_actions.js` — ✅
+6. `20260405_01_create_notification_preferences.js` — ✅
+
+---
+
+### Staging Deployment
+
+| Field | Value |
+|-------|-------|
+| Environment | Staging (local) |
+| Backend Start Command | `NODE_ENV=production npm start` |
+| Backend Port | 3000 |
+| Backend URL | http://localhost:3000 |
+| Health Endpoint | `GET /api/health` |
+| Health Response | `{"status":"ok","timestamp":"2026-04-06T15:36:27.332Z"}` |
+| Frontend Build | Served from `frontend/dist/` |
+| **Build Status** | ✅ **SUCCESS** |
+| **Deploy Status** | ✅ **SUCCESS** |
+
+---
+
+### Staging Verification
+
+| Check | Result |
+|-------|--------|
+| Backend process started | ✅ `Plant Guardians API running on port 3000 [production]` |
+| Database pool warmed up | ✅ 2 connections (pool.min=1) |
+| Health check `GET /api/health` | ✅ `{"status":"ok"}` |
+| Auth route responsive `POST /api/v1/auth/register` | ✅ Returns validation error (expected — route is live) |
+| EmailService degradation | ✅ Graceful — EMAIL_HOST not set, email disabled with warning (no crash) |
+| Frontend build artifacts | ✅ Present in `frontend/dist/` |
+
+---
+
 ## QA Verification — Sprint #26 | 2026-04-06
 
 **Agent:** QA Engineer

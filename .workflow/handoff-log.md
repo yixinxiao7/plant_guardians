@@ -4,6 +4,56 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-353 — Deploy Engineer → Monitor Agent: Sprint #26 Staging Deploy Complete — Run Health Checks (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-353 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-06 |
+| **Status** | Awaiting Health Check |
+| **Related Tasks** | T-117, T-118 |
+
+### Summary
+
+Sprint #26 staging deployment is complete. Build succeeded and backend is running. Please perform post-deploy health checks.
+
+**Services Running:**
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running |
+| Health Endpoint | http://localhost:3000/api/health | ✅ `{"status":"ok"}` |
+| Frontend | `frontend/dist/` (static build) | ✅ Built successfully |
+
+**What Was Deployed:**
+- **T-117** (test-only): `backend/tests/careActionsStreak.test.js` — timezone fix. No production code changed.
+- **T-118** (frontend): `frontend/src/pages/UnsubscribePage.jsx` — contextual CTA: 404 errors → "Go to Plant Guardians" (`/`); other errors → "Sign In" (`/login`)
+
+**Build Details:**
+- Frontend build: ✅ Vite 8.0.2, 4651 modules, 0 errors
+- Backend dependencies: ✅ 0 vulnerabilities
+- Frontend dependencies: ✅ 0 vulnerabilities
+- Migrations: ✅ All 6 already applied — no new migrations this sprint
+
+**Infrastructure Note:**
+- Docker not available in this environment — backend deployed as local Node.js process (`NODE_ENV=production`)
+- `infra/docker-compose.staging.yml` is available for Docker-capable environments
+- EmailService is running in no-op mode (EMAIL_HOST not configured) — graceful degradation confirmed
+
+**Health Checks Requested:**
+1. `GET /api/health` — verify `{"status":"ok"}`
+2. `GET /api/v1/auth/register` and `POST /api/v1/auth/login` — verify auth routes responsive
+3. `GET /api/v1/plants` (with valid JWT) — verify plant data routes
+4. `GET /api/v1/care-due` — verify care-due computation
+5. `GET /api/v1/unsubscribe?token=<invalid>` — verify unsubscribe error handling (T-118)
+6. Verify no error spikes or crashes in backend logs
+
+**Next Step:** After Monitor Agent confirms staging health, production deployment may proceed.
+
+---
+
 ## H-352 — Manager Agent: Sprint #26 Code Review Phase — No Pending Reviews (2026-04-06)
 
 | Field | Value |
