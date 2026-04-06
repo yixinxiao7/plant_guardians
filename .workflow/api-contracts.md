@@ -3802,3 +3802,237 @@ No Knex migration file is needed. No Deploy Engineer migration handoff is requir
 ---
 
 *Sprint 23 contracts written by Backend Engineer — 2026-04-05. New endpoint: DELETE /api/v1/profile (T-106). No schema changes. T-104 (streak test flakiness fix) has no API surface changes — test-only fix. All prior sprint contracts remain authoritative.*
+
+---
+
+## Sprint 24 Contracts — 2026-04-06
+
+**Sprint Goal:** Batch Mark-Done on Care Due Dashboard (T-109) + Rate Limiting on high-frequency endpoints (T-111).
+
+**Author:** Backend Engineer
+**Date:** 2026-04-06
+
+---
+
+### GROUP — Batch Care Actions (T-109)
+
+---
+
+#### POST /api/v1/care-actions/batch
+
+**Auth:** Required — Bearer token in `Authorization: Bearer <access_token>` header
+
+**Description:** Records multiple care actions in a single atomic transaction. Accepts up to 50 care action items. Each item's ownership is validated against the authenticated user before insert. Returns `207 Multi-Status` with a per-item result array indicating whether each action was created or failed. This enables the batch mark-done flow on the Care Due Dashboard (SPEC-019).
+
+**Request Body:**
+
+```json
+{
+  "actions": [
+    {
+      "plant_id": "uuid",          // required; UUID of the plant
+      "care_type": "string",       // required; one of: "watering", "fertilizing", "repotting"
+      "performed_at": "string"     // required; ISO 8601 UTC timestamp (e.g. "2026-04-06T14:30:00.000Z")
+    }
+  ]
+}
+```
+
+**Validation Rules:**
+
+| Field | Rules |
+|-------|-------|
+| `actions` | Required; non-empty array; maximum 50 items; returns `400` if missing, empty, or length > 50 |
+| `actions[*].plant_id` | Required; valid UUID format; must be a plant owned by the authenticated user (ownership failure → per-item error in 207 response, not a top-level 403) |
+| `actions[*].care_type` | Required; must be one of `"watering"`, `"fertilizing"`, `"repotting"` |
+| `actions[*].performed_at` | Required; must be a valid ISO 8601 date-time string; future dates are accepted |
+
+**Ownership Resolution:** For each `plant_id` in the batch, the backend verifies it belongs to `req.user.id`. Plant IDs that exist but belong to another user produce a per-item `"error"` in the results array. Plant IDs that do not exist at all also produce a per-item `"error"`. No top-level `403` is returned — all ownership failures are reported at the item level.
+
+**Transaction Behavior:** All items that pass validation and ownership checks are inserted into `care_actions` in a single database transaction. If the transaction itself fails (DB error), the entire batch rolls back and a `500` is returned. Individual validation/ownership failures for specific items do NOT cause the entire transaction to abort — valid items are still committed.
+
+**Success Response — 207 Multi-Status:**
+
+Returned for any request where the array was non-empty and ≤ 50 items, regardless of per-item success or failure. The caller must inspect each result's `status` field.
+
+```json
+{
+  "data": {
+    "results": [
+      {
+        "plant_id": "uuid",
+        "care_type": "watering",
+        "performed_at": "2026-04-06T14:30:00.000Z",
+        "status": "created",   // "created" | "error"
+        "error": null          // null on success; error message string on failure
+      },
+      {
+        "plant_id": "uuid",
+        "care_type": "fertilizing",
+        "performed_at": "2026-04-06T14:30:00.000Z",
+        "status": "error",
+        "error": "Plant not found or not owned by user"
+      }
+    ],
+    "created_count": 1,    // integer; number of items with status "created"
+    "error_count": 1       // integer; number of items with status "error"
+  }
+}
+```
+
+**All-success example (3 of 3 created):**
+
+```json
+{
+  "data": {
+    "results": [
+      { "plant_id": "uuid-1", "care_type": "watering",    "performed_at": "2026-04-06T14:30:00.000Z", "status": "created", "error": null },
+      { "plant_id": "uuid-2", "care_type": "fertilizing", "performed_at": "2026-04-06T14:30:00.000Z", "status": "created", "error": null },
+      { "plant_id": "uuid-3", "care_type": "repotting",   "performed_at": "2026-04-06T14:30:00.000Z", "status": "created", "error": null }
+    ],
+    "created_count": 3,
+    "error_count": 0
+  }
+}
+```
+
+**Error Responses (top-level — request rejected before processing):**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `actions` array is missing, empty (`[]`), or exceeds 50 items; or any item is missing a required field (`plant_id`, `care_type`, `performed_at`); or `care_type` is not one of the accepted values; or `performed_at` is not a valid ISO 8601 string. The `message` field identifies the specific violation. |
+| 401 | `UNAUTHORIZED` | Missing, expired, or invalid Bearer token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error; transaction rolled back — no partial data written |
+
+**Error response shape (400 example):**
+
+```json
+{
+  "error": {
+    "message": "actions must be a non-empty array with at most 50 items",
+    "code": "VALIDATION_ERROR"
+  }
+}
+```
+
+**Error response shape (400 — missing field example):**
+
+```json
+{
+  "error": {
+    "message": "actions[2].care_type is required and must be one of: watering, fertilizing, repotting",
+    "code": "VALIDATION_ERROR"
+  }
+}
+```
+
+**Implementation Notes:**
+
+- Route handler: new `POST /batch` handler on `backend/src/routes/careActions.js`
+- Model method: `CareAction.batchCreate(userId, actions)` in `backend/src/models/CareAction.js`
+  - Resolves ownership for all `plant_id` values in a single query (`SELECT id FROM plants WHERE user_id = ? AND id = ANY(?)`) before attempting inserts
+  - Inserts all valid (owned + valid fields) actions in a single `knex.transaction`
+  - Returns the results array with per-item status
+- Auth middleware (`requireAuth`) must be applied before this handler
+- `performed_at` defaults to `new Date().toISOString()` is **not** applied server-side — the client must always supply it explicitly
+
+---
+
+### GROUP — Rate Limiting (T-111)
+
+---
+
+**Note:** Rate limiting is implemented as Express middleware (`backend/src/middleware/rateLimiter.js`) — not a new endpoint. This section documents the rate limiting rules applied to existing endpoints, the 429 response contract, and header conventions that all clients must handle.
+
+#### Rate Limiting Rules
+
+| Route Group | Endpoints | Limit | Window | Error Code |
+|-------------|-----------|-------|--------|------------|
+| Auth (strict) | `POST /api/v1/auth/login`, `POST /api/v1/auth/register`, `POST /api/v1/auth/refresh` | 10 requests | 15 minutes per IP | `RATE_LIMIT_EXCEEDED` |
+| Stats/read-heavy (moderate) | `GET /api/v1/care-actions/stats`, `GET /api/v1/care-actions/streak` | 60 requests | 1 minute per IP | `RATE_LIMIT_EXCEEDED` |
+| Global fallback (permissive) | All other `/api/v1/*` routes | 200 requests | 15 minutes per IP | `RATE_LIMIT_EXCEEDED` |
+
+**Environment variable overrides:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RATE_LIMIT_AUTH_MAX` | `10` | Max requests for auth endpoints per window |
+| `RATE_LIMIT_AUTH_WINDOW_MS` | `900000` (15 min) | Window duration (ms) for auth endpoints |
+| `RATE_LIMIT_STATS_MAX` | `60` | Max requests for stats/streak endpoints per window |
+| `RATE_LIMIT_STATS_WINDOW_MS` | `60000` (1 min) | Window duration (ms) for stats/streak endpoints |
+| `RATE_LIMIT_GLOBAL_MAX` | `200` | Max requests for global fallback per window |
+| `RATE_LIMIT_GLOBAL_WINDOW_MS` | `900000` (15 min) | Window duration (ms) for global fallback |
+
+**Test environment behavior:** Rate limiters are **skipped entirely** when `NODE_ENV === 'test'`. This ensures zero impact on the existing test suite. Implemented via `skip: (req) => process.env.NODE_ENV === 'test'` on all limiter instances.
+
+#### 429 Too Many Requests Response
+
+Returned when any configured limit is exceeded. Follows the existing error shape convention.
+
+```json
+{
+  "error": {
+    "message": "Too many requests. Please try again later.",
+    "code": "RATE_LIMIT_EXCEEDED"
+  }
+}
+```
+
+**Rate Limit Headers (included in all responses from rate-limited routes):**
+
+| Header | Description |
+|--------|-------------|
+| `RateLimit-Limit` | Maximum number of requests allowed in the current window |
+| `RateLimit-Remaining` | Number of requests remaining in the current window |
+| `RateLimit-Reset` | Unix timestamp (seconds) when the current window resets |
+
+**Frontend Integration Notes:**
+
+- The frontend does **not** need to actively handle 429 responses under normal usage — regular users will never hit these limits
+- If a 429 is encountered (e.g., during aggressive polling or test scenarios), treat it as a retriable error — surface a generic "Service temporarily unavailable. Please try again." message
+- Do not retry 429 responses automatically — wait for the `RateLimit-Reset` timestamp before retrying
+
+---
+
+### Schema Changes — Sprint 24
+
+**No new tables or columns required for Sprint 24.**
+
+- `POST /api/v1/care-actions/batch` writes to the existing `care_actions` table (no structural changes)
+- Rate limiting (T-111) is application-layer middleware — no database involvement
+
+No Knex migration file is needed. No Deploy Engineer migration handoff is required for this sprint.
+
+---
+
+### Frontend Integration Notes — Sprint 24 (for T-110)
+
+#### POST /api/v1/care-actions/batch — Integration Guide
+
+1. **Helper method:** Add `careActions.batch(actions)` to `frontend/src/utils/api.js`:
+   ```js
+   // actions: Array<{ plant_id: string, care_type: string, performed_at: string }>
+   batch: (actions) => apiFetch('/care-actions/batch', {
+     method: 'POST',
+     body: JSON.stringify({ actions }),
+   })
+   ```
+
+2. **Request shape:** Always supply `performed_at` as `new Date().toISOString()` for each action at call time. Do not rely on server-side defaulting.
+
+3. **Interpreting the 207 response:**
+   - Check `data.error_count`: if `0` → all items succeeded → full success flow
+   - If `error_count > 0` and `created_count > 0` → partial failure flow
+   - If `error_count === actions.length` → all failed (edge case, treat as full failure)
+   - The `results` array is positionally ordered to match the input `actions` array
+
+4. **Retry on partial failure:** When retrying failed items, send only the items whose `status === "error"` in the previous 207 response. Do not re-send already-created items.
+
+5. **Error handling:**
+   - `400 VALIDATION_ERROR` → programming error (malformed request) — log to console, show generic error banner
+   - `401 UNAUTHORIZED` → trigger auth refresh flow (same as all other protected endpoints)
+   - `500 INTERNAL_ERROR` → show generic error: "Something went wrong. Please try again."
+
+---
+
+*Sprint 24 contracts written by Backend Engineer — 2026-04-06. New endpoint: POST /api/v1/care-actions/batch (T-109). Rate limiting addendum for T-111. No schema changes. All prior sprint contracts remain authoritative.*

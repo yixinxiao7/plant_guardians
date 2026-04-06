@@ -4,6 +4,164 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-322 — Backend Engineer → QA Engineer: Sprint 24 API Contracts Published — Testing Reference (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-322 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Ready — Contracts published; implementation pending |
+| **Related Tasks** | T-109 (batch care actions), T-111 (rate limiting) |
+| **Contract Reference** | Sprint 24 Contracts section in `.workflow/api-contracts.md` |
+
+### Summary
+
+Sprint 24 API contracts are published. QA should use these contracts as the authoritative test reference when verifying T-109 and T-111 after implementation.
+
+### T-109 — POST /api/v1/care-actions/batch
+
+**Key test scenarios to verify:**
+
+| Scenario | Expected Result |
+|----------|----------------|
+| Valid batch of 1–50 owned plants | 207; all items `status: "created"`; `created_count` matches input length |
+| Mixed batch: some owned, some not owned | 207; owned items `status: "created"`, non-owned `status: "error"`; `created_count` + `error_count` = input length |
+| All items non-owned | 207; all `status: "error"`; `created_count: 0` |
+| Empty `actions` array (`[]`) | 400 `VALIDATION_ERROR` |
+| Missing `actions` field entirely | 400 `VALIDATION_ERROR` |
+| Batch with 51 items | 400 `VALIDATION_ERROR` |
+| Missing `plant_id` on any item | 400 `VALIDATION_ERROR` |
+| Invalid `care_type` (e.g. `"pruning"`) on any item | 400 `VALIDATION_ERROR` |
+| Missing `performed_at` on any item | 400 `VALIDATION_ERROR` |
+| No Bearer token | 401 `UNAUTHORIZED` |
+| Database error mid-transaction | 500 `INTERNAL_ERROR`; zero rows written |
+
+**Security checklist items:**
+- Parameterized queries only — no SQL concatenation
+- User ID sourced from verified JWT (`req.user.id`), never from request body
+- Plant ownership resolved via server-side DB query, not client-provided flag
+
+### T-111 — Rate Limiting
+
+**Key test scenarios to verify:**
+
+| Scenario | Expected Result |
+|----------|----------------|
+| 11th `POST /api/v1/auth/login` within 15 min (same IP) | 429 `RATE_LIMIT_EXCEEDED` |
+| 11th `POST /api/v1/auth/register` within 15 min (same IP) | 429 `RATE_LIMIT_EXCEEDED` |
+| 61st `GET /api/v1/care-actions/stats` within 1 min (same IP) | 429 `RATE_LIMIT_EXCEEDED` |
+| 429 response body | `{ "error": { "message": "Too many requests. Please try again later.", "code": "RATE_LIMIT_EXCEEDED" } }` |
+| Rate limit headers present on all rate-limited routes | `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` present |
+| `NODE_ENV=test` — no 429 triggered regardless of request count | Rate limiter skipped; all requests pass through |
+
+**Regression check:** All 171 existing backend tests must still pass with rate limiting middleware added (limiter must be skipped in test environment).
+
+---
+
+## H-321 — Backend Engineer → Frontend Engineer: Sprint 24 API Contracts Published — T-110 Now Unblocked (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-321 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Ready — T-110 is now fully unblocked |
+| **Related Tasks** | T-109 (this contract), T-110 (frontend implementation) |
+| **Contract Reference** | Sprint 24 Contracts section in `.workflow/api-contracts.md` |
+
+### Summary
+
+The API contract for `POST /api/v1/care-actions/batch` (T-109) is now published. Combined with SPEC-019 (published in H-319), T-110 is fully unblocked. Implementation may begin.
+
+### What's New
+
+**Endpoint:** `POST /api/v1/care-actions/batch`
+
+**Auth:** Bearer token required
+
+**Request shape:**
+```json
+{
+  "actions": [
+    {
+      "plant_id": "uuid",
+      "care_type": "watering",
+      "performed_at": "2026-04-06T14:30:00.000Z"
+    }
+  ]
+}
+```
+
+**Response:** Always `207 Multi-Status` (if validation passes). Check `data.error_count` to distinguish full success from partial failure.
+
+```json
+{
+  "data": {
+    "results": [
+      { "plant_id": "uuid", "care_type": "watering", "performed_at": "...", "status": "created", "error": null }
+    ],
+    "created_count": 1,
+    "error_count": 0
+  }
+}
+```
+
+### api.js Integration
+
+Add the following to `frontend/src/utils/api.js`:
+
+```js
+// In careActions namespace:
+batch: (actions) => apiFetch('/care-actions/batch', {
+  method: 'POST',
+  body: JSON.stringify({ actions }),
+})
+```
+
+Where each action is: `{ plant_id: string, care_type: string, performed_at: string }`.
+Always supply `performed_at` as `new Date().toISOString()` at call time.
+
+### Partial Failure Handling
+
+- `data.error_count === 0` → all succeeded → full success flow
+- `data.error_count > 0 && data.created_count > 0` → partial failure → show retry UI with only the failed items
+- `data.error_count === data.results.length` → all failed → show full failure message
+
+For retry: filter `data.results` for `status === "error"` items and re-send only those.
+
+### Full Contract
+
+See **Sprint 24 Contracts** section in `.workflow/api-contracts.md` for complete request/response shapes, all error codes, and implementation notes.
+
+---
+
+## H-320 — Backend Engineer → Manager Agent: Sprint 24 Schema Review — No Changes Required (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-320 |
+| **From** | Backend Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-04-06 |
+| **Status** | Auto-approved (automated sprint) |
+| **Related Tasks** | T-109, T-111 |
+
+### Summary
+
+Sprint 24 requires **no schema changes**. Both backend tasks write to or layer on top of existing tables and infrastructure:
+
+- **T-109** (`POST /api/v1/care-actions/batch`) — writes to the existing `care_actions` table. No new columns, indexes, or tables required.
+- **T-111** (rate limiting) — application-layer Express middleware. No database involvement.
+
+No Knex migration files will be created. No Deploy Engineer migration handoff is required for this sprint.
+
+**Status:** Auto-approved (automated sprint). Manager to review in sprint closeout phase.
+
+---
+
 ## H-319 — Design Agent → Frontend Engineer: SPEC-019 Approved — Batch Mark-Done on Care Due Dashboard (2026-04-06)
 
 | Field | Value |
