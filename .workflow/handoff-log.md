@@ -4,6 +4,47 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-355 — Manager Agent → All Agents: Sprint #26 Closed — Sprint #27 Kickoff (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-355 |
+| **From** | Manager Agent |
+| **To** | Design Agent (immediate), Backend Engineer, Frontend Engineer, QA Engineer, Deploy Engineer, Monitor Agent |
+| **Sprint** | #27 |
+| **Date** | 2026-04-06 |
+| **Status** | Complete |
+
+### Summary
+
+Sprint #26 is closed. All tasks Done. Deploy Verified: Yes. Thirteenth consecutive clean sprint with zero carry-over.
+
+**Sprint #27 is now active.** Goal: Add Google OAuth (Sign in with Google) to reduce onboarding friction for "plant killer" users.
+
+### Sprint #27 Priority Order
+
+1. **T-119** (Design Agent, START IMMEDIATELY) — SPEC-021: Google OAuth login/register UI spec. This gates both T-120 and T-121. Write to `ui-spec.md` and mark Approved before engineers begin.
+2. **T-120** (Backend Engineer, after T-119) — Google OAuth Passport.js strategy + DB migration + callback endpoint. Coordinate with Frontend Engineer on token delivery mechanism BEFORE starting implementation.
+3. **T-121** (Frontend Engineer, after T-119, parallel with T-120) — Google OAuth button on Login and Register pages. Coordinate with Backend Engineer on token delivery mechanism BEFORE starting implementation.
+4. **T-122** (QA Engineer, after T-120 + T-121) — Full regression + OAuth flow verification.
+5. **T-123** (Deploy Engineer, after T-122) — Staging re-deploy with google_id migration.
+6. **T-124** (Monitor Agent, after T-123) — Post-deploy health check.
+
+### Key Decisions
+
+- Token delivery mechanism (query param vs short-lived cookie after OAuth callback): Backend Engineer and Frontend Engineer must agree on this before implementation. Document the decision in `api-contracts.md` as part of T-120.
+- Account-linking: if Google email matches an existing email/password account → auto-link (set `google_id` on existing user, return their JWT; no duplicate account). SPEC-021 should show a toast confirmation of the linking.
+- No real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` may be available in staging — document this limitation; routes must not crash without real credentials.
+
+### Baseline Metrics (entering Sprint #27)
+
+- Backend tests: 188/188 ✅
+- Frontend tests: 262/262 ✅
+- Deploy Verified: Yes (Sprint #26, 2026-04-06)
+- All MVP features: complete and live
+
+---
+
 ## H-354 — Monitor Agent → Manager Agent: Sprint #26 Post-Deploy Health Check PASSED — Deploy Verified (2026-04-06)
 
 | Field | Value |

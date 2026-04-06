@@ -4,6 +4,63 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #26 — 2026-05-24 to 2026-05-30
+
+**Sprint Goal:** Harden test reliability and polish edge-case UX — fix timezone-dependent flakiness in `careActionsStreak.test.js` (T-117) and improve the unsubscribe error page CTA to be contextually appropriate for deleted-account users (T-118).
+
+**Outcome:** ✅ Goal fully met — both tasks (T-117, T-118) completed. Backend: 188/188 tests pass. Frontend: 262/262 tests pass (+3 from T-118). Staging build successful. **Deploy Verified: Yes** (Monitor Agent H-354, 2026-04-06). Thirteenth consecutive sprint with zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-117 | Backend: Fixed `careActionsStreak.test.js` timezone-dependent flakiness (FB-101) — changed `daysAgo(0)` from noon UTC to `d.setUTCHours(0, 0, 0, 0)` (start of UTC day) so the timestamp is always in the past regardless of current UTC hour. 5 affected streak tests now pass at any UTC hour. No behavioral changes to production code. 188/188 backend tests pass. Inline comment documents the fix rationale. |
+| T-118 | Frontend: Fixed unsubscribe error CTA contextual differentiation (FB-104) — for HTTP 404 responses from `GET /api/v1/unsubscribe`, CTA now renders as "Go to Plant Guardians" linking to `/`; for all other errors (400, 401, 422, 5xx), CTA renders as "Sign In" linking to `/login` (existing behavior preserved). 3 new tests added covering 404 CTA differentiation and non-404 error paths. 262/262 frontend tests pass. |
+
+#### Tasks Carried Over
+
+None. Thirteenth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. Monitor Agent health check returned **Deploy Verified: Yes** (2026-04-06, H-354). All endpoints operational; unsubscribe 400 path verified; zero 5xx errors observed across all health check requests. 188/188 backend tests, 262/262 frontend tests — all pass.
+
+---
+
+#### Key Feedback Themes
+
+- **FB-111** (Positive): The 404 → "Go to Plant Guardians" vs other errors → "Sign In" differentiation is a genuinely considerate UX detail. Users with deleted accounts won't be confused by a "Sign In" CTA they cannot use. Error messages are clear and human-readable.
+- **FB-112** (Positive): The `daysAgo(0)` noon-UTC to start-of-day fix is clean and minimal. The inline comment explaining the rationale sets a good documentation standard. Eliminates a flaky test that could erode CI trust over time.
+
+---
+
+#### What Went Well
+
+- Both fixes were precisely scoped — minimal code changes, zero production-behavior impact, no scope creep
+- T-118 exceeded acceptance criteria (+3 tests instead of the required +1)
+- T-117 comment quality establishes a documentation standard for subtle timezone edge cases
+- Thirteenth consecutive sprint with zero carry-over
+- Sprint #26 closes the FB-101 and FB-104 backlog items that had been deferred since Sprints 22–23
+
+#### What To Improve
+
+- Both sprint tasks were XS in actual complexity — future polish sprints could pack 3–4 of these into a single cycle to increase throughput
+- Production deployment remains blocked on external dependency (SSL certs from project owner)
+
+#### Technical Debt Noted
+
+- Express 5 migration — advisory backlog; no urgency with current test suite stability
+- Soft-delete / grace period for account deletion — post-MVP when user base grows
+- Production email delivery blocked on project owner providing SMTP credentials
+- Local process-based staging is not persistent — Monitor Agent must restart backend if connection refused before health checks
+- Google OAuth (B-001) — deferred post-MVP; tasked for Sprint #27
+
+---
+
 ### Sprint #25 — 2026-05-17 to 2026-05-23
 
 **Sprint Goal:** Fix the care status inconsistency between My Plants and the Care Due Dashboard (FB-108 → T-116), and clean up stale rate-limit env var names in `backend/.env` (FB-107 → T-115).
