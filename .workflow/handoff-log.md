@@ -4,6 +4,59 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-304 — QA Engineer → Deploy Engineer: Sprint #22 QA Complete — Ready for Staging Deploy (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-304 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-04-05 |
+| **Sprint** | #22 |
+| **Status** | Ready for Deploy |
+| **Related Tasks** | T-101 (Done), T-102 (Done) |
+
+### Summary
+
+All Sprint #22 QA checks have passed. T-101 and T-102 are moved to Done in `dev-cycle-tracker.md`. The application is ready for staging deployment.
+
+### QA Results Summary
+
+| Check | Result |
+|-------|--------|
+| Backend unit tests | 166/166 PASS (17 new, 0 regressions) |
+| Frontend unit tests | 239/239 PASS (12 new, 0 regressions) |
+| Integration test (API contract) | ALL PASS — request/response shapes, auth, validation verified |
+| Integration test (UI states) | ALL PASS — loading, success, error, empty states implemented |
+| Config consistency | ALL PASS — PORT, proxy, CORS, docker all consistent |
+| Security scan | ALL PASS — no hardcoded secrets, parameterized queries, XSS escaped, HMAC constant-time, Helmet headers |
+| npm audit (backend) | 0 vulnerabilities |
+| npm audit (frontend) | 0 vulnerabilities |
+| Product perspective | No blocking issues |
+
+### Deploy Notes
+
+1. **New migration:** `notification_preferences` table must be applied before starting the backend
+2. **New env vars (optional):** `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM`, `UNSUBSCRIBE_SECRET`, `APP_BASE_URL` — if not set, backend starts normally with email sending disabled
+3. **Admin endpoint:** `POST /api/v1/admin/trigger-reminders` is only registered when `NODE_ENV !== 'production'` — verify it is NOT accessible on staging if `NODE_ENV=production`
+4. **No breaking changes** to existing endpoints — all prior functionality intact
+
+### Known Non-Blocking Note
+
+The `unsubscribe()` function in `frontend/src/utils/api.js` only passes `token` but the backend requires both `token` and `uid`. This is acceptable because no unsubscribe page exists in the frontend yet (Surface 3 in SPEC-017 was not in T-102 scope). Will need a fix in a future sprint when the unsubscribe page is built.
+
+### Re-Verification (2026-04-05T20:07Z — Automated Orchestrator)
+
+Fresh test run confirms Sprint #22 QA approval stands:
+- Frontend: **239/239 PASS** ✅
+- Backend: **161/166 PASS** — 5 failures in `careActionsStreak.test.js` are **pre-existing timezone flakiness** (not Sprint #22 regression). The `daysAgo(0)` helper generates noon-UTC timestamps that are "in the future" when tests run before noon UTC. All 17 Sprint #22 notification preferences tests pass.
+- npm audit: **0 vulnerabilities** on both sides ✅
+- New feedback filed: **FB-101** (Minor bug — careActionsStreak test flakiness for future sprint)
+
+**Deploy readiness confirmed.** No changes to deploy notes.
+
+---
+
 ## H-303 — Manager → QA Engineer: T-101 Code Review Passed (2nd Review) — Ready for QA (2026-04-05)
 
 | Field | Value |

@@ -20,6 +20,70 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-101 — QA: Bug — careActionsStreak.test.js timezone-dependent flakiness (Sprint 22)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-101 |
+| **Source** | QA Engineer |
+| **Sprint** | 22 |
+| **Category** | Bug |
+| **Severity** | Minor |
+| **Description** | 5 tests in `backend/tests/careActionsStreak.test.js` fail when run between midnight and noon UTC. The `daysAgo(0)` helper sets timestamp to noon UTC today, which is "in the future" during those hours, causing the backend's `performed_at` validation to reject with 400. |
+| **Steps to Reproduce** | Run `npm test` in backend when the current UTC time is before 12:00 UTC (e.g., 00:07 UTC). The 5 streak tests that call `recordCareAction` with `daysAgo(0)` will fail. |
+| **Expected vs Actual** | Expected: all streak tests pass regardless of time of day. Actual: 5 tests fail with 400 instead of 201 due to future-timestamp rejection. |
+| **Fix** | Change `daysAgo(0)` to use `new Date()` (current time) or set hours to a value guaranteed to be in the past (e.g., `d.setUTCHours(0, 0, 0, 0)` for start-of-day). |
+| **Status** | New |
+
+---
+
+## FB-098 — QA: Positive — RemindersSection dirty-tracking and micro-copy are exemplary (Sprint 22)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-098 |
+| **Source** | QA Engineer |
+| **Sprint** | 22 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The RemindersSection component tracks "dirty" state by comparing current values against the last server-confirmed state (`serverOptIn`, `serverHour`). This means the Save button only appears when there's an actual unsaved change — no false "you have unsaved changes" warnings. The micro-copy distinction between "Save reminder settings" (when toggling on) and "Save changes" (when toggling off) is a thoughtful UX touch that gives the user clear intent feedback. The toast message similarly differentiates "Reminder settings saved" from "Email reminders turned off". This level of contextual copy should be the standard for all toggle-based settings going forward. |
+| **Status** | Acknowledged — Positive feedback. Dirty-tracking pattern and contextual micro-copy are team standards. |
+
+---
+
+## FB-099 — QA: Positive — EmailService graceful degradation is production-safe (Sprint 22)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-099 |
+| **Source** | QA Engineer |
+| **Sprint** | 22 |
+| **Date** | 2026-04-05 |
+| **Category** | Positive |
+| **Severity** | — |
+| **Description** | The EmailService is a singleton that checks `EMAIL_HOST` at construction time and sets `this.enabled = false` if not configured. Every send method short-circuits with `if (!this.enabled) return false`. The trigger-reminders endpoint still executes its full logic (querying opted-in users, evaluating due plants) and returns accurate stats (`emails_sent: 0`) — only the actual SMTP send is skipped. This means QA and staging environments can test the full reminder pipeline without SMTP infrastructure. The warning log at startup (`[EmailService] WARNING: EMAIL_HOST not configured — email sending disabled`) is clear and not noisy. Excellent graceful degradation pattern. |
+| **Status** | Acknowledged — Positive feedback. |
+
+---
+
+## FB-100 — QA: UX Issue — Frontend unsubscribe() missing uid parameter (Sprint 22)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-100 |
+| **Source** | QA Engineer |
+| **Sprint** | 22 |
+| **Date** | 2026-04-05 |
+| **Category** | UX Issue |
+| **Severity** | Minor |
+| **Description** | `frontend/src/utils/api.js` defines `notificationPreferences.unsubscribe(token)` which calls `GET /unsubscribe?token=<token>`, but the backend endpoint requires both `token` and `uid` query parameters. This will cause unsubscribe to fail (400 INVALID_TOKEN) when a frontend unsubscribe page is eventually built. Not blocking for Sprint 22 since no unsubscribe page exists yet (T-102 covered Surface 1 only). |
+| **Steps to Reproduce** | Call `notificationPreferences.unsubscribe(someToken)` — backend returns 400 because `uid` is missing. |
+| **Expected vs Actual** | Expected: unsubscribe function sends both `token` and `uid`. Actual: only sends `token`. |
+| **Status** | New — defer to future sprint when unsubscribe page (Surface 3 of SPEC-017) is implemented. |
+
+---
+
 ## FB-095 — QA: Positive — Care Notes feature is elegantly non-intrusive (Sprint 21)
 
 | Field | Value |
