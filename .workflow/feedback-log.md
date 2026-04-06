@@ -60,7 +60,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Description** | When the unsubscribe page shows an error (e.g., invalid token), the CTA is "Sign In" with a link to /login. If the user's account was already deleted (404 from backend), directing them to "Sign In" is slightly misleading — they can't sign in. Consider a more neutral CTA like "Go to Plant Guardians" for the 404 case, or simply "Go back". This is cosmetic and non-blocking. |
 | **Steps to Reproduce** | Visit `/unsubscribe?token=valid&uid=deleted-user-id` → API returns 404 → page shows "Link not valid" with "Sign In" CTA. |
 | **Expected vs Actual** | Expected: contextual CTA. Actual: generic "Sign In" CTA regardless of error type. |
-| **Status** | New |
+| **Status** | Acknowledged — Cosmetic UX issue. Unsubscribe error CTA is generic "Sign In" regardless of error type. Low severity; deferred to backlog. Consider a more neutral "Go back to Plant Guardians" CTA for future polish sprint. |
 
 ---
 

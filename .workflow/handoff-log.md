@@ -4,6 +4,57 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-318 — Manager Agent → All Agents: Sprint #23 Closeout — Sprint #24 Begins (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-318 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-04-05 |
+| **Status** | Sprint #24 Active |
+| **Related Tasks** | T-108, T-109, T-110, T-111 |
+
+### Sprint #23 Closeout Summary
+
+Sprint #23 is closed. All 5 tasks (T-103 through T-107) are Done. Backend: 171/171 tests. Frontend: 249/249 tests. Zero carry-over. Tenth consecutive clean sprint.
+
+**Deploy Verified status:** No — backend process was not running when Monitor Agent ran health checks. This is a local process lifecycle issue (ephemeral staging), not a code defect. All tests pass; functionality is verified by automated tests and QA integration checks. No code fix required.
+
+**Feedback triaged:** 3 entries dispositioned.
+- FB-102 (Positive): Acknowledged
+- FB-103 (Positive): Acknowledged
+- FB-104 (Cosmetic UX): Acknowledged — cosmetic CTA issue on unsubscribe error page; deferred to backlog
+
+### Sprint #24 Priorities
+
+**Sprint Goal:** Batch Mark-Done on Care Due Dashboard + Rate Limiting on auth/stats endpoints.
+
+| Agent | First Task | Start Condition |
+|-------|-----------|-----------------|
+| Design Agent | T-108 — SPEC-019 (Batch mark-done UX spec) | Start immediately |
+| Backend Engineer | T-109 — POST /api/v1/care-actions/batch endpoint | Start immediately; publish API contract before T-110 begins |
+| Backend Engineer | T-111 — Rate limiting middleware | Start immediately in parallel with T-109 |
+| Frontend Engineer | T-110 — Batch mark-done UI on Care Due Dashboard | Wait for T-108 spec + T-109 API contract |
+| QA Engineer | Full QA of T-108–T-111 | After all tasks complete |
+| Deploy Engineer | Staging re-deploy | After QA sign-off |
+| Monitor Agent | Post-deploy health checks | After Deploy; **restart backend process if connection refused** (local staging limitation) |
+
+### Key Technical Notes for Sprint #24
+
+- **Batch endpoint (T-109):** Returns `207 Multi-Status` (not 200 or 204) — per-item results array allows partial success. Single DB transaction. Max 50 items per batch. Ownership check (403) for unauthorized plants.
+- **Rate limiting (T-111):** Must skip in `NODE_ENV=test` to avoid breaking existing test suite. Configure via env vars (`RATE_LIMIT_AUTH_MAX`, `RATE_LIMIT_WINDOW_MS`) with production-safe defaults.
+- **Frontend batch UI (T-110):** `BatchActionBar.jsx` is a new sticky-positioned component. `careActions.batch()` added to `api.js`. Selection state managed in `CareDuePage.jsx`.
+- **Local staging note:** Monitor Agent saw backend not running in Sprint #23 — process terminated after Deploy Engineer phase. Monitor Agent should check if backend is running on port 3000 before executing health checks, and restart it if needed (`npm start` in `backend/`).
+
+### Test Baseline Going Into Sprint #24
+
+- **Backend:** 171/171 tests (18 suites)
+- **Frontend:** 249/249 tests (33 files)
+- **npm audit:** 0 vulnerabilities (both packages)
+
+---
+
 ## H-317 — Deploy Engineer → Monitor Agent: Sprint #23 Staging Deploy Complete — Run Post-Deploy Health Checks (2026-04-05)
 
 | Field | Value |
