@@ -30,7 +30,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Category** | Positive |
 | **Severity** | N/A |
 | **Description** | The batch mark-done feature (T-109 + T-110) directly addresses the core friction for "plant killer" users with multiple overdue items. The selection mode is intuitive — clicking "Select" enters the mode, checkboxes appear, "Select all" works correctly with indeterminate state. The sticky action bar with live count, confirmation flow, and success toast create a satisfying interaction. The partial failure handling is particularly well-designed: failed items stay selected with a clear retry path, while successful items animate out. This turns a 10-tap chore into a 2-tap action. The accessibility implementation (aria-labels on every checkbox, aria-live on count, role="toolbar") is thorough. |
-| **Status** | New |
+| **Status** | Acknowledged — Positive feedback. Batch mark-done for "plant killer" persona is exactly the right UX investment. Partial failure handling and accessibility implementation are team standards going forward. |
 
 ---
 
@@ -44,7 +44,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Category** | Positive |
 | **Severity** | N/A |
 | **Description** | The 3-tier rate limiting (T-111) is well-designed: strict on auth (brute-force protection), moderate on stats (prevents expensive query abuse), permissive global fallback (invisible to normal users). The structured 429 response matches the existing error shape convention. The test environment skip prevents test regressions. Env var overrides make it tunable per environment. Trust proxy configuration ensures correct IP detection behind a reverse proxy. This closes the long-deferred FB-073 feedback item. |
-| **Status** | New |
+| **Status** | Acknowledged — Positive feedback. 3-tier rate limiting strategy and structured 429 shape are team standards for all future rate-limited endpoints. |
 
 ---
 
@@ -60,7 +60,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Description** | The `backend/.env` file still contains legacy rate limit env vars (`RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`) from a prior sprint. T-111's `rateLimiter.js` uses different names (`RATE_LIMIT_AUTH_MAX`, `RATE_LIMIT_STATS_MAX`, etc.) and falls back to hardcoded defaults when the env vars are missing, so there is no functional issue. However, the `.env` should be updated to match `.env.example` to avoid developer confusion. |
 | **Steps to Reproduce** | Compare `backend/.env` rate limit section with `backend/.env.example` rate limit section. |
 | **Expected vs Actual** | Expected: `.env` uses T-111 env var names. Actual: `.env` uses old names that are ignored by the code. |
-| **Status** | New |
+| **Status** | Tasked → T-115 — Cosmetic cleanup: update `backend/.env` to match `backend/.env.example` T-111 rate limit variable names. Scheduled for Sprint #25 as a P3 quick-win. |
 
 ---
 

@@ -4,6 +4,73 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #24 — 2026-05-10 to 2026-05-16
+
+**Sprint Goal:** Empower "plant killer" users to clear multiple overdue care items in a single action via **Batch Mark-Done on the Care Due Dashboard**, and harden the API with **endpoint-specific rate limiting** (long-deferred FB-073) to prepare for production readiness.
+
+**Outcome:** ✅ Goal fully met — all 4 tasks (T-108 through T-111) completed. Backend: 183/183 tests pass (+12 from T-109 + T-111). Frontend: 259/259 tests pass (+10 from T-110). Staging build successful. **Deploy Verified: Yes** (Monitor Agent H-330, 2026-04-06). Eleventh consecutive sprint with zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-108 | Design: SPEC-019 — Batch mark-done UX spec — selection mode toggle in Care Due Dashboard header, per-item checkboxes with aria-label, "Select all" checkbox with indeterminate state, sticky BatchActionBar with count (aria-live) + "Mark done" button (aria-disabled when 0 selected), confirmation inline, loading/success (exit animation + toast)/partial-failure (inline retry message) states, cancel/exit selection mode, dark mode via CSS custom properties, full accessibility spec (role="toolbar", aria-label on checkboxes, aria-live on count) |
+| T-109 | Backend: `POST /api/v1/care-actions/batch` (auth required) — accepts `{ "actions": [{ "plant_id", "care_type", "performed_at" }] }` (1–50 items); validates all fields, verifies user plant ownership (403 for unauthorized plants); single-transaction insert for valid actions; returns 207 Multi-Status with per-item `{ status: "created" \| "error" }` results array plus `created_count`/`error_count`; 400 for empty/oversized/invalid array, 401 unauthenticated; 10 new tests; all 183/183 backend tests pass; API contract published |
+| T-110 | Frontend: Batch mark-done UI on Care Due Dashboard — "Select" toggle enters/exits selection mode; per-item checkboxes with aria-label; "Select all" with indeterminate support; sticky `BatchActionBar.jsx` (count with aria-live="polite", "Mark done" aria-disabled when 0 selected); confirmation inline on "Mark done"; calls `POST /api/v1/care-actions/batch`; success: exit animation + toast + deselect; partial failure: inline retry for failed items only; cancel clears selection; dark mode via CSS custom properties; role="toolbar"; 10 new tests; all 259/259 frontend tests pass |
+| T-111 | Backend: Endpoint-specific rate limiting (FB-073) — `express-rate-limit` with 3 tiers: auth endpoints (10 req/15min/IP on POST /auth/login, /register, /refresh), stats/streak endpoints (60 req/min/IP), global fallback (200 req/15min/IP); 429 response uses structured `{ error: { message, code: "RATE_LIMIT_EXCEEDED" } }` matching existing error shape; limiter skipped in NODE_ENV=test (no regressions); configurable via env vars with safe defaults; trust proxy for production; 2 new tests + pre-existing functional test |
+
+#### Tasks Carried Over
+
+None. Eleventh consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. Monitor Agent health check returned **Deploy Verified: Yes** (2026-04-06, H-330). All Sprint #24 endpoints operational:
+- `POST /api/v1/care-actions/batch` → 207 (happy path), 401 (unauth), 400 (validation) ✅
+- Rate limit headers on auth routes (`RateLimit-Limit: 10`, `RateLimit-Remaining: 8`, `RateLimit-Reset`, `RateLimit-Policy`) ✅
+- `GET /api/v1/care-due` regression check → 200 ✅
+- `GET /api/health` → 200 ✅
+- Frontend `dist/` build present ✅
+- Config consistency (port, protocol, CORS) ✅
+
+---
+
+#### Key Feedback Themes
+
+- **FB-105** (Positive): Batch mark-done nails the "plant killer" persona pain point — selection mode is intuitive, partial failure handling is particularly well-designed (failed items stay selected with clear retry path while successful items animate out). Accessibility implementation (aria-labels, aria-live, role="toolbar") is thorough.
+- **FB-106** (Positive): 3-tier rate limiting is well-calibrated — strict on auth (brute-force protection), moderate on stats (expensive query protection), permissive global fallback (invisible to normal users). Closes long-deferred FB-073.
+- **FB-107** (Cosmetic): `backend/.env` contains stale rate-limit env var names from prior sprints that don't match T-111's variable names. No functional impact (code falls back to correct defaults). Triaged as Tasked → T-115 for Sprint #25 cleanup.
+
+---
+
+#### What Went Well
+
+- Batch mark-done delivers the "10-tap chore → 2-tap action" transformation for the plant killer persona — core product value demonstrated
+- Partial failure flow is exceptionally well-handled: per-item 207 Multi-Status, retry sends only failed items, success items animate out while failed items stay selected
+- Rate limiting closes FB-073 after 3 sprint deferrals — auth brute-force protection now active on staging
+- Monitor Agent successfully restarted the backend process this sprint (no false "Deploy Verified: No" as in Sprint #23)
+- Test suite now at 183 backend + 259 frontend — comprehensive coverage of all batch and rate-limit scenarios
+- Eleventh consecutive sprint with zero carry-over
+
+#### What To Improve
+
+- `backend/.env` cleanup habit: when adding new env vars via `.env.example`, the local `.env` should be updated in the same task to avoid stale variable names (FB-107)
+- Production deployment remains blocked on external dependency (SSL certs from project owner)
+
+#### Technical Debt Noted
+
+- `backend/.env` stale rate-limit env var names (FB-107) — tasked as T-115 (Sprint #25, P3 quick-win)
+- Unsubscribe error CTA generic "Sign In" regardless of error type (FB-104, cosmetic) — backlog
+- Express 5 migration — advisory backlog
+- Production email delivery blocked on project owner providing SMTP credentials
+- Local process-based staging is not persistent — Monitor Agent should always check and restart backend if connection refused before running health checks
+
+---
+
 ### Sprint #23 — 2026-05-03 to 2026-05-09
 
 **Sprint Goal:** Close the email notification loop with the **Unsubscribe landing page** (SPEC-017 Surface 3), give users full control over their data with **Account Deletion**, and eliminate pre-existing timezone-dependent test flakiness in `careActionsStreak.test.js`.

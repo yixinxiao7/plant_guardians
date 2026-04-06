@@ -4,6 +4,52 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-331 — Manager Agent → All Agents: Sprint #25 Kickoff — AI Plant Advisor (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-331 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-04-06 |
+| **Status** | Sprint #25 Planning Complete |
+| **Related Tasks** | T-112, T-113, T-114, T-115 |
+
+### Sprint #24 Closeout Summary
+
+Sprint #24 is closed. All 4 tasks (T-108–T-111) completed. Deploy Verified: Yes (H-330). Eleventh consecutive clean sprint. Feedback triaged: FB-105 and FB-106 Acknowledged (positive), FB-107 Tasked → T-115.
+
+### Sprint #25 Priorities
+
+**Sprint Goal:** Deliver the **AI Plant Advisor** — integrate the Gemini API to let users identify plants (by photo or name) and receive personalized care schedule recommendations that auto-populate the Add/Edit Plant form. This is the last major MVP feature. Concurrently, land a quick `.env` cleanup (T-115).
+
+**Task Assignments:**
+
+| Task | Agent | Start Condition | Priority |
+|------|-------|----------------|----------|
+| T-112 | Design Agent | Start immediately — no blockers | P1 |
+| T-113 | Backend Engineer | Start immediately — publish contract before T-114 | P1 |
+| T-115 | Backend Engineer | Start immediately — parallel with T-113 | P3 |
+| T-114 | Frontend Engineer | After T-112 spec + T-113 API contract | P1 |
+
+**Critical notes for each agent:**
+
+- **Design Agent (T-112):** Write SPEC-020 to `.workflow/ui-spec.md`. Cover: "Get AI Advice" button entry point, input modal (image upload + text input, "Analyze" disabled until one provided), loading state, AI response card (species + care summary), accept/autofill flow, reject/dismiss, error state (503/502), re-analyze, dark mode, accessibility. This gates T-114 — prioritize.
+- **Backend Engineer (T-113):** Install `@google/generative-ai`. Implement `POST /api/v1/plants/ai-advice`. CRITICAL: graceful 503 degradation when `GEMINI_API_KEY` is absent — **do not 500**. All Gemini calls must be mocked in tests (no live API calls in test suite). Publish updated API contract to `.workflow/api-contracts.md` before T-114 starts.
+- **Backend Engineer (T-115):** Quick `.env` cleanup — remove legacy rate-limit var names, add T-111 names with defaults matching `.env.example`. No code changes. Run tests to confirm no regressions.
+- **Frontend Engineer (T-114):** Wait for SPEC-020 (T-112) and updated API contract (T-113) before starting. Implement `AiAdviceModal.jsx`. Key flows: image-to-base64 conversion before API call, autofill with visual highlight, graceful error state for 503/502, re-analyze, focus trap + Escape key.
+- **QA Engineer:** After all tasks complete — run full QA including: security checklist (no GEMINI_API_KEY leakage in responses, base64 size validation, per-user rate limit), accessibility check on modal, integration test of full Accept autofill flow, verify 503 graceful degradation with key absent.
+- **Deploy Engineer:** After QA sign-off — standard staging re-deploy. Note: `GEMINI_API_KEY` may not be set in staging env; Monitor Agent should verify 503 graceful degradation rather than expecting a live AI response.
+- **Monitor Agent:** After deploy — restart backend if process not running. Verify `POST /api/v1/plants/ai-advice` returns 503 (if no key) or 200 (if key configured). Verify no 500s. Verify other existing endpoints are unaffected.
+
+### Technical Debt Reminder
+
+- Express 5 migration — advisory backlog
+- Unsubscribe error CTA (FB-104, cosmetic) — backlog
+- No explicit 404 test for already-deleted user in profileDelete.test.js — low priority
+
+---
+
 ## H-330 — Monitor Agent → Manager Agent: Sprint #24 Staging Health Check PASS — Deploy Verified (2026-04-06)
 
 | Field | Value |
