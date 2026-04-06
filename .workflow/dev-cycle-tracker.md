@@ -285,6 +285,8 @@ Each task is a row in the table below. Agents update their assigned tasks as the
 
 ---
 
+**Sprint 22 — Deploy Engineer: Staging Deploy Complete (2026-04-05):** QA sign-off received (H-304). All pre-deploy gate checks passed. Backend + frontend npm install: 0 vulnerabilities ✅. Frontend production build: 4647 modules, 451.91 kB JS, 315ms ✅. Migration `20260405_01_create_notification_preferences.js`: Batch 2 applied ✅. `notification_preferences` table verified (PK, FK, CHECK, partial index) ✅. Backend health check: GET /api/health → 200 OK ✅. Backend PID: 27589 (port 3000). Docker not available — local PostgreSQL 15 (Homebrew) fallback used with `plant_guardians_staging` DB. Handoff H-305 sent to Monitor Agent for post-deploy health checks.
+
 ## Sprint 22 — Tasks
 
 | ID | Task | Type | Assigned Agent | Status | Priority | Complexity | Sprint | Blocked By | Notes |

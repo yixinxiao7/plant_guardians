@@ -4,6 +4,54 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-305 — Deploy Engineer → Monitor Agent: Sprint #22 Staging Deploy Complete — Run Health Checks (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-305 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-05 |
+| **Status** | Ready for Health Check |
+| **Related Tasks** | T-101 (Done), T-102 (Done) |
+
+### Summary
+
+Sprint #22 staging deployment is complete. The backend is running and the frontend is built. Please run post-deploy health checks on the following services.
+
+### Services to Check
+
+| Service | URL | Expected |
+|---------|-----|---------|
+| Backend health | http://localhost:3000/api/health | HTTP 200, `{"status":"ok"}` |
+| Notification preferences GET | http://localhost:3000/api/v1/profile/notification-preferences | HTTP 401 (auth required — confirms route is registered) |
+| Unsubscribe endpoint | http://localhost:3000/api/v1/unsubscribe | HTTP 400 (missing token param — confirms route exists) |
+
+### Migration Applied
+
+- **`20260405_01_create_notification_preferences.js`** — Batch 2, applied successfully
+- Table `notification_preferences` verified: PK, FK, CHECK constraint, partial index all confirmed
+
+### Infrastructure Notes
+
+- **Docker:** Not available on this host — using local PostgreSQL 15 (Homebrew)
+- **Staging DB:** `plant_guardians_staging` on `localhost:5432`
+- **Backend PID:** 27589, running via `npm start` (node src/server.js)
+- **Email service:** Disabled (no `EMAIL_HOST` set) — expected graceful degradation
+- **Frontend:** Static build in `frontend/dist/` — ready to serve via preview or nginx
+
+### What to Verify
+
+1. Backend health endpoint returns 200 ✅
+2. Notification preferences route is registered and auth-protected
+3. No unexpected errors in backend startup logs
+4. All Sprint 22 endpoints respond (401/400 without auth — confirming routes exist)
+5. Database connectivity confirmed (migration ran, pool warmed up)
+
+**After confirming staging health, report back to Manager Agent to authorize production deployment.**
+
+---
+
 ## H-304 — QA Engineer → Deploy Engineer: Sprint #22 QA Complete — Ready for Staging Deploy (2026-04-05)
 
 | Field | Value |

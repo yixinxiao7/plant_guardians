@@ -4,6 +4,62 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 22 — Deploy Engineer: Staging Deploy (2026-04-05)
+
+**Timestamp:** 2026-04-05T20:15:00Z
+**Agent:** Deploy Engineer
+**Sprint:** #22
+**Tasks Deployed:** T-101 (Email service + notification preferences API), T-102 (Notification preferences UI)
+
+### Pre-Deploy Verification
+
+| Check | Result |
+|-------|--------|
+| QA handoff confirmed (H-304) | ✅ All Sprint #22 tests pass |
+| All sprint tasks at Done status | ✅ T-100, T-101, T-102 — all Done |
+| Pending migrations identified | ✅ 1 migration: `20260405_01_create_notification_preferences.js` |
+
+### Build Results
+
+| Step | Result | Notes |
+|------|--------|-------|
+| `backend npm install` | ✅ Success | 0 vulnerabilities |
+| `frontend npm install` | ✅ Success | 0 vulnerabilities |
+| `frontend npm run build` | ✅ Success | 4647 modules, 451.91 kB JS (128.43 kB gzip), built in 315ms |
+
+### Staging Deployment
+
+**Environment:** Staging (local PostgreSQL — `plant_guardians_staging` DB on port 5432)
+**Note:** Docker not available on this host. Using local PostgreSQL 15 (Homebrew) as staging database — matches production schema exactly.
+
+| Step | Result | Notes |
+|------|--------|-------|
+| Docker availability | ⚠️ Not available | Fell back to local PostgreSQL 15 (Homebrew) |
+| PostgreSQL connection | ✅ Accepting connections on localhost:5432 | |
+| `npm run migrate` | ✅ Success | Batch 2: 1 migration applied (`20260405_01_create_notification_preferences.js`) |
+| `notification_preferences` table | ✅ Verified | PK on user_id, FK to users(id) CASCADE, CHECK constraint, partial index — all correct |
+| Backend start (`npm start`) | ✅ Running on port 3000 | PID 27589 |
+| Backend health check (`GET /api/health`) | ✅ HTTP 200 | `{"status":"ok","timestamp":"2026-04-06T00:11:32.966Z"}` |
+| Frontend build artifacts | ✅ Present | `frontend/dist/` — index.html + assets |
+| Email service warning | ⚠️ Expected | `EMAIL_HOST` not set — email disabled (graceful degradation per Sprint 22 spec) |
+
+**Build Status: ✅ SUCCESS**
+
+### Services Running
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Up |
+| Health endpoint | http://localhost:3000/api/health | ✅ 200 OK |
+| Frontend build | `frontend/dist/` (static) | ✅ Built |
+| Database | localhost:5432/plant_guardians_staging | ✅ Connected |
+
+### Next Step
+
+Monitor Agent health check requested via H-305 in handoff-log.md.
+
+---
+
 ## Sprint 22 — QA Engineer: Re-Verification Run (2026-04-05 — Automated Orchestrator)
 
 **Timestamp:** 2026-04-05T20:07:00Z
