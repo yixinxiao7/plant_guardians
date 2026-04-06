@@ -480,3 +480,44 @@ All Sprint #24 endpoints respond correctly. Rate limiting headers confirmed pres
 
 ---
 
+
+---
+## Post-Deploy Health Check — Sprint #25
+Date: 2026-04-06
+Environment: Staging (local)
+Test Type: Post-Deploy Health Check + Config Consistency
+Token: acquired via POST /api/v1/auth/login with test@plantguardians.local
+
+### Config Consistency Checks
+| Check | Result | Details |
+|-------|--------|---------|
+| Port match (backend PORT vs vite proxy) | PASS | Backend `PORT=3000`; Vite proxy target `http://localhost:3000` — exact match |
+| Protocol match (SSL config vs vite proxy scheme) | PASS | No SSL certs configured in `.env`; Vite proxy uses `http://` — consistent |
+| CORS_ORIGIN includes frontend dev server | PASS | `FRONTEND_URL` includes `http://localhost:5173` (Vite default dev port) and also `:5174`, `:4173`, `:4175` |
+| Docker port mapping (if applicable) | PASS | `docker-compose.yml` maps `postgres: 5432:5432` and `postgres_test: 5433:5432`; matches `DATABASE_URL` (port 5432) and `TEST_DATABASE_URL` (port 5432) in `.env` |
+| T-115: Stale env var names removed | PASS | `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX` — none found in `backend/.env` |
+| T-115: T-111 env var names present | PASS | All 6 vars present: `RATE_LIMIT_AUTH_MAX=10`, `RATE_LIMIT_AUTH_WINDOW_MS=900000`, `RATE_LIMIT_STATS_MAX=60`, `RATE_LIMIT_STATS_WINDOW_MS=60000`, `RATE_LIMIT_GLOBAL_MAX=200`, `RATE_LIMIT_GLOBAL_WINDOW_MS=900000` |
+| T-116: careStatus.js uses canonical algorithm | PASS | Uses `localNow = new Date(now.getTime() + utcOffsetMinutes * 60 * 1000)` then `today = new Date(Date.UTC(...))` — matches careDue.js logic |
+| T-116: careDue.js uses canonical algorithm | PASS | Route uses identical `localNow` shift + `Date.UTC()` today boundary — aligned with careStatus.js |
+| T-116: Regression tests present | PASS | `careDueStatusConsistency.test.js` — 5 tests covering utcOffset=0, utcOffset=330, utcOffset=-300, no-cross-bucket, monthly frequency |
+
+### Health Checks
+| Check | Status | Details |
+|-------|--------|---------|
+| GET /api/health → 200 | PASS | HTTP 200, body: `{"status":"ok","timestamp":"2026-04-06T14:43:37.289Z"}` — Note: actual route is `/api/health` not `/api/v1/health` |
+| POST /api/v1/auth/login → 200 + token | PASS | HTTP 200, returned `access_token` JWT + user object for `test@plantguardians.local` |
+| GET /api/v1/plants → 200 | PASS | HTTP 200, returned array of plants with care_schedules; correct `{ "data": [...] }` envelope |
+| GET /api/v1/care-due → 200 | PASS | HTTP 200, returned `{ overdue:[], due_today:[], upcoming:[...] }` shape |
+| GET /api/v1/care-actions/stats → 200 | PASS | HTTP 200, correct response |
+| GET /api/v1/care-actions/streak → 200 | PASS | HTTP 200, correct response |
+| GET /api/v1/profile → 200 | PASS | HTTP 200, returned user object with stats |
+| GET /api/v1/plants/:id/care-history → 200 | PASS | HTTP 200, body: `{"data":{"items":[],"total":0,"page":1,"limit":20,"totalPages":0}}` |
+| POST /api/v1/care-actions/batch → 207 | PASS | HTTP 207 Multi-Status, correct response shape per Sprint 24 contract |
+| POST /api/v1/auth/refresh → 401 (no token) | PASS | HTTP 401 as expected when no refresh token provided |
+| POST /api/v1/auth/logout → 200 | PASS | HTTP 200, logout accepted |
+| Frontend dist/ build exists | PASS | `/frontend/dist/` contains: `index.html`, `assets/`, `favicon.svg`, `icons.svg` |
+| Backend test suite | PASS | 188/188 tests pass across 21 suites (up from 183 — includes 5 new T-116 regression tests) |
+
+### Summary
+Deploy Verified: Yes
+Error Summary: None. All health checks and config consistency checks passed. The health endpoint URL differs from the Sprint instructions (`/api/health` vs `/api/v1/health`) — this is correct per the actual app.js implementation and is not a defect. T-115 `.env` cleanup is complete. T-116 canonical algorithm is implemented identically in both `careStatus.js` and `careDue.js`, with 5 regression tests passing.

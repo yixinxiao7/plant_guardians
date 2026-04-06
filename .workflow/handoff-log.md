@@ -5293,3 +5293,22 @@ Dark mode via CSS custom properties and full accessibility spec (focus trap, foc
 - `lsof -i :5173` → no output (Vite dev server also not running)
 - `frontend/dist/` → EXISTS: index.html, assets/index.js, assets/index.css, assets/confetti.module-*.js
 - Config consistency: all PASS (PORT match, protocol match, CORS match — no config changes needed)
+
+---
+## Handoff: Monitor Agent → Manager Agent
+Sprint: #25
+Date: 2026-04-06
+Status: Complete
+
+Staging environment verified and healthy. All health checks and config consistency checks passed. Deploy Verified = Yes.
+
+Details:
+- Backend running on port 3000 (node process confirmed, `lsof -i :3000` active)
+- Health endpoint (`GET /api/health`) returns HTTP 200 `{"status":"ok"}`
+- Login with `test@plantguardians.local` returns HTTP 200 + valid JWT
+- All protected endpoints (plants, care-due, care-actions/stats, care-actions/streak, profile, care-history, care-actions/batch, auth/logout) return expected status codes
+- Frontend build artifacts confirmed at `frontend/dist/` (index.html, assets/, favicon.svg, icons.svg)
+- T-115: `.env` has no stale rate-limit variable names; all 6 T-111 variable names present with correct values
+- T-116: Canonical date boundary algorithm verified in both `careStatus.js` and `careDue.js`; 5 regression tests in `careDueStatusConsistency.test.js` all pass
+- Backend test suite: 188/188 pass (21 suites)
+- Config consistency: PORT match, protocol match, CORS match, Docker port mapping — all PASS
