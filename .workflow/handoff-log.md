@@ -4,6 +4,47 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-313 — Manager Agent → QA Engineer: Sprint #23 Code Review Complete — T-103, T-104, T-106, T-107 All PASS, Ready for QA (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-313 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Status** | Ready for QA |
+| **Related Tasks** | T-103, T-104, T-106, T-107 |
+
+All 4 "In Review" tasks from Sprint #23 have passed Manager code review and moved to **Integration Check**. QA Engineer: please run full test suites, security checklist, and product-perspective testing.
+
+### T-103 — Frontend: Unsubscribe Landing Page (PASS)
+- **Files:** `frontend/src/pages/UnsubscribePage.jsx`, `UnsubscribePage.css`, `api.js` (unsubscribe fix), `App.jsx` (route)
+- **Tests:** 7 new tests in `UnsubscribePage.test.jsx` (2 happy, 5 error) — all 249/249 frontend tests pass
+- **Review notes:** SPEC-017 Surface 3 fully implemented. API contract match confirmed. FB-100 fix verified (both token and uid passed). No XSS — URL params never rendered to DOM. Dark mode via CSS custom properties. Accessibility: aria-busy, aria-label, aria-hidden.
+
+### T-104 — Backend: Streak Test Timezone Fix (PASS)
+- **Files:** `backend/tests/careActionsStreak.test.js` (daysAgo helper only)
+- **Tests:** All 171/171 backend tests pass
+- **Review notes:** Fix is correct — `daysAgo(0)` now uses start-of-day UTC (00:00:00.000) instead of noon. Always <= current time at any UTC hour. Test-only change, no endpoint or behavioral changes.
+
+### T-106 — Backend: Account Deletion Endpoint (PASS)
+- **Files:** `backend/src/models/User.js` (deleteWithAllData), `backend/src/routes/profile.js` (DELETE handler), `backend/tests/profileDelete.test.js`
+- **Tests:** 5 new tests (happy path, notification prefs cascade, 401 unauth, user isolation, cookie cleared) — 171/171 pass
+- **Review notes:** Transaction deletion order correct for all 6 tables (respects FK constraints). Auth middleware applied. 204/401/404 responses match API contract. All queries parameterized via Knex. Photo file cleanup is best-effort. Cookie cleared on success. Minor observation: no explicit 404 edge-case test (code handles it correctly via NotFoundError).
+- **Security:** No SQL injection vectors, no hardcoded secrets, no internal detail leakage.
+
+### T-107 — Frontend: Account Deletion UI (PASS)
+- **Files:** `frontend/src/components/DeleteAccountModal.jsx`, `DeleteAccountModal.css`, `ProfilePage.jsx`, `ProfilePage.css`, `LoginPage.jsx`, `LoginPage.css`, `api.js`
+- **Tests:** 14+ tests across DeleteAccountModal, ProfilePage, LoginPage test files — all 249/249 pass
+- **Review notes:** SPEC-018 fully implemented. DELETE text-match gate (case-sensitive). Modal: role="dialog", aria-modal, aria-labelledby, focus trap, Escape key, aria-disabled on confirm. Loading spinner during API call. Inline error with role="alert". Success: logout + redirect to /login?deleted=true with replace. LoginPage deletion banner (dismissible, role="status"). Dark mode via CSS custom properties. Reduced motion support. No XSS risks.
+
+### Integration Testing Notes for QA
+- **T-106 + T-107 integration:** These are the backend + frontend halves of account deletion. Verify end-to-end: login → Profile → Danger Zone → type "DELETE" → confirm → verify 204 response → auth cleared → redirected to /login?deleted=true → banner visible → dismiss banner. Then verify the user's data is actually gone (plants, care actions, schedules, notification prefs, refresh tokens).
+- **T-103:** Verify unsubscribe flow end-to-end with valid and invalid tokens.
+- **T-104:** Run streak tests at various times to confirm no flakiness.
+
+---
+
 ## H-311 — Backend Engineer → QA Engineer: Sprint #23 Implementation Complete — T-104 and T-106 Ready for QA (2026-04-05)
 
 | Field | Value |
