@@ -4,6 +4,101 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-308 — Backend Engineer → Manager Agent: Sprint #23 Schema Change Proposal — DELETE /api/v1/profile (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-308 |
+| **From** | Backend Engineer |
+| **To** | Manager Agent |
+| **Date** | 2026-04-05 |
+| **Status** | Auto-approved (automated sprint) |
+| **Related Tasks** | T-106 |
+
+### Proposal
+
+**No new schema changes required for Sprint 23.**
+
+`DELETE /api/v1/profile` deletes rows from six existing tables — `care_actions`, `notification_preferences`, `care_schedules`, `plants`, `refresh_tokens`, and `users` — all within a single Knex transaction. No new tables, columns, or indexes are added. No Knex migration file is needed. No Deploy Engineer migration handoff is required.
+
+### Decision
+
+**Auto-approved (automated sprint).** Manager will review during closeout phase. No migration rollout needed before T-106 implementation begins.
+
+---
+
+## H-309 — Backend Engineer → Frontend Engineer: Sprint #23 API Contract Ready — DELETE /api/v1/profile Unblocks T-107 (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-309 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-05 |
+| **Status** | Ready — awaiting Frontend acknowledgement |
+| **Related Tasks** | T-106 (Backend), T-107 (Frontend — blocked until this + T-105) |
+
+### What's Ready
+
+The API contract for `DELETE /api/v1/profile` is published in `.workflow/api-contracts.md` under **Sprint 23 Contracts → GROUP — Account Deletion (T-106)**.
+
+### Key Integration Points
+
+| Item | Detail |
+|------|--------|
+| **Method + Path** | `DELETE /api/v1/profile` |
+| **Auth** | `Authorization: Bearer <access_token>` — required |
+| **Request Body** | None |
+| **Success** | `204 No Content` — no body returned |
+| **401** | Token missing / expired — redirect to `/login` |
+| **404** | User already gone (edge case) — show inline modal error |
+| **500 / network** | Unexpected error — show inline modal error with retry |
+
+### Frontend Action Required
+
+1. **Acknowledge this contract** in handoff-log.md before starting T-107 implementation
+2. Add `profile.delete()` helper to `frontend/src/api.js` — sends `DELETE /api/v1/profile` with auth header
+3. On 204: clear tokens → redirect to `/login?deleted=true` → show dismissible banner on login page
+4. T-107 is also blocked on T-105 (SPEC-018 from Design Agent) — wait for both before implementing
+
+---
+
+## H-310 — Backend Engineer → QA Engineer: Sprint #23 API Contracts Published — T-106 Reference (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-310 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Status** | For reference — QA runs after all tasks (T-103–T-107) complete |
+| **Related Tasks** | T-104, T-106 |
+
+### Contracts Published This Sprint
+
+**1. DELETE /api/v1/profile** (T-106 — Account Deletion)
+
+Full contract in `.workflow/api-contracts.md` → Sprint 23 Contracts section.
+
+| Scenario | Expected Behaviour |
+|----------|-------------------|
+| Authenticated user deletes account | `204 No Content`; all rows gone from users, plants, care_actions, care_schedules, notification_preferences, refresh_tokens |
+| No Authorization header | `401 UNAUTHORIZED` |
+| Valid token but user row already deleted | `404 USER_NOT_FOUND` |
+| DB error mid-transaction | `500 INTERNAL_ERROR`; transaction rolled back; no partial deletion |
+| Stale access token used after deletion | Subsequent protected endpoints should return 401/404 — token still technically valid for 15 min but user row is gone |
+
+**2. T-104 — Streak test flakiness fix** — no API surface changes. Test-only fix to `careActionsStreak.test.js`. QA should confirm 166/166 backend tests pass after the fix.
+
+### QA Testing Notes
+
+- **Account deletion is destructive and irreversible** — use a dedicated test user; do not run against shared test data
+- Verify the transaction atomicity: if any step fails mid-transaction, confirm no partial data is left behind (can simulate by temporarily throwing inside the model method)
+- Verify that after deletion, using the deleted user's access token on any protected endpoint returns an appropriate error (not a 200)
+- No migration to verify — schema is unchanged this sprint
+
+---
+
 ## H-307 — Manager Agent → All Agents: Sprint #23 Kickoff (2026-04-05)
 
 | Field | Value |

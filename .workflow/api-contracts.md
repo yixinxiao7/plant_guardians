@@ -3703,3 +3703,102 @@ The following new environment variables are required by the email service. All a
 ---
 
 *Sprint 22 contracts written by Backend Engineer — 2026-04-05. New endpoints: GET + POST /api/v1/profile/notification-preferences, GET /api/v1/unsubscribe, POST /api/v1/admin/trigger-reminders (dev only). Schema change: notification_preferences table (see technical-context.md). All prior sprint contracts remain authoritative.*
+
+---
+
+## Sprint 23 Contracts — 2026-04-05
+
+**Sprint Goal:** Account deletion endpoint (T-106). No new tables required — this sprint deletes across existing tables within a transaction.
+
+---
+
+### GROUP — Account Deletion (T-106)
+
+---
+
+#### DELETE /api/v1/profile
+
+**Auth:** Required — Bearer token in `Authorization: Bearer <access_token>` header
+
+**Description:** Permanently deletes the authenticated user's account and all associated data. Deletes records in dependency order within a single database transaction: `care_actions` → `notification_preferences` → `care_schedules` → `plants` → `refresh_tokens` → `users`. Returns no body on success. This is a hard delete — there is no grace period or soft-delete (post-MVP concern).
+
+**Request Body:** None
+
+**Query Parameters:** None
+
+**Success Response — 204 No Content:**
+
+```
+(no response body)
+```
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 401 | `UNAUTHORIZED` | No `Authorization` header provided, token is missing, expired, or invalid |
+| 404 | `USER_NOT_FOUND` | Authenticated user ID does not match any row in the `users` table (edge case: account already deleted via another request or race condition) |
+| 500 | `INTERNAL_ERROR` | Unexpected server error; transaction rolled back — no partial data deletion |
+
+**Auth Flow Notes:**
+- User ID is extracted from the verified JWT payload (`req.user.id`). No request body or query param is needed — the token is the identity proof.
+- After a successful deletion, the access token is technically still valid until it expires (15 min) but all protected endpoints will return 404 or 401 as the user row no longer exists. The frontend must clear tokens client-side immediately on 204.
+
+**Transaction Deletion Order (explicit, not relying on DB cascade):**
+
+```
+BEGIN TRANSACTION
+  DELETE FROM care_actions   WHERE plant_id IN (SELECT id FROM plants WHERE user_id = ?)
+  DELETE FROM notification_preferences   WHERE user_id = ?
+  DELETE FROM care_schedules WHERE plant_id IN (SELECT id FROM plants WHERE user_id = ?)
+  DELETE FROM plants         WHERE user_id = ?
+  DELETE FROM refresh_tokens WHERE user_id = ?
+  DELETE FROM users          WHERE id = ?
+COMMIT
+```
+
+**Implementation Notes:**
+- All deletes must be inside a single Knex transaction (`knex.transaction(trx => { ... })`)
+- If any step throws, the transaction rolls back automatically — no partial data loss
+- The model method should be `User.deleteWithAllData(userId, trx)`
+- Route handler is a new `DELETE /` handler on `backend/src/routes/profile.js`
+- Auth middleware (`requireAuth`) must be applied before this handler
+
+---
+
+### Schema Changes — Sprint 23
+
+**No new tables or columns required.** This sprint only reads from and deletes rows across existing tables:
+- `users` (existing)
+- `plants` (existing)
+- `care_actions` (existing)
+- `care_schedules` (existing)
+- `notification_preferences` (existing, added Sprint 22)
+- `refresh_tokens` (existing)
+
+No Knex migration file is needed. No Deploy Engineer migration handoff is required for this sprint.
+
+---
+
+### Frontend Integration Notes (for T-107)
+
+1. **Trigger:** `DELETE /api/v1/profile` is called when the user confirms account deletion (types "DELETE" exactly and clicks confirm button in the modal).
+
+2. **Request:** Send `Authorization: Bearer <access_token>` header. No request body.
+
+3. **On 204 success:**
+   - Clear all auth tokens from client state (call `logout()` / clear token storage)
+   - Redirect to `/login?deleted=true`
+   - On the login page, detect `?deleted=true` in query string and show dismissible banner: *"Your account has been permanently deleted."*
+
+4. **On 401:** Treat as a session expiry — redirect to `/login`. (Should not happen if auth is checked before showing the modal, but handle defensively.)
+
+5. **On 404:** Show inline modal error: *"Could not delete your account. Please try again."* (This is an edge case — the user's session is valid but the account is already gone.)
+
+6. **On 500 / network error:** Show inline modal error: *"Could not delete your account. Please try again."* Retry is safe — the endpoint is idempotent for the user's data state.
+
+7. **api.js helper:** Expose `profile.delete()` → sends `DELETE /api/v1/profile` with auth header. Returns the raw response (204 or throws on error).
+
+---
+
+*Sprint 23 contracts written by Backend Engineer — 2026-04-05. New endpoint: DELETE /api/v1/profile (T-106). No schema changes. T-104 (streak test flakiness fix) has no API surface changes — test-only fix. All prior sprint contracts remain authoritative.*
