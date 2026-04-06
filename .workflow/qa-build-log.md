@@ -314,6 +314,59 @@ All Sprint #22 checks from the initial QA pass remain valid:
 
 ---
 
+## Sprint 22 — Post-Deploy Health Check
+**Date:** 2026-04-05
+**Environment:** Staging
+**Logged by:** Monitor Agent
+
+### Config Consistency Check
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Backend PORT vs Vite proxy port | PORT=3000, Vite proxy → `http://localhost:3000` | PORT=3000, proxy target `http://localhost:3000` | PASS |
+| Protocol (HTTP/HTTPS) | No SSL certs configured → http:// | No `SSL_KEY_PATH`/`SSL_CERT_PATH` in `.env`; Vite proxy uses `http://localhost:3000` | PASS |
+| CORS_ORIGIN includes frontend origin | `FRONTEND_URL` includes `http://localhost:5173` | `FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` | PASS |
+| Docker port mapping (if applicable) | `docker-compose.yml` maps `${POSTGRES_PORT:-5432}:5432` (DB only — no backend container) | Docker not available on host; PostgreSQL 15 via Homebrew on port 5432; no backend Docker container — N/A | N/A |
+
+Config Consistency Result: PASS
+
+### Health Checks
+
+**Token acquisition:** POST /api/v1/auth/login → `200 OK` — access token received for `test@plantguardians.local`
+
+**Process check:** Backend (PID 27606) confirmed running on port 3000 via `lsof -i :3000`
+
+**Frontend build:** `frontend/dist/` exists — `assets/`, `favicon.svg`, `icons.svg`, `index.html` present
+
+| Endpoint | Method | Expected | Status Code | Response | Result |
+|----------|--------|----------|-------------|----------|--------|
+| /api/health | GET | 200 | 200 | `{"status":"ok","timestamp":"2026-04-06T00:13:31.940Z"}` | PASS |
+| /api/v1/profile/notification-preferences | GET (with auth) | 200 | 200 | `{"data":{"opt_in":false,"reminder_hour_utc":8}}` | PASS |
+| /api/v1/profile/notification-preferences | GET (no auth) | 401 | 401 | Auth error | PASS |
+| /api/v1/profile/notification-preferences | POST (with auth, valid body) | 200 | 200 | `{"data":{"opt_in":true,"reminder_hour_utc":8}}` | PASS |
+| /api/v1/profile/notification-preferences | POST (no auth) | 401 | 401 | Auth error | PASS |
+| /api/v1/profile/notification-preferences | POST (reminder_hour_utc=25) | 400 | 400 | `{"error":{"message":"reminder_hour_utc must be an integer between 0 and 23.","code":"VALIDATION_ERROR"}}` | PASS |
+| /api/v1/unsubscribe | GET (no token) | 400 | 400 | `{"error":{"message":"Missing or invalid unsubscribe token.","code":"INVALID_TOKEN"}}` | PASS |
+| /api/v1/unsubscribe | GET (malformed token) | 400 | 400 | `{"error":{"message":"Missing or invalid unsubscribe token.","code":"INVALID_TOKEN"}}` | PASS |
+| /api/v1/admin/trigger-reminders | POST (with auth) | 200 | 200 | `{"data":{"triggered_at":"2026-04-06T00:13:51.734Z","hour_utc":0,"users_evaluated":0,"emails_sent":0,"users_skipped":0}}` | PASS |
+| /api/v1/admin/trigger-reminders | POST (no auth) | 401 | 401 | Auth error | PASS |
+| /api/v1/plants | GET (with auth) | 200 | 200 | 200 OK (regression check) | PASS |
+| /api/v1/care-actions/streak | GET (with auth) | 200 | 200 | `{"data":{"currentStreak":2,"longestStreak":2,"lastActionDate":"2026-04-05"}}` | PASS |
+| /api/v1/profile | GET (with auth) | 200 | 200 | 200 OK | PASS |
+
+**Notes:**
+- Email service gracefully disabled (no `EMAIL_HOST` set) — cron trigger endpoint still functions and returns correct response shape
+- `POST /api/v1/admin/trigger-reminders` evaluated 0 users (no users have `opt_in=true` at current hour) — expected behavior
+- `/api/v1/health` route is at `/api/health` (without `v1`) — matches Deploy Engineer smoke test log; 404 on `/api/v1/health` is expected per existing route configuration
+
+### Summary
+- **Deploy Verified:** Yes
+- **Config Consistency:** PASS
+- **Health Checks:** PASS
+- **Issues Found:** None — all Sprint 22 endpoints operational, auth-protected correctly, validation working, graceful degradation confirmed for email service
+
+---
+
 ## Sprint 21 — Monitor Agent: Post-Deploy Health Check (2026-04-05)
 
 **Timestamp:** 2026-04-05T20:25:00Z
