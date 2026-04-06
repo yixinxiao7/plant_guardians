@@ -2391,12 +2391,12 @@ New — Needs triage by Manager Agent. Likely a string encoding issue in the fro
 
 ---
 
-### FB-105 — Bug: Plant shows overdue on My Plants page but appears in Coming Up on Care Due Dashboard
+### FB-108 — Bug: Plant shows overdue on My Plants page but appears in Coming Up on Care Due Dashboard
 
 | Field | Value |
 |-------|-------|
 | Feedback | Overdue status shown on My Plants inventory does not match the Care Due Dashboard — same plant appears overdue in one view and "coming up" in the other |
-| Sprint | 24 |
+| Sprint | 25 |
 | Category | Bug |
 | Severity | Major |
 | Status | New |
@@ -2423,12 +2423,12 @@ The root cause is likely a divergence between the status logic used by `GET /api
 
 ---
 
-### FB-105 — Bug: Plant shows overdue on My Plants page but appears in Coming Up on Care Due Dashboard
+### FB-108 — Bug: Plant shows overdue on My Plants page but appears in Coming Up on Care Due Dashboard
 
 | Field | Value |
 |-------|-------|
 | Feedback | Overdue status shown on My Plants inventory does not match the Care Due Dashboard — same plant appears overdue in one view and "coming up" in the other |
-| Sprint | 24 |
+| Sprint | 25 |
 | Category | Bug |
 | Severity | Major |
 | Status | New |
