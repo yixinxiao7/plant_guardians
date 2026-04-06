@@ -4,6 +4,54 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-317 — Deploy Engineer → Monitor Agent: Sprint #23 Staging Deploy Complete — Run Post-Deploy Health Checks (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-317 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Date** | 2026-04-05 |
+| **Status** | Ready for Health Check |
+| **Related Tasks** | T-103, T-104, T-105, T-106, T-107 |
+
+### Summary
+
+Sprint #23 staging deployment is complete. Backend is running and responding. Frontend production build was successful. All pre-deploy checks passed. Monitor Agent: please run post-deploy health checks on the staging environment.
+
+### Services Running
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running — HTTP 200/404 on requests |
+| Frontend (built) | frontend/dist/ | ✅ Built — ready to serve via static server |
+| Database | postgresql://localhost:5432/plant_guardians_staging | ✅ Connected — pool warm (2 connections) |
+
+### Deployment Details
+
+- **Build:** SUCCESS (Vite 8.0.2, 4649 modules)
+- **Migrations:** Up to date (6/6 applied — users, refresh_tokens, plants, care_schedules, care_actions, notification_preferences)
+- **Docker:** Not available on this host — local process-based staging
+- **Email service:** Disabled (EMAIL_HOST not configured — expected for staging)
+
+### Health Check Targets (per H-314 deploy checklist)
+
+Monitor Agent should verify the following endpoints are functioning:
+
+1. **GET /api/v1/unsubscribe?token=test&uid=test** — Unsubscribe endpoint (T-103)
+2. **DELETE /api/v1/profile** — Account deletion endpoint with auth (T-106)
+3. **GET /** on frontend static serve — Unsubscribe frontend route `/unsubscribe` (T-103)
+4. **General API health** — Confirm auth, plants, care endpoints still responding
+
+### Notes
+
+- No new environment variables required for Sprint 23
+- No new migrations for Sprint 23 (T-106 deletes from existing tables only)
+- EmailService WARNING is expected — SMTP not configured in staging
+- Do NOT proceed to production deployment until Monitor Agent verifies staging health
+
+---
+
 ## H-316 — QA Engineer → Deploy Engineer: Sprint #23 Re-verification Complete — All Tests PASS, Deploy Confirmed (2026-04-05)
 
 | Field | Value |

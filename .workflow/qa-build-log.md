@@ -4,6 +4,66 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint 23 — Deploy Engineer: Staging Build & Deploy (2026-04-05)
+
+**Timestamp:** 2026-04-05
+**Agent:** Deploy Engineer
+**Sprint:** 23
+**Environment:** Staging (local)
+
+### Pre-Deploy Verification
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| QA sign-off | ✅ PASS | H-316: 171/171 backend, 249/249 frontend tests pass. 0 vulnerabilities. |
+| All Sprint 23 tasks Done | ✅ PASS | T-103, T-104, T-105, T-106, T-107 — all Done |
+| Pending migrations | ✅ NONE | No new migrations for Sprint 23 per H-314. Sprint 22 migration already applied. |
+| Docker availability | ⚠️ N/A | Docker not installed on this host — using local process-based staging |
+
+### Dependency Install
+
+| Step | Result | Notes |
+|------|--------|-------|
+| `backend npm install` | ✅ SUCCESS | 0 vulnerabilities |
+| `frontend npm install` | ✅ SUCCESS | 0 vulnerabilities |
+
+### Frontend Build
+
+| Step | Result | Notes |
+|------|--------|-------|
+| `frontend npm run build` | ✅ SUCCESS | Vite 8.0.2, 4649 modules, built in 340ms |
+| dist/index.html | ✅ | 1.50 kB (gzip: 0.67 kB) |
+| dist/assets/index.css | ✅ | 88.73 kB (gzip: 14.09 kB) |
+| dist/assets/index.js | ✅ | 459.38 kB (gzip: 130.02 kB) |
+
+### Database Migrations
+
+| Step | Result | Notes |
+|------|--------|-------|
+| `npm run migrate` (staging DB) | ✅ SUCCESS | "Already up to date" — all 6 migrations applied: users, refresh_tokens, plants, care_schedules, care_actions, notification_preferences |
+
+### Backend Start
+
+| Step | Result | Notes |
+|------|--------|-------|
+| `npm start` (port 3000) | ✅ SUCCESS | Server started: "Plant Guardians API running on port 3000 [development]" |
+| Database pool warm-up | ✅ SUCCESS | 2 connections established (pool.min=2) |
+| HTTP response check | ✅ RESPONDING | HTTP 404 on unregistered path — server live and handling requests |
+| EmailService | ⚠️ WARNING | EMAIL_HOST not configured — email sending disabled (expected, no SMTP in staging) |
+
+### Build Status Summary
+
+| Field | Value |
+|-------|-------|
+| **Build Status** | SUCCESS |
+| **Environment** | Staging (local) |
+| **Backend URL** | http://localhost:3000 |
+| **Frontend dist** | frontend/dist/ (production build ready to serve) |
+| **Migrations** | Up to date (6/6 applied) |
+| **Date** | 2026-04-05 |
+
+---
+
 ## Sprint 23 — QA Engineer: Re-verification Run (2026-04-05, Run 2)
 
 **Timestamp:** 2026-04-05
