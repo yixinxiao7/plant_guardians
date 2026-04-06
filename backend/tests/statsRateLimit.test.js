@@ -10,8 +10,8 @@ process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-jwt-secret-for-testing-only';
 process.env.JWT_EXPIRES_IN = '15m';
 process.env.REFRESH_TOKEN_EXPIRES_DAYS = '7';
-process.env.AUTH_RATE_LIMIT_MAX = '500';
-process.env.RATE_LIMIT_MAX = '1000';
+process.env.RATE_LIMIT_AUTH_MAX = '500';
+process.env.RATE_LIMIT_GLOBAL_MAX = '1000';
 
 const request = require('supertest');
 const db = require('../src/config/database');

@@ -4,6 +4,119 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-339 — Manager → QA Engineer: T-115 Code Review PASS — Ready for QA (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-339 |
+| **From** | Manager |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Integration Check |
+| **Related Tasks** | T-115 |
+
+### Summary
+
+T-115 (clean up stale rate-limit env variable names) passes code review on second submission. All issues from H-337 have been resolved:
+
+1. **Zero legacy variable names remain** in `backend/` — confirmed via grep for `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX` (standalone), `AUTH_RATE_LIMIT_MAX`
+2. **All 3 env files aligned**: `backend/.env`, `backend/.env.example`, `backend/.env.staging.example` all use the 6 correct T-111 variable names
+3. **Test file fixed**: `statsRateLimit.test.js` lines 13–14 use `RATE_LIMIT_AUTH_MAX` and `RATE_LIMIT_GLOBAL_MAX`
+4. **Middleware confirmed**: `rateLimiter.js` reads correct env var names with safe defaults
+
+### What QA Should Verify
+
+- Run `grep -r "RATE_LIMIT_WINDOW_MS\|AUTH_RATE_LIMIT_MAX" backend/` — should return nothing
+- Verify all 6 rate-limit vars present in each .env file
+- Run `npx jest --testPathPattern=statsRateLimit` — should pass
+- Security checklist: no secrets, no code logic changes, env-only chore
+
+---
+
+## H-338 — Backend Engineer → QA Engineer: T-115 Resubmitted — Ready for QA (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-338 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Ready for QA |
+| **Related Tasks** | T-115 |
+
+### Summary
+
+T-115 (.env stale rate-limit variable cleanup) has been resubmitted after addressing Manager review feedback. Changes made:
+
+1. **`backend/tests/statsRateLimit.test.js`** (lines 13–14): Updated `AUTH_RATE_LIMIT_MAX` → `RATE_LIMIT_AUTH_MAX` and `RATE_LIMIT_MAX` → `RATE_LIMIT_GLOBAL_MAX`
+2. **`backend/.env.staging.example`** (lines 29–39): Replaced 3 legacy variable names with all 6 T-111 variable names across auth, stats, and global tiers — now matches `backend/.env.example` exactly
+
+### What to Test
+
+- Verify no legacy rate-limit variable names (`RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`) exist anywhere in `backend/`
+- Verify `backend/.env.staging.example` contains all 6 T-111 rate-limit variables: `RATE_LIMIT_AUTH_MAX`, `RATE_LIMIT_AUTH_WINDOW_MS`, `RATE_LIMIT_STATS_MAX`, `RATE_LIMIT_STATS_WINDOW_MS`, `RATE_LIMIT_GLOBAL_MAX`, `RATE_LIMIT_GLOBAL_WINDOW_MS`
+- Run `npx jest --testPathPattern=statsRateLimit` — should pass (1/1)
+- Note: 20 other test suites fail due to pre-existing migration issue (notification_preferences table not applied to test DB) — unrelated to T-115
+
+---
+
+## H-337 — Manager → Backend Engineer: T-115 Code Review — Changes Requested (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-337 |
+| **From** | Manager |
+| **To** | Backend Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Changes Requested |
+| **Related Tasks** | T-115 |
+
+### Summary
+
+T-115 (.env cleanup) is incomplete. The main `.env` and `tests/setup.js` are correct, but legacy rate-limit variable names still exist in two files:
+
+1. **`backend/tests/statsRateLimit.test.js`** (lines 13–14):
+   - `AUTH_RATE_LIMIT_MAX` → should be `RATE_LIMIT_AUTH_MAX`
+   - `RATE_LIMIT_MAX` → should be `RATE_LIMIT_GLOBAL_MAX`
+
+2. **`backend/.env.staging.example`** (lines 30–32):
+   - `RATE_LIMIT_WINDOW_MS` → should be `RATE_LIMIT_GLOBAL_WINDOW_MS`
+   - `RATE_LIMIT_MAX` → should be `RATE_LIMIT_GLOBAL_MAX`
+   - `AUTH_RATE_LIMIT_MAX` → should be `RATE_LIMIT_AUTH_MAX`
+   - Also add the missing stats tier variables: `RATE_LIMIT_STATS_MAX`, `RATE_LIMIT_STATS_WINDOW_MS`
+
+Please fix these and resubmit to In Review.
+
+---
+
+## H-336 — Manager → QA Engineer: T-116 Code Review Approved — Ready for QA (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-336 |
+| **From** | Manager |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Ready for QA |
+| **Related Tasks** | T-116 |
+
+### Summary
+
+T-116 (Care status date boundary fix) has passed Manager code review and moved to Integration Check.
+
+**What was reviewed:**
+- `backend/src/routes/careDue.js` — refactored to use shared `computeNextDueAt` from `careStatus.js`. Month arithmetic, Math.floor, day-truncation, and baseline handling all match the canonical algorithm.
+- `backend/tests/careDueStatusConsistency.test.js` — 5 regression tests covering UTC, UTC+5:30, UTC-5, due_today, and monthly frequency. All verify the critical invariant: both endpoints agree on status classification.
+- Auth middleware enforced. No hardcoded secrets. No SQL injection. Error handling uses `next(err)`.
+
+**What to QA:**
+- Run full backend test suite (expect 188/188 pass)
+- Verify the critical invariant: for a given `utcOffset`, `GET /api/v1/plants` and `GET /api/v1/care-due` must classify the same plant's care status identically
+- Test monthly frequency edge case (35 days ago, 1-month schedule)
+- Security checklist pass
+
+---
+
 ## H-335 — Backend Engineer → QA Engineer: T-116 & T-115 Implementation Complete (2026-04-06)
 
 | Field | Value |
