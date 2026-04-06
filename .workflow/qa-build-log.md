@@ -4,6 +4,94 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Post-Deploy Health Check — Sprint #24 | 2026-04-06
+
+**Agent:** Monitor Agent
+**Environment:** Staging (local)
+**Timestamp:** 2026-04-06T14:00:25Z
+**Token:** Acquired via `POST /api/v1/auth/login` with `test@plantguardians.local` (NOT /auth/register)
+
+---
+
+### Test Type: Config Consistency
+
+| Check | Result | Details |
+|-------|--------|---------|
+| **Port match** | ✅ PASS | `backend/.env` PORT=3000; Vite proxy target=`http://localhost:3000` — ports match |
+| **Protocol match** | ✅ PASS | No `SSL_KEY_PATH` or `SSL_CERT_PATH` set in `.env` → backend serves HTTP. Vite proxy uses `http://` — protocols match |
+| **CORS match** | ✅ PASS | `FRONTEND_URL=http://localhost:5173,...` (read as CORS allowlist via `process.env.FRONTEND_URL` in `app.js:35`). Includes `http://localhost:5173` — Vite default dev server origin is covered |
+| **Docker port match** | ✅ N/A | `infra/docker-compose.yml` defines only Postgres services (no backend container). Backend deployed as local Node.js process — no container port mapping to validate |
+
+**Config Consistency: PASS** — all stack config is internally consistent.
+
+**Note (non-blocking, pre-existing FB-107):** `backend/.env` contains stale rate-limit variable names from prior sprints (`RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`) that do not match the T-111 variable names (`RATE_LIMIT_AUTH_MAX`, `RATE_LIMIT_AUTH_WINDOW_MS`, etc.). The backend `rateLimiter.js` correctly reads the T-111 names and falls back to safe defaults — no functional impact. No action required this sprint; cleanup already logged as FB-107.
+
+---
+
+### Test Type: Post-Deploy Health Check
+
+#### Backend Process
+| Check | Result | Details |
+|-------|--------|---------|
+| Backend process start | ✅ PASS | Server logs confirmed: `Plant Guardians API running on port 3000 [development]` |
+| Database pool | ✅ PASS | `Database pool warmed up with 2 connections (pool.min=2)` — DB connectivity confirmed at startup |
+| Email service | ✅ PASS (expected) | `[EmailService] WARNING: EMAIL_HOST not configured — email sending disabled`. Graceful degradation as designed |
+
+#### Health Endpoint
+| Check | Result | Details |
+|-------|--------|---------|
+| `GET /api/health` | ✅ PASS | HTTP 200 — `{"status":"ok","timestamp":"2026-04-06T14:00:25.448Z"}` |
+
+#### Auth Flow (T-111 — Rate Limiting)
+| Check | Result | Details |
+|-------|--------|---------|
+| `POST /api/v1/auth/login` — 200 | ✅ PASS | HTTP 200 — returned `access_token` + user object for `test@plantguardians.local` |
+| `POST /api/v1/auth/login` — RateLimit-Limit header | ✅ PASS | `RateLimit-Limit: 10` present — auth limiter active |
+| `POST /api/v1/auth/login` — RateLimit-Remaining header | ✅ PASS | `RateLimit-Remaining: 8` present |
+| `POST /api/v1/auth/login` — RateLimit-Reset header | ✅ PASS | `RateLimit-Reset: 880` present |
+| `POST /api/v1/auth/login` — RateLimit-Policy header | ✅ PASS | `RateLimit-Policy: 10;w=900` — confirms 10 req / 15 min window |
+
+#### Endpoint: GET /api/v1/care-due (regression check)
+| Check | Result | Details |
+|-------|--------|---------|
+| Response status | ✅ PASS | HTTP 200 |
+| Response shape | ✅ PASS | `{"data":{"overdue":[],"due_today":[],"upcoming":[...]}}` — matches contract |
+| No 5xx errors | ✅ PASS | Clean response |
+
+#### Endpoint: POST /api/v1/care-actions/batch (T-109 — new Sprint 24 endpoint)
+| Check | Result | Details |
+|-------|--------|---------|
+| Happy path (1 valid action) | ✅ PASS | HTTP 207 — `{"data":{"results":[{"plant_id":"ee21a6cd-...","care_type":"watering","performed_at":"2026-04-06T14:00:00.000Z","status":"created","error":null}],"created_count":1,"error_count":0}}` |
+| Auth enforced (no token) | ✅ PASS | HTTP 401 — `{"error":{"message":"Missing or invalid authorization header.","code":"UNAUTHORIZED"}}` |
+| Validation enforced (empty array) | ✅ PASS | HTTP 400 — `{"error":{"message":"actions must be a non-empty array with at most 50 items","code":"VALIDATION_ERROR"}}` |
+| 207 response shape | ✅ PASS | `results[]` with per-item `plant_id`, `care_type`, `performed_at`, `status`, `error`; top-level `created_count` and `error_count` — matches api-contracts.md exactly |
+
+#### Frontend Static Build
+| Check | Result | Details |
+|-------|--------|---------|
+| `frontend/dist/` exists | ✅ PASS | Build output present: `index.html`, `assets/`, `favicon.svg`, `icons.svg` |
+
+---
+
+### Summary
+
+| Category | Result |
+|----------|--------|
+| Config Consistency | ✅ PASS |
+| Backend health endpoint | ✅ PASS |
+| Database connectivity | ✅ PASS |
+| Auth flow + rate limit headers | ✅ PASS |
+| GET /api/v1/care-due | ✅ PASS |
+| POST /api/v1/care-actions/batch | ✅ PASS |
+| Frontend dist build | ✅ PASS |
+| 5xx errors | ✅ None detected |
+
+**Deploy Verified: Yes**
+
+All Sprint #24 endpoints respond correctly. Rate limiting headers confirmed present on auth routes. Config is consistent across backend, Vite proxy, and CORS allowlist. No regressions detected. Staging environment is healthy and ready for Manager review.
+
+---
+
 ## Build — Sprint #24 | 2026-04-06
 
 - **Triggered by:** Deploy Engineer (Sprint #24)
