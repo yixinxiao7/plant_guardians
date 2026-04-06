@@ -4,6 +4,74 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #22 — 2026-04-26 to 2026-05-02
+
+**Sprint Goal:** Close the most critical engagement loop for the "plant killer" persona — **Care Reminder Email Notifications**. When a plant's care is due or overdue, opted-in users receive an email reminder. Add notification preferences (opt-in toggle + reminder timing) to the Profile page so users own their notification experience from day one.
+
+**Outcome:** ✅ Goal fully met — all 3 tasks completed (T-100 through T-102), Deploy Verified: Yes (2026-04-05, Monitor Agent H-306). Ninth consecutive clean sprint. Zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-100 | Design: SPEC-017 — Care Reminder Email Notifications UX spec — notification preferences UI (opt-in toggle + timing selector on Profile page), preference save flow + success toast, email template layout (plant list, care types, CTA, unsubscribe link), unsubscribe/opt-out flow, empty-state (no email when nothing due), dark mode via CSS custom properties, full accessibility spec (`role="switch"`, `aria-checked`, `aria-label`, `aria-describedby`, `role="radiogroup"`) |
+| T-101 | Backend: `notification_preferences` migration (user_id FK, opt_in bool, reminder_hour_utc int 0–23); `GET /api/v1/profile/notification-preferences` (returns or creates defaults); `POST /api/v1/profile/notification-preferences` (updates, validates hour 0–23); `GET /api/v1/unsubscribe` (HMAC token, public); `POST /api/v1/admin/trigger-reminders` (dev-only, auth-gated); Nodemailer EmailService singleton (graceful degradation when SMTP unconfigured); daily cron job (skips opted-out users, skips users with no due care); 17 new tests; all 166/166 backend tests pass (up from 149) |
+| T-102 | Frontend: `RemindersSection` component on Profile page — opt-in toggle (`role="switch"`, `aria-checked`, `aria-describedby`), timing selector (`role="radiogroup"`, maps to UTC hours 8/12/18), dirty-state tracking (Save button only appears on unsaved change), contextual micro-copy ("Save reminder settings" vs "Save changes"; "Reminder settings saved" vs "Email reminders turned off"), page-load pre-population, inline error with dismiss; 12 new `RemindersSection` tests + 1 `ProfilePage` integration test; all 239/239 frontend tests pass (up from 227) |
+
+#### Tasks Carried Over
+
+None. Ninth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. Monitor Agent health check returned **Deploy Verified: Yes** (2026-04-05, H-306). All endpoints operational:
+- `GET /api/v1/profile/notification-preferences` → 200 (auth) / 401 (unauth) ✅
+- `POST /api/v1/profile/notification-preferences` → 200 (valid) / 400 (hour=25) / 401 (unauth) ✅
+- `GET /api/v1/unsubscribe` → 400 (no token / malformed) ✅
+- `POST /api/v1/admin/trigger-reminders` → 200 (auth) / 401 (unauth) ✅
+- Email service graceful degradation confirmed (no EMAIL_HOST → logs warning, does not crash, returns `emails_sent: 0`) ✅
+- Regression checks: `/api/v1/plants`, `/api/v1/care-actions/streak`, `/api/v1/profile` all 200 ✅
+
+**Note on test flakiness:** QA re-verification run (between midnight–noon UTC) found 5 pre-existing failures in `careActionsStreak.test.js` — root cause is `daysAgo(0)` setting timestamp to noon UTC, which the backend rejects as a future time when run before 12:00 UTC. This is NOT a Sprint 22 regression — it pre-dates this sprint. Filed as FB-101. Tasked for fix in Sprint 23 (T-104).
+
+---
+
+#### Key Feedback Themes
+
+- **FB-098** (Positive): `RemindersSection` dirty-tracking (Save button only on actual unsaved change) and contextual micro-copy ("Save reminder settings" vs "Save changes") called out as exemplary UX patterns. Should be the standard for all toggle-based settings.
+- **FB-099** (Positive): `EmailService` graceful degradation pattern praised — singleton checks `EMAIL_HOST` at construction, short-circuits all sends when unconfigured, trigger endpoint still executes full logic and returns accurate stats. QA/staging environments can test the full pipeline without SMTP infrastructure.
+- **FB-100** (Minor UX): `notificationPreferences.unsubscribe(token)` in `api.js` only passes `token` but backend `GET /unsubscribe` requires both `token` and `uid`. Not blocking (no unsubscribe page exists yet), deferred to Sprint 23.
+- **FB-101** (Minor Bug): `careActionsStreak.test.js` 5 tests fail when run between midnight and noon UTC due to `daysAgo(0)` noon-UTC timestamp. Pre-existing issue, not a Sprint 22 regression. Deferred to Sprint 23 (T-104).
+
+---
+
+#### What Went Well
+
+- Email notification infrastructure delivered in full in a single sprint — email service, cron job, preferences API, preferences UI, and unsubscribe endpoint all shipped together
+- HMAC-based unsubscribe token (constant-time comparison via `crypto.timingSafeEqual()`) is a strong security pattern for a public endpoint
+- Dirty-tracking in `RemindersSection` is an elegant UX detail — users only see Save when they have something to save
+- `EmailService` graceful degradation means staging/dev environments work without SMTP configuration — zero friction for future engineers
+- Admin trigger endpoint (`POST /admin/trigger-reminders`) production-gated via `NODE_ENV !== 'production'` — correct security posture
+- 9th consecutive clean sprint: no rework loops, no carry-over
+
+#### What To Improve
+
+- `careActionsStreak.test.js` timezone flakiness has been present for multiple sprints — should be fixed proactively before it starts causing CI failures in a production environment (T-104, Sprint 23)
+- The unsubscribe landing page (SPEC-017 Surface 3) was deferred — the full email notification loop isn't closed until users can actually one-click unsubscribe from an email footer link (T-103, Sprint 23)
+
+#### Technical Debt Noted
+
+- `api.js` `notificationPreferences.unsubscribe(token)` missing `uid` param — must be fixed before unsubscribe page is built (Sprint 23, T-103)
+- `careActionsStreak.test.js` `daysAgo(0)` helper needs to use `new Date()` or `d.setUTCHours(0, 0, 0, 0)` to avoid noon-UTC boundary failures (Sprint 23, T-104)
+- Express 5 migration remains advisory backlog — no urgency yet
+- Production email delivery blocked on project owner providing SMTP credentials
+
+---
+
 ### Sprint #21 — 2026-04-19 to 2026-04-25
 
 **Sprint Goal:** Let users capture observations alongside care actions by adding an optional **Care Note** to the mark-done flow (on both the Care Due Dashboard and Plant Detail page), and polish the Care History UI by resolving the three minor SPEC-015 cosmetic deviations from FB-093.

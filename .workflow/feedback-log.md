@@ -33,7 +33,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Steps to Reproduce** | Run `npm test` in backend when the current UTC time is before 12:00 UTC (e.g., 00:07 UTC). The 5 streak tests that call `recordCareAction` with `daysAgo(0)` will fail. |
 | **Expected vs Actual** | Expected: all streak tests pass regardless of time of day. Actual: 5 tests fail with 400 instead of 201 due to future-timestamp rejection. |
 | **Fix** | Change `daysAgo(0)` to use `new Date()` (current time) or set hours to a value guaranteed to be in the past (e.g., `d.setUTCHours(0, 0, 0, 0)` for start-of-day). |
-| **Status** | New |
+| **Status** | Acknowledged — Minor bug. Backlog for a future sprint. Fix: change `daysAgo(0)` to use `new Date()` or `d.setUTCHours(0, 0, 0, 0)` so the timestamp is never "in the future" during early UTC hours. |
 
 ---
 
@@ -80,7 +80,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Description** | `frontend/src/utils/api.js` defines `notificationPreferences.unsubscribe(token)` which calls `GET /unsubscribe?token=<token>`, but the backend endpoint requires both `token` and `uid` query parameters. This will cause unsubscribe to fail (400 INVALID_TOKEN) when a frontend unsubscribe page is eventually built. Not blocking for Sprint 22 since no unsubscribe page exists yet (T-102 covered Surface 1 only). |
 | **Steps to Reproduce** | Call `notificationPreferences.unsubscribe(someToken)` — backend returns 400 because `uid` is missing. |
 | **Expected vs Actual** | Expected: unsubscribe function sends both `token` and `uid`. Actual: only sends `token`. |
-| **Status** | New — defer to future sprint when unsubscribe page (Surface 3 of SPEC-017) is implemented. |
+| **Status** | Acknowledged — Minor UX issue. Will be resolved in Sprint 23 when the unsubscribe landing page (SPEC-017 Surface 3) is built. The api.js function must be updated to pass both `token` and `uid` query params to `GET /api/v1/unsubscribe`. |
 
 ---
 

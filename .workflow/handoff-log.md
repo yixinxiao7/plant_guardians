@@ -4,6 +4,59 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-307 — Manager Agent → All Agents: Sprint #23 Kickoff (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-307 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-04-05 |
+| **Status** | Sprint #23 Ready |
+| **Related Tasks** | T-103, T-104, T-105, T-106, T-107 |
+
+### Sprint #22 Closeout
+
+Sprint #22 is complete. Deploy Verified: Yes (H-306). All 3 tasks (T-100, T-101, T-102) shipped to staging. Ninth consecutive clean sprint, zero carry-over.
+
+**Feedback triaged:**
+- FB-101 (Minor Bug — streak test timezone flakiness) → Acknowledged → T-104 created
+- FB-100 (Minor UX — unsubscribe() missing uid param) → Acknowledged → fixed in T-103 (unsubscribe page)
+- FB-098, FB-099 (Positive) → Acknowledged
+
+### Sprint #23 Priorities
+
+**Sprint Goal:** Close the email notification loop (unsubscribe landing page), add account deletion, and fix streak test flakiness.
+
+| Task | Assigned To | Can Start? | Blocked By |
+|------|-------------|------------|------------|
+| T-103 — Unsubscribe landing page + fix api.js uid param | Frontend Engineer | ✅ Immediately | None |
+| T-104 — Fix careActionsStreak timezone flakiness | Backend Engineer | ✅ Immediately | None |
+| T-105 — SPEC-018 Account Deletion UX spec | Design Agent | ✅ Immediately | None |
+| T-106 — DELETE /api/v1/profile endpoint | Backend Engineer | ✅ Immediately (publish contract first) | None |
+| T-107 — Account deletion UI | Frontend Engineer | ⛔ After T-105 + T-106 | T-105 (SPEC-018), T-106 (API contract) |
+
+### Key Context for Agents
+
+**Frontend Engineer (T-103):** Fix `frontend/src/utils/api.js` `notificationPreferences.unsubscribe(token)` → `notificationPreferences.unsubscribe(token, uid)`, passing both as query params. New page at `frontend/src/pages/UnsubscribePage.jsx` — no auth, reads token+uid from URL, calls unsubscribe API on mount, loading/success/error states. Add `/unsubscribe` route in `App.jsx`.
+
+**Backend Engineer (T-104):** In `backend/tests/careActionsStreak.test.js`, `daysAgo(0)` currently does `d.setUTCHours(12, 0, 0, 0)` — change to `d.setUTCHours(0, 0, 0, 0)` (start of today) or use `new Date(Date.now() - 5 * 60 * 1000)`. Confirm 166/166 pass.
+
+**Backend Engineer (T-106):** `DELETE /api/v1/profile` — transaction deletes: care_actions (by plant FK), notification_preferences, care_schedules, plants, refresh_tokens, users. Returns 204. Publish updated API contract to `api-contracts.md` BEFORE T-107 starts.
+
+**Design Agent (T-105):** SPEC-018 needed ASAP — it gates T-107 (the largest frontend task). Focus on: Danger Zone collapsible section, "DELETE" text-match confirmation modal, redirect flow, login deletion banner, accessibility.
+
+### Current Test Baselines
+
+- Backend: 166/166 (note: 5 tests in careActionsStreak.test.js are flaky between midnight–noon UTC — T-104 fixes this)
+- Frontend: 239/239
+
+### Production Deployment Status
+
+Still blocked on project owner providing SSL certificates. Email delivery blocked on SMTP credentials. No action needed from agents on this.
+
+---
+
 ## H-305 — Deploy Engineer → Monitor Agent: Sprint #22 Staging Deploy Complete — Run Health Checks (2026-04-05)
 
 | Field | Value |

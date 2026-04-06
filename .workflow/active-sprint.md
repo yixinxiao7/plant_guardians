@@ -4,80 +4,103 @@ The operational reference for the current development cycle. Refreshed at the st
 
 ---
 
-## Sprint #22 — 2026-04-26 to 2026-05-02
+## Sprint #23 — 2026-05-03 to 2026-05-09
 
-**Sprint Goal:** Close the most critical engagement loop for the "plant killer" persona — **Care Reminder Email Notifications**. When a plant's care is due or overdue, opted-in users receive an email reminder so they never silently miss a care event. Add notification preferences (opt-in toggle + reminder timing) to the Profile page so users own their notification experience from day one.
+**Sprint Goal:** Close the email notification loop with the **Unsubscribe landing page** (SPEC-017 Surface 3), give users full control over their data with an **Account Deletion** feature, and fix the pre-existing timezone-dependent test flakiness in `careActionsStreak.test.js`.
 
-**Context:** Sprint #21 delivered the Care Notes write path and resolved the three SPEC-015 cosmetic deviations — eighth consecutive clean sprint. Backend is at 149/149 tests, frontend at 227/227. Deploy Verified: Yes at SHA d8a7b17. The app's core tracking loop (add plant → get due reminders → mark done → see history + streak → add notes) is now feature-complete. Sprint #22 adds the proactive outbound engagement layer: email reminders that meet the user where they are, outside the app, reinforcing the care habit the product is designed to build.
+**Context:** Sprint #22 delivered the full email notification infrastructure — preferences API, Nodemailer integration, daily cron job, and the RemindersSection UI — ninth consecutive clean sprint. Backend is at 166/166 tests (with a known pre-existing flakiness in 5 streak tests at certain UTC hours), frontend at 239/239. Two small items remain open from Sprint 22: (1) The unsubscribe landing page (SPEC-017 Surface 3 was designed but not built — email footer links point to an unbuilt page), and (2) the `api.js` unsubscribe helper is missing the `uid` param. Sprint 23 closes both of these, adds account deletion (a natural next step for user data control), and eliminates the streak test flakiness before it causes CI pain.
 
 ---
 
 ## In Scope
 
-### P1 — Email Notification Infrastructure
+### P2 — Close Email Notification Loop
 
-- [ ] **T-100** — Design Agent: Write SPEC-017 — Care Reminder Email Notifications UX spec **(P1)**
-  - **Description:** Design the care reminder email feature end-to-end. Cover: (1) **Notification preferences UI** — a new "Reminders" section at the bottom of the Profile page, with an opt-in toggle ("Get email reminders when care is due") and a reminder timing selector (three options: Morning ~8 AM, Midday ~12 PM, Evening ~6 PM — stored as UTC hour integers in the backend); (2) **Preference save flow** — changes auto-save or save on explicit button press; success toast on save; (3) **Email template layout** — warm, minimal botanical aesthetic (consistent with app brand); header with app logo/name; body listing the plants with care due/overdue (care type icon, plant name, days overdue or "due today"); single CTA button "Open Plant Guardians"; footer with unsubscribe link; (4) **Unsubscribe / opt-out** — one-click unsubscribe from email footer sets opt_in=false; confirmation page or toast; (5) **Empty-state handling** — if no care is due on a given day, no email is sent (do not send "all clear" emails); (6) **Dark mode** — preferences UI uses CSS custom properties; (7) **Accessibility** — `aria-label` on toggle, `role="switch"` for toggle, `aria-label` on timing selector.
+- [ ] **T-103** — Frontend Engineer: Unsubscribe landing page (SPEC-017 Surface 3) + fix api.js unsubscribe uid param **(P2)**
+  - **Description:** Two deliverables: (1) **Fix `api.js`** — update `notificationPreferences.unsubscribe(token, uid)` to pass both `token` and `uid` as query params to `GET /api/v1/unsubscribe?token=<token>&uid=<uid>` (fixes FB-100). (2) **Unsubscribe landing page** — create a new page at `/unsubscribe` (React route, no auth required). The page reads `token` and `uid` from the URL query string and calls `notificationPreferences.unsubscribe(token, uid)` on mount. States: (a) Loading — spinner with "Processing your request…"; (b) Success — green confirmation "You've been unsubscribed. You won't receive any more care reminder emails." with a "Back to Plant Guardians" link; (c) Error — "This unsubscribe link is invalid or has already been used." with a "Go to Profile Settings" link. Dark mode via CSS custom properties. No auth required (page must work from an email link). Add the route to `App.jsx`. Add `notificationPreferences.unsubscribe()` calls to api.js.
   - **Acceptance Criteria:**
-    - SPEC-017 written to `.workflow/ui-spec.md` (appended as new section)
-    - Covers preference UI (toggle + timing selector on Profile page)
-    - Covers preference save flow and success feedback
-    - Covers email template layout (plant list, care types, CTA, unsubscribe link)
-    - Covers unsubscribe / opt-out flow
-    - Covers empty-state (no email if nothing due)
+    - `notificationPreferences.unsubscribe(token, uid)` in `api.js` sends both `token` and `uid` query params
+    - `/unsubscribe` route exists in `App.jsx` (no auth required)
+    - Page reads `token` + `uid` from URL query string and calls the unsubscribe API on mount
+    - Loading, success, and error states all implemented
+    - Dark mode: all new elements use CSS custom properties; no hardcoded colors
+    - Unit tests: loading state, success state (API resolves), error state (API rejects — 400), missing token/uid in URL → error state; minimum 4 new tests
+    - All 239/239 frontend tests still pass; add minimum 4 new tests
+  - **Blocked By:** None — start immediately.
+  - **Fix locations:** `frontend/src/utils/api.js` (fix unsubscribe uid param), `frontend/src/pages/UnsubscribePage.jsx` (new), `frontend/src/pages/UnsubscribePage.css` (new), `frontend/src/App.jsx` (add `/unsubscribe` route)
+
+---
+
+### P3 — Fix Pre-Existing Test Flakiness
+
+- [ ] **T-104** — Backend Engineer: Fix careActionsStreak.test.js timezone-dependent flakiness (FB-101) **(P3)**
+  - **Description:** Fix the `daysAgo(0)` helper in `backend/tests/careActionsStreak.test.js`. Currently it sets the timestamp to noon UTC today (`d.setUTCHours(12, 0, 0, 0)`), which the backend's `performed_at` validation rejects as a future time when tests run between midnight and noon UTC. Fix: change `daysAgo(0)` to use a time that is always in the past regardless of when the test runs — e.g., `d.setUTCHours(0, 0, 0, 0)` (start of today UTC, always in the past by the time a human runs the test) or simply `new Date(Date.now() - 5 * 60 * 1000)` (5 minutes ago). All 5 affected tests should then pass regardless of time of day. Verify by running the suite at least once and confirming 166/166 pass.
+  - **Acceptance Criteria:**
+    - `daysAgo(0)` no longer produces a future UTC timestamp
+    - All 5 previously flaky streak tests pass regardless of current UTC hour
+    - All 166/166 backend tests pass; no regressions
+  - **Blocked By:** None — start immediately.
+  - **Fix locations:** `backend/tests/careActionsStreak.test.js`
+
+---
+
+### P2 — Account Deletion
+
+- [ ] **T-105** — Design Agent: Write SPEC-018 — Account Deletion UX spec **(P2)**
+  - **Description:** Design the account deletion flow end-to-end. Cover: (1) **Danger zone on Profile page** — a collapsible "Danger Zone" section at the very bottom of the Profile page, visually separated (subtle red/muted warning border), collapsed by default; contains a "Delete my account" button; (2) **Confirmation modal** — opened by the "Delete my account" button; modal title "Delete your account?"; body copy explaining what will be permanently deleted (account, plants, care history, notes, reminders); a text input requiring the user to type "DELETE" (all caps) to confirm — the confirm button is disabled until the input matches exactly; a "Cancel" button; (3) **Loading state** — confirm button shows spinner, inputs disabled while request is in flight; (4) **Success state** — account deleted, auth tokens cleared, user redirected to `/login` with a query param `?deleted=true`; on the login page, if `?deleted=true` is present, show a dismissible banner: "Your account has been permanently deleted."; (5) **Error state** — if deletion fails, show inline error in modal "Could not delete your account. Please try again." with retry; (6) **Dark mode** — all new elements use CSS custom properties; (7) **Accessibility** — confirm input has `aria-label`, confirm button `aria-disabled` when input doesn't match, modal uses `role="dialog"` and `aria-labelledby`.
+  - **Acceptance Criteria:**
+    - SPEC-018 written to `.workflow/ui-spec.md` (appended as new section)
+    - Covers Danger Zone section on Profile page (collapsed by default)
+    - Covers confirmation modal (text input "DELETE", disabled confirm button until match)
+    - Covers loading, success (redirect + login banner), and error states
     - Dark mode and accessibility notes included
   - **Dependencies:** None — start immediately.
   - **Fix locations:** `.workflow/ui-spec.md`
 
 ---
 
-- [ ] **T-101** — Backend Engineer: Email notification service + daily care-reminder cron job + notification preferences API **(P1)**
-  - **Description:** Three deliverables: (1) **Database migration** — add `notification_preferences` table: `user_id` (FK → users.id, unique), `opt_in` (boolean, default false), `reminder_hour_utc` (integer 0–23, default 8). (2) **API endpoints** — `GET /api/v1/profile/notification-preferences` (returns current preferences, creates default row if not exists) and `POST /api/v1/profile/notification-preferences` (updates opt_in and/or reminder_hour_utc; validates reminder_hour_utc is integer 0–23; returns updated preferences). Both endpoints require auth. (3) **Email service + cron job** — integrate Nodemailer (SMTP via env vars: `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM`). Create a daily cron job (or manual-trigger endpoint for testing: `POST /api/v1/admin/trigger-reminders` — auth-protected, dev only) that: queries all users with opt_in=true whose `reminder_hour_utc` matches the current UTC hour; for each such user, queries their plants with care due today or overdue; if any plants have due/overdue care, sends a reminder email listing the plants and care types; if no care is due, skips (no email). Publish the updated API contract to `.workflow/api-contracts.md` before T-102 begins.
+- [ ] **T-106** — Backend Engineer: Account deletion endpoint **(P2)**
+  - **Description:** Implement `DELETE /api/v1/profile` (auth required). The endpoint: (1) Verifies the requesting user owns the account being deleted (user ID from JWT); (2) Deletes the user's data in dependency order — care_actions, notification_preferences, care_schedules, plants, refresh_tokens, then the users row itself (all within a transaction); (3) Returns `204 No Content` on success; (4) Returns `401` for unauthenticated requests; (5) Returns `404` if user not found (edge case for already-deleted accounts). All cascade deletes should be explicit in the transaction (do not rely solely on DB-level cascade) to ensure data hygiene across all tables. Publish the updated API contract to `.workflow/api-contracts.md` before T-107 begins.
   - **Acceptance Criteria:**
-    - `notification_preferences` migration runs cleanly; table has correct columns and FK
-    - `GET /api/v1/profile/notification-preferences` returns `{opt_in, reminder_hour_utc}`; creates default row on first call
-    - `POST /api/v1/profile/notification-preferences` updates preferences; validates `reminder_hour_utc` (0–23 integer); returns updated object
-    - Both endpoints return 401 for unauthenticated requests
-    - Nodemailer integration works with SMTP env vars; EMAIL env vars are optional (service degrades gracefully if not set — logs a warning but does not crash)
-    - Daily job (or trigger endpoint) correctly identifies due/overdue plants per opted-in user and sends emails
-    - No email sent if no care is due for a user
-    - Unit tests: GET preferences (new user → defaults), POST preferences (valid update, invalid hour → 400, auth guard), email send with mocked transporter, cron job skips users with opt_in=false; minimum 6 new tests
-    - All 149/149 backend tests still pass; add minimum 6 new tests
-    - Updated API contract published to `.workflow/api-contracts.md` before T-102 begins
-  - **Blocked By:** None — start immediately. Publish updated contract before T-102 begins.
-  - **Fix locations:** `backend/src/routes/notificationPreferences.js` (new), `backend/src/services/emailService.js` (new), `backend/src/jobs/careReminderJob.js` (new), `backend/migrations/` (new migration), `backend/src/app.js` (register routes + cron)
+    - `DELETE /api/v1/profile` endpoint implemented and registered in `app.js`
+    - Deletes all user data (care_actions, notification_preferences, care_schedules, plants, refresh_tokens, users row) within a single transaction
+    - Returns 204 on success; 401 for unauthenticated; 404 if user not found
+    - Unit tests: successful deletion (verifies all related rows gone), 401 (no auth), 404 (user not found), transaction rollback on failure; minimum 4 new tests
+    - All 166/166 backend tests still pass (after T-104 fix); add minimum 4 new tests
+    - Updated API contract published to `.workflow/api-contracts.md` before T-107 begins
+  - **Blocked By:** None — start immediately. Publish updated contract before T-107 begins.
+  - **Fix locations:** `backend/src/routes/profile.js` (add DELETE handler), `backend/src/models/User.js` (add deleteWithAllData method), `.workflow/api-contracts.md`
 
 ---
 
-- [ ] **T-102** — Frontend Engineer: Notification preferences UI on Profile page **(P1)**
-  - **Description:** Add a "Reminders" section to the Profile page below the existing stats section (per SPEC-017). The section contains: (1) A toggle (`role="switch"`, `aria-label="Email reminders"`) labelled "Get email reminders when care is due" — defaults to off until user opts in; (2) When toggled on, a timing selector appears (three radio buttons or a select: "Morning (8 AM)", "Midday (12 PM)", "Evening (6 PM)") — maps to UTC hours 8, 12, 18; (3) A save button ("Save reminder settings") or auto-save on change — show a success toast on successful save; show inline error if the API call fails; (4) On page load, fetch current preferences from `GET /api/v1/profile/notification-preferences` and pre-populate the toggle and selector; (5) Dark mode: all new elements use CSS custom properties; (6) Accessibility: `role="switch"` on toggle, `aria-label` on timing selector, `aria-describedby` linking toggle to description text.
+- [ ] **T-107** — Frontend Engineer: Account deletion UI on Profile page **(P2)**
+  - **Description:** Implement the account deletion flow per SPEC-018. (1) Add a "Danger Zone" collapsible section at the bottom of `ProfilePage.jsx` — collapsed by default, toggled by a chevron button; visually separated with a muted warning border; (2) Inside: a "Delete my account" button that opens a confirmation modal; (3) **Confirmation modal** — text input where user must type "DELETE" exactly (case-sensitive); confirm button disabled and `aria-disabled` until input matches; loading spinner on confirm while API call is in-flight; (4) On `DELETE /api/v1/profile` success: clear auth tokens (call `logout()` / clear token state), redirect to `/login?deleted=true`; (5) On `/login` page: if `?deleted=true` is in the query string, show a dismissible one-time banner "Your account has been permanently deleted."; (6) On API failure: inline error "Could not delete your account. Please try again." in the modal; (7) Dark mode via CSS custom properties; (8) Accessibility: modal `role="dialog"` + `aria-labelledby`, confirm input `aria-label="Type DELETE to confirm"`, confirm button `aria-disabled` when disabled.
   - **Acceptance Criteria:**
-    - Profile page shows "Reminders" section below stats
-    - Toggle defaults to off (opt_in=false); toggling on reveals timing selector
-    - Timing selector maps to correct UTC hours (8, 12, 18) in POST body
-    - Page load fetches and pre-populates current preferences
-    - Save action calls `POST /api/v1/profile/notification-preferences`; success toast shown; API error shows inline error
-    - Dark mode: new elements use CSS custom properties; no hardcoded colors
-    - Accessibility: `role="switch"` on toggle, `aria-label` on selector, `aria-describedby` on toggle
-    - Unit tests: toggle on/off, timing selector selection, API success + toast, API failure + error, pre-population on load; minimum 4 new tests
-    - All 227/227 frontend tests still pass; add minimum 4 new tests
-  - **Blocked By:** T-100 (SPEC-017 must exist), T-101 (updated API contract must be published)
-  - **Fix locations:** `frontend/src/pages/ProfilePage.jsx`, `frontend/src/api.js` (add notificationPreferences.get / notificationPreferences.update), `frontend/src/pages/ProfilePage.css` (new Reminders section styles)
+    - Danger Zone section on Profile page, collapsed by default
+    - Confirmation modal with "DELETE" text-match gate (confirm button disabled until match)
+    - API success → auth cleared → redirect to `/login?deleted=true` → dismissible deletion banner on login page
+    - API error → inline error in modal with retry
+    - Dark mode: new elements use CSS custom properties
+    - Accessibility: `role="dialog"`, `aria-labelledby`, `aria-disabled`, `aria-label` on input
+    - Unit tests: Danger Zone renders collapsed, toggle opens, modal opens on button click, confirm disabled until "DELETE" typed, API success → redirect, API error → error shown, login page banner renders with `?deleted=true`, banner dismissed on click; minimum 6 new tests
+    - All frontend tests still pass; add minimum 6 new tests
+  - **Blocked By:** T-105 (SPEC-018 must exist), T-106 (updated API contract must be published)
+  - **Fix locations:** `frontend/src/pages/ProfilePage.jsx`, `frontend/src/pages/ProfilePage.css`, `frontend/src/pages/LoginPage.jsx` (deletion banner), `frontend/src/api.js` (add `profile.delete()`), `frontend/src/components/DeleteAccountModal.jsx` (new)
 
 ---
 
 ## Out of Scope
 
 - Push notifications (browser or mobile) — requires service worker / APNs infrastructure — post-sprint
-- Email template HTML rendering framework (MJML etc.) — keep templates as simple inline HTML for now
 - Social auth (Google OAuth) — B-001 — post-sprint
 - Plant sharing / public profiles — B-003 — post-sprint
-- Reference photo in AI advice results (FB-081) — post-MVP
+- Email template HTML rendering framework (MJML etc.) — keep templates as simple inline HTML
 - Production deployment execution — blocked on project owner providing SSL certs
-- Express 5 migration — advisory backlog
-- Soft delete / grace period for account deletion (FB-077) — backlog
 - Batch mark-done on Care Due Dashboard — backlog
+- Express 5 migration — advisory backlog
 - Endpoint-specific rate limiting on `/care-actions/stats` (FB-073) — backlog
+- Reference photo in AI advice results (FB-081) — post-MVP
+- Soft-delete / grace period for account deletion — post-MVP (hard delete is sufficient for MVP)
 
 ---
 
@@ -85,12 +108,12 @@ The operational reference for the current development cycle. Refreshed at the st
 
 | Agent | Focus Area This Sprint | Key Tasks |
 |-------|----------------------|-----------|
-| Design Agent | Care reminder email UX spec | T-100 (P1, start immediately) |
-| Backend Engineer | Email service + cron job + notification preferences API | T-101 (P1, start immediately, publish contract before T-102) |
-| Frontend Engineer | Notification preferences UI on Profile page | T-102 (P1, after T-100 + T-101) |
-| QA Engineer | Full QA of T-100–T-102, security checklist (new SMTP env vars) | After all tasks complete |
+| Design Agent | Account deletion UX spec | T-105 (P2, start immediately) |
+| Backend Engineer | Fix streak test flakiness + account deletion endpoint | T-104 (P3, start immediately), T-106 (P2, start immediately, publish contract before T-107) |
+| Frontend Engineer | Unsubscribe landing page + account deletion UI | T-103 (P2, start immediately), T-107 (P2, after T-105 + T-106) |
+| QA Engineer | Full QA of T-103–T-107, security checklist (account deletion) | After all tasks complete |
 | Deploy Engineer | Staging re-deploy after QA sign-off | After all tasks QA-verified |
-| Monitor Agent | Post-deploy health check — verify preferences endpoints + email trigger on staging | After Deploy Engineer re-deploy |
+| Monitor Agent | Post-deploy health check — verify unsubscribe page + deletion endpoint on staging | After Deploy Engineer re-deploy |
 | Manager | Sprint coordination, API contract review, code review | Ongoing |
 
 ---
@@ -98,58 +121,63 @@ The operational reference for the current development cycle. Refreshed at the st
 ## Dependency Chain (Critical Path)
 
 ```
-T-100 (SPEC-017 — Design Agent, START IMMEDIATELY)
+T-103 (Unsubscribe page — Frontend Engineer, START IMMEDIATELY — no blockers)
+T-104 (Streak test fix — Backend Engineer, START IMMEDIATELY — no blockers)
+
+T-105 (SPEC-018 — Design Agent, START IMMEDIATELY)
   ↓ (spec complete)
 
-T-101 (Backend service + cron + API — Backend Engineer, START IMMEDIATELY — publish contract before T-102)
-  ↓ (publish updated API contract to api-contracts.md)
+T-106 (Account deletion endpoint — Backend Engineer, START IMMEDIATELY — publish contract before T-107)
+  ↓ (publish updated API contract)
 
-T-102 (preferences UI — Frontend Engineer, after T-100 spec + T-101 contract)
+T-107 (Account deletion UI — Frontend Engineer, after T-105 spec + T-106 contract)
   ↓
-QA verifies T-100 + T-101 + T-102 end-to-end
+QA verifies T-103 + T-104 + T-105 + T-106 + T-107 end-to-end
 
 [After all tasks QA-verified]
 Deploy Engineer re-deploys to staging
   ↓
-Monitor Agent health check — verify GET/POST preferences + email trigger on staging
+Monitor Agent health check — verify GET /unsubscribe + DELETE /profile on staging
 ```
 
-**Critical path:** T-100 + T-101 (parallel start) → T-102 → QA → Deploy → Monitor → staging verified.
-**Note:** T-101 is the most complex task (L complexity) — Backend Engineer should start immediately and publish the API contract as soon as the endpoints are defined, even before the email service is complete, to unblock T-102.
+**Critical path:** T-105 + T-106 (parallel start) → T-107 → QA → Deploy → Monitor → staging verified.
+**Note:** T-103 and T-104 have no blockers and can run in parallel with T-105/T-106.
 
 ---
 
 ## Definition of Done
 
-Sprint #22 is complete when:
+Sprint #23 is complete when:
 
-- [ ] T-100: SPEC-017 written covering preferences UI (toggle + timing), save flow, email template layout, unsubscribe flow, empty-state (no email if nothing due), dark mode, and accessibility
-- [ ] T-101: `notification_preferences` migration applied; GET + POST preferences endpoints working; Nodemailer integration; daily cron job sends reminders only to opted-in users with due/overdue care; 6+ new tests; all 149/149 backend tests pass
-- [ ] T-102: "Reminders" section on Profile page with toggle + timing selector; page-load pre-population; save with success toast; dark mode; accessibility (`role="switch"`, `aria-label`); 4+ new tests; all 227/227 frontend tests pass
+- [ ] T-103: `/unsubscribe` page exists at React route; reads `token`+`uid` from query string; calls `GET /api/v1/unsubscribe`; loading/success/error states implemented; `api.js` unsubscribe() includes `uid` param; 4+ new tests; all 239/239 frontend tests pass
+- [ ] T-104: `daysAgo(0)` no longer produces a future UTC timestamp; all 5 previously-flaky streak tests pass regardless of UTC hour; 166/166 backend tests pass
+- [ ] T-105: SPEC-018 written covering Danger Zone section on Profile page, confirmation modal with "DELETE" text gate, loading/success/error states, redirect flow, login page deletion banner, dark mode, accessibility
+- [ ] T-106: `DELETE /api/v1/profile` endpoint deletes all user data in a transaction; 4+ new tests; all backend tests pass; API contract published
+- [ ] T-107: Danger Zone section on Profile page (collapsed by default); confirmation modal with "DELETE" text-match gate; success → auth cleared + redirect + login deletion banner; error → inline modal error; 6+ new tests; all frontend tests pass
 - [ ] Deploy Verified: Yes from Monitor Agent post-deploy health check
-- [ ] No regressions: backend ≥ 149/149, frontend ≥ 227/227
+- [ ] No regressions: backend ≥ 170/170 (estimated), frontend ≥ 249/249 (estimated)
 
 ---
 
 ## Success Criteria
 
-- **Opt-in works** — User can toggle email reminders on/off from the Profile page; preference is persisted and pre-populated on next visit
-- **Timing preference works** — User can select morning / midday / evening reminder time; preference is persisted
-- **Email sent when due** — Opted-in users with due or overdue care receive an email listing the affected plants and care types
-- **Email not sent when nothing due** — If no care is due for a user that day, no email is sent (no "all clear" spam)
-- **Unsubscribe works** — Footer unsubscribe link in email disables opt_in; user no longer receives reminders
-- **Graceful degradation** — If SMTP env vars are not set, backend starts and runs without crashing; email sending is skipped with a logged warning
-- **Test suite grows** — Backend adds minimum 6 new tests; frontend adds minimum 4 new tests; no regressions
+- **Unsubscribe page works end-to-end** — A user clicking an email footer unsubscribe link is taken to `/unsubscribe?token=<t>&uid=<u>`, sees a confirmation, and is opted out
+- **Streak tests always pass** — Running `npm test` in backend at any UTC hour returns 166/166 (after T-104 fix)
+- **Account deletion works** — A user can delete their account from the Profile page; all their data is removed; they are redirected to login with a deletion confirmation banner
+- **Deletion is hard-gated** — The confirm button is disabled until the user types "DELETE" exactly; no accidental deletions
+- **Auth cleared on deletion** — After account deletion, the user cannot use stale tokens to access API endpoints
+- **Test suite grows** — Backend adds minimum 4 new tests (T-106); frontend adds minimum 10 new tests (T-103 4+, T-107 6+); no regressions
 
 ---
 
 ## Blockers
 
-- T-102 is blocked until: (1) Design Agent publishes SPEC-017; (2) Backend Engineer publishes updated API contract for notification preferences endpoints
-- T-100 and T-101 have no blockers — both can start immediately
+- T-107 is blocked until: (1) Design Agent publishes SPEC-018; (2) Backend Engineer publishes updated API contract for `DELETE /api/v1/profile`
+- T-103 and T-104 have no blockers — both can start immediately
+- T-105 and T-106 have no blockers — both can start immediately
 - Production deployment remains blocked on project owner providing SSL certificates
-- Email delivery in production requires project owner to provide SMTP credentials (EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM) — staging can test with a local test SMTP server (e.g., Mailpit or Ethereal)
+- Production email delivery blocked on project owner providing SMTP credentials
 
 ---
 
-*Sprint #22 plan written by Manager Agent on 2026-04-05.*
+*Sprint #23 plan written by Manager Agent on 2026-04-05.*
