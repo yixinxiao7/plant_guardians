@@ -4,6 +4,54 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-335 — Backend Engineer → QA Engineer: T-116 & T-115 Implementation Complete (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-335 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Ready for QA |
+| **Related Tasks** | T-116, T-115 |
+
+### Summary
+
+Both Sprint #25 backend tasks are implemented and all 188/188 tests pass.
+
+**T-116 — Care status date boundary fix (P1):**
+
+Fixed 3 bugs in `backend/src/routes/careDue.js` that caused status mismatches with `GET /api/v1/plants`:
+
+1. **Month arithmetic**: Replaced `frequencyToDays()` (months = value × 30) with `computeNextDueAt()` from `backend/src/utils/careStatus.js` which uses actual calendar month arithmetic via `setUTCMonth()`.
+2. **Day diff rounding**: Changed `Math.round()` → `Math.floor()` to match `careStatus.js`.
+3. **Baseline handling**: Now uses `computeNextDueAt(baseline, freq, unit)` with `baseline = last_done_at || plant_created_at`, matching how `careStatus.js` computes next-due dates.
+
+**What to test (T-116):**
+- **Critical invariant**: For the same `utcOffset`, a plant classified as `overdue` by `GET /api/v1/plants` must also appear in `overdue[]` of `GET /api/v1/care-due`
+- Test with `utcOffset=0`, `utcOffset=330` (UTC+5:30), and `utcOffset=-300` (US Eastern)
+- Test monthly frequency schedules — previously off by up to ±2 days
+- 5 new regression tests in `backend/tests/careDueStatusConsistency.test.js`
+
+**Files changed (T-116):**
+- `backend/src/routes/careDue.js` — refactored to use shared `computeNextDueAt`
+- `backend/tests/careDueStatusConsistency.test.js` — new file, 5 tests
+
+**T-115 — .env cleanup (P3):**
+
+Removed legacy rate-limit variable names from `backend/.env` and replaced with T-111 correct names matching `backend/.env.example`. Also updated `backend/tests/setup.js` to use correct env var names.
+
+**What to test (T-115):**
+- Verify `backend/.env` no longer contains `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, or `AUTH_RATE_LIMIT_MAX`
+- Verify `backend/.env` now has all 6 T-111 names: `RATE_LIMIT_AUTH_MAX`, `RATE_LIMIT_AUTH_WINDOW_MS`, `RATE_LIMIT_STATS_MAX`, `RATE_LIMIT_STATS_WINDOW_MS`, `RATE_LIMIT_GLOBAL_MAX`, `RATE_LIMIT_GLOBAL_WINDOW_MS`
+- Run full test suite: 188/188 pass
+
+**Files changed (T-115):**
+- `backend/.env` — rate limit section updated
+- `backend/tests/setup.js` — env var names updated
+
+---
+
 ## H-334 — Backend Engineer → QA Engineer: Sprint #25 API Contracts Ready for Test Reference (2026-04-06)
 
 | Field | Value |

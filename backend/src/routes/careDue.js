@@ -1,49 +1,19 @@
 /**
- * Care Due Dashboard routes (T-043)
+ * Care Due Dashboard routes (T-043, T-116)
  *
  * GET /api/v1/care-due — returns overdue, due_today, and upcoming care events
  * for the authenticated user's plants.
+ *
+ * T-116: Refactored to use computeNextDueAt from careStatus.js so that
+ * date-boundary / status bucketing logic is identical to GET /api/v1/plants.
  */
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const CareSchedule = require('../models/CareSchedule');
+const { computeNextDueAt } = require('../utils/careStatus');
 
 router.use(authenticate);
-
-/**
- * Convert frequency_value + frequency_unit to days.
- */
-function frequencyToDays(value, unit) {
-  switch (unit) {
-    case 'days':
-      return value;
-    case 'weeks':
-      return value * 7;
-    case 'months':
-      return value * 30;
-    default:
-      return value;
-  }
-}
-
-/**
- * Get the start of a UTC day (midnight UTC) for a Date.
- */
-function startOfDayUTC(date) {
-  const d = new Date(date);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
-
-/**
- * Difference in whole calendar days (UTC) between two dates.
- * Returns positive if a > b.
- */
-function diffDaysUTC(a, b) {
-  const msPerDay = 24 * 60 * 60 * 1000;
-  return Math.round((startOfDayUTC(a) - startOfDayUTC(b)) / msPerDay);
-}
 
 // GET /api/v1/care-due
 router.get('/', async (req, res, next) => {
@@ -65,14 +35,10 @@ router.get('/', async (req, res, next) => {
 
     const rows = await CareSchedule.findAllWithLastAction(req.user.id);
 
-    // Compute "today" in the user's local timezone.
-    // When utcOffset is provided, we shift all date comparisons so that
-    // "start of day" aligns with the user's local midnight instead of UTC midnight.
+    // Compute "today" in the user's local timezone — identical to careStatus.js (T-116).
     const now = new Date();
-    // "Local now" = UTC now + offset (converting UTC instant to local clock time)
     const localNow = new Date(now.getTime() + utcOffsetMinutes * 60 * 1000);
-    // Truncate to local midnight (using UTC methods on the shifted time)
-    const todayMs = Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate());
+    const today = new Date(Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate()));
 
     const msPerDay = 24 * 60 * 60 * 1000;
     const overdue = [];
@@ -80,16 +46,36 @@ router.get('/', async (req, res, next) => {
     const upcoming = [];
 
     for (const row of rows) {
-      const frequencyDays = frequencyToDays(row.frequency_value, row.frequency_unit);
-      const baseline = row.last_done_at
-        ? new Date(row.last_done_at)
-        : new Date(row.plant_created_at);
-      // Shift baseline to local time, then compute next due at local day granularity
-      const baselineLocal = new Date(baseline.getTime() + utcOffsetMinutes * 60 * 1000);
-      const baselineDayMs = Date.UTC(baselineLocal.getUTCFullYear(), baselineLocal.getUTCMonth(), baselineLocal.getUTCDate());
-      const nextDueMs = baselineDayMs + frequencyDays * msPerDay;
+      // T-116: Use the same computeNextDueAt as careStatus.js for consistent
+      // month/week/day arithmetic (months use actual calendar months, not * 30).
+      const baseline = row.last_done_at || row.plant_created_at;
+      const nextDueAt = computeNextDueAt(
+        baseline,
+        row.frequency_value,
+        row.frequency_unit
+      );
 
-      const diff = Math.round((nextDueMs - todayMs) / msPerDay);
+      // If computeNextDueAt returns null (no baseline at all), treat as due_today
+      if (!nextDueAt) {
+        due_today.push({
+          plant_id: row.plant_id,
+          plant_name: row.plant_name,
+          care_type: row.care_type,
+          last_done_at: null,
+        });
+        continue;
+      }
+
+      // Truncate nextDueAt to day boundary (same as careStatus.js)
+      const dueDate = new Date(Date.UTC(
+        nextDueAt.getUTCFullYear(),
+        nextDueAt.getUTCMonth(),
+        nextDueAt.getUTCDate()
+      ));
+
+      // T-116: Use Math.floor (not Math.round) to match careStatus.js
+      const diffMs = dueDate.getTime() - today.getTime();
+      const diff = Math.floor(diffMs / msPerDay);
 
       if (diff < 0) {
         // Overdue
@@ -110,15 +96,13 @@ router.get('/', async (req, res, next) => {
         });
       } else if (diff >= 1 && diff <= 7) {
         // Upcoming (1-7 days away)
-        // Express due_date as local calendar date (YYYY-MM-DD)
-        const dueDateObj = new Date(nextDueMs);
-        const dueDate = dueDateObj.toISOString().split('T')[0];
+        const dueDate_str = nextDueAt.toISOString().split('T')[0];
         upcoming.push({
           plant_id: row.plant_id,
           plant_name: row.plant_name,
           care_type: row.care_type,
           due_in_days: diff,
-          due_date: dueDate,
+          due_date: dueDate_str,
         });
       }
       // diff > 7: on track, not returned

@@ -11,8 +11,13 @@ process.env.JWT_SECRET = 'test-jwt-secret-for-testing-only';
 process.env.JWT_EXPIRES_IN = '15m';
 process.env.REFRESH_TOKEN_EXPIRES_DAYS = '7';
 // Raise rate limits for tests — many tests hit auth endpoints repeatedly
-process.env.AUTH_RATE_LIMIT_MAX = '500';
-process.env.RATE_LIMIT_MAX = '1000';
+// T-115: Use correct T-111 variable names (legacy names removed from .env)
+process.env.RATE_LIMIT_AUTH_MAX = '500';
+process.env.RATE_LIMIT_AUTH_WINDOW_MS = '900000';
+process.env.RATE_LIMIT_STATS_MAX = '1000';
+process.env.RATE_LIMIT_STATS_WINDOW_MS = '60000';
+process.env.RATE_LIMIT_GLOBAL_MAX = '1000';
+process.env.RATE_LIMIT_GLOBAL_WINDOW_MS = '900000';
 
 const request = require('supertest');
 const app = require('../src/app');
