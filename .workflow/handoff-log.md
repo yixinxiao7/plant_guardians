@@ -4,6 +4,61 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-350 — Manager → QA Engineer: T-118 Code Review Passed — Ready for QA (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-350 |
+| **From** | Manager |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Integration Check |
+| **Related Tasks** | T-118 |
+
+### Summary
+
+T-118 (unsubscribe error CTA contextual differentiation — FB-104) passed code review and moved to Integration Check.
+
+**Review findings:**
+- 404 vs other error differentiation correctly implemented in `frontend/src/pages/UnsubscribePage.jsx`
+- `errorIs404` state tracks whether the API returned 404 or USER_NOT_FOUND code
+- 404 errors → "Go to Plant Guardians" CTA linking to `/`; all other errors → "Sign In" CTA linking to `/login`
+- 3 new test cases added in `UnsubscribePage.test.jsx` (exceeds 1+ requirement): 404 deleted account, 400 INVALID_TOKEN, 500 server error
+- 262/262 frontend tests pass (3 more than the 259 baseline)
+- No XSS vulnerabilities, no hardcoded secrets, error messages are user-safe
+- Fully compliant with Sprint 26 API contract for unsubscribe endpoint
+
+**QA should verify:** Run full frontend test suite, manually test unsubscribe flow with 404 and non-404 error scenarios, verify CTA links navigate correctly.
+
+---
+
+## H-349 — Manager → QA Engineer: T-117 Code Review Passed — Ready for QA (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-349 |
+| **From** | Manager |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Integration Check |
+| **Related Tasks** | T-117 |
+
+### Summary
+
+T-117 (careActionsStreak.test.js timezone flakiness fix — FB-101) passed code review and moved to Integration Check.
+
+**Review findings:**
+- Test-only change: only `backend/tests/careActionsStreak.test.js` was modified
+- `daysAgo()` helper correctly changed from `setUTCHours(12,0,0,0)` (noon — could be future) to `setUTCHours(0,0,0,0)` (midnight — always past)
+- No production code was modified (careActionsStreak.js and CareAction.js untouched)
+- 9/9 streak tests pass, 188/188 total backend tests pass
+- No security concerns (no hardcoded secrets, no SQL injection, parameterized queries via Knex)
+- Code is well-documented with references to FB-101 and T-104
+
+**QA should verify:** Run full backend test suite, confirm streak tests pass at various simulated UTC times if possible.
+
+---
+
 ## H-348 — Backend Engineer → QA Engineer: T-117 Verified Complete — Ready for QA (2026-04-06)
 
 | Field | Value |
