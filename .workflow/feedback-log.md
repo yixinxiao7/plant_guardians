@@ -20,6 +20,34 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-109 — QA: Positive — Care status consistency fix (T-116) directly addresses core user confusion (Sprint 25)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-109 |
+| **Source** | QA Engineer |
+| **Sprint** | 25 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | T-116 fixes a real user-facing confusion where the same plant could show as "overdue" on My Plants but "coming up" on the Care Due Dashboard. For the target audience ("plant killers" who need clear, unambiguous reminders), this inconsistency was actively harmful — it could cause a user to ignore an overdue plant. The fix uses a shared `computeNextDueAt` function as a single source of truth, which is architecturally clean and prevents future drift. The 5 regression tests covering multiple timezones give strong confidence this won't regress. |
+| **Status** | New |
+
+---
+
+## FB-110 — QA: Positive — Env var cleanup (T-115) eliminates a subtle configuration hazard (Sprint 25)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-110 |
+| **Source** | QA Engineer |
+| **Sprint** | 25 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | T-115 cleanly removes stale rate-limit variable names that could confuse developers or operators trying to tune rate limits in production. All three env files (.env, .env.example, .env.staging.example) are now aligned with the actual `rateLimiter.js` middleware. The test file was also updated to use the correct names. Small chore, well executed. |
+| **Status** | New |
+
+---
+
 ## FB-105 — QA: Positive — Batch mark-done delivers on core product mission for "plant killer" users (Sprint 24)
 
 | Field | Value |

@@ -4,6 +4,130 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## QA Verification — Sprint #25 | 2026-04-06
+
+**Agent:** QA Engineer
+**Sprint:** 25
+**Timestamp:** 2026-04-06
+**Tasks Verified:** T-115 (.env cleanup), T-116 (care status date boundary fix)
+
+---
+
+### Test Type: Unit Test
+
+#### Backend Tests
+| Metric | Result |
+|--------|--------|
+| Test suites | 21 passed, 21 total |
+| Tests | 188 passed, 188 total |
+| Snapshots | 0 total |
+| Result | ✅ **PASS** |
+
+Notable test coverage for T-116:
+- `careDueStatusConsistency.test.js` — 5 regression tests covering:
+  - Overdue consistency at `utcOffset=0`
+  - Timezone boundary at `utcOffset=330` (UTC+5:30, India)
+  - Negative offset at `utcOffset=-300` (US Eastern)
+  - `due_today` consistency between both endpoints
+  - Monthly frequency calendar arithmetic (T-116 month fix)
+- Happy-path and error-path coverage verified for all endpoints
+
+#### Frontend Tests
+| Metric | Result |
+|--------|--------|
+| Test suites | 33 passed, 33 total |
+| Tests | 259 passed, 259 total |
+| Result | ✅ **PASS** |
+
+**Baseline maintained:** Backend 188/188 (up from 183/183 baseline with 5 new T-116 regression tests). Frontend 259/259 unchanged.
+
+---
+
+### Test Type: Integration Test
+
+#### T-116 — Care Status Consistency Verification
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Shared algorithm | ✅ PASS | `careDue.js` imports and uses `computeNextDueAt` from `careStatus.js` — single source of truth |
+| Math.floor alignment | ✅ PASS | Both `careDue.js:78` and `careStatus.js:58` use `Math.floor` (not `Math.round`) |
+| Day-truncation logic | ✅ PASS | Both files truncate dates to UTC day boundary identically via `Date.UTC(y, m, d)` |
+| Baseline handling | ✅ PASS | Both use `last_done_at || plant_created_at` as baseline for `computeNextDueAt` |
+| Month arithmetic | ✅ PASS | `computeNextDueAt` uses `setUTCMonth()` for calendar months (not `value × 30`) |
+| utcOffset handling | ✅ PASS | Both compute `localNow` then truncate to `today` identically |
+| Critical invariant | ✅ PASS | Overdue plant in GET /plants also in overdue[] of GET /care-due — verified via 5 regression tests |
+
+#### T-115 — .env Cleanup Verification
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Legacy vars removed | ✅ PASS | `grep -r "RATE_LIMIT_WINDOW_MS\|AUTH_RATE_LIMIT_MAX" backend/` returns nothing |
+| T-111 vars in .env | ✅ PASS | All 6 vars present: `RATE_LIMIT_AUTH_MAX`, `RATE_LIMIT_AUTH_WINDOW_MS`, `RATE_LIMIT_STATS_MAX`, `RATE_LIMIT_STATS_WINDOW_MS`, `RATE_LIMIT_GLOBAL_MAX`, `RATE_LIMIT_GLOBAL_WINDOW_MS` |
+| .env.example aligned | ✅ PASS | Same 6 vars with matching default values |
+| .env.staging.example aligned | ✅ PASS | Same 6 vars with matching default values |
+| rateLimiter.js reads correct names | ✅ PASS | Middleware references all 6 T-111 env var names with safe fallback defaults |
+| No behavioral change | ✅ PASS | 188/188 tests pass — no regressions |
+
+**Integration Test Result: ✅ PASS**
+
+---
+
+### Test Type: Config Consistency
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Port match | ✅ PASS | `backend/.env` PORT=3000; `vite.config.js` proxy target=`http://localhost:3000` — match |
+| Protocol match | ✅ PASS | No SSL env vars in `.env`; Vite proxy uses `http://` — match |
+| CORS match | ✅ PASS | `FRONTEND_URL=http://localhost:5173,...` includes Vite default dev origin |
+| Docker port match | ✅ N/A | `docker-compose.yml` only defines Postgres services, no backend container |
+
+**Config Consistency: ✅ PASS**
+
+---
+
+### Test Type: Security Scan
+
+#### Security Checklist Verification
+
+| Item | Result | Details |
+|------|--------|---------|
+| **Auth & Authorization** | | |
+| API endpoints require auth | ✅ PASS | `careDue.js` uses `router.use(authenticate)` — all routes protected |
+| Auth tokens | ✅ PASS | JWT with access/refresh tokens (architecture confirmed) |
+| Password hashing | ✅ PASS | bcrypt used (verified in prior sprints, no changes this sprint) |
+| Rate limiting on auth | ✅ PASS | `authLimiter` applied to login/register/refresh endpoints |
+| **Input Validation** | | |
+| Parameterized queries | ✅ PASS | No raw SQL string concatenation found in `backend/src/` |
+| XSS prevention | ✅ PASS | No `dangerouslySetInnerHTML` in production frontend code (only in test assertions) |
+| utcOffset validation | ✅ PASS | `careDue.js` validates range [-840, 840], integer check, returns 400 on invalid |
+| **API Security** | | |
+| CORS configured | ✅ PASS | `app.js` allows only origins listed in `FRONTEND_URL` env var |
+| Rate limiting | ✅ PASS | Three-tier rate limiting: auth (10/15min), stats (60/1min), global (200/15min) |
+| Error responses safe | ✅ PASS | `errorHandler.js` returns generic "An unexpected error occurred" for unknown errors; no stack traces leaked |
+| Helmet headers | ✅ PASS | `app.use(helmet())` in `app.js` — security headers applied |
+| **Data Protection** | | |
+| Secrets in env vars | ✅ PASS | `GEMINI_API_KEY` in `.env` (gitignored); no hardcoded secrets in source code |
+| .env gitignored | ✅ PASS | `.gitignore` includes `.env` |
+| **Infrastructure** | | |
+| npm audit | ✅ PASS | `npm audit` found 0 vulnerabilities |
+| No default credentials | ✅ PASS | Docker-compose uses env var defaults, not production creds |
+
+**Security Scan Result: ✅ PASS — No P1 issues found**
+
+---
+
+### Summary
+
+| Category | T-115 | T-116 |
+|----------|-------|-------|
+| Unit Tests | ✅ PASS (188/188) | ✅ PASS (188/188) |
+| Integration Test | ✅ PASS | ✅ PASS |
+| Config Consistency | ✅ PASS | ✅ PASS |
+| Security Scan | ✅ PASS | ✅ PASS |
+| **Overall** | **✅ PASS — Ready for Deploy** | **✅ PASS — Ready for Deploy** |
+
+---
+
 ## Post-Deploy Health Check — Sprint #24 | 2026-04-06
 
 **Agent:** Monitor Agent

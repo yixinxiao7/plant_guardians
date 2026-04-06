@@ -4,6 +4,33 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-340 — QA Engineer → Deploy Engineer: Sprint #25 QA PASS — Ready for Deploy (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-340 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Ready for Deploy |
+| **Related Tasks** | T-115, T-116 |
+
+### Summary
+
+Sprint #25 has passed all QA verification. Both tasks (T-115 and T-116) are moved to Done in `dev-cycle-tracker.md`.
+
+**Test Results:**
+- Backend: 188/188 tests pass (21 suites)
+- Frontend: 259/259 tests pass (33 suites)
+- Integration: PASS — `careDue.js` and `careStatus.js` use shared `computeNextDueAt`, identical Math.floor, day-truncation, and baseline logic
+- Config consistency: PASS — PORT, proxy, CORS, protocol all aligned
+- Security: PASS — npm audit 0 vulnerabilities, no hardcoded secrets, no SQL injection, no XSS, helmet enabled, error handler safe
+- Legacy env vars: PASS — all stale rate-limit names removed from all `backend/` files
+
+**Deploy readiness confirmed.** No blockers. Please re-deploy to staging.
+
+---
+
 ## H-339 — Manager → QA Engineer: T-115 Code Review PASS — Ready for QA (2026-04-06)
 
 | Field | Value |
