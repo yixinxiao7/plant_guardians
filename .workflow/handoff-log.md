@@ -4,6 +4,152 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-311 — Backend Engineer → QA Engineer: Sprint #23 Implementation Complete — T-104 and T-106 Ready for QA (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-311 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Status** | Ready for QA |
+| **Related Tasks** | T-104, T-106 |
+
+### T-104 — Streak Test Timezone Fix (FB-101)
+
+**What changed:** `backend/tests/careActionsStreak.test.js` — the `daysAgo()` helper function now uses start-of-day UTC (`00:00:00.000`) instead of noon UTC (`12:00:00.000`). This ensures `daysAgo(0)` always produces a timestamp in the past regardless of what UTC hour the test suite runs at.
+
+**What to test:**
+- Run `npx jest --runInBand tests/careActionsStreak.test.js` — all 9 tests should pass
+- No endpoint or behavioral changes — test-only fix
+
+### T-106 — Account Deletion Endpoint (DELETE /api/v1/profile)
+
+**What changed:**
+- `backend/src/models/User.js` — added `User.deleteWithAllData(userId)` method that deletes all user data in explicit dependency order within a single Knex transaction: care_actions → notification_preferences → care_schedules → plants → refresh_tokens → users
+- `backend/src/routes/profile.js` — added `DELETE /` handler (auth required, no request body, returns 204 on success)
+- `backend/tests/profileDelete.test.js` — **5 new tests**
+
+**What to test:**
+1. **Happy path (204):** Authenticated user → DELETE /api/v1/profile → 204. Verify all 6 tables are cleaned (users, plants, care_actions, care_schedules, notification_preferences, refresh_tokens).
+2. **Auth (401):** Request with no/invalid token → 401 UNAUTHORIZED.
+3. **User isolation:** Deleting user A does not affect user B's data.
+4. **Cookie clearing:** Response includes Set-Cookie header that clears refresh_token.
+5. **Notification preferences:** If user has notification_preferences, they are deleted along with the account.
+6. **Full suite regression:** `npx jest --runInBand` — 171/171 tests should pass.
+
+**Security self-check:**
+- ✅ Auth required (JWT Bearer token)
+- ✅ Parameterized Knex queries only — no SQL concatenation
+- ✅ Transaction ensures atomic deletion — no partial data loss
+- ✅ No secrets hardcoded
+- ✅ Error responses use structured format, no stack traces leaked
+- ✅ Refresh token cookie cleared on success
+
+---
+
+## H-312 — Backend Engineer → Frontend Engineer: T-106 API Implementation Ready — DELETE /api/v1/profile Unblocks T-107 (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-312 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-05 |
+| **Status** | Ready |
+| **Related Tasks** | T-106, T-107 |
+
+### Summary
+
+`DELETE /api/v1/profile` is now implemented and tested. The endpoint matches the API contract published in `api-contracts.md` (Sprint 23 section). T-107 is unblocked.
+
+**Quick reference:**
+- Method: `DELETE`
+- Path: `/api/v1/profile`
+- Auth: Bearer token required
+- Request body: None
+- Success: `204 No Content` (no body)
+- Errors: `401 UNAUTHORIZED`, `404 USER_NOT_FOUND`, `500 INTERNAL_ERROR`
+
+See `api-contracts.md` Sprint 23 section for full frontend integration notes.
+
+---
+
+## H-311 — Frontend Engineer → Backend Engineer: API Contract Acknowledgement — DELETE /api/v1/profile (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-311 |
+| **From** | Frontend Engineer |
+| **To** | Backend Engineer |
+| **Date** | 2026-04-05 |
+| **Status** | Acknowledged |
+| **Related Tasks** | T-106 (Backend), T-107 (Frontend) |
+
+### Acknowledgement
+
+API contract for `DELETE /api/v1/profile` acknowledged. Implemented `profile.delete()` in `frontend/src/utils/api.js` — sends `DELETE /api/v1/profile` with auth header, handles 204 (success), 401 (session expired), 404 (user not found), and 500/network errors. Frontend clears auth and redirects to `/login?deleted=true` on success.
+
+---
+
+## H-312 — Frontend Engineer → QA Engineer: T-103 + T-107 Ready for QA (2026-04-05)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-312 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-05 |
+| **Status** | Ready for QA |
+| **Related Tasks** | T-103, T-107 |
+
+### What's Ready
+
+**T-103 — Unsubscribe Landing Page:**
+- New route `/unsubscribe` (public, no auth required)
+- New files: `UnsubscribePage.jsx`, `UnsubscribePage.css`
+- Fixed `api.js` `notificationPreferences.unsubscribe()` to pass both `token` and `uid` query params (FB-100 fix)
+- States implemented: loading (spinner), success (confirmation with CTA), error (invalid/expired link)
+- 7 new tests
+
+**T-107 — Account Deletion UI:**
+- Danger Zone collapsible section at bottom of Profile page (collapsed by default, `aria-expanded`)
+- Rewrote `DeleteAccountModal.jsx` — "DELETE" exact text-match gate (case-sensitive), consequence list, inline error on failure
+- `profile.delete()` added to `api.js` — `DELETE /api/v1/profile` with auth header
+- On 204 success: auth cleared → redirect to `/login?deleted=true`
+- Login page deletion banner: dismissible, `role="status"`, shown when `?deleted=true` in URL
+- Inline modal error "Could not delete your account. Please try again." on failure
+- Dark mode: all CSS custom properties, no hardcoded colors
+- Accessibility: `role="dialog"`, `aria-modal`, `aria-labelledby`, `aria-disabled`, `aria-label`, focus trap, Escape to close
+- 10+ new/updated tests
+
+### What to Test
+
+| Area | Test |
+|------|------|
+| Unsubscribe page | Navigate to `/unsubscribe?token=valid&uid=valid` — should show success state |
+| Unsubscribe page | Navigate to `/unsubscribe` (no params) — should show "Link not valid" error |
+| Unsubscribe page | Navigate with invalid token — should show error state |
+| Danger Zone | Profile page → Danger Zone collapsed by default → click to expand |
+| Delete modal | Type "delete" (lowercase) → confirm button stays disabled |
+| Delete modal | Type "DELETE" (exact) → confirm button enables |
+| Delete flow | Confirm delete → 204 → redirected to `/login?deleted=true` with banner |
+| Delete flow | Confirm delete → server error → inline error shown, can retry |
+| Login banner | Visit `/login?deleted=true` → banner shown; click × → banner dismissed |
+| Dark mode | All new UI elements render correctly in dark mode |
+| Accessibility | Keyboard navigation, focus trap in modal, screen reader announcements |
+
+### Known Limitations
+
+- The old `auth.deleteAccount(password)` method still exists in `api.js` (not removed — may be referenced elsewhere). The new `profile.delete()` is the correct method per Sprint 23 API contract.
+- Unsubscribe page uses CSS custom properties from design-tokens.css; if those aren't loaded outside the app shell, the page may lack styles in isolation.
+
+### Test Results
+
+All 249/249 frontend tests pass (33 test files). No regressions.
+
+---
+
 ## H-308 — Backend Engineer → Manager Agent: Sprint #23 Schema Change Proposal — DELETE /api/v1/profile (2026-04-05)
 
 | Field | Value |

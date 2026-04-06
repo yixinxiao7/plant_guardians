@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plant } from '@phosphor-icons/react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plant, Info, X } from '@phosphor-icons/react';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useToast } from '../hooks/useToast.jsx';
 import Input from '../components/Input.jsx';
@@ -28,6 +28,10 @@ export default function LoginPage() {
   const { login, register } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [showDeletedBanner, setShowDeletedBanner] = useState(
+    () => searchParams.get('deleted') === 'true'
+  );
 
   const isSignup = activeTab === 'signup';
 
@@ -133,6 +137,23 @@ export default function LoginPage() {
 
       <div className="login-form-panel">
         <div className="login-form-container">
+          {/* Deletion banner (T-107) */}
+          {showDeletedBanner && (
+            <div className="login-deleted-banner" role="status">
+              <Info size={16} color="var(--color-status-red)" aria-hidden="true" />
+              <span className="login-deleted-banner-text">
+                Your account has been permanently deleted.
+              </span>
+              <button
+                className="login-deleted-banner-dismiss"
+                onClick={() => setShowDeletedBanner(false)}
+                aria-label="Dismiss"
+              >
+                <X size={16} color="var(--color-status-red)" />
+              </button>
+            </div>
+          )}
+
           {/* Mobile logo */}
           <div className="login-mobile-logo">
             <Plant size={32} weight="fill" color="#5C7A5C" />

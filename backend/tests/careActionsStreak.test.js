@@ -32,12 +32,17 @@ async function recordCareAction(accessToken, plantId, careType, performedAt) {
 }
 
 /**
- * Helper: compute a date string N days ago at noon UTC (avoids timezone boundary issues).
+ * Helper: compute a date string N days ago, guaranteed to be in the past.
+ *
+ * Uses start-of-day UTC (00:00:00.000) for the target day. For "today" (n=0)
+ * this is always in the past (or at most equal to now at midnight rollover).
+ * This eliminates the previous flakiness where noon-UTC could be in the future
+ * when tests ran before 12:00 UTC.  (FB-101 fix, T-104)
  */
 function daysAgo(n) {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - n);
-  d.setUTCHours(12, 0, 0, 0);
+  d.setUTCHours(0, 0, 0, 0);
   return d.toISOString();
 }
 

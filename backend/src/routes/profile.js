@@ -1,9 +1,13 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const User = require('../models/User');
 const Plant = require('../models/Plant');
 const CareAction = require('../models/CareAction');
+const { NotFoundError } = require('../utils/errors');
+const { clearRefreshTokenCookie } = require('../utils/cookieConfig');
 
 router.use(authenticate);
 
@@ -37,6 +41,44 @@ router.get('/', async (req, res, next) => {
         },
       },
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/v1/profile — permanently delete the authenticated user's account (T-106)
+router.delete('/', async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    // Collect photo URLs before deletion (for file cleanup)
+    const photoUrls = await User.findPhotoUrlsByUserId(userId);
+
+    // Delete user and all associated data in a single transaction
+    const deletedCount = await User.deleteWithAllData(userId);
+
+    if (deletedCount === 0) {
+      throw new NotFoundError('User', 'USER_NOT_FOUND');
+    }
+
+    // Best-effort cleanup of uploaded photo files
+    const uploadDir = process.env.UPLOAD_DIR || './uploads';
+    for (const url of photoUrls) {
+      try {
+        const filename = url.split('/').pop();
+        if (filename) {
+          const filePath = path.resolve(uploadDir, filename);
+          fs.unlinkSync(filePath);
+        }
+      } catch {
+        // File may already be missing — non-critical, continue
+      }
+    }
+
+    // Clear the refresh token cookie
+    clearRefreshTokenCookie(res);
+
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

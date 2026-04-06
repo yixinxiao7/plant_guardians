@@ -285,6 +285,40 @@ export const profile = {
   get() {
     return request('/profile');
   },
+  async delete() {
+    const url = `${API_BASE}/profile`;
+    const headers = {};
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
+    let res = await fetch(url, { method: 'DELETE', headers, credentials: 'include' });
+
+    // Auto-refresh on 401
+    if (res.status === 401) {
+      try {
+        await refreshAccessToken();
+        headers['Authorization'] = `Bearer ${accessToken}`;
+        res = await fetch(url, { method: 'DELETE', headers, credentials: 'include' });
+      } catch {
+        throw new ApiError('Session expired. Please log in again.', 'UNAUTHORIZED', 401);
+      }
+    }
+
+    if (res.status === 204) {
+      return null; // Success — no content
+    }
+
+    // Handle errors
+    let err = {};
+    try {
+      const json = await res.json();
+      err = json.error || {};
+    } catch {
+      // Response may not have a JSON body
+    }
+    throw new ApiError(err.message || 'Something went wrong.', err.code || 'UNKNOWN', res.status);
+  },
 };
 
 // Notification Preferences
@@ -298,8 +332,11 @@ export const notificationPreferences = {
       body: JSON.stringify(payload),
     });
   },
-  unsubscribe(token) {
-    return request(`/unsubscribe?token=${encodeURIComponent(token)}`, {
+  unsubscribe(token, uid) {
+    const params = new URLSearchParams();
+    params.set('token', token);
+    if (uid) params.set('uid', uid);
+    return request(`/unsubscribe?${params.toString()}`, {
       skipAuth: true,
     });
   },

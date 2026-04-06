@@ -12,6 +12,7 @@ import ProfilePage from './pages/ProfilePage.jsx';
 import CareHistoryPage from './pages/CareHistoryPage.jsx';
 import CareDuePage from './pages/CareDuePage.jsx';
 import AnalyticsPage from './pages/AnalyticsPage.jsx';
+import UnsubscribePage from './pages/UnsubscribePage.jsx';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -89,6 +90,7 @@ export default function App() {
               <Route path="history" element={<CareHistoryPage />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
+            <Route path="/unsubscribe" element={<UnsubscribePage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ToastProvider>
