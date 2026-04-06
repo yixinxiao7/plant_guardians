@@ -4,6 +4,97 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-348 — Backend Engineer → QA Engineer: T-117 Verified Complete — Ready for QA (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-348 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Ready for QA |
+| **Related Tasks** | T-117 |
+
+### Summary
+
+T-117 (careActionsStreak.test.js timezone flakiness fix — FB-101) is verified complete and ready for QA.
+
+**Findings:**
+
+The `daysAgo(0)` helper in `backend/tests/careActionsStreak.test.js` already uses `d.setUTCHours(0, 0, 0, 0)` (start-of-UTC-day), which was applied in a prior sprint (T-104). The fix ensures `daysAgo(0)` never produces a future timestamp regardless of the current UTC hour. No additional code changes were needed.
+
+The test database was missing the `notification_preferences` migration (Sprint 22, T-101), which caused 140/188 tests to fail on TRUNCATE. Running `knex migrate:latest` on the test DB resolved this.
+
+**Verification results:**
+- 9/9 streak tests pass (`backend/tests/careActionsStreak.test.js`)
+- 188/188 total backend tests pass (full suite, `--runInBand`)
+- No production code changes — test-only fix
+- `daysAgo(0)` uses `setUTCHours(0, 0, 0, 0)` — always in the past at any UTC hour
+
+**What to verify:**
+- Run `npx jest tests/careActionsStreak.test.js --no-coverage` — all 9 tests pass
+- Run `npx jest --no-coverage --runInBand` — all 188 tests pass
+- Confirm no production code was modified (diff is test-only from prior sprint)
+- FB-101 can be marked resolved
+
+**Known limitations:** None.
+
+---
+
+## H-347 — Frontend Engineer → QA Engineer: T-118 Implementation Complete — Ready for QA (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-347 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Ready for QA |
+| **Related Tasks** | T-118 |
+
+### Summary
+
+T-118 (unsubscribe error CTA contextual differentiation) is implemented and ready for QA.
+
+**Changes made:**
+
+1. **`frontend/src/pages/UnsubscribePage.jsx`** — Added `errorIs404` state variable. Updated `catch` block to check `err.status === 404 || err.code === 'USER_NOT_FOUND'` and set `errorIs404` accordingly. Error block CTA now conditionally renders "Go to Plant Guardians" (href `/`) for 404 errors, and "Sign In" (href `/login`) for all other errors. Error message for 404 updated to "This account no longer exists. The unsubscribe link cannot be processed."
+
+2. **`frontend/src/__tests__/UnsubscribePage.test.jsx`** — Added 3 new tests:
+   - 404 CTA: asserts "Go to Plant Guardians" with `href="/"` and no "Sign In" link present
+   - Non-404 (400 INVALID_TOKEN): asserts "Sign In" with `href="/login"` and no "Go to Plant Guardians" link
+   - 5xx (500 INTERNAL_ERROR): asserts "Sign In" with `href="/login"`
+
+**Test results:** 262/262 frontend tests pass (259 baseline + 3 new). No regressions.
+
+**What to verify:**
+- 404 response renders "Go to Plant Guardians" CTA → `/`
+- All non-404 errors (400, 422, 5xx) render "Sign In" CTA → `/login`
+- Missing token/uid params still render "Sign In" CTA → `/login`
+- Success state unchanged
+- Loading state unchanged
+
+**Known limitations:** None.
+
+---
+
+## H-346 — Frontend Engineer → Backend Engineer: API Contract Acknowledged for T-118 (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-346 |
+| **From** | Frontend Engineer |
+| **To** | Backend Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Acknowledged |
+| **Related Tasks** | T-118 |
+
+### Summary
+
+Acknowledging H-344. The existing `GET /api/v1/unsubscribe` contract (Sprint 22) is consumed by T-118. Using `err.status === 404` as the primary discriminator for CTA differentiation per SPEC-020. No new endpoints or backend changes required.
+
+---
+
 ## H-345 — Backend Engineer → QA Engineer: Sprint #26 Contracts Ready — No New Endpoints (2026-04-06)
 
 | Field | Value |

@@ -8,6 +8,7 @@ export default function UnsubscribePage() {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState('loading'); // loading | success | error
   const [errorMessage, setErrorMessage] = useState('');
+  const [errorIs404, setErrorIs404] = useState(false);
 
   const token = searchParams.get('token');
   const uid = searchParams.get('uid');
@@ -30,12 +31,22 @@ export default function UnsubscribePage() {
       } catch (err) {
         if (!cancelled) {
           setStatus('error');
-          if (err?.code === 'INVALID_TOKEN') {
-            setErrorMessage('This unsubscribe link may have already been used or has expired. If you\'d like to manage your reminder settings, sign in to your profile.');
-          } else if (err?.code === 'USER_NOT_FOUND') {
-            setErrorMessage('This unsubscribe link may have already been used or has expired. If you\'d like to manage your reminder settings, sign in to your profile.');
+          if (err?.status === 404 || err?.code === 'USER_NOT_FOUND') {
+            setErrorIs404(true);
+            setErrorMessage(
+              'This account no longer exists. The unsubscribe link cannot be processed.'
+            );
+          } else if (err?.code === 'INVALID_TOKEN') {
+            setErrorIs404(false);
+            setErrorMessage(
+              "This unsubscribe link may have already been used or has expired. " +
+              "If you'd like to manage your reminder settings, sign in to your profile."
+            );
           } else {
-            setErrorMessage('Something went wrong. Please try again later or sign in to manage your reminder settings.');
+            setErrorIs404(false);
+            setErrorMessage(
+              'Something went wrong. Please try again later or sign in to manage your reminder settings.'
+            );
           }
         }
       }
@@ -84,7 +95,11 @@ export default function UnsubscribePage() {
             <Warning size={36} color="var(--color-status-red)" weight="regular" aria-hidden="true" />
             <h1 className="unsubscribe-heading">Link not valid</h1>
             <p className="unsubscribe-body">{errorMessage}</p>
-            <a href="/login" className="unsubscribe-cta">Sign In</a>
+            {errorIs404 ? (
+              <a href="/" className="unsubscribe-cta">Go to Plant Guardians</a>
+            ) : (
+              <a href="/login" className="unsubscribe-cta">Sign In</a>
+            )}
           </div>
         )}
       </div>

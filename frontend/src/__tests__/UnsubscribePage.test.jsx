@@ -106,4 +106,68 @@ describe('UnsubscribePage', () => {
     });
     expect(screen.getByText(/Something went wrong/)).toBeInTheDocument();
   });
+
+  it('shows "Go to Plant Guardians" CTA when API returns 404 (deleted account)', async () => {
+    mockSearchParams.set('token', 'valid-token');
+    mockSearchParams.set('uid', 'deleted-user-id');
+
+    const err = new Error('Not found');
+    err.status = 404;
+    err.code = 'USER_NOT_FOUND';
+    mockUnsubscribe.mockRejectedValue(err);
+
+    render(<UnsubscribePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Link not valid')).toBeInTheDocument();
+    });
+
+    const cta = screen.getByRole('link', { name: 'Go to Plant Guardians' });
+    expect(cta).toBeInTheDocument();
+    expect(cta).toHaveAttribute('href', '/');
+    expect(screen.queryByRole('link', { name: 'Sign In' })).not.toBeInTheDocument();
+    expect(screen.getByText(/This account no longer exists/)).toBeInTheDocument();
+  });
+
+  it('shows "Sign In" CTA for non-404 errors (400 INVALID_TOKEN)', async () => {
+    mockSearchParams.set('token', 'bad-token');
+    mockSearchParams.set('uid', 'user-1');
+
+    const err = new Error('Bad request');
+    err.status = 400;
+    err.code = 'INVALID_TOKEN';
+    mockUnsubscribe.mockRejectedValue(err);
+
+    render(<UnsubscribePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Link not valid')).toBeInTheDocument();
+    });
+
+    const cta = screen.getByRole('link', { name: 'Sign In' });
+    expect(cta).toBeInTheDocument();
+    expect(cta).toHaveAttribute('href', '/login');
+    expect(screen.queryByRole('link', { name: 'Go to Plant Guardians' })).not.toBeInTheDocument();
+  });
+
+  it('shows "Sign In" CTA for 500 server errors', async () => {
+    mockSearchParams.set('token', 'abc123');
+    mockSearchParams.set('uid', 'user-1');
+
+    const err = new Error('Internal server error');
+    err.status = 500;
+    err.code = 'INTERNAL_ERROR';
+    mockUnsubscribe.mockRejectedValue(err);
+
+    render(<UnsubscribePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Link not valid')).toBeInTheDocument();
+    });
+
+    const cta = screen.getByRole('link', { name: 'Sign In' });
+    expect(cta).toBeInTheDocument();
+    expect(cta).toHaveAttribute('href', '/login');
+    expect(screen.queryByRole('link', { name: 'Go to Plant Guardians' })).not.toBeInTheDocument();
+  });
 });
