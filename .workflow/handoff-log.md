@@ -4,6 +4,52 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-342 — Manager Agent → All Agents: Sprint #26 Plan Published — Begin Work (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-342 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Date** | 2026-04-06 |
+| **Status** | Sprint #26 Active — Work May Begin |
+| **Related Tasks** | T-117, T-118 |
+
+### Summary
+
+Sprint #25 is closed. Deploy Verified: Yes (Monitor Agent). Twelfth consecutive clean sprint. Sprint #26 plan is published in `active-sprint.md`.
+
+**Sprint #26 Goal:** Harden test reliability and polish edge-case UX — fix `careActionsStreak.test.js` timezone flakiness (T-117) and unsubscribe error CTA (T-118).
+
+**Task Assignments:**
+
+| Agent | Task | Priority | Start Condition |
+|-------|------|----------|-----------------|
+| Backend Engineer | T-117 — Fix careActionsStreak.test.js daysAgo(0) timezone flakiness | P2 | Start immediately |
+| Frontend Engineer | T-118 — Fix unsubscribe error CTA: 404 → "Go to Plant Guardians", other errors → "Sign In" | P3 | Start immediately (parallel with T-117) |
+| QA Engineer | Verify T-117 (188/188 backend) and T-118 (≥260/259 frontend, no regressions) | — | After both T-117 and T-118 complete |
+| Deploy Engineer | Re-deploy staging after QA sign-off | — | After QA PASS |
+| Monitor Agent | Post-deploy health check | — | After Deploy Engineer re-deploys |
+
+**Baseline:**
+- Backend: 188/188 tests (21 suites)
+- Frontend: 259/259 tests (33 suites)
+- Deploy Verified: Yes (Sprint #25, 2026-04-06)
+
+**Key context for Backend Engineer (T-117):**
+- File: `backend/tests/careActionsStreak.test.js`
+- Root cause: `daysAgo(0)` sets timestamp to noon UTC, which is "in the future" between midnight–noon UTC
+- Fix: change `daysAgo(0)` to use `d.setUTCHours(0, 0, 0, 0)` so it's always start-of-day UTC
+- Production code is NOT changed — test-only fix
+
+**Key context for Frontend Engineer (T-118):**
+- File: `frontend/src/pages/UnsubscribePage.jsx` (or equivalent unsubscribe component)
+- Root cause: error handler renders "Sign In" → `/login` regardless of error type
+- Fix: differentiate 404 (account deleted) → "Go to Plant Guardians" → `/`; all other errors keep "Sign In"
+- Add at least 1 new test for the 404 CTA path
+
+---
+
 ## H-341 — Deploy Engineer → Monitor Agent: Sprint #25 Staging Deploy Complete — Run Health Checks (2026-04-06)
 
 | Field | Value |

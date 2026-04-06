@@ -4,6 +4,71 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #25 — 2026-05-17 to 2026-05-23
+
+**Sprint Goal:** Fix the care status inconsistency between My Plants and the Care Due Dashboard (FB-108 → T-116), and clean up stale rate-limit env var names in `backend/.env` (FB-107 → T-115).
+
+**Outcome:** ✅ Goal fully met — both active tasks (T-115, T-116) completed. T-112/T-113/T-114 correctly cancelled (AI feature was already live). Backend: 188/188 tests pass (+5 regression tests from T-116). Frontend: 259/259 tests pass (unchanged). Staging build successful. **Deploy Verified: Yes** (Monitor Agent, 2026-04-06). Twelfth consecutive sprint with zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-116 | Backend: Fixed care status inconsistency between `GET /api/v1/plants` and `GET /api/v1/care-due` — extracted shared `computeNextDueAt` function into `careStatus.js` as a single source of truth; both routes now use identical `Math.floor`, day-truncation via `Date.UTC()`, baseline (`last_done_at || plant_created_at`) and `setUTCMonth()` calendar-month arithmetic. 5 regression tests added in `careDueStatusConsistency.test.js` covering UTC+0, UTC+5:30 (India), UTC−5 (US Eastern), due_today, and monthly frequency edge cases. |
+| T-115 | Backend: Cleaned up `backend/.env` — removed three stale rate-limit var names (`RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`); added 6 correct T-111 names with default values matching `backend/.env.example` and `backend/.env.staging.example`. All three env files now aligned. No behavioral changes. 188/188 backend tests pass. |
+
+#### Tasks Cancelled
+
+| Task ID | Description |
+|---------|-------------|
+| T-112 | CANCELLED — SPEC-020 AI Plant Advisor spec not needed; feature fully delivered in Sprints 3–5 (T-025/T-026). |
+| T-113 | CANCELLED — Gemini API endpoint already implemented (`GeminiService.js`, `POST /ai/advice` in Sprint 3–5). |
+| T-114 | CANCELLED — `AIAdviceModal.jsx` already wired into `AddPlantPage` and `EditPlantPage` since Sprint 3–5. |
+
+#### Tasks Carried Over
+
+None. Twelfth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. Monitor Agent health check returned **Deploy Verified: Yes** (2026-04-06). All endpoints operational, T-115 env vars confirmed present, T-116 care-status consistency confirmed via config checks. 188/188 backend tests, 259/259 frontend tests — all pass.
+
+---
+
+#### Key Feedback Themes
+
+- **FB-109** (Positive): T-116's shared `computeNextDueAt` is architecturally clean — single source of truth eliminates future status drift. Multi-timezone regression tests give strong confidence. Critical fix for the "plant killer" persona who needs unambiguous reminders.
+- **FB-110** (Positive): T-115 `.env` cleanup is a small but important hygiene win — all three env files aligned, developer/operator confusion eliminated.
+
+---
+
+#### What Went Well
+
+- Both tasks were targeted, well-scoped, and clean — no scope creep
+- T-116's refactor correctly identified the root cause (divergent date-boundary logic) and solved it at the right abstraction level (shared utility function)
+- 5 regression tests covering multiple timezones give genuine confidence in the fix
+- Cancellation of T-112/T-113/T-114 was the right call — no wasted work on already-delivered features
+- Twelfth consecutive sprint with zero carry-over
+
+#### What To Improve
+
+- T-116 was filed as P1 and carried over from the original Sprint #25 scope correction — the sprint plan correction mid-cycle (cancelling T-112–T-114 and adding T-116) added a planning overhead step that could be avoided with cleaner upfront backlog grooming
+- Production deployment remains blocked on external dependency (SSL certs from project owner)
+
+#### Technical Debt Noted
+
+- `careActionsStreak.test.js` timezone-dependent flakiness (FB-101, Minor) — 5 tests fail between midnight and noon UTC; `daysAgo(0)` should use `setUTCHours(0,0,0,0)`. Backlog → tasked for Sprint #26 as T-117.
+- Unsubscribe error CTA generic "Sign In" regardless of error type (FB-104, Cosmetic) — Backlog → tasked for Sprint #26 as T-118.
+- Express 5 migration — advisory backlog
+- Production email delivery blocked on project owner providing SMTP credentials
+- Local process-based staging is not persistent — Monitor Agent must restart backend if connection refused before health checks
+
+---
+
 ### Sprint #24 — 2026-05-10 to 2026-05-16
 
 **Sprint Goal:** Empower "plant killer" users to clear multiple overdue care items in a single action via **Batch Mark-Done on the Care Due Dashboard**, and harden the API with **endpoint-specific rate limiting** (long-deferred FB-073) to prepare for production readiness.

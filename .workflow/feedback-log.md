@@ -30,7 +30,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Category** | Positive |
 | **Severity** | N/A |
 | **Description** | T-116 fixes a real user-facing confusion where the same plant could show as "overdue" on My Plants but "coming up" on the Care Due Dashboard. For the target audience ("plant killers" who need clear, unambiguous reminders), this inconsistency was actively harmful — it could cause a user to ignore an overdue plant. The fix uses a shared `computeNextDueAt` function as a single source of truth, which is architecturally clean and prevents future drift. The 5 regression tests covering multiple timezones give strong confidence this won't regress. |
-| **Status** | New |
+| **Status** | Acknowledged — Positive feedback. T-116's shared `computeNextDueAt` architecture and multi-timezone regression tests are team standards for all future date-boundary work. |
 
 ---
 
@@ -44,7 +44,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | **Category** | Positive |
 | **Severity** | N/A |
 | **Description** | T-115 cleanly removes stale rate-limit variable names that could confuse developers or operators trying to tune rate limits in production. All three env files (.env, .env.example, .env.staging.example) are now aligned with the actual `rateLimiter.js` middleware. The test file was also updated to use the correct names. Small chore, well executed. |
-| **Status** | New |
+| **Status** | Acknowledged — Positive feedback. Env var hygiene standard established: when adding new env vars via `.env.example`, the local `.env` must be updated in the same task. |
 
 ---
 
@@ -2427,8 +2427,8 @@ New — Needs triage by Manager Agent. Likely a string encoding issue in the fro
 | Sprint | 25 |
 | Category | Bug |
 | Severity | Major |
-| Status | New |
-| Related Task | — |
+| Status | Tasked → T-116 (Done — fixed in Sprint #25). Shared `computeNextDueAt` function in `careStatus.js` used as single source of truth by both endpoints. 5 regression tests added. |
+| Related Task | T-116 |
 
 **Description:** On the My Plants (inventory) page, a plant is correctly shown as 2 days overdue for watering. However, navigating to the Care Due Dashboard (`/due`), the same plant does not appear in the Overdue section — it appears in the Coming Up section instead. The two pages are computing care status inconsistently for the same plant.
 
@@ -2449,36 +2449,6 @@ The root cause is likely a divergence between the status logic used by `GET /api
 
 **Fix guidance:** Audit the care status computation in both `GET /api/v1/plants` (via `careStatus.js`) and `GET /api/v1/care-due` (via `careDue.js`) and ensure they use the same date boundary logic, including timezone offset handling. If `utcOffset` is applied in one but not the other, align them.
 
----
-
-### FB-108 — Bug: Plant shows overdue on My Plants page but appears in Coming Up on Care Due Dashboard
-
-| Field | Value |
-|-------|-------|
-| Feedback | Overdue status shown on My Plants inventory does not match the Care Due Dashboard — same plant appears overdue in one view and "coming up" in the other |
-| Sprint | 25 |
-| Category | Bug |
-| Severity | Major |
-| Status | New |
-| Related Task | — |
-
-**Description:** On the My Plants (inventory) page, a plant is correctly shown as 2 days overdue for watering. However, navigating to the Care Due Dashboard (`/due`), the same plant does not appear in the Overdue section — it appears in the Coming Up section instead. The two pages are computing care status inconsistently for the same plant.
-
-The root cause is likely a divergence between the status logic used by `GET /api/v1/plants` (which drives the inventory page) and `GET /api/v1/care-due` (which drives the Care Due Dashboard). Both endpoints compute overdue/due_today/upcoming status independently. A likely suspect is timezone handling: `GET /api/v1/plants` accepts a `?utcOffset=` parameter for client-side timezone-aware bucketing (added in Sprint 18/20, T-083), while `GET /api/v1/care-due` may not apply the same timezone offset, causing a date boundary mismatch that shifts an overdue plant into the upcoming bucket.
-
-**Steps to Reproduce:**
-1. Have a plant with a watering schedule that is 2+ days past due.
-2. Navigate to My Plants — confirm the plant shows "2 days overdue" status badge.
-3. Navigate to the Care Due Dashboard (`/due`).
-4. Observe the plant appears under "Coming Up" instead of "Overdue".
-
-**Expected vs Actual:**
-
-| | Behavior |
-|---|---|
-| **Expected** | Plant appears in the Overdue section of the Care Due Dashboard, consistent with the 2-days-overdue status shown on My Plants. |
-| **Actual** | Plant appears in the Coming Up section of the Care Due Dashboard despite being shown as overdue on My Plants. |
-
-**Fix guidance:** Audit the care status computation in both `GET /api/v1/plants` (via `careStatus.js`) and `GET /api/v1/care-due` (via `careDue.js`) and ensure they use the same date boundary logic, including timezone offset handling. If `utcOffset` is applied in one but not the other, align them.
+*(Duplicate entry — same bug reported twice; both resolved by T-116.)*
 
 ---

@@ -4,56 +4,54 @@ The operational reference for the current development cycle. Refreshed at the st
 
 ---
 
-## Sprint #25 — 2026-05-17 to 2026-05-23
+## Sprint #26 — 2026-05-24 to 2026-05-30
 
-**Sprint Goal:** Clean up stale environment variable names left over from the Sprint 24 rate limiting work, and triage remaining backlog items now that all core MVP features are complete.
+**Sprint Goal:** Harden test reliability and polish edge-case UX — fix the timezone-dependent flakiness in `careActionsStreak.test.js` (FB-101) and improve the unsubscribe error page CTA to be contextually appropriate (FB-104).
 
-**Context:** Sprint #24 delivered batch mark-done and endpoint-specific rate limiting — eleven consecutive clean sprints. Backend is at 183/183 tests, frontend at 259/259. Deploy Verified: Yes.
-
-**Important correction:** The original Sprint #25 plan (T-112–T-114) incorrectly scoped the AI Plant Advisor as a new feature. The AI advice feature was fully implemented in Sprints 3–5 (T-025/T-026 — Done) and is live in the codebase (`backend/src/routes/ai.js`, `backend/src/services/GeminiService.js`, `frontend/src/components/AIAdviceModal.jsx`). The project owner confirmed end-to-end verification with a real `GEMINI_API_KEY` on 2026-04-01. No AI work is needed this sprint.
+**Context:** Sprint #25 delivered care-status consistency (T-116) and env var cleanup (T-115). Backend is at 188/188 tests, frontend at 259/259. Deploy Verified: Yes. All core MVP features are complete and live. Sprint #26 is a focused polish and reliability sprint drawn from the acknowledged backlog.
 
 ---
 
 ## In Scope
 
-### P1 — Bug Fix: Care Status Inconsistency (FB-108)
+### P2 — Bug Fix: careActionsStreak.test.js Timezone Flakiness (FB-101)
 
-- [ ] **T-116** — Backend Engineer: Fix overdue status mismatch between My Plants and Care Due Dashboard **(P1)**
-  - **Description:** A plant shown as overdue on the My Plants page appears in "Coming Up" on the Care Due Dashboard instead of "Overdue". Root cause is a divergence in date boundary / timezone handling between `GET /api/v1/plants` (uses `?utcOffset=` param via `careStatus.js`) and `GET /api/v1/care-due` (via `careDue.js`). Audit both status computation paths and align them so the same plant always lands in the same bucket across both views.
+- [ ] **T-117** — Backend Engineer: Fix `careActionsStreak.test.js` timezone-dependent test failures **(P2)**
+  - **Description:** 5 tests in `backend/tests/careActionsStreak.test.js` fail when run between midnight and noon UTC. The `daysAgo(0)` helper sets the timestamp to noon UTC today — which is "in the future" during those hours — causing the backend's `performed_at` validation to reject the request with 400 instead of the expected 201. Fix: change `daysAgo(0)` to use `setUTCHours(0, 0, 0, 0)` (start of UTC day) so the timestamp is always in the past regardless of the current UTC hour.
   - **Acceptance Criteria:**
-    - A plant that is overdue on My Plants also appears in the Overdue section of the Care Due Dashboard
-    - Both endpoints use the same date boundary and timezone offset logic
-    - Existing backend tests pass; add at least 2 new regression tests covering the overdue/timezone boundary case
+    - 5 affected streak tests pass regardless of UTC time-of-day (verified by running at any hour)
+    - `daysAgo(0)` uses `d.setUTCHours(0, 0, 0, 0)` or equivalent (never produces a future timestamp)
+    - All 188/188 backend tests continue to pass; no behavioral changes to production code
+    - FB-101 resolved
   - **Blocked By:** None — start immediately.
-  - **Fix locations:** `backend/src/routes/careDue.js`, `backend/src/utils/careStatus.js`
+  - **Fix location:** `backend/tests/careActionsStreak.test.js`
 
 ---
 
-### P3 — Environment Variable Cleanup
+### P3 — UX Fix: Unsubscribe Error CTA Contextual Differentiation (FB-104)
 
-- [ ] **T-115** — Backend Engineer: Clean up `backend/.env` stale rate-limit variable names (FB-107) **(P3)**
-  - **Description:** The `backend/.env` file contains legacy rate-limit env var names (`RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`) from a prior sprint. T-111's `rateLimiter.js` uses different names (`RATE_LIMIT_AUTH_MAX`, `RATE_LIMIT_AUTH_WINDOW_MS`, `RATE_LIMIT_STATS_MAX`, `RATE_LIMIT_STATS_WINDOW_MS`, `RATE_LIMIT_GLOBAL_MAX`, `RATE_LIMIT_GLOBAL_WINDOW_MS`). Update `backend/.env` to remove the stale names and add the correct T-111 names with their default values, matching `backend/.env.example`. No code changes — `.env` cleanup only.
+- [ ] **T-118** — Frontend Engineer: Fix unsubscribe page error CTA to be contextually appropriate **(P3)**
+  - **Description:** When the unsubscribe page shows an error (e.g., invalid/expired token, deleted account), the CTA button always reads "Sign In" and links to `/login`. For the 404 case (account already deleted), directing the user to "Sign In" is misleading — they cannot sign in. Replace the generic "Sign In" CTA with a neutral "Go to Plant Guardians" link for 404 errors, and keep "Sign In" only for recoverable token errors where the user likely has a valid account.
   - **Acceptance Criteria:**
-    - `backend/.env` rate-limit section uses T-111 variable names matching `.env.example`
-    - Stale legacy names (`RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`) removed
-    - All 183/183 backend tests still pass (no behavioral change)
-    - FB-107 resolved
+    - For HTTP 404 responses from `GET /api/v1/unsubscribe`: CTA renders as "Go to Plant Guardians" linking to `/`
+    - For all other errors (400, 401, 422, 5xx): CTA renders as "Sign In" linking to `/login` (existing behavior preserved)
+    - All existing unsubscribe page tests continue to pass; add at least 1 new test for the 404 CTA differentiation
+    - All 259/259 frontend tests pass; no regressions
+    - FB-104 resolved
   - **Blocked By:** None — start immediately.
-  - **Fix locations:** `backend/.env`
+  - **Fix location:** `frontend/src/pages/UnsubscribePage.jsx` (or equivalent unsubscribe component)
 
 ---
 
 ## Out of Scope
 
-- AI Plant Advisor — **already implemented** (T-025/T-026, Sprints 3–5); `AIAdviceModal.jsx`, `GeminiService.js`, and `POST /ai/advice` are live
-- Push notifications (browser or mobile) — post-sprint
 - Social auth (Google OAuth) — B-001 — post-sprint
 - Plant sharing / public profiles — B-003 — post-sprint
 - Production deployment execution — blocked on project owner providing SSL certs
 - Production email delivery — blocked on project owner providing SMTP credentials
-- Unsubscribe error CTA contextual differentiation (FB-104) — cosmetic, backlog
 - Express 5 migration — advisory backlog
 - Soft-delete / grace period for account deletion — post-MVP
+- New feature work — MVP is complete; sprint is polish/reliability only
 
 ---
 
@@ -61,8 +59,9 @@ The operational reference for the current development cycle. Refreshed at the st
 
 | Agent | Focus Area This Sprint | Key Tasks |
 |-------|----------------------|-----------|
-| Backend Engineer | .env cleanup | T-115 (P3, start immediately) |
-| QA Engineer | Verify T-115; confirm no regressions | After T-115 complete |
+| Backend Engineer | Test reliability fix | T-117 (P2, start immediately) |
+| Frontend Engineer | UX CTA polish | T-118 (P3, start immediately — no dependency on T-117) |
+| QA Engineer | Verify T-117 and T-118; confirm no regressions | After T-117 and T-118 complete |
 | Deploy Engineer | Staging re-deploy after QA sign-off | After QA-verified |
 | Monitor Agent | Post-deploy health check | After Deploy Engineer re-deploy |
 | Manager | Sprint coordination | Ongoing |
@@ -72,9 +71,10 @@ The operational reference for the current development cycle. Refreshed at the st
 ## Dependency Chain
 
 ```
-T-115 (.env cleanup — Backend Engineer, START IMMEDIATELY)
+T-117 (careActionsStreak fix — Backend Engineer, START IMMEDIATELY)
+T-118 (unsubscribe CTA fix — Frontend Engineer, START IMMEDIATELY, parallel with T-117)
   ↓
-QA verifies T-115 — 183/183 backend tests pass
+QA verifies T-117 (188/188 backend tests pass) and T-118 (259/259 frontend tests pass)
   ↓
 Deploy Engineer re-deploys to staging
   ↓
@@ -85,11 +85,21 @@ Monitor Agent health check
 
 ## Definition of Done
 
-Sprint #25 is complete when:
+Sprint #26 is complete when:
 
-- [ ] T-115: `backend/.env` updated to use T-111 variable names; stale names removed; all 183/183 backend tests pass
+- [ ] T-117: `daysAgo(0)` fixed; all 5 streak tests pass at any UTC hour; 188/188 backend tests pass
+- [ ] T-118: Unsubscribe error CTA is contextual (404 → "Go to Plant Guardians", other errors → "Sign In"); 1+ new test added; 259/259 frontend tests pass
 - [ ] Deploy Verified: Yes from Monitor Agent post-deploy health check
-- [ ] No regressions: backend ≥ 183/183, frontend ≥ 259/259
+- [ ] No regressions: backend ≥ 188/188, frontend ≥ 259/259
+
+---
+
+## Success Criteria
+
+- Zero flaky tests in the backend suite — `careActionsStreak.test.js` passes reliably at all UTC hours
+- Unsubscribe error page provides appropriate guidance for deleted-account users
+- Test counts: backend ≥ 188/188, frontend ≥ 260/259 (net +1 from T-118 new test)
+- Deploy Verified: Yes
 
 ---
 
@@ -97,8 +107,4 @@ Sprint #25 is complete when:
 
 - Production deployment remains blocked on project owner providing SSL certificates
 - Production email delivery blocked on project owner providing SMTP credentials
-- **Infrastructure note:** Local staging backend process may terminate between Deploy and Monitor phases — Monitor Agent must restart it if connection refused
-
----
-
-*Sprint #25 plan corrected on 2026-04-06. Original plan (T-112–T-114) removed — AI advice feature already delivered in Sprints 3–5.*
+- **Infrastructure note:** Local staging backend process may terminate between Deploy and Monitor phases — Monitor Agent must restart it if connection refused before running health checks
