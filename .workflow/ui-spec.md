@@ -4969,3 +4969,351 @@ The email template does not support dark mode (email client dark mode support is
 ---
 
 *SPEC-017 written by Design Agent on 2026-04-05 for Sprint #22.*
+
+---
+
+### SPEC-018 — Account Deletion Flow
+
+**Status:** Approved
+**Related Tasks:** T-105 (Design), T-107 (Frontend Implementation)
+**Sprint:** #23
+
+---
+
+#### Overview
+
+Account deletion is a rare but critical action. The design must make deletion deliberate and irreversible-feeling without being so hostile that it erodes trust. Three principles guide this spec:
+
+1. **Progressive disclosure** — the delete option is never prominent; it is buried under a collapsed "Danger Zone" at the bottom of the Profile page.
+2. **Hard gate** — the user must type "DELETE" (exact match, case-sensitive) before the confirm button becomes active; accidental taps are impossible.
+3. **Clear consequence communication** — the modal lists every piece of data being destroyed so the user makes a fully informed choice.
+
+---
+
+#### Surface 1 — Danger Zone Section (Profile Page)
+
+**Location:** Bottom of `ProfilePage.jsx`, below the existing Reminders section. Separated from the rest of the page by a full-width horizontal rule (`<hr>`) styled with `var(--color-border)`.
+
+##### Visual Design
+
+```
+──────────────────────────────────────────────
+  ▼  Danger Zone                              ← collapsed trigger row
+──────────────────────────────────────────────
+```
+
+When **collapsed** (default state on every page load):
+
+- A single row containing a chevron icon (pointing **right** when collapsed, **down** when expanded) on the left and the label **"Danger Zone"** in `14px / font-weight: 500 / color: var(--color-status-red)` (#B85C38 light / #C96B44 dark).
+- The entire row is a `<button>` with `aria-expanded="false"` and `aria-controls="danger-zone-content"`.
+- The row has a subtle left border accent: `border-left: 3px solid var(--color-status-red-muted)` where `--color-status-red-muted` = `rgba(184, 92, 56, 0.35)`.
+- Row background: inherits page background. No fill until hover.
+- Hover state: background transitions to `rgba(184, 92, 56, 0.05)` (`0.2s ease`). Border-left accent darkens to `rgba(184, 92, 56, 0.60)`.
+- Padding: `12px 16px`. Full width of the section content area.
+
+When **expanded**:
+
+- Chevron rotates to point down (`transform: rotate(90deg)`, `transition: transform 0.2s ease`).
+- `aria-expanded` becomes `"true"`.
+- Content area slides open below the trigger row: `max-height` animation from `0` to `auto` (`overflow: hidden`, `transition: max-height 0.3s ease, opacity 0.2s ease`), `opacity` 0 → 1.
+- Content area has `id="danger-zone-content"` (linked via `aria-controls` on the trigger button).
+- `@media (prefers-reduced-motion: reduce)`: skip height/opacity animation, show instantly.
+
+##### Expanded Content
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Permanently delete your account and all associated data.   │  ← body copy, text-secondary
+│  This action cannot be undone.                              │
+│                                                             │
+│  [  Delete my account  ]                                    │  ← Danger button variant
+└─────────────────────────────────────────────────────────────┘
+```
+
+- Body copy: `font-size: 14px`, `color: var(--color-text-secondary)`, `margin-bottom: 16px`.
+- "Delete my account" button: **Danger** variant (`background: var(--color-status-red)` → `#B85C38`; `color: #FFFFFF`; `border-radius: 8px`; `padding: 10px 20px`; `font-weight: 600`; `font-size: 14px`).
+- Button is left-aligned within the content area (not full-width on desktop; full-width on mobile ≤ 480px).
+- Clicking the button opens the **Confirmation Modal** (Surface 2).
+- The content area itself has `padding: 16px` (inside the `id="danger-zone-content"` wrapper), `background: rgba(184, 92, 56, 0.04)`, `border-radius: 0 0 8px 8px`.
+
+##### State — Section Collapsed (Default)
+
+- `aria-expanded="false"` on trigger button.
+- Content `div` has `max-height: 0`, `overflow: hidden`, `opacity: 0`.
+- Chevron icon points right.
+
+##### State — Section Expanded
+
+- `aria-expanded="true"` on trigger button.
+- Content `div` animates to full height, `opacity: 1`.
+- Chevron icon points down.
+
+---
+
+#### Surface 2 — Confirmation Modal
+
+Opened by clicking "Delete my account". Must be closeable via "Cancel" button, pressing `Escape`, or clicking the backdrop. Closed state means returning to the Profile page with the Danger Zone still expanded.
+
+##### Modal Anatomy
+
+```
+┌──────────────────────────────────────────┐
+│  Delete your account?              [  ×  ]│  ← modal header
+├──────────────────────────────────────────┤
+│  This will permanently delete:            │
+│    • Your account and profile             │
+│    • All your plants (N plants)           │
+│    • All care history and notes           │
+│    • All care schedules and reminders     │
+│                                           │
+│  This action cannot be undone.            │
+│                                           │
+│  To confirm, type DELETE below:           │
+│  ┌──────────────────────────────────────┐ │
+│  │                                      │ │  ← text input
+│  └──────────────────────────────────────┘ │
+│                                           │
+│  [    Cancel    ]  [  Delete my account  ]│  ← action row
+└──────────────────────────────────────────┘
+```
+
+##### Modal Container
+
+- `role="dialog"`, `aria-modal="true"`, `aria-labelledby="delete-modal-title"`.
+- Width: `480px` on desktop, `100% - 32px` on mobile (max-width: 480px, centered).
+- `border-radius: 12px`, `background: var(--color-surface)`, `box-shadow: 0 8px 32px rgba(44, 44, 44, 0.18)`.
+- Backdrop: `rgba(44, 44, 44, 0.45)` covering full viewport, `z-index: 1000`.
+- On open: backdrop fades in (`opacity 0→1, 0.2s ease`), modal slides up from `translateY(8px)` to `translateY(0)` (`0.2s ease`).
+- On close: reverse of open animation.
+- `@media (prefers-reduced-motion: reduce)`: skip translate/fade, appear/disappear instantly.
+
+##### Modal Header
+
+- Title: **"Delete your account?"** — `id="delete-modal-title"`, `font-family: 'DM Sans'`, `font-size: 18px`, `font-weight: 600`, `color: var(--color-text-primary)`.
+- Close button: icon-only `×` (`aria-label="Close dialog"`) in the top-right corner. Ghost variant, `color: var(--color-text-secondary)`. On click: closes modal (same as Cancel).
+- Header `padding: 24px 24px 0 24px`.
+
+##### Modal Body
+
+Padding: `16px 24px 0 24px`.
+
+**Consequence list:**
+- Intro line: "This will permanently delete:" — `font-size: 14px`, `color: var(--color-text-secondary)`.
+- Bulleted list (`<ul>`, no custom bullets — use browser default `list-style: disc`, `padding-left: 20px`):
+  - "Your account and profile"
+  - "All your plants" (if the frontend can cheaply know the count, append `(N plants)` — optional, skip if it requires an extra API call)
+  - "All care history and notes"
+  - "All care schedules and reminders"
+- Each list item: `font-size: 14px`, `color: var(--color-text-secondary)`, `line-height: 1.6`.
+- Warning line after the list: **"This action cannot be undone."** — `font-size: 14px`, `font-weight: 600`, `color: var(--color-status-red)`, `margin-top: 12px`.
+
+**Confirmation input:**
+- Label above the input: "To confirm, type DELETE below:" — `font-size: 13px`, `font-weight: 500`, `color: var(--color-text-secondary)`, `margin-top: 20px`, `margin-bottom: 6px`, `display: block`.
+- Text input: `<input type="text" aria-label="Type DELETE to confirm" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="DELETE">`.
+- Input styles: full-width of modal body, `padding: 10px 12px`, `border: 1.5px solid var(--color-border)`, `border-radius: 8px`, `font-size: 14px`, `font-family: 'DM Sans'`, `color: var(--color-text-primary)`, `background: var(--color-surface)`.
+- Focus ring: `border-color: var(--color-border-focus)` (`#5C7A5C`), `outline: none`, `box-shadow: 0 0 0 3px rgba(92, 122, 92, 0.18)`.
+- **Validation:** the input is compared character-by-character against the string `"DELETE"` (exact, case-sensitive) on every `onChange` event. Do NOT use `toLowerCase()` — lowercase "delete" must NOT satisfy the gate.
+- When value equals `"DELETE"` exactly: confirm button becomes enabled.
+- When value does not equal `"DELETE"`: confirm button is disabled + `aria-disabled="true"`.
+- Do not show a visible validation error on the input itself — the disabled confirm button communicates the gate state.
+
+##### Modal Footer (Action Row)
+
+`padding: 16px 24px 24px 24px`, `display: flex`, `justify-content: flex-end`, `gap: 12px`.
+
+| Button | Variant | Label | Behavior |
+|--------|---------|-------|----------|
+| Cancel | Secondary | "Cancel" | Closes modal. No API call. Danger Zone stays expanded on Profile page. |
+| Confirm delete | Danger | "Delete my account" | Disabled (`aria-disabled="true"`) until input === "DELETE". On click (when enabled): fires `DELETE /api/v1/profile`. |
+
+- On mobile (< 480px): buttons stack vertically, full-width, Cancel on top, Confirm below.
+
+---
+
+#### Surface 3 — Loading State (In-Modal)
+
+Triggered immediately when the user clicks the enabled "Delete my account" confirm button.
+
+- Confirm button: text replaced by a spinner (16px circular indeterminate spinner, `color: #FFFFFF`) + "Deleting…" label. `padding` unchanged.
+- Confirm button: `disabled` attribute set (`pointer-events: none` via CSS as backup).
+- Cancel button: `disabled` attribute set — user cannot cancel a deletion in flight.
+- Close `×` button: `disabled` attribute set.
+- Text input: `disabled` — user cannot edit while request is in flight.
+- Backdrop: non-dismissible (clicking backdrop does nothing while in-flight).
+- All disabled elements: `opacity: 0.5` to communicate disabled state visually.
+
+Spinner implementation: a simple CSS `@keyframes` rotating border spinner using `var(--color-accent-primary)` on the track and `#FFFFFF` as the spinning arc — consistent with other loading patterns in the app.
+
+---
+
+#### Surface 4 — Success State
+
+Triggered when `DELETE /api/v1/profile` returns **204 No Content**.
+
+**In-modal (brief flash, then redirect — do NOT linger):**
+- No success state rendered inside the modal. Immediately proceed to the redirect sequence.
+
+**Redirect sequence:**
+1. Call `logout()` (or equivalent — clear access token, refresh token, and all auth state from memory/localStorage/sessionStorage).
+2. Close the modal.
+3. Navigate to `/login?deleted=true` (React Router `navigate('/login?deleted=true', { replace: true })`).
+
+**On the Login Page (`/login?deleted=true`):**
+
+A dismissible one-time banner is shown above the login form when `?deleted=true` is present in the URL.
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  ℹ  Your account has been permanently deleted.        [×]  │
+└────────────────────────────────────────────────────────────┘
+```
+
+- Banner position: above the login form container, below the page header/logo.
+- Background: `rgba(184, 92, 56, 0.08)`, `border: 1px solid rgba(184, 92, 56, 0.30)`, `border-radius: 8px`, `padding: 12px 16px`.
+- Icon: info circle (Phosphor `Info`, outlined), `color: var(--color-status-red)`, `16px`.
+- Text: "Your account has been permanently deleted." — `font-size: 14px`, `color: var(--color-status-red)`, `font-weight: 500`.
+- Dismiss button: `×` icon-only (`aria-label="Dismiss"`), `color: var(--color-status-red)`, Ghost variant, aligned right.
+- Banner is shown once; clicking `×` hides it. It does NOT reappear on page refresh or navigation (use React local state — no persistence needed; if the user navigates away and back, the `?deleted=true` is gone anyway since we used `replace: true`).
+- `role="status"` on the banner container so screen readers announce it without stealing focus.
+- The login form below the banner is fully functional — existing users can log in to a different account.
+
+---
+
+#### Surface 5 — Error State (In-Modal)
+
+Triggered when `DELETE /api/v1/profile` returns a non-2xx status (e.g., 500, network failure, or an unexpected 4xx).
+
+**In-modal behavior:**
+- Spinner resolves. Confirm button returns to its enabled state with original label "Delete my account".
+- Cancel button and Close `×` button re-enable.
+- Text input re-enables with the text `"DELETE"` still typed (do not clear it — the user typed it deliberately).
+- An inline error message appears **below the confirmation input**, above the action row buttons.
+
+```
+  ┌──────────────────────────────────────────┐
+  │ DELETE                                   │  ← input (still filled)
+  └──────────────────────────────────────────┘
+  ⚠  Could not delete your account. Please try again.
+```
+
+- Error text: `font-size: 13px`, `color: var(--color-status-red)`, `margin-top: 8px`, `display: flex`, `gap: 6px`, `align-items: center`.
+- Prepend a `⚠` warning icon (Phosphor `Warning`, outlined, 14px, `color: var(--color-status-red)`).
+- Full error message: **"Could not delete your account. Please try again."**
+- Error is rendered in a `<p role="alert">` so screen readers announce it immediately upon appearance.
+- The user can retry by clicking "Delete my account" again (confirm button is re-enabled since the input still reads "DELETE").
+- The user can also click Cancel or Close to dismiss the modal entirely.
+
+---
+
+#### Dark Mode
+
+All new elements must use CSS custom properties exclusively. No hardcoded hex values in the component or stylesheet.
+
+| Element | Light value | Dark value |
+|---------|-------------|------------|
+| Danger Zone trigger label | `var(--color-status-red)` → `#B85C38` | `#C96B44` |
+| Danger Zone trigger border-left | `rgba(184, 92, 56, 0.35)` | `rgba(201, 107, 68, 0.35)` |
+| Danger Zone expanded bg | `rgba(184, 92, 56, 0.04)` | `rgba(201, 107, 68, 0.06)` |
+| "Delete my account" button bg | `var(--color-status-red)` → `#B85C38` | `#C96B44` |
+| "Delete my account" button text | `#FFFFFF` | `#FFFFFF` |
+| Modal background | `var(--color-surface)` → `#FFFFFF` | `#2A2A24` |
+| Modal title | `var(--color-text-primary)` → `#2C2C2C` | `#F0EDE6` |
+| Consequence list text | `var(--color-text-secondary)` → `#6B6B5F` | `#9B9B8F` |
+| "Cannot be undone" warning | `var(--color-status-red)` → `#B85C38` | `#C96B44` |
+| Confirmation input bg | `var(--color-surface)` → `#FFFFFF` | `#1E1E1A` |
+| Confirmation input border | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+| Confirmation input text | `var(--color-text-primary)` → `#2C2C2C` | `#F0EDE6` |
+| Confirm button (disabled) | `#B85C38` at `opacity: 0.5` | `#C96B44` at `opacity: 0.5` |
+| Cancel button text | `var(--color-accent-primary)` → `#5C7A5C` | `#7A9E7A` |
+| Cancel button border | `var(--color-accent-primary)` → `#5C7A5C` | `#7A9E7A` |
+| Modal backdrop | `rgba(44, 44, 44, 0.45)` | `rgba(10, 10, 8, 0.65)` |
+| Inline error text | `var(--color-status-red)` → `#B85C38` | `#C96B44` |
+| Login page deletion banner bg | `rgba(184, 92, 56, 0.08)` | `rgba(201, 107, 68, 0.10)` |
+| Login page deletion banner border | `rgba(184, 92, 56, 0.30)` | `rgba(201, 107, 68, 0.35)` |
+| Login page deletion banner text | `var(--color-status-red)` → `#B85C38` | `#C96B44` |
+| Section divider hr | `var(--color-border)` → `#E0DDD6` | `#3A3A34` |
+
+---
+
+#### Responsive Behavior
+
+| Breakpoint | Behavior |
+|------------|---------|
+| Desktop (≥1024px) | Danger Zone section: full width of Profile content column. Modal: `480px` centered in viewport. Action row: buttons right-aligned, side-by-side. |
+| Tablet (768–1023px) | Same as desktop. Profile page is single-column so no sidebar adjustment needed. Modal: `480px` or `90vw`, whichever is smaller. |
+| Mobile (<768px) | Danger Zone: full width. Modal: `calc(100vw - 32px)`, max-width `480px`. Action row buttons: stack vertically, full-width, Cancel above Confirm. Login page banner: full width, text wraps naturally. |
+| Mobile touch targets | "Delete my account" button in Danger Zone: min height `44px`. Confirm button in modal: min height `44px`. Cancel button: min height `44px`. Close `×` in modal header: min `44×44px` tap area. |
+
+---
+
+#### Accessibility
+
+| Requirement | Implementation |
+|-------------|---------------|
+| Danger Zone trigger | `<button aria-expanded="false/true" aria-controls="danger-zone-content">` — native button for full keyboard support |
+| Danger Zone content region | `<div id="danger-zone-content" role="region" aria-label="Danger Zone">` |
+| Chevron icon | `aria-hidden="true"` — decorative; state communicated by `aria-expanded` |
+| Modal container | `role="dialog" aria-modal="true" aria-labelledby="delete-modal-title"` |
+| Modal title | `id="delete-modal-title"` on the `<h2>` element |
+| Close × button | `<button aria-label="Close dialog">` |
+| Confirmation input | `<input aria-label="Type DELETE to confirm" autocomplete="off" spellcheck="false">` |
+| Confirm button — disabled state | Both HTML `disabled` attribute AND `aria-disabled="true"` — so screen readers announce "Delete my account, dimmed, button" |
+| Confirm button — enabled state | Remove `disabled` attribute AND `aria-disabled="false"` |
+| Inline error | `<p role="alert">` — announced immediately by screen readers without focus move |
+| Login page deletion banner | `role="status"` — polite announcement; does not steal focus |
+| Focus management on modal open | On modal open, move focus to the confirmation input (`inputRef.current.focus()`) — this is the primary interactive element |
+| Focus management on modal close | On modal close (Cancel / ×), return focus to the "Delete my account" trigger button in the Danger Zone |
+| Focus trap | While modal is open, Tab and Shift+Tab cycle only through modal's focusable elements: close button → input → Cancel → Confirm (loop) |
+| Escape key | Pressing `Escape` triggers Cancel behavior (closes modal, returns focus to trigger) — but ONLY when not in loading state |
+| Color independence | Disabled state of confirm button communicated by `aria-disabled` + `disabled`, not solely by color |
+| Reduced motion | `@media (prefers-reduced-motion: reduce)` — Danger Zone expansion is instant; modal open/close animations are instant |
+
+---
+
+#### User Flow — End to End
+
+1. User is on the Profile page, scrolled to the bottom.
+2. User sees the "Danger Zone" collapsed row with a right-pointing chevron.
+3. User clicks (or presses Enter/Space on) the row.
+4. Row expands with animation. Chevron rotates down. Body copy + "Delete my account" button appear.
+5. User clicks "Delete my account" (Danger variant button).
+6. Confirmation modal opens. Focus moves to the text input.
+7. User reads the consequence list: sees that all plants, care history, notes, schedules, and reminders will be deleted.
+8. User types "DELETE" in the input (case-sensitive). After each keystroke, the confirm button is re-evaluated.
+9. Once input === "DELETE" exactly, confirm button transitions from disabled (muted red, `opacity: 0.5`) to enabled (full red).
+10. User clicks "Delete my account" confirm button.
+11. Loading state: spinner shows in button, all controls disabled.
+12. **Success path:** 204 received → auth cleared → navigate to `/login?deleted=true` → deletion banner shown above login form. User can log in with a different account or leave the page.
+13. **Error path:** non-2xx received → spinner clears → controls re-enable → inline error "Could not delete your account. Please try again." appears below input → user can retry or cancel.
+
+---
+
+#### Component and File Changes
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/ProfilePage.jsx` | Add collapsible Danger Zone section at bottom; "Delete my account" button that opens `DeleteAccountModal` |
+| `frontend/src/pages/ProfilePage.css` | Add `.danger-zone`, `.danger-zone-trigger`, `.danger-zone-content`, `.danger-zone-body-copy`, `.danger-zone-delete-btn` styles |
+| `frontend/src/components/DeleteAccountModal.jsx` | New component: confirmation modal with all states (idle, loading, error) |
+| `frontend/src/components/DeleteAccountModal.css` | New stylesheet: modal styles, input, action row, inline error, dark mode vars |
+| `frontend/src/pages/LoginPage.jsx` | Read `?deleted=true` from query string on mount; conditionally render dismissible deletion banner above login form |
+| `frontend/src/utils/api.js` | Add `profile.delete()` → `DELETE /api/v1/profile` (authenticated) |
+
+---
+
+#### Minimum Test Coverage (T-107 acceptance criteria — 6 new tests minimum)
+
+| Test | Assertion |
+|------|-----------|
+| Danger Zone renders collapsed by default | Section content not visible; `aria-expanded="false"` on trigger |
+| Toggle Danger Zone open | Click trigger → content visible; `aria-expanded="true"` |
+| Modal opens on "Delete my account" click | `DeleteAccountModal` renders after button click |
+| Confirm button disabled until "DELETE" typed | Button disabled when input is empty or "delete" or "DELET"; enabled when input is exactly "DELETE" |
+| API success → auth cleared + redirect | Mock `profile.delete()` resolving 204; assert `logout()` called; assert `navigate('/login?deleted=true')` called |
+| API error → inline error shown | Mock `profile.delete()` rejecting; assert inline error "Could not delete your account. Please try again." appears |
+| Login page banner renders with `?deleted=true` | Mount `LoginPage` with `?deleted=true` in URL; assert banner text present |
+| Login page banner dismissed on `×` click | Click dismiss button; assert banner disappears |
+
+---
+
+*SPEC-018 written by Design Agent on 2026-04-05 for Sprint #23.*

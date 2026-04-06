@@ -3796,3 +3796,91 @@ SPEC-016 is written and approved. It covers all seven required areas from T-096:
 - Character counter appears at ≥200 characters
 - (Plus any additional tests for ARIA state, animation state, etc.)
 - All 195/195 frontend tests still pass
+
+---
+
+## H-282 — Design Agent → Frontend Engineer: SPEC-018 Approved — Account Deletion Flow (2026-04-05)
+
+**From:** Design Agent
+**To:** Frontend Engineer
+**Sprint:** #23
+**Related Tasks:** T-105 (Design — complete), T-107 (Frontend — implement per this spec)
+**Status:** Ready for implementation
+
+---
+
+### Summary
+
+SPEC-018 is written and approved. It covers the full account deletion flow end-to-end across five surfaces:
+
+1. **Danger Zone section** on Profile page — collapsed by default, toggled by a chevron button.
+2. **Confirmation modal** — lists all data to be destroyed; text input gate requiring exact `"DELETE"` (case-sensitive) before confirm button activates.
+3. **Loading state** — spinner in confirm button, all modal controls disabled while request is in-flight.
+4. **Success state** — auth cleared, redirect to `/login?deleted=true`, dismissible deletion banner shown on login page.
+5. **Error state** — inline error below input, controls re-enabled, user can retry.
+
+Dark mode via CSS custom properties and full accessibility spec (focus trap, focus management, ARIA roles) are included.
+
+---
+
+### Blocker Status
+
+**T-107 is blocked until T-106 (Backend Engineer) publishes the updated API contract for `DELETE /api/v1/profile`.** Do not begin implementation of the API call layer until that contract is published to `.workflow/api-contracts.md`. The visual structure (Danger Zone, modal, login banner) can be built and tested against a mock before the contract arrives.
+
+---
+
+### What's Covered in SPEC-018
+
+| Surface | Location in spec |
+|---------|-----------------|
+| Danger Zone section (collapsed/expanded) | Surface 1 |
+| Confirmation modal anatomy | Surface 2 |
+| Loading state (in-modal) | Surface 3 |
+| Success: auth clear + redirect + login banner | Surface 4 |
+| Error: inline error + retry | Surface 5 |
+| Dark mode token table | Dark Mode section |
+| Responsive layout (desktop → mobile) | Responsive Behavior section |
+| Accessibility (ARIA, focus trap, keyboard) | Accessibility section |
+| End-to-end user flow | User Flow section |
+| File and component changes | Component and File Changes section |
+| Minimum test coverage (8 tests mapped) | Minimum Test Coverage section |
+
+---
+
+### Key Implementation Notes
+
+- **"DELETE" gate is case-sensitive.** Do NOT use `toLowerCase()` or `toUpperCase()`. The comparison must be `inputValue === 'DELETE'` (strict equality against the uppercase string). Lowercase "delete" or mixed case must not enable the confirm button.
+- **Focus trap required in modal.** While the modal is open, Tab and Shift+Tab must cycle only through the modal's focusable elements: close `×` → input → Cancel → Confirm (loop). See the Accessibility section for the full spec.
+- **Focus management on open:** Move focus to the text input when the modal opens (`inputRef.current.focus()`).
+- **Focus management on close:** Return focus to the "Delete my account" trigger button in the Danger Zone when the modal closes via Cancel or `×`.
+- **Escape key:** Pressing `Escape` cancels the modal — but only when NOT in the loading state. Ignore `Escape` while deletion request is in-flight.
+- **Auth clearing on success:** The success path must call `logout()` (or equivalent) to clear access tokens, refresh tokens, and all auth state before navigating to `/login?deleted=true`. Navigate with `{ replace: true }` so the back button does not return to a now-dead Profile page.
+- **Login page banner:** Read `?deleted=true` from URL search params on mount (not from state or props). Use `role="status"` on the banner so it's announced politely by screen readers without stealing focus from the login form. Banner dismissal is purely local React state — no persistence needed.
+- **Danger Zone collapsed by default** on every page mount. Do not persist the open/closed state to localStorage.
+- **Reduced motion:** Wrap the Danger Zone `max-height` and modal `translateY/opacity` animations in `@media (prefers-reduced-motion: no-preference)` guards — instant show/hide for users with motion sensitivity.
+
+### Files to Create / Modify
+
+| File | Action |
+|------|--------|
+| `frontend/src/pages/ProfilePage.jsx` | Add collapsible Danger Zone section at bottom; wire up `DeleteAccountModal` |
+| `frontend/src/pages/ProfilePage.css` | Add `.danger-zone`, `.danger-zone-trigger`, `.danger-zone-content`, `.danger-zone-delete-btn` |
+| `frontend/src/components/DeleteAccountModal.jsx` | **New** — confirmation modal component (all states) |
+| `frontend/src/components/DeleteAccountModal.css` | **New** — modal stylesheet |
+| `frontend/src/pages/LoginPage.jsx` | Add deletion banner (shown when `?deleted=true`) |
+| `frontend/src/utils/api.js` | Add `profile.delete()` → `DELETE /api/v1/profile` |
+
+### Minimum Test Coverage (T-107 — 6+ new tests required)
+
+| # | Test |
+|---|------|
+| 1 | Danger Zone renders collapsed by default (`aria-expanded="false"`) |
+| 2 | Clicking trigger expands the section (`aria-expanded="true"`, content visible) |
+| 3 | "Delete my account" button opens `DeleteAccountModal` |
+| 4 | Confirm button disabled until input is exactly `"DELETE"` (test with `""`, `"delete"`, `"DELET"`, `"DELETE"`) |
+| 5 | API success: `logout()` called and `navigate('/login?deleted=true')` called |
+| 6 | API error: inline error "Could not delete your account. Please try again." rendered |
+| 7 | Login page renders deletion banner when `?deleted=true` in URL |
+| 8 | Deletion banner dismissed on `×` click |
+
+*H-282 created by Design Agent on 2026-04-05.*
