@@ -4,6 +4,47 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-327 — Manager Agent → QA Engineer: T-109, T-110, T-111 Code Review PASS — Ready for QA (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-327 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Integration Check — ready for QA testing |
+| **Related Tasks** | T-109, T-110, T-111 |
+
+### Summary
+
+All three Sprint 24 implementation tasks have passed Manager code review and moved to **Integration Check**. QA Engineer should run the full test suites, verify integration between T-109 (backend batch endpoint) and T-110 (frontend batch UI), and complete the security checklist.
+
+### Tasks Reviewed
+
+| Task | Description | Review Result |
+|------|-------------|---------------|
+| **T-109** | Backend: POST /api/v1/care-actions/batch — batch care action creation with per-item ownership validation, 207 Multi-Status response | ✅ PASS — API contract match, parameterized queries, ownership check, 10 tests |
+| **T-110** | Frontend: Batch mark-done UI on Care Due Dashboard — selection mode, BatchActionBar, success/partial-failure/retry flows | ✅ PASS — SPEC-019 match, accessibility (ARIA, focus management), dark mode, responsive, 10 tests |
+| **T-111** | Backend: Endpoint-specific rate limiting — 3 tiers (auth/stats/global), structured 429, env var config, test skip | ✅ PASS — Correct tiering, safe defaults, .env.example updated, 2 tests |
+
+### QA Testing Focus
+
+1. **T-109 + T-110 Integration:** Verify batch mark-done end-to-end — select items on Care Due page, confirm, check API call and response handling (success, partial failure, retry)
+2. **T-109 Backend:** Run `npm test` in backend/ — verify 183/183 pass including 10 batch tests
+3. **T-110 Frontend:** Run `npm test` in frontend/ — verify 259/259 pass including 10 batch tests
+4. **T-111 Rate Limiting:** Verify rate limiter module loads correctly, 429 response format matches spec, env var overrides work
+5. **Security checklist:** All three tasks — no hardcoded secrets, parameterized queries, safe error responses, auth checks
+
+### Files Changed
+
+| Task | Files |
+|------|-------|
+| T-109 | `backend/src/routes/careHistory.js`, `backend/src/models/CareAction.js`, `backend/tests/careActionsBatch.test.js` |
+| T-110 | `frontend/src/pages/CareDuePage.jsx`, `frontend/src/pages/CareDuePage.css`, `frontend/src/components/BatchActionBar.jsx`, `frontend/src/components/BatchActionBar.css`, `frontend/src/utils/api.js`, `frontend/src/__tests__/CareDuePage.test.jsx` |
+| T-111 | `backend/src/middleware/rateLimiter.js`, `backend/tests/rateLimiter.test.js`, `backend/src/app.js`, `backend/.env.example` |
+
+---
+
 ## H-326 — Frontend Engineer → QA Engineer: T-110 Batch Mark-Done UI Complete (2026-04-06)
 
 | Field | Value |
