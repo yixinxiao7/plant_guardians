@@ -4036,3 +4036,114 @@ No Knex migration file is needed. No Deploy Engineer migration handoff is requir
 ---
 
 *Sprint 24 contracts written by Backend Engineer — 2026-04-06. New endpoint: POST /api/v1/care-actions/batch (T-109). Rate limiting addendum for T-111. No schema changes. All prior sprint contracts remain authoritative.*
+
+---
+
+## Sprint 25 Contracts — 2026-04-06
+
+**Sprint Goal:** `.env` rate-limit variable cleanup (T-115, P3) + fix care status inconsistency between My Plants and Care Due Dashboard (T-116, P1).
+
+**Author:** Backend Engineer
+**Date:** 2026-04-06
+
+---
+
+### Overview
+
+Sprint #25 introduces **zero new endpoints** and **zero schema changes**. Both tasks are backend-only fixes:
+
+| Task | Type | Affected Surface | Contract Impact |
+|------|------|-----------------|----------------|
+| T-115 | Config cleanup — stale `.env` variable names | `backend/.env` | None — no API surface change |
+| T-116 | Bug fix — care status inconsistency across views | `GET /api/v1/plants` + `GET /api/v1/care-due` | Behavioral clarification only — request/response shapes unchanged |
+
+---
+
+### T-115 — `.env` Rate-Limit Variable Cleanup
+
+**Contract impact: None.** This task removes stale legacy variable names (`RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`) from `backend/.env` and replaces them with the correct T-111 names (`RATE_LIMIT_AUTH_MAX`, `RATE_LIMIT_AUTH_WINDOW_MS`, `RATE_LIMIT_STATS_MAX`, `RATE_LIMIT_STATS_WINDOW_MS`, `RATE_LIMIT_GLOBAL_MAX`, `RATE_LIMIT_GLOBAL_WINDOW_MS`).
+
+No API endpoints are changed. No behavioral change is expected. Rate limiting middleware (`rateLimiter.js`) already reads the T-111 variable names — this fix ensures the `.env` file actually supplies them. All 183/183 backend tests must continue to pass.
+
+**For QA:** Verify that `backend/.env` no longer contains the three stale names and does contain all six T-111 names. Run the full backend test suite and confirm 183/183 pass.
+
+---
+
+### T-116 — Behavioral Clarification: Care Status Date Boundary Alignment
+
+**Contract status:** BEHAVIORAL CLARIFICATION. The request/response shapes of both endpoints are unchanged. This entry documents the **canonical, authoritative overdue/care-status boundary algorithm** that both `GET /api/v1/plants` and `GET /api/v1/care-due` must implement identically after the T-116 fix.
+
+**Problem statement:** Before this fix, a plant could appear as `overdue` in `GET /api/v1/plants` (via `careStatus.js`) yet appear in the `coming_up` bucket in `GET /api/v1/care-due` (via `careDue.js`). Root cause: the two code paths applied different date boundary / timezone offset logic when computing whether a plant's next due date has passed.
+
+---
+
+#### Canonical Date Boundary Algorithm (both endpoints, post-fix)
+
+Both `GET /api/v1/plants` and `GET /api/v1/care-due` **must** use the following identical algorithm when the `utcOffset` query parameter is present:
+
+```
+local_now_ms      = Date.now() + (utcOffset * 60 * 1000)
+local_today_start = start of the calendar day that contains local_now_ms
+                  = local_now_ms - (local_now_ms % 86_400_000)   [ms since epoch, truncated to day]
+local_today_end   = local_today_start + 86_400_000               [exclusive upper bound]
+
+overdue   → next_due_date_ms <  local_today_start
+due_today → local_today_start <= next_due_date_ms < local_today_end
+coming_up → next_due_date_ms >= local_today_end
+```
+
+When `utcOffset` is **omitted**, both endpoints default to UTC (`utcOffset = 0`), preserving existing behaviour.
+
+**Critical invariant (testable):**  
+Given the same `utcOffset` value, a plant that has `care_status = "overdue"` in the `GET /api/v1/plants` response **must** appear in the `overdue` array in `GET /api/v1/care-due`. No plant may be overdue in one view and coming_up or due_today in the other.
+
+---
+
+#### GET /api/v1/plants *(Behavioral clarification — Sprint 25 / T-116)*
+
+**No request or response shape changes.** See Sprint 18 contract for the full spec.
+
+**Behavioral fix:** `careStatus.js` is updated to use the canonical algorithm above. The `utcOffset` query parameter interpretation is identical to `GET /api/v1/care-due` after this fix.
+
+**Affected field:** `care_schedules[].care_status` in the response — values `"overdue"`, `"due_today"`, `"coming_up"`, `"no_schedule"` are unchanged; only the boundary logic that assigns them is corrected.
+
+---
+
+#### GET /api/v1/care-due *(Behavioral clarification — Sprint 25 / T-116)*
+
+**No request or response shape changes.** See Sprint 8 + Sprint 14 contracts for the full spec.
+
+**Behavioral fix:** `careDue.js` is updated to use the canonical algorithm above, matching `careStatus.js` exactly.
+
+**Affected fields:** `overdue[]`, `due_today[]`, `coming_up[]` arrays in the response — their structure is unchanged; only the boundary logic that populates each bucket is corrected.
+
+---
+
+#### Error Responses — unchanged
+
+Both endpoints retain the same error codes documented in their original contracts:
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `utcOffset` out of range `[-840, 840]` or non-integer |
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+---
+
+### Regression Tests Required (T-116)
+
+At least 2 new regression tests must be added to the backend test suite covering the overdue/timezone boundary case:
+
+1. **Boundary alignment test:** Given a plant with `next_due_date` strictly before local midnight (at a non-UTC timezone offset), verify it is classified as `overdue` by both `careStatus.js` and `careDue.js` using the same `utcOffset`.
+2. **No cross-bucket divergence test:** Given the same `utcOffset`, a plant cannot be `overdue` in one code path and `coming_up` or `due_today` in the other.
+
+---
+
+### Schema Changes — Sprint 25
+
+**None.** No new tables, columns, indexes, or migration files are required for either T-115 or T-116.
+
+---
+
+*Sprint 25 contracts written by Backend Engineer — 2026-04-06. Zero new endpoints. Zero schema changes. T-115: config-only `.env` cleanup. T-116: behavioral clarification — canonical date boundary algorithm for GET /api/v1/plants and GET /api/v1/care-due. All prior sprint contracts remain authoritative.*

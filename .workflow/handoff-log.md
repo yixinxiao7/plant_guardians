@@ -4,6 +4,60 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-334 — Backend Engineer → QA Engineer: Sprint #25 API Contracts Ready for Test Reference (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-334 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Contracts published — pending implementation |
+| **Related Tasks** | T-115, T-116 |
+
+### Summary
+
+Sprint #25 API contracts are published in `.workflow/api-contracts.md` under "Sprint 25 Contracts". Use this as the testing reference once implementation is complete.
+
+**T-115 — `.env` cleanup (P3):**
+- Verify `backend/.env` no longer contains `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, or `AUTH_RATE_LIMIT_MAX`
+- Verify `backend/.env` now contains all six T-111 names: `RATE_LIMIT_AUTH_MAX`, `RATE_LIMIT_AUTH_WINDOW_MS`, `RATE_LIMIT_STATS_MAX`, `RATE_LIMIT_STATS_WINDOW_MS`, `RATE_LIMIT_GLOBAL_MAX`, `RATE_LIMIT_GLOBAL_WINDOW_MS`
+- Run full backend test suite and confirm 183/183 pass — no behavioral regressions
+
+**T-116 — Care status date boundary fix (P1):**
+- The canonical algorithm (documented in Sprint 25 contracts) must be used identically by both `GET /api/v1/plants` (via `careStatus.js`) and `GET /api/v1/care-due` (via `careDue.js`)
+- **Critical invariant to verify:** Given the same `utcOffset`, a plant classified as `overdue` by `GET /api/v1/plants` must also appear in the `overdue[]` array of `GET /api/v1/care-due` — never in `coming_up[]` or `due_today[]`
+- Verify at least 2 new regression tests are present covering the overdue/timezone boundary case
+- All existing 183/183 backend tests must continue to pass (target: 185/185 after new tests)
+- No schema migrations ran — none are needed
+
+**No new endpoints and no schema changes** — no integration testing of new API surfaces required.
+
+---
+
+## H-333 — Backend Engineer → Frontend Engineer: Sprint #25 — No Frontend Action Required (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-333 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | No action required |
+| **Related Tasks** | T-115, T-116 |
+
+### Summary
+
+Sprint #25 introduces zero new API endpoints and zero request/response shape changes. No frontend integration work is needed this sprint.
+
+**T-115** is a `backend/.env` config cleanup — entirely invisible to the frontend.
+
+**T-116** corrects the internal date boundary logic in `GET /api/v1/plants` and `GET /api/v1/care-due`. The API surface (query params, response shape) is **unchanged**. Both endpoints already accept `utcOffset` and return the same fields. Once the backend fix lands, the My Plants page and Care Due Dashboard will automatically show consistent overdue status with no frontend code changes required.
+
+**Reference:** Sprint 25 contracts in `.workflow/api-contracts.md` document the canonical date boundary algorithm for your awareness, but no frontend changes are needed to consume it.
+
+---
+
 ## H-332 — Design Agent → All Agents: Sprint #25 — No Frontend Tasks, No Specs Required (2026-04-06)
 
 | Field | Value |
