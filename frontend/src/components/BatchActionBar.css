@@ -1,0 +1,164 @@
+/* BatchActionBar — SPEC-019 */
+
+.batch-action-bar {
+  --batch-bar-bg: var(--color-surface, #FFFFFF);
+  --batch-bar-border: var(--color-border, #E0DDD6);
+  --batch-bar-shadow: var(--color-action-bar-shadow, rgba(44, 44, 44, 0.08));
+
+  position: fixed;
+  bottom: 0;
+  left: 240px;
+  right: 0;
+  min-height: 72px;
+  background: var(--batch-bar-bg);
+  border-top: 1px solid var(--batch-bar-border);
+  box-shadow: 0 -4px 16px var(--batch-bar-shadow);
+  padding: 16px 32px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  transform: translateY(100%);
+  transition: transform 0.2s ease;
+  pointer-events: none;
+}
+
+.batch-action-bar--visible {
+  transform: translateY(0);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .batch-action-bar,
+  .batch-action-bar--visible {
+    transition: none;
+  }
+}
+
+/* Content layouts */
+.batch-action-bar__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 16px;
+}
+
+.batch-action-bar__content--fade {
+  animation: batchBarFadeIn 0.15s ease;
+}
+
+@keyframes batchBarFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .batch-action-bar__content--fade {
+    animation: none;
+  }
+}
+
+/* Count label */
+.batch-action-bar__count {
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary, #2C2C2C);
+}
+
+/* Confirmation message */
+.batch-action-bar__message {
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary, #2C2C2C);
+}
+
+.batch-action-bar__buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Loading */
+.batch-action-bar__spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(92, 122, 92, 0.2);
+  border-top-color: var(--color-accent-primary, #5C7A5C);
+  border-radius: 50%;
+  animation: batchBarSpin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .batch-action-bar__spinner {
+    animation: none;
+    border-top-color: transparent;
+    border-right-color: var(--color-accent-primary, #5C7A5C);
+  }
+}
+
+@keyframes batchBarSpin {
+  to { transform: rotate(360deg); }
+}
+
+.batch-action-bar__loading-text {
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 14px;
+  color: var(--color-text-secondary, #6B6B5F);
+  flex: 1;
+}
+
+/* Partial failure */
+.batch-action-bar__error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.batch-action-bar__error-text {
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 13px;
+  color: var(--color-text-primary, #2C2C2C);
+}
+
+/* Dark mode overrides */
+[data-theme="dark"] .batch-action-bar {
+  --batch-bar-bg: var(--color-surface, #1E1E1A);
+  --batch-bar-border: var(--color-border, #3A3A32);
+  --batch-bar-shadow: rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="dark"] .batch-action-bar__spinner {
+  border-color: rgba(126, 175, 126, 0.2);
+  border-top-color: var(--color-accent-primary, #7A9E7A);
+}
+
+/* Responsive */
+@media (max-width: 1023px) {
+  .batch-action-bar {
+    left: 0;
+    padding: 16px 24px;
+  }
+}
+
+@media (max-width: 767px) {
+  .batch-action-bar {
+    left: 0;
+    padding: 12px 16px;
+  }
+
+  .batch-action-bar__content {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .batch-action-bar__error {
+    flex-basis: 100%;
+  }
+}

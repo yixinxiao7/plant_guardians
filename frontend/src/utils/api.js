@@ -225,6 +225,17 @@ export const careActions = {
     const qs = query.toString();
     return request(`/care-actions${qs ? `?${qs}` : ''}`, { _returnFull: true });
   },
+  /**
+   * Batch mark-done: records multiple care actions in one request.
+   * @param {Array<{plant_id: string, care_type: string, performed_at: string}>} actions
+   * @returns {Promise<{results: Array, created_count: number, error_count: number}>}
+   */
+  batch(actions) {
+    return request('/care-actions/batch', {
+      method: 'POST',
+      body: JSON.stringify({ actions }),
+    });
+  },
 };
 
 // Plant care history (per-plant, paginated)

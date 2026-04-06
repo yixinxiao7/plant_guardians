@@ -4,6 +4,152 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-326 — Frontend Engineer → QA Engineer: T-110 Batch Mark-Done UI Complete (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-326 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | In Review — ready for QA |
+| **Related Tasks** | T-110 (batch mark-done UI) |
+
+### Summary
+
+Batch mark-done UI on the Care Due Dashboard is implemented per SPEC-019. The feature adds a selection mode to the `/due` page, allowing users to select multiple care items and mark them all done via `POST /api/v1/care-actions/batch`.
+
+### What Was Built
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/CareDuePage.jsx` | Added selection mode toggle, per-item checkboxes, "Select all" checkbox, batch API call integration, success/partial-failure/cancel flows |
+| `frontend/src/pages/CareDuePage.css` | Added selection mode styles: header row, select-all, item checkboxes, selected card highlight, responsive, dark mode |
+| `frontend/src/components/BatchActionBar.jsx` | **New** — sticky bottom action bar with idle/confirm/loading/partial-failure states |
+| `frontend/src/components/BatchActionBar.css` | **New** — action bar layout, slide animation, dark mode tokens, responsive |
+| `frontend/src/utils/api.js` | Added `careActions.batch(actions)` method |
+| `frontend/src/__tests__/CareDuePage.test.jsx` | 10 new tests (selection toggle, checkbox, select all, action bar visibility, confirmation, API success + toast, partial failure, retry, cancel, empty state) |
+
+### What to Test
+
+1. **Selection mode toggle** — "Select" button enters selection mode; "Cancel" exits and clears selections
+2. **Per-item checkboxes** — clicking a card or checkbox toggles selection; aria-labels are correct
+3. **Select all** — selects/deselects all visible items; indeterminate state when partially selected
+4. **Action bar** — appears when ≥1 item selected; shows correct count; hidden when 0 selected
+5. **Mark done → confirm → success** — full flow: confirm dialog → loading spinner → items removed → toast "N care actions marked done" → exits selection mode
+6. **Partial failure** — when API returns mixed 207: success items removed, failed items remain selected, inline error message "M of N marked done. X failed — tap to retry"
+7. **Retry** — sends only failed items; shows confirmation for failed count only
+8. **Cancel** — action bar cancel returns to idle (keeps selections); header cancel exits selection mode
+9. **Empty state** — marking all items done via batch shows "All your plants are happy!" empty state
+10. **Dark mode** — all new elements use CSS custom properties
+11. **Accessibility** — keyboard navigation, aria-labels, aria-live announcements, role="toolbar"
+12. **Responsive** — action bar full-width on mobile (< 768px); cards maintain layout
+
+### Known Limitations
+
+- Exit animation for batch-removed items uses the existing `care-due-card--removing` CSS class (fade + collapse). Staggered animation per item is not implemented (spec listed it as optional enhancement).
+- The page re-fetches data from the API after batch success rather than doing purely optimistic local removal — this ensures data consistency but means a brief flash as the list re-renders.
+- Toast uses the existing toast system from SPEC-009.
+
+### Test Results
+
+- **259/259** frontend tests pass (10 new, 249 existing)
+- Zero regressions
+
+---
+
+## H-325 — Frontend Engineer → Backend Engineer: API Contract Acknowledged for POST /api/v1/care-actions/batch (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-325 |
+| **From** | Frontend Engineer |
+| **To** | Backend Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Acknowledged |
+| **Related Tasks** | T-109 (API contract), T-110 (frontend implementation) |
+
+### Acknowledgment
+
+Frontend Engineer acknowledges the API contract for `POST /api/v1/care-actions/batch` as published in `.workflow/api-contracts.md` (Sprint 24 Contracts section) and H-321. The `careActions.batch(actions)` helper has been added to `frontend/src/utils/api.js` matching the documented request shape. The frontend handles:
+
+- `207` with `error_count === 0` → full success flow
+- `207` with `error_count > 0 && created_count > 0` → partial failure with retry
+- `207` with `error_count === results.length` → full failure (treated as partial failure with 0 successes)
+- `400` / `500` → generic error toast
+- `401` → handled by existing auto-refresh in `api.js`
+
+---
+
+## H-324 — Backend Engineer → Frontend Engineer: T-109 Batch Care Actions Endpoint Ready (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-06 |
+| **Sprint** | 24 |
+| **Status** | Action Required |
+| **Summary** | `POST /api/v1/care-actions/batch` is implemented and tested. The API contract in `api-contracts.md` (Sprint 24 section) is the authoritative spec. T-110 can now be fully implemented. |
+| **Details** | |
+
+**What was built:**
+- **Route:** `POST /api/v1/care-actions/batch` in `backend/src/routes/careHistory.js`
+- **Model:** `CareAction.batchCreate(userId, actions)` in `backend/src/models/CareAction.js`
+- Accepts `{ actions: [{ plant_id, care_type, performed_at }] }` — array of 1–50 items
+- Returns `207 Multi-Status` with `{ data: { results: [...], created_count, error_count } }`
+- Per-item ownership validation — unowned plants get `status: "error"` (not top-level 403)
+- Valid items inserted in a single DB transaction
+- Top-level 400 for empty/oversized/malformed array, missing required fields, invalid care_type/UUID/ISO8601
+- 10 tests passing in `careActionsBatch.test.js`
+
+**Integration notes:** See `api-contracts.md` Sprint 24 → "Frontend Integration Notes" for the `apiFetch` helper pattern and 207 response interpretation guide.
+
+---
+
+## H-323 — Backend Engineer → QA Engineer: T-109 + T-111 Implementation Complete — Ready for Testing (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Date** | 2026-04-06 |
+| **Sprint** | 24 |
+| **Status** | Action Required |
+| **Summary** | Both backend tasks (T-109 batch care actions, T-111 rate limiting) are implemented and in review. 183/183 tests pass with zero regressions. |
+| **Details** | |
+
+**T-109 — POST /api/v1/care-actions/batch:**
+- Files changed: `backend/src/routes/careHistory.js`, `backend/src/models/CareAction.js`
+- Test file: `backend/tests/careActionsBatch.test.js` (10 tests)
+- What to test:
+  - Happy path: batch of 2+ valid actions → 207 with all `status: "created"`
+  - Partial failure: mix of owned and unowned plants → 207 with mixed results
+  - All unowned → 207 with all `status: "error"`
+  - Empty array → 400
+  - Array > 50 → 400
+  - Missing required fields (plant_id, care_type, performed_at) → 400
+  - Invalid care_type / UUID / ISO 8601 → 400
+  - No auth token → 401
+  - Security: verify no SQL injection via plant_id or care_type fields
+
+**T-111 — Endpoint-specific rate limiting:**
+- Files changed: `backend/src/middleware/rateLimiter.js` (new), `backend/src/app.js`, `backend/.env.example`
+- Test file: `backend/tests/rateLimiter.test.js` (2 tests)
+- Existing `statsRateLimit.test.js` still passes (validates 429 behavior)
+- What to test:
+  - Auth endpoints (login/register/refresh) limited to 10 req / 15 min
+  - Stats/streak endpoints limited to 60 req / 1 min
+  - Global fallback at 200 req / 15 min
+  - 429 response matches `{ error: { message, code: "RATE_LIMIT_EXCEEDED" } }`
+  - Limiters skip in NODE_ENV=test (verify tests aren't affected)
+  - RateLimit-* headers present in responses
+  - Env var overrides work correctly
+
+**No schema changes. No migrations needed this sprint.**
+
+---
+
 ## H-322 — Backend Engineer → QA Engineer: Sprint 24 API Contracts Published — Testing Reference (2026-04-06)
 
 | Field | Value |

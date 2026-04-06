@@ -17,10 +17,12 @@ vi.mock('@phosphor-icons/react', () => ({
   Leaf: (props) => <span data-testid="icon-leaf" {...props} />,
   PottedPlant: (props) => <span data-testid="icon-potted" {...props} />,
   PencilSimple: (props) => <span data-testid="icon-pencil" {...props} />,
+  CheckCircle: (props) => <span data-testid="icon-check-circle" {...props} />,
 }));
 
 const mockCareDueGet = vi.fn();
 const mockCareActionsMarkDone = vi.fn();
+const mockCareActionsBatch = vi.fn();
 
 vi.mock('../utils/api.js', () => ({
   careDue: {
@@ -28,6 +30,7 @@ vi.mock('../utils/api.js', () => ({
   },
   careActions: {
     markDone: (...args) => mockCareActionsMarkDone(...args),
+    batch: (...args) => mockCareActionsBatch(...args),
   },
 }));
 
@@ -506,6 +509,344 @@ describe('CareDuePage', () => {
         const pothosBtn = screen.getByLabelText('Mark Pothos fertilizing as done');
         expect(document.activeElement).toBe(pothosBtn);
       });
+    });
+  });
+
+  // --- Batch Mark-Done (SPEC-019 / T-110) ---
+  describe('Batch mark-done (T-110)', () => {
+    beforeEach(() => {
+      window.matchMedia = vi.fn().mockImplementation((query) => ({
+        matches: query === '(prefers-reduced-motion: reduce)',
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+    });
+
+    // Test 1: Selection mode toggle
+    it('enters and exits selection mode when clicking Select/Cancel', async () => {
+      mockCareDueGet.mockResolvedValue(sampleData);
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Select')).toBeInTheDocument();
+      });
+
+      // No checkboxes initially
+      expect(screen.queryByLabelText('Select all care items')).not.toBeInTheDocument();
+
+      // Enter selection mode
+      fireEvent.click(screen.getByText('Select'));
+
+      expect(screen.getByLabelText('Select all care items')).toBeInTheDocument();
+      expect(screen.getByText('Cancel')).toBeInTheDocument();
+      // Checkboxes should appear — one per item (5 items in sampleData)
+      const checkboxes = screen.getAllByRole('checkbox');
+      // 1 select-all + 5 items = 6
+      expect(checkboxes.length).toBe(6);
+
+      // Exit selection mode
+      fireEvent.click(screen.getByText('Cancel'));
+      expect(screen.queryByLabelText('Select all care items')).not.toBeInTheDocument();
+      expect(screen.getByText('Select')).toBeInTheDocument();
+    });
+
+    // Test 2: Per-item checkbox
+    it('toggles item checkbox when clicking a card in selection mode', async () => {
+      mockCareDueGet.mockResolvedValue(sampleData);
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Select')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Select'));
+
+      const monsteraCheckbox = screen.getByLabelText('Mark Monstera watering as done');
+      expect(monsteraCheckbox.checked).toBe(false);
+
+      // Click the checkbox
+      fireEvent.click(monsteraCheckbox);
+      expect(monsteraCheckbox.checked).toBe(true);
+
+      // Click again to uncheck
+      fireEvent.click(monsteraCheckbox);
+      expect(monsteraCheckbox.checked).toBe(false);
+    });
+
+    // Test 3: Select all
+    it('selects and deselects all items via Select all checkbox', async () => {
+      mockCareDueGet.mockResolvedValue(sampleData);
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Select')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Select'));
+
+      const selectAll = screen.getByLabelText('Select all care items');
+      fireEvent.click(selectAll);
+
+      // All 5 item checkboxes should be checked
+      const itemCheckboxes = screen.getAllByRole('checkbox').filter(
+        (cb) => cb.getAttribute('aria-label') !== 'Select all care items'
+      );
+      itemCheckboxes.forEach((cb) => expect(cb.checked).toBe(true));
+
+      // Deselect all
+      fireEvent.click(selectAll);
+      itemCheckboxes.forEach((cb) => expect(cb.checked).toBe(false));
+    });
+
+    // Test 4: Action bar visibility
+    it('shows action bar with count when items are selected', async () => {
+      mockCareDueGet.mockResolvedValue(sampleData);
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Select')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Select'));
+
+      // Action bar exists but no selection yet — should show "0 selected"
+      const monsteraCheckbox = screen.getByLabelText('Mark Monstera watering as done');
+      fireEvent.click(monsteraCheckbox);
+
+      expect(screen.getByText('1 selected')).toBeInTheDocument();
+      expect(screen.getByLabelText('Mark 1 selected items as done')).toBeInTheDocument();
+
+      // Select another
+      const pothosCheckbox = screen.getByLabelText('Mark Pothos fertilizing as done');
+      fireEvent.click(pothosCheckbox);
+
+      expect(screen.getByText('2 selected')).toBeInTheDocument();
+    });
+
+    // Test 5: Mark done → Confirmation
+    it('shows confirmation when clicking Mark done', async () => {
+      mockCareDueGet.mockResolvedValue(sampleData);
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Select')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Select'));
+
+      // Select 2 items
+      fireEvent.click(screen.getByLabelText('Mark Monstera watering as done'));
+      fireEvent.click(screen.getByLabelText('Mark Pothos fertilizing as done'));
+
+      // Click Mark done
+      fireEvent.click(screen.getByLabelText('Mark 2 selected items as done'));
+
+      // Confirmation message
+      expect(screen.getByText('Mark 2 items as done?')).toBeInTheDocument();
+      expect(screen.getByText('Confirm')).toBeInTheDocument();
+    });
+
+    // Test 6: Confirm → API call + success
+    it('calls batch API and shows toast on full success', async () => {
+      mockCareDueGet.mockResolvedValue(sampleData);
+      mockCareActionsBatch.mockResolvedValue({
+        results: [
+          { plant_id: 'p1', care_type: 'watering', status: 'created', error: null },
+          { plant_id: 'p2', care_type: 'fertilizing', status: 'created', error: null },
+        ],
+        created_count: 2,
+        error_count: 0,
+      });
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Select')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Select'));
+      fireEvent.click(screen.getByLabelText('Mark Monstera watering as done'));
+      fireEvent.click(screen.getByLabelText('Mark Pothos fertilizing as done'));
+      fireEvent.click(screen.getByLabelText('Mark 2 selected items as done'));
+      fireEvent.click(screen.getByText('Confirm'));
+
+      await waitFor(() => {
+        expect(mockCareActionsBatch).toHaveBeenCalledTimes(1);
+      });
+
+      // Verify API was called with correct shape
+      const callArgs = mockCareActionsBatch.mock.calls[0][0];
+      expect(callArgs.length).toBe(2);
+      expect(callArgs[0].plant_id).toBe('p1');
+      expect(callArgs[0].care_type).toBe('watering');
+      expect(callArgs[1].plant_id).toBe('p2');
+      expect(callArgs[1].care_type).toBe('fertilizing');
+
+      // Success toast
+      await waitFor(() => {
+        expect(mockAddToast).toHaveBeenCalledWith('2 care actions marked done', 'success');
+      });
+    });
+
+    // Test 7: Partial failure
+    it('shows partial failure message when some items fail', async () => {
+      mockCareDueGet.mockResolvedValue(sampleData);
+      mockCareActionsBatch.mockResolvedValue({
+        results: [
+          { plant_id: 'p1', care_type: 'watering', status: 'created', error: null },
+          { plant_id: 'p2', care_type: 'fertilizing', status: 'error', error: 'Plant not found' },
+        ],
+        created_count: 1,
+        error_count: 1,
+      });
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Select')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Select'));
+      fireEvent.click(screen.getByLabelText('Mark Monstera watering as done'));
+      fireEvent.click(screen.getByLabelText('Mark Pothos fertilizing as done'));
+      fireEvent.click(screen.getByLabelText('Mark 2 selected items as done'));
+      fireEvent.click(screen.getByText('Confirm'));
+
+      await waitFor(() => {
+        expect(screen.getByText(/1 of 2 marked done/)).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/1 failed/)).toBeInTheDocument();
+      expect(screen.getByLabelText('Retry 1 failed items')).toBeInTheDocument();
+    });
+
+    // Test 8: Retry sends only failed items
+    it('retries only failed items when clicking Retry', async () => {
+      mockCareDueGet.mockResolvedValue(sampleData);
+      mockCareActionsBatch
+        .mockResolvedValueOnce({
+          results: [
+            { plant_id: 'p1', care_type: 'watering', status: 'created', error: null },
+            { plant_id: 'p2', care_type: 'fertilizing', status: 'error', error: 'Plant not found' },
+          ],
+          created_count: 1,
+          error_count: 1,
+        })
+        .mockResolvedValueOnce({
+          results: [
+            { plant_id: 'p2', care_type: 'fertilizing', status: 'created', error: null },
+          ],
+          created_count: 1,
+          error_count: 0,
+        });
+
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Select')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Select'));
+      fireEvent.click(screen.getByLabelText('Mark Monstera watering as done'));
+      fireEvent.click(screen.getByLabelText('Mark Pothos fertilizing as done'));
+      fireEvent.click(screen.getByLabelText('Mark 2 selected items as done'));
+      fireEvent.click(screen.getByText('Confirm'));
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('Retry 1 failed items')).toBeInTheDocument();
+      });
+
+      // Click retry → should show confirmation for 1 item
+      fireEvent.click(screen.getByLabelText('Retry 1 failed items'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Mark 1 item as done?')).toBeInTheDocument();
+      });
+
+      // Confirm retry
+      fireEvent.click(screen.getByText('Confirm'));
+
+      await waitFor(() => {
+        expect(mockCareActionsBatch).toHaveBeenCalledTimes(2);
+      });
+
+      // Second call should only have the failed item
+      const retryArgs = mockCareActionsBatch.mock.calls[1][0];
+      expect(retryArgs.length).toBe(1);
+      expect(retryArgs[0].plant_id).toBe('p2');
+      expect(retryArgs[0].care_type).toBe('fertilizing');
+    });
+
+    // Test 9: Cancel clears selections
+    it('cancels action bar confirmation and header cancel exits selection mode', async () => {
+      mockCareDueGet.mockResolvedValue(sampleData);
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Select')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Select'));
+      fireEvent.click(screen.getByLabelText('Mark Monstera watering as done'));
+
+      // Click Mark done (1 selected)
+      fireEvent.click(screen.getByLabelText('Mark 1 selected items as done'));
+
+      // Confirmation should be showing
+      expect(screen.getByText('Mark 1 item as done?')).toBeInTheDocument();
+
+      // Cancel in the action bar (returns to idle, keeps selections)
+      const cancelButtons = screen.getAllByText('Cancel');
+      // The last Cancel is in the action bar
+      const actionBarCancel = cancelButtons[cancelButtons.length - 1];
+      fireEvent.click(actionBarCancel);
+
+      // Should be back to idle with count still showing
+      expect(screen.getByText('1 selected')).toBeInTheDocument();
+
+      // Now click header Cancel to exit selection mode entirely
+      fireEvent.click(screen.getByText('Cancel'));
+
+      // Back to normal mode
+      expect(screen.queryByLabelText('Select all care items')).not.toBeInTheDocument();
+      expect(screen.getByText('Select')).toBeInTheDocument();
+    });
+
+    // Test 10: Empty state after all items marked done
+    it('shows empty state when all items are batch-marked done', async () => {
+      const smallData = {
+        overdue: [
+          {
+            plant_id: 'p1',
+            plant_name: 'Monstera',
+            care_type: 'watering',
+            days_overdue: 3,
+            last_done_at: '2026-03-24T08:00:00.000Z',
+          },
+        ],
+        due_today: [],
+        upcoming: [],
+      };
+      mockCareDueGet
+        .mockResolvedValueOnce(smallData)
+        .mockResolvedValueOnce(emptyData); // After batch, re-fetch returns empty
+
+      mockCareActionsBatch.mockResolvedValue({
+        results: [
+          { plant_id: 'p1', care_type: 'watering', status: 'created', error: null },
+        ],
+        created_count: 1,
+        error_count: 0,
+      });
+
+      render(<CareDuePage />);
+      await waitFor(() => {
+        expect(screen.getByText('Select')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Select'));
+      fireEvent.click(screen.getByLabelText('Select all care items'));
+      fireEvent.click(screen.getByLabelText('Mark 1 selected items as done'));
+      fireEvent.click(screen.getByText('Confirm'));
+
+      // After success, fetchCareDue is called again and returns emptyData
+      await waitFor(() => {
+        expect(screen.getByText('All your plants are happy!')).toBeInTheDocument();
+      }, { timeout: 3000 });
     });
   });
 });

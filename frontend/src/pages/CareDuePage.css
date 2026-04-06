@@ -1,9 +1,31 @@
-/* Care Due Dashboard — SPEC-009 */
+/* Care Due Dashboard — SPEC-009 + SPEC-019 (Batch Mark-Done) */
 
 .care-due-page {
   max-width: 800px;
   margin: 0 auto;
   padding: 40px 32px;
+}
+
+/* Add bottom padding when action bar is visible in selection mode */
+.care-due-page--selection-mode {
+  padding-bottom: 96px;
+}
+
+/* Header row — title + Select/Cancel button */
+.care-due-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.care-due-header-row .care-due-title {
+  flex: 1;
+  margin: 0;
+}
+
+.care-due-mode-btn {
+  flex-shrink: 0;
 }
 
 .care-due-title {
@@ -19,6 +41,36 @@
   font-size: 14px;
   color: var(--color-text-secondary);
   margin: 0 0 32px;
+}
+
+/* --- Select All Checkbox --- */
+
+.care-due-select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.care-due-select-all-checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--color-accent-primary, #5C7A5C);
+  cursor: pointer;
+}
+
+.care-due-select-all-checkbox:focus-visible {
+  outline: 2px solid var(--color-accent-primary, #5C7A5C);
+  outline-offset: 2px;
+}
+
+.care-due-select-all-label {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  white-space: nowrap;
 }
 
 /* --- Sections --- */
@@ -91,6 +143,39 @@
 .care-due-card:hover {
   box-shadow: var(--shadow-card-hover);
   border-color: var(--color-border);
+}
+
+/* --- Selection Mode Card Styles (SPEC-019) --- */
+
+.care-due-card--checkable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.care-due-card--selected {
+  border-color: var(--color-accent-primary, #5C7A5C);
+  border-width: 1.5px;
+  background: var(--color-surface-alt, #F0EDE6);
+}
+
+.care-due-item-checkbox {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--color-accent-primary, #5C7A5C);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.care-due-item-checkbox:focus-visible {
+  outline: 2px solid var(--color-accent-primary, #5C7A5C);
+  outline-offset: 2px;
+}
+
+/* Dark mode overrides for selection mode */
+[data-theme="dark"] .care-due-card--selected {
+  background: var(--color-surface-alt, #2A2A24);
+  border-color: var(--color-accent-primary, #7A9E7A);
 }
 
 .care-due-card--removing {
@@ -369,6 +454,10 @@
     font-size: 26px;
   }
 
+  .care-due-header-row {
+    flex-wrap: wrap;
+  }
+
   .care-due-card {
     flex-wrap: wrap;
   }
@@ -381,6 +470,11 @@
   .care-due-mark-done-btn {
     flex-basis: 100%;
     margin-top: 12px;
+  }
+
+  /* In selection mode, add left padding for checkbox */
+  .care-due-card--checkable {
+    padding-left: 16px;
   }
 
   .care-due-skeleton-card {

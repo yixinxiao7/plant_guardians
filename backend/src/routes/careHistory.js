@@ -1,14 +1,18 @@
 /**
- * Care History routes (T-039)
+ * Care History routes (T-039) + Batch Care Actions (T-109)
  *
- * GET /api/v1/care-actions — paginated care action history for the authenticated user.
+ * GET  /api/v1/care-actions        — paginated care action history for the authenticated user.
+ * POST /api/v1/care-actions/batch  — batch-create care actions (T-109).
  */
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
-const { isValidUUID } = require('../middleware/validation');
+const { isValidUUID, isValidISO8601 } = require('../middleware/validation');
 const CareAction = require('../models/CareAction');
 const { ValidationError } = require('../utils/errors');
+
+const VALID_CARE_TYPES = ['watering', 'fertilizing', 'repotting'];
+const BATCH_MAX_SIZE = 50;
 
 router.use(authenticate);
 
@@ -47,6 +51,50 @@ router.get('/', async (req, res, next) => {
         total,
       },
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/v1/care-actions/batch (T-109)
+router.post('/batch', async (req, res, next) => {
+  try {
+    const { actions } = req.body;
+
+    // Top-level array validation
+    if (!Array.isArray(actions) || actions.length === 0 || actions.length > BATCH_MAX_SIZE) {
+      throw new ValidationError(
+        `actions must be a non-empty array with at most ${BATCH_MAX_SIZE} items`
+      );
+    }
+
+    // Per-item field validation (reject entire request on first invalid item)
+    for (let i = 0; i < actions.length; i++) {
+      const item = actions[i];
+
+      if (!item.plant_id || typeof item.plant_id !== 'string' || !isValidUUID(item.plant_id)) {
+        throw new ValidationError(
+          `actions[${i}].plant_id is required and must be a valid UUID`
+        );
+      }
+
+      if (!item.care_type || !VALID_CARE_TYPES.includes(item.care_type)) {
+        throw new ValidationError(
+          `actions[${i}].care_type is required and must be one of: ${VALID_CARE_TYPES.join(', ')}`
+        );
+      }
+
+      if (!item.performed_at || typeof item.performed_at !== 'string' || !isValidISO8601(item.performed_at)) {
+        throw new ValidationError(
+          `actions[${i}].performed_at is required and must be a valid ISO 8601 datetime`
+        );
+      }
+    }
+
+    // Delegate to model for ownership check + transactional insert
+    const result = await CareAction.batchCreate(req.user.id, actions);
+
+    res.status(207).json({ data: result });
   } catch (err) {
     next(err);
   }

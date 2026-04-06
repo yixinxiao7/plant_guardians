@@ -3,7 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const path = require('path');
-const rateLimit = require('express-rate-limit');
+const { authLimiter, statsLimiter, globalLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
 
 // Route imports
@@ -60,30 +60,12 @@ if (!fs.existsSync(uploadDir)) {
 }
 app.use('/uploads', express.static(uploadDir));
 
-// Rate limiting
-const generalLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 min
-  max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: { message: 'Too many requests, please try again later.', code: 'RATE_LIMITED' },
-  },
-});
-
-const authLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
-  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '20', 10),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: { message: 'Too many authentication attempts, please try again later.', code: 'RATE_LIMITED' },
-  },
-});
-
-// Apply rate limiting
-app.use('/api/', generalLimiter);
+// Rate limiting (T-111) — tiered: auth (strict), stats (moderate), global (permissive)
+// All limiters skip in NODE_ENV=test. See middleware/rateLimiter.js for config.
+app.use('/api/', globalLimiter);
 app.use('/api/v1/auth/', authLimiter);
+app.use('/api/v1/care-actions/stats', statsLimiter);
+app.use('/api/v1/care-actions/streak', statsLimiter);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -7,10 +7,13 @@ import {
   Drop,
   Leaf,
   PottedPlant,
+  CheckCircle,
 } from '@phosphor-icons/react';
 import { useCareDue } from '../hooks/useCareDue.js';
 import { useToast } from '../hooks/useToast.jsx';
+import { careActions } from '../utils/api.js';
 import Button from '../components/Button.jsx';
+import BatchActionBar from '../components/BatchActionBar.jsx';
 import CareNoteInput from '../components/CareNoteInput.jsx';
 import './CareDuePage.css';
 
@@ -63,22 +66,10 @@ const SECTION_ORDER = ['overdue', 'due_today', 'upcoming'];
 
 /**
  * Determine the next focus target after an item is removed from a section.
- * Decision tree (SPEC-009 Amendment — T-050):
- *   1. Next sibling in same section → its mark-done button
- *   2. No sibling in section; later section has items → first button in next non-empty section
- *   3. No later section; earlier section has items → first button in topmost non-empty section
- *   4. All empty → null (caller focuses "View my plants")
- *
- * @param {string} removedItemKey - The ref key of the removed item (plant_id__care_type)
- * @param {string} removedSectionKey - The section the item was removed from
- * @param {number} removedIndex - The index of the removed item in its original section
- * @param {object} postRemovalData - Data after the item has been removed
- * @param {object} buttonRefs - Ref map of mark-done button DOM nodes
  */
 function getNextFocusTarget(removedItemKey, removedSectionKey, removedIndex, postRemovalData, buttonRefs) {
   const sectionItems = postRemovalData[removedSectionKey] || [];
 
-  // 1. Next sibling in same section (item at the same index, or last item if we removed the last)
   if (sectionItems.length > 0) {
     const targetIdx = Math.min(removedIndex, sectionItems.length - 1);
     const targetItem = sectionItems[targetIdx];
@@ -87,7 +78,6 @@ function getNextFocusTarget(removedItemKey, removedSectionKey, removedIndex, pos
     if (btn) return btn;
   }
 
-  // 2. Next non-empty section below (Overdue → Due Today → Coming Up order)
   const currentIdx = SECTION_ORDER.indexOf(removedSectionKey);
   for (let i = currentIdx + 1; i < SECTION_ORDER.length; i++) {
     const items = postRemovalData[SECTION_ORDER[i]] || [];
@@ -98,7 +88,6 @@ function getNextFocusTarget(removedItemKey, removedSectionKey, removedIndex, pos
     }
   }
 
-  // 3. Earlier section above (topmost non-empty)
   for (let i = 0; i < currentIdx; i++) {
     const items = postRemovalData[SECTION_ORDER[i]] || [];
     if (items.length > 0) {
@@ -108,7 +97,6 @@ function getNextFocusTarget(removedItemKey, removedSectionKey, removedIndex, pos
     }
   }
 
-  // 4. All empty
   return null;
 }
 
@@ -139,6 +127,32 @@ function formatDueDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
+/**
+ * Build a unique key for a care item.
+ */
+function itemKey(item) {
+  return `${item.plant_id}-${item.care_type}`;
+}
+
+function refKey(item) {
+  return `${item.plant_id}__${item.care_type}`;
+}
+
+/**
+ * Get all visible items across all sections as a flat array with section info.
+ */
+function getAllItems(data) {
+  if (!data) return [];
+  const items = [];
+  for (const sectionKey of SECTION_ORDER) {
+    const sectionItems = data[sectionKey] || [];
+    for (const item of sectionItems) {
+      items.push({ ...item, _sectionKey: sectionKey });
+    }
+  }
+  return items;
+}
+
 export default function CareDuePage() {
   const navigate = useNavigate();
   const outletContext = useOutletContext() || {};
@@ -152,6 +166,14 @@ export default function CareDuePage() {
   const markDoneButtonRefs = useRef({});
   const viewMyPlantsButtonRef = useRef(null);
   const cardRefs = useRef({});
+
+  // Batch selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [batchBarState, setBatchBarState] = useState('idle'); // idle | confirm | loading | partial-failure
+  const [batchResult, setBatchResult] = useState(null); // { successCount, failCount, totalAttempted, failedActions }
+  const selectAllRef = useRef(null);
+  const selectButtonRef = useRef(null);
 
   useEffect(() => {
     fetchCareDue();
@@ -171,15 +193,179 @@ export default function CareDuePage() {
     }
   }, [loading, data]);
 
+  // Compute all visible items for selection
+  const allItems = data ? getAllItems(data) : [];
+  const allItemKeys = new Set(allItems.map(itemKey));
+  const selectedCount = selectedItems.size;
+  const allSelected = allItems.length > 0 && selectedCount === allItems.length;
+  const someSelected = selectedCount > 0 && selectedCount < allItems.length;
+
+  // Enter selection mode
+  const enterSelectionMode = useCallback(() => {
+    setSelectionMode(true);
+    setSelectedItems(new Set());
+    setBatchBarState('idle');
+    setBatchResult(null);
+    // Focus select-all checkbox after render
+    requestAnimationFrame(() => {
+      if (selectAllRef.current) selectAllRef.current.focus();
+    });
+  }, []);
+
+  // Exit selection mode
+  const exitSelectionMode = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedItems(new Set());
+    setBatchBarState('idle');
+    setBatchResult(null);
+    // Return focus to Select button
+    requestAnimationFrame(() => {
+      if (selectButtonRef.current) selectButtonRef.current.focus();
+    });
+  }, []);
+
+  // Toggle individual item
+  const toggleItem = useCallback((item) => {
+    const key = itemKey(item);
+    setSelectedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  // Select all / deselect all
+  const toggleSelectAll = useCallback(() => {
+    if (allSelected) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(allItems.map(itemKey)));
+    }
+  }, [allSelected, allItems]);
+
+  // Build actions array for the batch API call
+  const buildBatchActions = useCallback((itemKeysToSend) => {
+    const now = new Date().toISOString();
+    return allItems
+      .filter((item) => itemKeysToSend.has(itemKey(item)))
+      .map((item) => ({
+        plant_id: item.plant_id,
+        care_type: item.care_type,
+        performed_at: now,
+      }));
+  }, [allItems]);
+
+  // Handle "Mark done" click → show confirmation
+  const handleBatchMarkDone = useCallback(() => {
+    setBatchBarState('confirm');
+  }, []);
+
+  // Handle confirm → fire API call
+  const handleBatchConfirm = useCallback(async () => {
+    setBatchBarState('loading');
+    const keysToSend = new Set(selectedItems);
+    const actions = buildBatchActions(keysToSend);
+
+    try {
+      const result = await careActions.batch(actions);
+      const { results, created_count, error_count } = result;
+
+      if (error_count === 0) {
+        // Full success — remove all selected items from data
+        const keysToRemove = new Set(actions.map((a) => `${a.plant_id}-${a.care_type}`));
+        setRemovingItems((prev) => new Set([...prev, ...keysToRemove]));
+
+        // Wait for animation, then update data
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const delay = prefersReducedMotion ? 0 : 300;
+
+        setTimeout(() => {
+          // Optimistic local removal via re-fetch approach
+          // Remove from local data directly
+          if (data) {
+            const removeFromSection = (items) =>
+              items.filter((item) => !keysToRemove.has(itemKey(item)));
+            // Trigger re-render by calling fetchCareDue
+          }
+          fetchCareDue();
+          setRemovingItems(new Set());
+          exitSelectionMode();
+          addToast(`${created_count} care ${created_count === 1 ? 'action' : 'actions'} marked done`, 'success');
+        }, delay);
+      } else if (created_count > 0) {
+        // Partial failure
+        const successKeys = new Set();
+        const failedActions = [];
+        results.forEach((r) => {
+          const key = `${r.plant_id}-${r.care_type}`;
+          if (r.status === 'created') {
+            successKeys.add(key);
+          } else {
+            failedActions.push(r);
+          }
+        });
+
+        // Remove successful items with animation
+        setRemovingItems((prev) => new Set([...prev, ...successKeys]));
+
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const delay = prefersReducedMotion ? 0 : 300;
+
+        setTimeout(() => {
+          fetchCareDue();
+          setRemovingItems(new Set());
+          // Keep only failed items selected
+          const failedKeys = new Set(failedActions.map((r) => `${r.plant_id}-${r.care_type}`));
+          setSelectedItems(failedKeys);
+          setBatchBarState('partial-failure');
+          setBatchResult({
+            successCount: created_count,
+            failCount: error_count,
+            totalAttempted: results.length,
+            failedActions,
+          });
+        }, delay);
+      } else {
+        // All failed
+        setBatchBarState('partial-failure');
+        const failedActions = results.filter((r) => r.status === 'error');
+        setBatchResult({
+          successCount: 0,
+          failCount: error_count,
+          totalAttempted: results.length,
+          failedActions,
+        });
+      }
+    } catch {
+      addToast('Something went wrong. Please try again.', 'error');
+      setBatchBarState('idle');
+    }
+  }, [selectedItems, buildBatchActions, data, fetchCareDue, exitSelectionMode, addToast]);
+
+  // Handle retry — send only failed items
+  const handleBatchRetry = useCallback(() => {
+    // Re-enter confirmation flow with only failed items selected
+    setBatchBarState('confirm');
+  }, []);
+
+  // Handle cancel inside action bar (returns to idle, keeps selections)
+  const handleBatchBarCancel = useCallback(() => {
+    setBatchBarState('idle');
+  }, []);
+
   const handleMarkDone = useCallback(
     async (item, sectionKey) => {
-      const itemKey = `${item.plant_id}-${item.care_type}`;
-      const refKey = `${item.plant_id}__${item.care_type}`;
-      setMarkingItems((prev) => new Set(prev).add(itemKey));
+      const ik = itemKey(item);
+      const rk = refKey(item);
+      setMarkingItems((prev) => new Set(prev).add(ik));
       setLiveMessage('');
 
       try {
-        const noteText = noteValues[itemKey] || null;
+        const noteText = noteValues[ik] || null;
         const trimmedNote = noteText ? noteText.trim() : null;
         await markDone(item.plant_id, item.care_type, trimmedNote || null);
         const careLabel = CARE_TYPE_CONFIG[item.care_type]?.label?.toLowerCase() || item.care_type;
@@ -193,40 +379,31 @@ export default function CareDuePage() {
           upcoming: data.upcoming.filter((i) => !(i.plant_id === item.plant_id && i.care_type === item.care_type)),
         } : null;
 
-        // Find the index of the removed item in its original section
         const originalSection = data[sectionKey] || [];
         const removedIndex = originalSection.findIndex(
           (i) => i.plant_id === item.plant_id && i.care_type === item.care_type
         );
 
-        // Determine focus target before DOM removal
         const focusTarget = postRemovalData
-          ? getNextFocusTarget(refKey, sectionKey, removedIndex, postRemovalData, markDoneButtonRefs.current)
+          ? getNextFocusTarget(rk, sectionKey, removedIndex, postRemovalData, markDoneButtonRefs.current)
           : null;
 
-        // Check reduced motion preference
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-        // Animate removal
-        setRemovingItems((prev) => new Set(prev).add(itemKey));
+        setRemovingItems((prev) => new Set(prev).add(ik));
 
         const moveFocus = () => {
-          // Clean up the removed item's refs
-          delete markDoneButtonRefs.current[refKey];
-          delete cardRefs.current[refKey];
+          delete markDoneButtonRefs.current[rk];
+          delete cardRefs.current[rk];
 
           setRemovingItems((prev) => {
             const next = new Set(prev);
-            next.delete(itemKey);
+            next.delete(ik);
             return next;
           });
 
-          // Move focus to target
           if (focusTarget && document.contains(focusTarget)) {
             focusTarget.focus();
           } else {
-            // All-clear state or target unmounted — focus "View my plants" button
-            // Use requestAnimationFrame to wait for all-clear state to render
             requestAnimationFrame(() => {
               if (viewMyPlantsButtonRef.current) {
                 viewMyPlantsButtonRef.current.focus();
@@ -236,11 +413,9 @@ export default function CareDuePage() {
         };
 
         if (prefersReducedMotion) {
-          // Instant removal — move focus synchronously
           moveFocus();
         } else {
-          // Wait for 300ms card fade-out transition, then move focus
-          const cardEl = cardRefs.current[refKey];
+          const cardEl = cardRefs.current[rk];
           if (cardEl) {
             const onTransitionEnd = (e) => {
               if (e.target === cardEl) {
@@ -249,7 +424,6 @@ export default function CareDuePage() {
               }
             };
             cardEl.addEventListener('transitionend', onTransitionEnd);
-            // Fallback in case transitionend doesn't fire
             setTimeout(() => {
               cardEl.removeEventListener('transitionend', onTransitionEnd);
               moveFocus();
@@ -264,12 +438,12 @@ export default function CareDuePage() {
       } finally {
         setMarkingItems((prev) => {
           const next = new Set(prev);
-          next.delete(itemKey);
+          next.delete(ik);
           return next;
         });
       }
     },
-    [markDone, addToast, data]
+    [markDone, addToast, data, noteValues]
   );
 
   const isAllClear =
@@ -277,6 +451,8 @@ export default function CareDuePage() {
     data.overdue.length === 0 &&
     data.due_today.length === 0 &&
     data.upcoming.length === 0;
+
+  const hasItems = data && !isAllClear;
 
   // Loading state
   if (loading) {
@@ -378,8 +554,48 @@ export default function CareDuePage() {
   ];
 
   return (
-    <div className="care-due-page">
-      <h1 className="care-due-title">Care Due</h1>
+    <div className={`care-due-page ${selectionMode ? 'care-due-page--selection-mode' : ''}`}>
+      {/* Header row */}
+      <div className="care-due-header-row">
+        {selectionMode && (
+          <label className="care-due-select-all">
+            <input
+              type="checkbox"
+              className="care-due-select-all-checkbox"
+              checked={allSelected}
+              onChange={toggleSelectAll}
+              aria-label="Select all care items"
+              aria-checked={allSelected ? 'true' : someSelected ? 'mixed' : 'false'}
+              ref={(el) => {
+                selectAllRef.current = el;
+                if (el) el.indeterminate = someSelected;
+              }}
+            />
+            <span className="care-due-select-all-label">Select all</span>
+          </label>
+        )}
+        <h1 className="care-due-title">Care Due</h1>
+        {hasItems && (
+          selectionMode ? (
+            <Button
+              variant="ghost"
+              className="care-due-mode-btn"
+              onClick={exitSelectionMode}
+            >
+              Cancel
+            </Button>
+          ) : (
+            <Button
+              ref={selectButtonRef}
+              variant="ghost"
+              className="care-due-mode-btn"
+              onClick={enterSelectionMode}
+            >
+              Select
+            </Button>
+          )
+        )}
+      </div>
       <p className="care-due-subtitle">Plants that need your attention, sorted by urgency.</p>
 
       <div aria-live="polite" className="sr-only">{liveMessage}</div>
@@ -411,12 +627,13 @@ export default function CareDuePage() {
             ) : (
               <ul className="care-due-item-list">
                 {items.map((item) => {
-                  const itemKey = `${item.plant_id}-${item.care_type}`;
-                  const refKey = `${item.plant_id}__${item.care_type}`;
+                  const ik = itemKey(item);
+                  const rk = refKey(item);
                   const careConfig = CARE_TYPE_CONFIG[item.care_type] || CARE_TYPE_CONFIG.watering;
                   const CareIcon = careConfig.icon;
-                  const isMarking = markingItems.has(itemKey);
-                  const isRemoving = removingItems.has(itemKey);
+                  const isMarking = markingItems.has(ik);
+                  const isRemoving = removingItems.has(ik);
+                  const isSelected = selectedItems.has(ik);
                   const urgencyText = getUrgencyText(key, item);
                   const urgencyColor = getUrgencyColor(key);
                   const tooltip =
@@ -424,12 +641,44 @@ export default function CareDuePage() {
                       ? `Due ${formatDueDate(item.due_date)}`
                       : undefined;
 
+                  const cardClasses = [
+                    'care-due-card',
+                    isRemoving ? 'care-due-card--removing' : '',
+                    selectionMode ? 'care-due-card--checkable' : '',
+                    isSelected ? 'care-due-card--selected' : '',
+                  ].filter(Boolean).join(' ');
+
+                  const handleCardClick = () => {
+                    if (selectionMode) {
+                      toggleItem(item);
+                    }
+                  };
+
                   return (
                     <li
-                      key={itemKey}
-                      ref={(el) => { cardRefs.current[refKey] = el; }}
-                      className={`care-due-card ${isRemoving ? 'care-due-card--removing' : ''}`}
+                      key={ik}
+                      ref={(el) => { cardRefs.current[rk] = el; }}
+                      className={cardClasses}
+                      onClick={selectionMode ? handleCardClick : undefined}
+                      role={selectionMode ? 'button' : undefined}
+                      tabIndex={selectionMode ? 0 : undefined}
+                      onKeyDown={selectionMode ? (e) => {
+                        if (e.key === ' ' || e.key === 'Enter') {
+                          e.preventDefault();
+                          toggleItem(item);
+                        }
+                      } : undefined}
                     >
+                      {selectionMode && (
+                        <input
+                          type="checkbox"
+                          className="care-due-item-checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleItem(item)}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label={`Mark ${item.plant_name} ${careConfig.label.toLowerCase()} as done`}
+                        />
+                      )}
                       <div
                         className="care-due-card-icon"
                         style={{ background: careConfig.bgColor }}
@@ -448,29 +697,33 @@ export default function CareDuePage() {
                           {urgencyText}
                         </span>
                       </div>
-                      <button
-                        ref={(el) => { markDoneButtonRefs.current[refKey] = el; }}
-                        className="care-due-mark-done-btn"
-                        onClick={() => handleMarkDone(item, key)}
-                        disabled={isMarking}
-                        aria-busy={isMarking}
-                        aria-label={`Mark ${item.plant_name} ${careConfig.label.toLowerCase()} as done`}
-                      >
-                        {isMarking ? (
-                          <span className="care-due-mark-spinner" aria-label="Marking as done" />
-                        ) : (
-                          'Mark as done'
-                        )}
-                      </button>
-                      <CareNoteInput
-                        noteValue={noteValues[itemKey] || ''}
-                        onNoteChange={(val) => setNoteValues(prev => ({ ...prev, [itemKey]: val }))}
-                        plantId={item.plant_id}
-                        careType={item.care_type}
-                        plantName={item.plant_name}
-                        disabled={isMarking}
-                        idPrefix="note-input"
-                      />
+                      {!selectionMode && (
+                        <>
+                          <button
+                            ref={(el) => { markDoneButtonRefs.current[rk] = el; }}
+                            className="care-due-mark-done-btn"
+                            onClick={() => handleMarkDone(item, key)}
+                            disabled={isMarking}
+                            aria-busy={isMarking}
+                            aria-label={`Mark ${item.plant_name} ${careConfig.label.toLowerCase()} as done`}
+                          >
+                            {isMarking ? (
+                              <span className="care-due-mark-spinner" aria-label="Marking as done" />
+                            ) : (
+                              'Mark as done'
+                            )}
+                          </button>
+                          <CareNoteInput
+                            noteValue={noteValues[ik] || ''}
+                            onNoteChange={(val) => setNoteValues(prev => ({ ...prev, [ik]: val }))}
+                            plantId={item.plant_id}
+                            careType={item.care_type}
+                            plantName={item.plant_name}
+                            disabled={isMarking}
+                            idPrefix="note-input"
+                          />
+                        </>
+                      )}
                     </li>
                   );
                 })}
@@ -479,6 +732,21 @@ export default function CareDuePage() {
           </section>
         );
       })}
+
+      {/* Batch action bar — only rendered in selection mode */}
+      {selectionMode && (
+        <BatchActionBar
+          selectedCount={selectedCount}
+          state={batchBarState}
+          onMarkDone={handleBatchMarkDone}
+          onConfirm={handleBatchConfirm}
+          onCancel={handleBatchBarCancel}
+          onRetry={handleBatchRetry}
+          successCount={batchResult?.successCount || 0}
+          failCount={batchResult?.failCount || 0}
+          totalAttempted={batchResult?.totalAttempted || 0}
+        />
+      )}
     </div>
   );
 }

@@ -307,6 +307,80 @@ const CareAction = {
 
     return { currentStreak, longestStreak, lastActionDate };
   },
+
+  /**
+   * Batch-create care actions (T-109).
+   *
+   * Validates ownership for all plant_ids in a single query, then inserts
+   * all valid actions in a single transaction. Returns a results array with
+   * per-item status ("created" | "error").
+   *
+   * @param {string} userId - UUID of the authenticated user
+   * @param {Array<{plant_id: string, care_type: string, performed_at: string}>} actions
+   * @returns {Promise<{results: Array, created_count: number, error_count: number}>}
+   */
+  async batchCreate(userId, actions) {
+    // 1. Collect unique plant IDs and verify ownership in a single query
+    const uniquePlantIds = [...new Set(actions.map(a => a.plant_id))];
+    const ownedPlants = await db('plants')
+      .select('id')
+      .where('user_id', userId)
+      .whereIn('id', uniquePlantIds);
+    const ownedSet = new Set(ownedPlants.map(p => p.id));
+
+    // 2. Partition actions into valid (owned) and invalid (not owned / not found)
+    const results = new Array(actions.length);
+    const validInserts = []; // { index, row }
+
+    for (let i = 0; i < actions.length; i++) {
+      const action = actions[i];
+      if (!ownedSet.has(action.plant_id)) {
+        results[i] = {
+          plant_id: action.plant_id,
+          care_type: action.care_type,
+          performed_at: action.performed_at,
+          status: 'error',
+          error: 'Plant not found or not owned by user',
+        };
+      } else {
+        validInserts.push({
+          index: i,
+          row: {
+            plant_id: action.plant_id,
+            care_type: action.care_type,
+            performed_at: action.performed_at,
+          },
+        });
+      }
+    }
+
+    // 3. Insert valid actions in a single transaction
+    if (validInserts.length > 0) {
+      await db.transaction(async (trx) => {
+        const rows = validInserts.map(v => v.row);
+        await trx('care_actions').insert(rows);
+      });
+
+      for (const v of validInserts) {
+        results[v.index] = {
+          plant_id: v.row.plant_id,
+          care_type: v.row.care_type,
+          performed_at: v.row.performed_at,
+          status: 'created',
+          error: null,
+        };
+      }
+    }
+
+    const createdCount = validInserts.length;
+    const errorCount = actions.length - createdCount;
+
+    return {
+      results,
+      created_count: createdCount,
+      error_count: errorCount,
+    };
+  },
 };
 
 module.exports = CareAction;
