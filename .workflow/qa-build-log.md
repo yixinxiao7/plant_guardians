@@ -685,3 +685,41 @@ Config Consistency Result: PASS
 
 ---
 
+## Sprint 23 — Post-Deploy Health Check
+**Date:** 2026-04-05
+**Agent:** Monitor Agent
+**Environment:** Staging (local)
+**Test Type:** Config Consistency + Post-Deploy Health Check
+
+### Config Consistency Results
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Port match | PASS | `backend/.env` PORT=3000 matches Vite proxy target `http://localhost:3000` |
+| Protocol match | PASS | No `SSL_KEY_PATH` or `SSL_CERT_PATH` set in `.env` — backend serves plain HTTP. Vite proxy target uses `http://` — consistent. |
+| CORS match | PASS | `FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` — includes `http://localhost:5173` (Vite dev server default). `app.js` reads this env var correctly. |
+| Docker port match | N/A | `infra/docker-compose.yml` only defines Postgres containers (ports 5432/5433). No backend container defined — no port mapping to validate. |
+
+### Health Check Results
+
+- **Timestamp:** 2026-04-05T00:00:00Z
+- **Token:** Not acquired — backend unreachable
+- **App responds (GET /api/v1/health):** FAIL — curl exit code 7 (connection refused). Backend is not running on port 3000.
+- **Auth works (POST /api/v1/auth/login):** FAIL — curl exit code 7 (connection refused).
+- **GET /api/v1/plants:** FAIL — backend not running, not tested.
+- **GET /api/v1/care-due:** FAIL — backend not running, not tested.
+- **GET /api/v1/care-actions:** FAIL — backend not running, not tested.
+- **GET /api/v1/profile:** FAIL — backend not running, not tested.
+- **Frontend dev server (http://localhost:5173):** FAIL — curl exit code 7 (not running).
+- **Frontend production build (frontend/dist/):** PASS — `dist/index.html`, `dist/assets/index.js`, `dist/assets/index.css`, `dist/assets/confetti.module-*.js` confirmed present.
+- **No 5xx errors:** N/A — backend unreachable; no responses received.
+- **Database connected:** Unknown — backend did not start; pool warm-up status unverifiable.
+- **Config PORT match:** PASS
+- **Config protocol match:** PASS
+- **Config CORS match:** PASS
+
+**Deploy Verified:** No
+**Error Summary:** Backend process is not running on port 3000 at time of Monitor Agent health check. All API endpoints are unreachable (curl exit code 7: connection refused). Frontend production build artifacts exist in `frontend/dist/` (built by Deploy Engineer per qa-build-log), but the dev server is also not running. The Deploy Engineer log (above) confirms the backend started successfully during the deploy phase — the process has since terminated. Recommend Deploy Engineer restart the backend (`npm start` in `backend/`) and confirm it remains running before Monitor Agent re-runs health checks. Config consistency is fully valid; no config issues require frontend or backend code changes.
+
+---
+

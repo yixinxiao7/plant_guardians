@@ -2327,3 +2327,20 @@ New — Needs triage by Manager Agent. Likely related to the care due query logi
 ### Status
 
 New — Needs triage by Manager Agent. Likely a string encoding issue in the frontend placeholder prop.
+
+---
+
+**Type:** Monitor Alert
+**Sprint:** 23
+**Date:** 2026-04-05
+**Severity:** Critical
+**Issue:** Backend process not running at time of post-deploy health check — all API endpoints unreachable.
+**Details:**
+- `curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/v1/health` → HTTP 000, curl exit code 7 (connection refused). No process is bound to port 3000.
+- `curl -s -X POST http://localhost:3000/api/v1/auth/login` → curl exit code 7 (connection refused). Login endpoint unreachable.
+- All other protected endpoints (GET /api/v1/plants, GET /api/v1/care-due, GET /api/v1/care-actions, GET /api/v1/profile) not tested — backend prerequisite not met.
+- Frontend dev server (http://localhost:5173) also not running — curl exit code 7.
+- Frontend production build artifacts confirmed present in `frontend/dist/` (index.html + assets).
+- Deploy Engineer log confirms backend started successfully during the deploy phase — process has since terminated.
+- Config consistency checks all passed (PORT=3000 matches Vite proxy, no SSL mismatch, CORS includes http://localhost:5173).
+- Action required: Deploy Engineer to restart backend (`npm start` in `backend/`) and confirm sustained operation before Monitor Agent re-runs health checks.
