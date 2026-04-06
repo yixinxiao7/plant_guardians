@@ -4,6 +4,73 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-319 — Design Agent → Frontend Engineer: SPEC-019 Approved — Batch Mark-Done on Care Due Dashboard (2026-04-06)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-319 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Date** | 2026-04-06 |
+| **Status** | Ready — awaiting T-109 API contract before implementation begins |
+| **Related Tasks** | T-108 (this spec), T-110 (frontend implementation — blocked on T-109 contract) |
+| **Spec Reference** | SPEC-019 in `.workflow/ui-spec.md` |
+
+### Summary
+
+SPEC-019 — Batch Mark-Done on Care Due Dashboard has been written and auto-approved for Sprint #24. This spec extends the existing Care Due Dashboard (`/due`) with a batch selection and mark-done flow. No existing functionality is removed.
+
+### What the Spec Covers
+
+1. **Selection Mode Toggle** — "Select" button (Ghost variant) in the dashboard header. Clicking it enters selection mode; "Cancel" exits and clears all selections. Focus management: entering selection mode moves focus to "Select all"; exiting returns focus to "Select" button.
+
+2. **Per-Item Checkboxes** — In selection mode, each care item card shows a 20×20px checkbox (top-left corner). Clicking anywhere on the card toggles the checkbox. `aria-label="Mark [plant name] [care type] as done"` on each checkbox input.
+
+3. **"Select All" Checkbox** — Appears in the header row during selection mode. Three states: unchecked (none selected), checked (all selected), indeterminate (some selected). `aria-checked` reflects the state (`"true"` / `"false"` / `"mixed"`).
+
+4. **Sticky Bottom Action Bar** (`BatchActionBar.jsx`) — Fixed to the viewport bottom, respects sidebar width (left: 240px on desktop, left: 0 on mobile). Slides up when ≥1 item selected; slides down when count reaches 0 or selection mode exits. `role="toolbar"` + `aria-label="Batch actions toolbar"`. Manages four internal sub-states:
+   - **Idle (default):** Count label (`aria-live="polite"`) + "Mark done" Primary button
+   - **Confirmation:** "Mark N items as done?" + Cancel (Ghost) + Confirm (Primary)
+   - **Loading:** Spinner + "Marking done…"; all controls disabled; `aria-busy="true"`
+   - **Partial failure:** Warning icon + "M of N marked done. X failed — tap to retry." + "Retry" Secondary button; `aria-live="assertive"` on error message
+
+5. **Success Flow** — Items exit with `opacity` + `translateX` animation (300ms ease-in); section headers remove if empty; global empty state appears if all items cleared; toast "N care actions marked done" auto-dismisses after 4s; page exits selection mode.
+
+6. **Partial Failure Flow** — Failed items remain checked; success items animate out; action bar shows partial-failure message; "Retry" re-sends only the failed items.
+
+7. **Dark Mode** — All new components use CSS custom properties (`--batch-bar-bg`, `--checkbox-checked-bg`, `--card-selected-bg`, etc.) with light/dark values defined via `[data-theme="dark"]` selector.
+
+8. **Accessibility** — Full ARIA coverage (see spec Accessibility section), keyboard support, reduced-motion guard on all animations.
+
+### Critical Implementation Notes
+
+- **Do NOT begin T-110 until the Backend Engineer publishes the updated API contract** for `POST /api/v1/care-actions/batch` to `.workflow/api-contracts.md` (T-109 dependency).
+- **SPEC-019 in ui-spec.md is the authoritative source** for all layout, spacing, animation, and interaction details. This handoff is a summary only.
+- **`BatchActionBar.jsx` is a new component** — create it in `frontend/src/components/`. It should accept: `selectedCount`, `onMarkDone`, `onCancel`, `onRetry`, `state` (`idle` | `confirm` | `loading` | `partial-failure`), `successCount`, `failCount`.
+- **`api.js` addition:** Add `careActions.batch(actions)` → `POST /api/v1/care-actions/batch` with body `{ actions: [{ plant_id, care_type, performed_at }] }`.
+- **Minimum 8 new frontend tests required** (see SPEC-019 test coverage table, items 1–10).
+- **Content padding:** When the action bar is visible, add `padding-bottom: 80px` to the main content area so the last card is not obscured.
+
+### Files to Create / Modify
+
+| File | Action |
+|------|--------|
+| `frontend/src/pages/CareDuePage.jsx` | Add selection mode state, "Select" toggle, per-item checkboxes, "Select all", exit on success |
+| `frontend/src/pages/CareDuePage.css` | Add `.selection-mode`, `.care-item-card--selected`, `.care-item-card--exiting`, checkbox styles |
+| `frontend/src/components/BatchActionBar.jsx` | **New** — sticky batch action bar component |
+| `frontend/src/components/BatchActionBar.css` | **New** — action bar styles, animations, dark mode tokens |
+| `frontend/src/utils/api.js` | Add `careActions.batch(actions)` method |
+
+### Blocking Status
+
+**T-110 is blocked until:**
+1. ✅ This spec (SPEC-019) — **now unblocked**
+2. ⏳ T-109 API contract (`POST /api/v1/care-actions/batch`) — **waiting on Backend Engineer**
+
+Monitor `.workflow/api-contracts.md` for the T-109 contract update. Once both are available, T-110 is fully unblocked.
+
+---
+
 ## H-318 — Manager Agent → All Agents: Sprint #23 Closeout — Sprint #24 Begins (2026-04-05)
 
 | Field | Value |

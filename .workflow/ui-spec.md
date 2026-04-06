@@ -5316,4 +5316,419 @@ All new elements must use CSS custom properties exclusively. No hardcoded hex va
 
 ---
 
+### SPEC-019 — Batch Mark-Done on Care Due Dashboard
+
+**Status:** Approved
+**Related Tasks:** T-108 (spec), T-110 (implementation)
+**Sprint:** 24
+**Date:** 2026-04-06
+
+---
+
+#### Description
+
+The Care Due Dashboard (`/due`) is the most-visited page for "plant killer" users who have neglected plants. Currently, marking each overdue care item as done requires a separate tap per item — a high-friction experience for users with 5+ overdue items. SPEC-019 adds a **batch mark-done flow** that lets users select multiple care items and mark them all done in two taps.
+
+This spec extends the existing Care Due Dashboard (SPEC-009) without replacing it. All existing layout, sections (Overdue / Due Today / Coming Up), and single-item mark-done behavior remain intact. Batch mark-done is an opt-in mode activated by a "Select" button.
+
+**Target user:** "Plant killer" persona — someone with multiple overdue items across several plants who finds individual mark-done clicks tedious.
+
+---
+
+#### Page Context: Care Due Dashboard (existing)
+
+The dashboard renders three urgency sections:
+- **Overdue** — care items past their due date (red status)
+- **Due Today** — care items due today (yellow status)
+- **Coming Up** — care items due in the next 7 days (green)
+
+Each care item card shows: plant name, care type (watering / fertilizing / repotting), days overdue (or days until due), and a quick "Mark done" action. The page header contains the page title ("Care Due") and a sidebar badge with the overdue + due-today count.
+
+Batch mark-done adds: a **"Select" toggle** in the header, **per-item checkboxes** in selection mode, a **sticky action bar** at the bottom of the viewport, and all associated states described below.
+
+---
+
+#### User Flow — Batch Mark-Done (Happy Path)
+
+1. User arrives at `/due` with 7 overdue care items across 4 plants.
+2. User sees the page header with the existing title and a new **"Select" button** (Ghost variant, top-right of the header row — same row as the page title).
+3. User clicks **"Select"** → the page enters **Selection Mode**:
+   - The "Select" button is replaced by a **"Cancel" button** (Ghost variant, same position).
+   - A **"Select all" checkbox** appears to the left of the page title (or in a sub-header row below the page title, aligned left).
+   - Each care item card gains a **checkbox** in the top-left corner of the card.
+   - Card hover and click behavior shifts: clicking anywhere on the card now toggles its checkbox instead of navigating or triggering single-item mark-done.
+4. User clicks 3 individual item checkboxes (or clicks **"Select all"** to select all visible items).
+5. After the first selection (≥1 item checked), the **sticky bottom action bar** slides up from the bottom of the viewport.
+6. Action bar shows: **"3 selected"** count (left-aligned) + **"Mark done"** primary button (right-aligned).
+7. User clicks **"Mark done"** → the action bar transitions to **Confirmation state**:
+   - Text changes to: **"Mark 3 items as done?"**
+   - Two buttons: **"Confirm"** (Primary) and **"Cancel"** (Ghost).
+8. User clicks **"Confirm"** → the action bar transitions to **Loading state**:
+   - Spinner icon replaces the button content.
+   - Text: **"Marking done…"**
+   - All controls in the action bar are disabled.
+   - API call fired: `POST /api/v1/care-actions/batch`.
+9. API returns 207 with all items `status: "created"` → **Success state**:
+   - The 3 marked items are removed from their section lists with a smooth **exit animation** (fade out + slide left, 300ms).
+   - If a section becomes empty (e.g., all "Overdue" items were selected), that section header also disappears.
+   - If all items across all sections are marked done, the **global empty state** appears ("All caught up! Your plants are well cared for.").
+   - A **toast notification** slides in from the bottom-right: **"3 care actions marked done"** (auto-dismisses after 4s).
+   - The page exits Selection Mode automatically. "Cancel" button reverts to "Select". Checkboxes disappear.
+   - Sidebar badge count updates to reflect the new total.
+10. Done — user is back in normal mode with a shorter list.
+
+---
+
+#### User Flow — Partial Failure Path
+
+1–8. Same as happy path through the API call.
+9. API returns 207 with mixed results: e.g., 2 items `status: "created"`, 1 item `status: "error"`.
+10. **Partial failure state** in action bar:
+    - The 2 successfully marked items are removed from the list with exit animation.
+    - The action bar remains visible (does not dismiss).
+    - Action bar displays an inline error message: **"2 of 3 marked done. 1 failed — tap to retry failed items."**
+    - A **"Retry"** button appears (Secondary variant) next to the message.
+    - The failed item(s) remain in the list; their checkboxes remain checked.
+11. User clicks **"Retry"** → action bar returns to Confirmation state with the failed item count only: **"Mark 1 item as done?"**
+12. Retry sends `POST /api/v1/care-actions/batch` with only the failed items.
+13. If retry succeeds → full success flow (step 9 of happy path).
+14. If retry fails again → partial failure state shown again with updated counts.
+
+---
+
+#### User Flow — Cancel / Exit Selection Mode
+
+1. User enters Selection Mode (step 3 above).
+2. User clicks **"Cancel"** at any point (before or after making selections, before confirming, or in the partial-failure state).
+3. All checkboxes are deselected.
+4. The sticky action bar dismisses (slides down).
+5. The page exits Selection Mode. Cards return to normal behavior (click navigates or triggers single-item mark-done).
+6. "Cancel" button reverts to "Select".
+
+---
+
+#### Components
+
+---
+
+##### 1. Dashboard Header — Selection Mode Toggle
+
+**Normal mode:**
+```
+[Care Due]                    [Select]
+```
+- Page title: `'Playfair Display'`, 24px, `#2C2C2C`
+- **"Select" button:** Ghost variant, 14px, `#6B6B5F`, positioned at the far right of the header row
+- Icon: optional — a checkmark-circle outline (Phosphor `CheckCircle`) to the left of the label
+
+**Selection mode:**
+```
+[☐ Select all]  [Care Due]   [Cancel]
+```
+- **"Cancel" button** replaces "Select" at the far right — Ghost variant, `#6B6B5F`
+- **"Select all" checkbox** appears to the far left of the title row
+  - Unchecked → checked: selects all visible items (across all sections)
+  - Checked → unchecked: deselects all visible items
+  - **Indeterminate state** (`indeterminate` DOM property): when some but not all items are selected — visually rendered as a dash `–` inside the checkbox
+  - `aria-label="Select all care items"`
+  - `aria-checked`: `"true"` (all selected), `"false"` (none selected), `"mixed"` (some selected)
+
+---
+
+##### 2. Care Item Card — Checkbox (Selection Mode only)
+
+**Normal mode:** No checkbox visible. Card click → existing behavior (navigate or quick mark-done).
+
+**Selection mode — unchecked:**
+```
+[ ] [plant name]  [care type badge]
+    [urgency text]
+```
+- Checkbox appears at the **top-left corner** of the card, vertically centered with the first line of card content
+- Checkbox: 20×20px, `border: 2px solid #B0ADA5`, `border-radius: 4px`, background `#FFFFFF`
+- `aria-label="Mark [plant name] [care type] as done"`
+- Clicking anywhere on the card (not just the checkbox) toggles the checkbox in selection mode
+
+**Selection mode — checked:**
+- Checkbox: filled with `#5C7A5C` (Accent Primary), white checkmark icon inside
+- Card border: `border: 1.5px solid #5C7A5C` (subtle sage green highlight)
+- Card background: `#F0EDE6` (Surface Alt) — very subtle selection tint
+- Transition: `all 0.15s ease`
+
+**Focus state:** `outline: 2px solid #5C7A5C`, `outline-offset: 2px` on the checkbox input
+
+---
+
+##### 3. Sticky Bottom Action Bar
+
+The action bar is **fixed to the bottom of the viewport** and slides up from below when it becomes visible. It sits above any bottom navigation (not applicable on web — sidebar layout) and always floats above page content.
+
+**Layout:**
+```
+┌─────────────────────────────────────────────┐
+│  3 selected                    [Mark done]  │
+└─────────────────────────────────────────────┘
+```
+
+- **Container:** `position: fixed; bottom: 0; left: 240px; right: 0` (respects sidebar width on desktop)
+  - On mobile (< 768px): `left: 0` (full width, sidebar collapses)
+- **Background:** `#FFFFFF`
+- **Top border:** `1px solid #E0DDD6`
+- **Shadow:** `box-shadow: 0 -4px 16px rgba(44, 44, 44, 0.08)` (shadow projects upward)
+- **Padding:** `16px 24px`
+- **Min-height:** 72px
+- **z-index:** 100
+
+**Entry animation:** `transform: translateY(100%)` → `translateY(0)`, `transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)` when the first item is selected.
+**Exit animation:** `transform: translateY(100%)`, `transition: transform 0.2s ease` when count reaches 0 or selection mode is exited.
+
+**`role="toolbar"` on the action bar container.**
+**`aria-label="Batch actions toolbar"` on the container.**
+
+---
+
+##### 3a. Action Bar — Default State (≥1 item selected)
+
+```
+[count label]                [Mark done ▶]
+```
+
+- **Count label:** `"N selected"` — `font-size: 14px`, `font-weight: 500`, `color: #2C2C2C`
+  - Wrapped in `<span aria-live="polite" aria-atomic="true">` so screen readers announce count changes
+- **"Mark done" button:** Primary variant (`#5C7A5C` background, white text)
+  - `aria-disabled="true"` + `disabled` attribute when 0 items are selected (this state is transient — bar only shows when ≥1 selected, but handle programmatically for accessibility)
+  - `aria-label="Mark N selected items as done"` (dynamically updated with count)
+
+---
+
+##### 3b. Action Bar — Confirmation State
+
+Triggered when user clicks "Mark done".
+
+```
+Mark 3 items as done?     [Cancel]  [Confirm ✓]
+```
+
+- **Message text:** `"Mark N items as done?"` — `font-size: 14px`, `font-weight: 500`, `color: #2C2C2C`
+- **"Cancel" button:** Ghost variant — dismisses confirmation, returns to default action bar state (keeps selections)
+- **"Confirm" button:** Primary variant
+  - `aria-label="Confirm marking N items as done"`
+- Transition between default and confirmation states: `opacity: 0` → `opacity: 1`, `transition: opacity 0.15s ease` (content fades; bar itself does not move)
+
+---
+
+##### 3c. Action Bar — Loading State
+
+Triggered when user clicks "Confirm".
+
+```
+[⟳ spinner]  Marking done…
+```
+
+- Spinner: 18px animated CSS spinner, `color: #5C7A5C`
+- Label: `"Marking done…"` — `font-size: 14px`, `color: #6B6B5F`
+- All interactive elements in the bar are `disabled`
+- `aria-busy="true"` on the action bar container
+- `aria-live="polite"` announces "Marking done" to screen readers
+
+---
+
+##### 3d. Action Bar — Partial Failure State
+
+Triggered when API returns 207 with at least one `status: "error"` in the results array.
+
+```
+⚠ 2 of 3 marked done. 1 failed — tap to retry.     [Retry]
+```
+
+- **Warning icon:** `WarningCircle` (Phosphor), 16px, `color: #C4921F`
+- **Message:** `"M of N marked done. X failed — tap to retry failed items."` where M = success count, X = fail count — `font-size: 13px`, `color: #2C2C2C`
+- **"Retry" button:** Secondary variant (`border: 1.5px solid #5C7A5C`, `color: #5C7A5C`)
+  - `aria-label="Retry N failed items"`
+- Failed items remain checked in the list; successfully marked items have already animated out
+- `aria-live="assertive"` on the error message so it is immediately announced
+
+---
+
+##### 4. Toast Notification (Success)
+
+Reuse the existing toast component (introduced in SPEC-009 mark-done flow). If a toast system doesn't exist yet, create one that follows this spec:
+
+- **Position:** Fixed, `bottom: 88px` (above the action bar height), `right: 24px`
+- **Appearance:** `background: #2C2C2C`, `color: #FFFFFF`, `border-radius: 8px`, `padding: 12px 16px`, `font-size: 14px`
+- **Content:** `"N care actions marked done"` with a `CheckCircle` icon (16px, `color: #4A7C59`) to the left
+- **Auto-dismiss:** 4 seconds
+- **Entry animation:** `translateY(16px)` → `translateY(0)` + `opacity: 0` → `1`, `transition: 0.25s ease`
+- **Exit animation:** `opacity: 1` → `0`, `transition: 0.2s ease`
+- `role="status"` on the toast element
+- `aria-live="polite"` — screen readers announce when it appears
+
+---
+
+##### 5. Empty State (All Items Cleared)
+
+Reuse the existing global empty state from SPEC-009. Triggered when all care items across all sections have been marked done (including via batch).
+
+**Appearance:**
+- Illustration/icon: a potted plant with a small sparkle (existing asset if available, or a simple `Plant` icon at 64px, `color: #5C7A5C`)
+- Heading: **"All caught up!"** — `'Playfair Display'`, 24px, `#2C2C2C`
+- Sub-text: **"Your plants are well cared for. Check back tomorrow."** — `'DM Sans'`, 14px, `#6B6B5F`
+- No action buttons in this state
+
+---
+
+#### States Reference Table
+
+| State | Trigger | Action Bar | Cards | Header |
+|-------|---------|-----------|-------|--------|
+| **Normal mode** | Page load | Hidden | No checkboxes | "Select" button visible |
+| **Selection mode — nothing selected** | Click "Select" | Hidden (or barely entering) | Checkboxes visible, unchecked | "Cancel" + "Select all" visible |
+| **Selection mode — ≥1 selected** | Check any item | Visible — count + "Mark done" | Checked cards highlighted | "Cancel" + "Select all" (indeterminate) |
+| **Selection mode — all selected** | "Select all" or check all | Visible — full count | All highlighted | "Cancel" + "Select all" (checked) |
+| **Confirmation** | Click "Mark done" | "Mark N as done?" + Cancel + Confirm | No change | No change |
+| **Loading** | Click "Confirm" | Spinner + "Marking done…" (disabled) | No change | No change |
+| **Success** | 207 all created | Auto-dismisses | Selected items exit with animation | Returns to "Select" button; exits selection mode |
+| **Partial failure** | 207 mixed results | Warning message + "Retry" | Failed items remain checked; successes removed | Stays in selection mode |
+| **Empty (all cleared)** | Last item(s) removed | Dismisses | Empty state shown | "Select" button (disabled or hidden when no items) |
+| **Cancel** | Click "Cancel" | Dismisses | Checkboxes cleared, normal behavior restored | Returns to "Select" button |
+
+---
+
+#### Interaction Details
+
+**Checkbox toggle — keyboard:**
+- `Space` toggles a focused checkbox
+- `Tab` moves focus between checkboxes and the action bar
+- Checkboxes are navigable with arrow keys within a section (optional enhancement; Tab is minimum requirement)
+
+**"Select all" behavior:**
+- If 0 or some items are selected → clicking "Select all" selects ALL visible items (across all three sections)
+- If all items are selected → clicking "Select all" deselects ALL visible items
+- Indeterminate state: `checkbox.indeterminate = true` in JavaScript when M > 0 and M < total
+
+**Action bar "Mark done" — zero selection guard:**
+- The action bar is only visible when ≥1 item is selected. However, if the user programmatically reaches 0 (unlikely but defensive), the "Mark done" button must be `aria-disabled="true"` and visually `opacity: 0.5` with `cursor: not-allowed`.
+
+**Card click behavior in selection mode:**
+- The entire card surface is the click target for toggling the checkbox in selection mode
+- Exception: if the card has a link to the plant detail page, that link is visually hidden or pointer-events disabled during selection mode to prevent accidental navigation
+
+**Exit animation for marked items:**
+- `opacity: 1` → `0` and `transform: translateX(-8px)` → `translateX(0)` (wait, the exit should move items OUT, so:)
+- `opacity: 1` → `0` + `transform: translateX(0)` → `translateX(-16px)`, `max-height: [natural]` → `0`, `margin: [natural]` → `0`
+- Duration: 300ms, `ease-in`
+- Items are removed from the DOM after the animation completes
+- `@media (prefers-reduced-motion: reduce)`: instant removal, no animation
+
+**Staggered exit (optional enhancement):** If multiple items are being removed, stagger their exit animations by 50ms per item (first in list exits first). This is a nice-to-have; non-staggered simultaneous exit is acceptable.
+
+---
+
+#### Responsive Behavior
+
+**Desktop (≥ 1024px):**
+- Dashboard layout unchanged from SPEC-009 (sidebar at 240px, content area fills remaining width, max 1040px)
+- Action bar: `position: fixed; bottom: 0; left: 240px; right: 0; padding: 16px 32px`
+- Content area gets `padding-bottom: 80px` when action bar is visible, to prevent the bar from covering the last card
+
+**Tablet (768px – 1023px):**
+- Sidebar collapses to icon-only or slides out (per existing responsive behavior)
+- Action bar: `position: fixed; bottom: 0; left: 0; right: 0; padding: 16px 24px`
+- Card checkboxes: same size (20×20px), same position (top-left of card)
+
+**Mobile (< 768px):**
+- Single-column layout
+- Action bar spans full width, `padding: 12px 16px`
+- "Select all" and "Cancel" buttons remain in the header row (header wraps to two lines if needed)
+- Toast notification: `bottom: 80px; right: 16px; left: 16px` — spans most of the screen width
+- Care item cards: checkbox aligned top-left, card padding respects the checkbox width (add `padding-left: 40px` when in selection mode to prevent text overlapping the checkbox)
+
+---
+
+#### Dark Mode
+
+All new elements must use CSS custom properties already established in the design system. Where dark-mode values are needed for new components, follow these conventions:
+
+| Token | Light | Dark |
+|-------|-------|------|
+| `--color-surface` | `#FFFFFF` | `#1E1E1A` |
+| `--color-surface-alt` | `#F0EDE6` | `#2A2A24` |
+| `--color-border` | `#E0DDD6` | `#3A3A32` |
+| `--color-text-primary` | `#2C2C2C` | `#F0EDE6` |
+| `--color-text-secondary` | `#6B6B5F` | `#9E9D8E` |
+| `--color-accent-primary` | `#5C7A5C` | `#7A9E7A` |
+| `--color-action-bar-shadow` | `rgba(44,44,44,0.08)` | `rgba(0,0,0,0.25)` |
+
+**New component tokens:**
+```css
+/* BatchActionBar */
+--batch-bar-bg: var(--color-surface);
+--batch-bar-border: var(--color-border);
+--batch-bar-shadow: var(--color-action-bar-shadow);
+
+/* Checkboxes */
+--checkbox-border: var(--color-text-disabled);
+--checkbox-checked-bg: var(--color-accent-primary);
+--checkbox-checked-border: var(--color-accent-primary);
+--card-selected-bg: var(--color-surface-alt);
+--card-selected-border: var(--color-accent-primary);
+```
+
+Apply `data-theme="dark"` on `<html>` or `<body>` and override custom properties in a `[data-theme="dark"]` selector, consistent with existing dark mode implementation in the codebase.
+
+---
+
+#### Accessibility
+
+| Requirement | Implementation |
+|-------------|---------------|
+| Checkboxes are labeled | `aria-label="Mark [plant name] [care type] as done"` on each `<input type="checkbox">` |
+| "Select all" is labeled | `aria-label="Select all care items"` + `aria-checked` with `"true"`, `"false"`, or `"mixed"` |
+| Count announcement | Selection count `<span>` uses `aria-live="polite"` + `aria-atomic="true"` so "3 selected" is announced on every change |
+| Action bar role | `role="toolbar"` + `aria-label="Batch actions toolbar"` on the action bar container |
+| "Mark done" disabled state | `aria-disabled="true"` when 0 items selected (even if bar is hidden — defensive) |
+| Loading announcement | `aria-busy="true"` on action bar during loading; `aria-live="polite"` label "Marking done…" |
+| Error announcement | `aria-live="assertive"` on the partial-failure error message so it interrupts and is immediately announced |
+| Toast announcement | `role="status"` + `aria-live="polite"` on toast element |
+| Keyboard: checkbox toggle | `Space` key toggles focused checkbox |
+| Keyboard: action bar | "Mark done", "Confirm", "Cancel", "Retry" all keyboard-focusable and activatable with `Enter`/`Space` |
+| Focus management | When entering selection mode, focus moves to the "Select all" checkbox; when exiting, focus returns to the "Select" button |
+| Reduced motion | All item exit animations and action bar slide animations respect `@media (prefers-reduced-motion: reduce)`: instant transitions, no transforms or fades |
+| Color contrast | All text meets WCAG AA (4.5:1 for normal text, 3:1 for large text) against their backgrounds. Sage green `#5C7A5C` on white: verified 4.6:1. Warning amber `#C4921F` on white: verified 3.1:1 (used only for icons, not text-only conveyance). |
+| Checkbox focus ring | `outline: 2px solid #5C7A5C; outline-offset: 2px` on `:focus-visible` |
+| No color-only information | Checked state is conveyed by both the checkmark icon AND the card border/background highlight — not color alone |
+
+---
+
+#### Files to Create / Modify
+
+| File | Action |
+|------|--------|
+| `frontend/src/pages/CareDuePage.jsx` | Add "Select" toggle button, selection mode state, per-item checkbox rendering, "Select all" logic, and exit selection mode on success |
+| `frontend/src/pages/CareDuePage.css` | Add selection mode styles: `.selection-mode`, `.care-item-card--selected`, `.care-item-card--checkable`, `.care-item-card--exiting`, checkbox styles, header selection-mode layout |
+| `frontend/src/components/BatchActionBar.jsx` | **New** — sticky bottom bar; manages confirmation, loading, and partial-failure sub-states internally; accepts props: `selectedCount`, `onMarkDone`, `onCancel`, `onRetry`, `state` (`idle` | `confirm` | `loading` | `partial-failure`), `successCount`, `failCount` |
+| `frontend/src/components/BatchActionBar.css` | **New** — action bar layout, slide animation, responsive overrides, dark mode tokens |
+| `frontend/src/utils/api.js` | Add `careActions.batch(actions)` → `POST /api/v1/care-actions/batch` with body `{ actions: [...] }` |
+
+---
+
+#### Minimum Test Coverage (T-110 — 8 new tests minimum)
+
+| # | Test |
+|---|------|
+| 1 | **Selection mode toggle** — clicking "Select" renders checkboxes; clicking "Cancel" hides them and clears selections |
+| 2 | **Per-item checkbox** — clicking a card in selection mode toggles its checkbox; `aria-label` is correct |
+| 3 | **Select all** — clicking "Select all" checks all items; clicking again unchecks all; indeterminate state renders when partially selected |
+| 4 | **Action bar visibility** — bar is hidden at 0 selections; visible after first selection; count label updates to reflect selection count |
+| 5 | **"Mark done" → Confirmation** — clicking "Mark done" shows confirmation message with correct item count |
+| 6 | **Confirm → API call + success** — clicking "Confirm" calls `careActions.batch()` with correct shape; on all-success 207: selected items removed from list, toast shown with correct count, page exits selection mode |
+| 7 | **Partial failure** — mock 207 with mixed results; assert: success items removed, failed items remain checked, partial-failure message shown with correct M-of-N text, "Retry" button present |
+| 8 | **Retry** — clicking "Retry" calls `careActions.batch()` with only the failed items |
+| 9 | **Cancel clears selections** — clicking "Cancel" in action bar returns to confirmation → idle state (bar remains); clicking "Cancel" header button exits selection mode entirely and deselects all |
+| 10 | **Empty state** — when all items are marked done (all-success 207 on the last items), the Care Due empty state is displayed |
+
+---
+
+*SPEC-019 written by Design Agent on 2026-04-06. Auto-approved for Sprint #24.*
+
 *SPEC-018 written by Design Agent on 2026-04-05 for Sprint #23.*
