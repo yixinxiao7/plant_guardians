@@ -20,6 +20,50 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-102 — QA: Positive — Unsubscribe page UX is clean and handles all edge cases (Sprint 23)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-102 |
+| **Source** | QA Engineer |
+| **Sprint** | 23 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | The unsubscribe page (T-103) handles all edge cases gracefully: missing params show error immediately without making an API call, the cancelled flag prevents stale state updates on fast unmount, and the success page provides clear next-step guidance ("re-enable from Profile page"). The loading → success/error transitions are smooth. Dark mode and accessibility are solid. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-103 — QA: Positive — Account deletion flow has excellent safety gates (Sprint 23)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-103 |
+| **Source** | QA Engineer |
+| **Sprint** | 23 |
+| **Category** | Positive |
+| **Severity** | N/A |
+| **Description** | The account deletion flow (T-106 + T-107) is well-designed for safety: the Danger Zone is collapsed by default (users can't stumble into it), the "DELETE" text-match gate is case-sensitive and exact (no accidental deletions), the modal has focus trapping and Escape key support, and the backend uses a single transaction to avoid partial data loss. The inline error with retry on failure is a good UX pattern. The login page deletion banner provides clear closure. |
+| **Status** | Acknowledged |
+
+---
+
+## FB-104 — QA: UX Issue — Unsubscribe page error state has generic "Sign In" CTA even when user may not have an account (Sprint 23)
+
+| Field | Value |
+|-------|-------|
+| **ID** | FB-104 |
+| **Source** | QA Engineer |
+| **Sprint** | 23 |
+| **Category** | UX Issue |
+| **Severity** | Cosmetic |
+| **Description** | When the unsubscribe page shows an error (e.g., invalid token), the CTA is "Sign In" with a link to /login. If the user's account was already deleted (404 from backend), directing them to "Sign In" is slightly misleading — they can't sign in. Consider a more neutral CTA like "Go to Plant Guardians" for the 404 case, or simply "Go back". This is cosmetic and non-blocking. |
+| **Steps to Reproduce** | Visit `/unsubscribe?token=valid&uid=deleted-user-id` → API returns 404 → page shows "Link not valid" with "Sign In" CTA. |
+| **Expected vs Actual** | Expected: contextual CTA. Actual: generic "Sign In" CTA regardless of error type. |
+| **Status** | New |
+
+---
+
 ## FB-101 — QA: Bug — careActionsStreak.test.js timezone-dependent flakiness (Sprint 22)
 
 | Field | Value |
