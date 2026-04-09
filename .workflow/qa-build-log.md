@@ -569,3 +569,67 @@ All Sprint #24 endpoints respond correctly. Rate limiting headers confirmed pres
 
 ---
 
+## Pre-Deploy Gate Check — Sprint #27 | 2026-04-08
+
+- **Triggered by:** Deploy Engineer (T-123, Sprint #27)
+- **Git SHA:** `5f0500396602b598a8a2c01e469ba70526bb5909`
+- **Status:** ⚠️ BLOCKED — Awaiting QA sign-off (T-122) and backend test suite fix
+
+### Migration Check
+
+| Migration | Status |
+|-----------|--------|
+| `20260408_01_add_google_id_to_users.js` | ✅ Applied — Batch 3 (ran this cycle) |
+| All previous migrations (Batches 1–2) | ✅ Already applied |
+
+Migration applied to development DB: `google_id VARCHAR(255)` column added to `users` table with partial unique index (`WHERE google_id IS NOT NULL`). `password_hash` column made nullable for Google-only users. Migration is reversible (down() implemented).
+
+### Backend Health Check
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Backend startup | ✅ PASS | `Plant Guardians API running on port 3000 [development]`; DB pool warmed up with 2 connections |
+| `GET /api/health` | ✅ PASS | HTTP 200 — `{"status":"ok","timestamp":"..."}` |
+| `GET /api/v1/auth/google` (no creds) | ✅ PASS | HTTP 302 → `http://localhost:5173/login?error=oauth_failed` — graceful degradation confirmed |
+
+### Frontend Build
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Vite production build | ✅ PASS | 4655 modules transformed; `frontend/dist/` output clean — no errors or warnings |
+| Frontend test suite | ✅ PASS | 276/276 tests pass (35 test files) — exceeds ≥265/262 requirement |
+
+### Backend Test Suite (BLOCKER)
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Backend test suite (full) | ❌ FAIL | 15/199 failing — test isolation issue when `googleAuth.test.js` runs before `plants.test.js` and `auth.test.js` in full-suite order |
+| Backend tests (individual) | ✅ PASS | Both `googleAuth.test.js` (11 tests) and `auth.test.js` pass in isolation |
+| Root cause | Test isolation | `cleanTables()` in `googleAuth.test.js` fails with `relation "notification_preferences" does not exist` when tests run alphabetically — indicates migration rollback from a prior `googleAuth.test.js` `teardownDatabase()` is interfering with the next test file |
+
+**Backend test failure detail:** When running the full suite with `--runInBand`, `googleAuth.test.js` (alphabetically between `g` and `p` files) calls `teardownDatabase()` after completing. If its module context's `activeFiles` drops to 0 before `plants.test.js` and other subsequent test files run, it triggers `db.migrate.rollback(true)` + `db.destroy()`, leaving the database without the `notification_preferences` table for subsequent files.
+
+**Sprint 27 acceptance criteria requires ≥192/188 backend tests passing.** Currently failing 15/199. Backend Engineer must fix the test isolation issue before QA can sign off.
+
+### Pre-Deploy Gate Check Summary
+
+| Gate | Status |
+|------|--------|
+| Migration applied to dev DB | ✅ PASS |
+| Backend health endpoint | ✅ PASS |
+| Google OAuth graceful degradation | ✅ PASS |
+| Frontend production build | ✅ PASS |
+| Frontend tests (≥265/262) | ✅ PASS (276/276) |
+| Backend tests (≥192/188) | ❌ FAIL (184/199 in full suite run) |
+| QA sign-off (T-122) | ❌ MISSING — T-122 not completed |
+
+**Overall status: BLOCKED.** Staging deploy (T-123) will proceed immediately upon:
+1. Backend Engineer fixing test isolation issue so ≥192/188 backend tests pass in full suite
+2. QA Engineer completing T-122 and posting sign-off handoff addressed to Deploy Engineer
+
+### OAuth Staging Limitation (per T-123 spec)
+
+**Note:** Google OAuth will not be fully end-to-end testable in local staging without real `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` environment variables. The route exists and responds correctly (302 graceful degradation confirmed), but the full consent-screen flow requires project owner to supply real Google OAuth credentials. All other existing non-OAuth endpoints remain healthy.
+
+---
+
