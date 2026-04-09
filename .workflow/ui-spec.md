@@ -5931,3 +5931,332 @@ it('shows "Go to Plant Guardians" CTA when API returns 404 (deleted account)', a
 ---
 
 *SPEC-020 written by Design Agent on 2026-04-06. Auto-approved for Sprint #26.*
+
+---
+
+### SPEC-021 — Google OAuth Login/Register UI Additions
+
+**Status:** Approved
+**Related Tasks:** T-119 (Design Agent), T-121 (Frontend Engineer — gates this spec)
+**Sprint:** 27
+**Type:** Spec Amendment — extends SPEC-001 (Login & Sign Up Screen)
+**Resolves:** Sprint #27 goal — reduce signup friction for "plant killer" users
+
+---
+
+#### Summary
+
+This spec extends SPEC-001 to add **"Sign in with Google"** to both the Log In tab and the Sign Up tab of the existing auth screen (`/login`). Users who prefer not to manage a password can complete onboarding in one tap. The Google button sits **above** the existing email/password form, separated by an "or" divider. Post-OAuth, users land on `/` (plant inventory) — identical to the email/password success path. If a Google account's email matches an existing email/password account, the accounts are **auto-linked** and a toast confirms it.
+
+This spec does **not** change the overall page layout, brand panel, tab toggle, or any email/password form component from SPEC-001. Only the form interior receives new elements.
+
+---
+
+#### Affected Screen
+
+**File:** `frontend/src/pages/LoginPage.jsx` (handles both Log In and Sign Up tabs)
+**No changes to:** brand panel (left column), tab toggle component, field validation logic, form-level error banner, redirect-after-success path, or responsive breakpoints.
+
+---
+
+#### New UI Elements Overview
+
+| Element | Location on Both Tabs | Notes |
+|---------|----------------------|-------|
+| Google OAuth button | Top of form content, before all fields | Google-branded, full-width |
+| "or" divider | Between Google button and first input field | Horizontal rule with centred label |
+| OAuth error banner | Below Google button, above divider | Only visible when OAuth callback returns an `?error=` param |
+| Account-linked toast | App-level toast, appears post-redirect on `/` | "Your Google account has been linked. Welcome back, [First Name]! 🌿" |
+
+---
+
+#### Placement & Layout — Form Interior
+
+Both the **Log In** and **Sign Up** tabs share identical additions. The form interior order becomes:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│   [Google OAuth Button — full width]                        │
+│                                                             │
+│   [OAuth Error Banner — only shown when ?error=... present] │
+│                                                             │
+│   ─────────────────── or ───────────────────               │
+│                                                             │
+│   [Existing email/password fields]                          │
+│                                                             │
+│   [Submit Button]                                           │
+│                                                             │
+│   [Switch Mode Link]                                        │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Spacing:
+- `24px` gap below the Google button (before the OAuth error banner if shown, or the divider)
+- `16px` gap between the OAuth error banner and the divider (only when error banner is visible)
+- `24px` gap above and below the "or" divider
+- All other form spacing is unchanged from SPEC-001
+
+---
+
+#### Component: Google OAuth Button
+
+This button must conform to **Google's brand guidelines** for the "Sign in with Google" button. Use the standard light-theme variant (our form panel is `#F7F4EF` — a light background).
+
+**Visual spec:**
+
+| Property | Value |
+|----------|-------|
+| Width | 100% (full width of the form container, same as the submit button) |
+| Height | `44px` — matches existing input field height for visual rhythm |
+| Background | `#FFFFFF` |
+| Border | `1px solid #DADCE0` (Google's specified border color) |
+| Border-radius | `8px` — matches our input field border-radius convention |
+| Box-shadow | `0 1px 3px rgba(60, 64, 67, 0.10), 0 1px 2px rgba(60, 64, 67, 0.06)` |
+| Font | `'DM Sans'`, `font-size: 15px`, `font-weight: 600`, `color: #3C4043` (Google dark gray) |
+| Letter-spacing | `0.01em` |
+| Icon | Google "G" logo SVG — 20×20px, `16px` from left edge, vertically centered |
+| Icon-to-text gap | `12px` between right edge of the "G" icon and start of label text |
+| Label text | `"Sign in with Google"` — on **both** Log In tab and Sign Up tab |
+| Cursor | `pointer` |
+
+**Google "G" logo SVG** — use the official multi-color Google "G" mark with four colored paths: red (`#EA4335`), yellow (`#FBBC05`), green (`#34A853`), blue (`#4285F4`). Embed the SVG inline within the button (no external image dependency). Do not substitute with a monochrome version or a third-party icon library icon — Google brand guidelines require the official mark.
+
+**Hover state:**
+- Background: `#F8F9FA` (Google's specified light-gray hover — very subtle)
+- Box-shadow: `0 2px 6px rgba(60, 64, 67, 0.15), 0 1px 4px rgba(60, 64, 67, 0.10)`
+- Transition: `background 0.15s ease, box-shadow 0.15s ease`
+- Do **not** use our sage hover (`#4A6449`) — this is a Google-branded button and must follow Google's palette
+
+**Active / pressed state:**
+- Background: `#F1F3F4`
+- `transform: scale(0.98)` — subtle press feedback (our convention is `scale(0.97)` — slightly softer here given the Google brand context)
+
+**Focus state:**
+- `outline: 2px solid #5C7A5C; outline-offset: 2px` — our app's focus ring convention takes precedence for keyboard navigation consistency
+- Do not use Google blue for the focus ring
+
+**Disabled state:**
+- Background: `#F8F9FA`
+- Border: `1px solid #DADCE0`
+- Opacity: `0.5`
+- Cursor: `not-allowed`
+- Button is disabled during any loading state (after click, while redirect is in progress; also disabled when the email/password submit button is in loading state, to prevent concurrent auth attempts)
+
+**Loading state (after click, before browser redirect):**
+- Replace label text with a centered spinner (18px, `color: #3C4043`)
+- Button disabled (`pointer-events: none`)
+- Use the same spinner component already in use on the existing submit button
+
+**Interaction — on click:**
+1. Button enters loading state (spinner, disabled)
+2. Browser performs a **full-page navigation** to `GET /api/v1/auth/google` via `window.location.href = '/api/v1/auth/google'`
+3. The browser leaves the app; the backend initiates the Google OAuth redirect
+4. (After Google consent, the backend callback redirects back to the frontend — see Post-OAuth Redirect Flow)
+
+**Implementation note:** An `<a href="/api/v1/auth/google">` styled as a button is also acceptable. If using `<a>`, do **not** add `role="button"` — it is a navigational link. The visible text already describes the action, so `aria-label` is not needed. If using `<button>`, fire `window.location.href` in the click handler.
+
+---
+
+#### Component: "or" Divider
+
+A horizontal visual separator between the Google button and the email/password form.
+
+```
+─────────────────── or ───────────────────
+```
+
+**Spec:**
+
+| Property | Value |
+|----------|-------|
+| Layout | Flex row: `<div aria-hidden="true"><hr></div>` flex-grow 1, `<span>or</span>`, `<div aria-hidden="true"><hr></div>` flex-grow 1; `align-items: center; gap: 12px` |
+| `<hr>` style | `border: none; border-top: 1px solid #E0DDD6; flex: 1; margin: 0` |
+| Label | `"or"` — lowercase |
+| Font | `font-size: 13px`, `font-weight: 400`, `color: #B0ADA5` (intentionally muted — this is a separator, not a label) |
+| Margin | `24px 0` (above and below the entire divider row) |
+
+**Accessibility:** The `<hr>` dividers are decorative — wrap each in `aria-hidden="true"`. The `<span>or</span>` remains visible text but carries no functional meaning; no special ARIA role is needed.
+
+---
+
+#### Component: OAuth Error Banner
+
+Displayed **only** when the OAuth callback redirects back to the frontend with an `?error=` query parameter (e.g., `/login?error=oauth_failed` or `/login?error=access_denied`).
+
+Positioned **below the Google button and above the "or" divider** — inside the form card, not as a page-level overlay.
+
+**Visual spec:**
+
+| Property | Value |
+|----------|-------|
+| Container | Full width of form, `border-radius: 8px`, `padding: 12px 16px`, `background: #FAEAE4`, `border: 1px solid #E8C4B8` |
+| Layout | Flex row, `align-items: flex-start`, `gap: 8px` |
+| Icon | Phosphor `Warning`, 16px, `color: #B85C38`, `flex-shrink: 0`, `margin-top: 1px` for optical alignment with text |
+| Text | `font-size: 13px`, `color: #B85C38`, `font-weight: 400`, `line-height: 1.5` |
+| Margin | `16px 0 0 0` (below Google button); the divider's own `margin-top: 24px` provides the gap above the divider |
+| Role | `role="alert"` on the container |
+
+**Error message copy by `?error` param value:**
+
+| `error` query param | Message |
+|--------------------|---------|
+| `access_denied` | "You cancelled the Google sign-in. Try again or use email and password below." |
+| `oauth_failed` | "Something went wrong with Google sign-in. Please try again or use email and password below." |
+| *(any other / unknown)* | "Sign-in with Google was unsuccessful. Please try again or use email and password below." |
+
+**Detection logic (frontend):**
+```js
+// On component mount
+const params = new URLSearchParams(window.location.search);
+const oauthError = params.get('error'); // 'access_denied' | 'oauth_failed' | null | …
+
+// After reading the param, clean the URL so the banner doesn't persist on refresh:
+if (oauthError) {
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete('error');
+  window.history.replaceState({}, '', cleanUrl.toString());
+}
+```
+
+**Dismiss behavior:** No explicit dismiss button required — the banner is informational and the user's next action (clicking Google button again or focusing a form field) is the natural progression. An optional `×` dismiss icon button (`aria-label="Dismiss error"`, `color: #B85C38`, 16px) may be added but is not required for this sprint.
+
+**Accessibility:**
+- `role="alert"` on the container — screen readers announce the error automatically on mount
+- Warning icon: `aria-hidden="true"` (the text carries the full message)
+
+---
+
+#### Post-OAuth Redirect Flow
+
+After the backend successfully exchanges the Google authorization code for tokens and creates/updates the user, it redirects the browser back to the frontend. The Frontend Engineer and Backend Engineer must coordinate on the token delivery mechanism (query param vs. short-lived HttpOnly cookie) before implementation — document the decision in `api-contracts.md` as part of T-120. This spec defines only the **UX outcome**, not the delivery mechanism.
+
+**UX outcome (identical regardless of delivery mechanism):**
+
+1. Backend redirects browser to the frontend (e.g., `/?token=<jwt>` or `/` with a short-lived cookie)
+2. Frontend reads and stores the token in-memory (same as existing email/password auth — no `sessionStorage` or `localStorage`)
+3. If token was delivered via query param, clean the URL immediately:
+   ```js
+   const url = new URL(window.location.href);
+   if (url.searchParams.has('token')) {
+     url.searchParams.delete('token');
+     window.history.replaceState({}, '', url.toString());
+   }
+   ```
+4. User lands on `/` — the plant inventory screen (identical to the email/password login success path)
+5. A **success toast** appears based on the user's situation (see table below)
+
+**Toast messages by situation:**
+
+| Situation | Toast message | Duration |
+|-----------|--------------|---------|
+| New user (first-ever sign-in via Google) | `"Welcome to Plant Guardians! 🌿"` | 3s (matches existing sign-up toast) |
+| Returning Google user | `"Welcome back, [First Name]! 🌿"` | 3s (matches existing log-in toast) |
+| Account auto-linked (Google email matched existing account) | `"Your Google account has been linked. Welcome back, [First Name]! 🌿"` | 5s (slightly longer — the linking confirmation is meaningful) |
+
+**Signalling mechanism for account-linked:** The backend should append `?linked=true` to the redirect URL alongside (or instead of) the token. Frontend detects this param, reads it, cleans the URL, and shows the account-linked toast instead of the standard welcome toast. If the Backend Engineer uses cookie-based delivery, the `linked` signal can be embedded as a short-lived cookie or in the JWT payload — the Frontend Engineer and Backend Engineer must agree and document in `api-contracts.md`.
+
+---
+
+#### Account-Linking Edge Case — Full UX Description
+
+**Scenario:** A user previously registered at Plant Guardians with `alice@gmail.com` and a password. They now click "Sign in with Google" and authorize the same `alice@gmail.com` Google account.
+
+**What the user experiences:**
+
+1. User clicks "Sign in with Google" on the Login (or Sign Up) page
+2. Google consent screen appears; user approves
+3. Backend detects the email match, sets `google_id` on the existing user record, returns their existing JWT + a `linked=true` signal
+4. Browser is redirected to `/` (plant inventory — no intermediate screen, no merge confirmation modal)
+5. The account-linked toast appears for 5 seconds: *"Your Google account has been linked. Welcome back, Alice! 🌿"*
+6. The user's existing plant data, care history, and preferences are fully intact — nothing changed except that Google OAuth is now also accepted for this account
+
+**What the user does NOT see:**
+- No "duplicate account" error
+- No "you already have an account" warning
+- No merge confirmation dialog (the merge is automatic and silent — intentionally low-friction for the "plant killer" persona)
+- No password reset prompt
+
+**What happens on subsequent Google sign-ins (after initial link):**
+- The backend finds the user by `google_id` — no re-linking needed
+- Standard returning-user toast: *"Welcome back, Alice! 🌿"* (no "linked" toast on subsequent logins)
+
+---
+
+#### States Summary
+
+| State | Trigger | Visible Elements on Form |
+|-------|---------|--------------------------|
+| **Default — Log In tab** | Fresh page load at `/login` | Google button, divider, email + password fields, Log In submit, switch-mode link |
+| **Default — Sign Up tab** | User switches to Sign Up tab | Google button, divider, Full Name + email + password + confirm password fields, Create Account button, switch-mode link |
+| **Google button loading** | User clicks Google button | Google button showing spinner (disabled); rest of form unchanged; submit button also disabled to prevent concurrent auth |
+| **Email/password loading** | User submits email/password form | Submit button showing spinner; Google button also disabled |
+| **OAuth error** | Page loads with `?error=...` in URL | Google button (normal), OAuth error banner (above divider, `role="alert"`), divider, full form |
+| **OAuth success — new user** | Redirect to `/` after first-ever Google OAuth | Plant inventory. Toast: "Welcome to Plant Guardians! 🌿" (3s) |
+| **OAuth success — returning user** | Redirect to `/` after subsequent Google OAuth | Plant inventory. Toast: "Welcome back, [First Name]! 🌿" (3s) |
+| **OAuth success — account linked** | Redirect to `/` with `?linked=true` | Plant inventory. Toast: "Your Google account has been linked. Welcome back, [First Name]! 🌿" (5s) |
+| **Email/password field errors** | Existing SPEC-001 behavior | Unchanged — Google button and divider are unaffected by email/password field errors |
+
+---
+
+#### Responsive Behavior
+
+All additions follow the existing SPEC-001 responsive rules. No new breakpoints are introduced.
+
+| Breakpoint | Google Button & Divider Behavior |
+|-----------|----------------------------------|
+| Desktop (≥1024px) | Full width of the 420px form container |
+| Tablet (768–1023px) | Full width of the wider form container |
+| Mobile (<768px) | Full width of form with `24px` horizontal padding (same as all other form elements) |
+
+The Google "G" SVG + label `"Sign in with Google"` fits on a single line at all viewport widths down to 320px at `font-size: 15px`. No text wrapping expected.
+
+**Touch devices:** Minimum tap target height is `44px` (already specified). Hover styles are skipped on touch naturally. The active/press state (`background: #F1F3F4`, `scale(0.98)`) applies on `touchstart`.
+
+---
+
+#### Accessibility
+
+| Requirement | Implementation |
+|-------------|---------------|
+| Button element | Use `<button type="button">` with a click handler, or `<a href="/api/v1/auth/google">`. Do not add `role="button"` to an `<a>`. |
+| Visible label | Button text `"Sign in with Google"` is fully visible — no `aria-label` needed |
+| Google logo SVG | `aria-hidden="true"` on the `<svg>` — decorative within the button |
+| Loading state | Set `aria-label="Signing in with Google…"` on button and `aria-busy="true"` when spinner is shown |
+| OAuth error banner | `role="alert"` on the error container — auto-announced by screen readers on mount |
+| Warning icon in banner | `aria-hidden="true"` — the text carries the full error message |
+| "or" divider | `<hr>` elements wrapped in `aria-hidden="true"`; the `<span>or</span>` remains visible text |
+| Focus order | Google button → (OAuth error banner is not focusable) → first email/password input → rest of form |
+| Focus ring | `outline: 2px solid #5C7A5C; outline-offset: 2px` — matches all other interactive elements |
+| Keyboard activation | `<button>` or `<a>` — both natively keyboard-activatable via `Enter` (`<button>` also via `Space`) |
+| No auto-focus | Do not auto-focus the Google button on load — maintain existing SPEC-001 behavior |
+| WCAG contrast | Google button text `#3C4043` on `#FFFFFF`: ~14:1 ✅. OAuth error text `#B85C38` on `#FAEAE4`: ~4.6:1 ✅. Divider "or" text `#B0ADA5` on `#F7F4EF`: ~2.9:1 — acceptable for decorative separator text; optionally use `#8A8880` (~4.2:1) for stricter compliance. |
+
+---
+
+#### Files to Modify / Create
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/LoginPage.jsx` | Add `GoogleOAuthButton` and `OAuthDivider` inside both tabs' form body. Add `oauthError` state derived from `?error=` URL param. Add `linked` state derived from `?linked=` URL param. Handle URL cleanup on mount. Show account-linked toast when `linked=true`. Disable Google button when email/password form is in loading state. |
+| `frontend/src/components/GoogleOAuthButton.jsx` | **New file.** Encapsulates Google-branded button: inline Google "G" SVG, loading spinner state, styling. Props: `onClick: () => void`, `loading?: boolean`, `disabled?: boolean`. |
+| `frontend/src/components/OAuthErrorBanner.jsx` *(optional)* | Encapsulate the error banner markup + copy map if preferred; or inline in `LoginPage.jsx`. |
+| `frontend/src/pages/LoginPage.css` (or equivalent) | Add `.oauth-divider` flex row styles. Add `.oauth-error-banner` styles if not using inline styles or a shared component. |
+
+**No changes required to:** brand panel, tab toggle, existing input components, SPEC-001 validation logic, form-level error banner, any other page, or any backend file.
+
+---
+
+#### Minimum Test Coverage (T-121 — ≥3 new tests required)
+
+| # | Test | Required? |
+|---|------|-----------|
+| 1 | **Google button renders on Log In tab** — render `<LoginPage />`, assert button with accessible name `"Sign in with Google"` is in the document; assert "or" divider text is present | ✅ Required |
+| 2 | **Google button renders on Sign Up tab** — switch to Sign Up tab (click tab toggle), assert button with accessible name `"Sign in with Google"` is present | ✅ Required |
+| 3 | **Click initiates OAuth navigation** — mock `window.location` (or spy on `window.location.href` setter), click Google button, assert navigation to `"/api/v1/auth/google"` was triggered | ✅ Required |
+| 4 | **OAuth error banner — `?error=oauth_failed`** — render `<LoginPage />` with `?error=oauth_failed` in URL search params, assert element with `role="alert"` is present and text includes `"Something went wrong"` | Strongly recommended |
+| 5 | **OAuth error banner — `?error=access_denied`** — render with `?error=access_denied`, assert banner text includes `"You cancelled"` | Recommended |
+| 6 | **Account-linked toast** — render with `?linked=true` in URL (and a valid token param or mock the auth hook), assert toast message contains `"linked"` | Recommended |
+
+---

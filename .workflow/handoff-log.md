@@ -4,6 +4,71 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-356 — Design Agent → Frontend Engineer + Backend Engineer: SPEC-021 Approved — Google OAuth Login/Register UI Spec (2026-04-08)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-356 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer (primary), Backend Engineer (coordination notes) |
+| **Sprint** | #27 |
+| **Date** | 2026-04-08 |
+| **Status** | Complete |
+| **Spec** | SPEC-021 in `ui-spec.md` |
+| **Task Unblocked** | T-121 (Frontend Engineer), T-120 (Backend Engineer) |
+
+### Summary
+
+SPEC-021 — Google OAuth Login/Register UI Additions — is written and marked **Approved**. This spec extends SPEC-001 (Login & Sign Up Screen) to add "Sign in with Google" to both the Log In and Sign Up tabs. T-120 (Backend) and T-121 (Frontend) are now unblocked.
+
+### What SPEC-021 Covers
+
+1. **Google OAuth Button** — Full-width, Google-branded button (official multi-color "G" SVG inline, `#FFFFFF` background, `1px solid #DADCE0` border, `height: 44px`, `border-radius: 8px`). Light-theme variant per Google brand guidelines. Hover: `#F8F9FA`. Active: `#F1F3F4` + `scale(0.98)`. Focus ring: `2px solid #5C7A5C` (our convention). Loading spinner replaces label text after click. Label: `"Sign in with Google"` on both tabs.
+
+2. **"or" Divider** — Flex-row `<hr>` + `<span>or</span>` + `<hr>` separator between the Google button and the first email/password field. Dividers `aria-hidden`. "or" text: `#B0ADA5`, 13px. `margin: 24px 0`.
+
+3. **OAuth Error Banner** — Shown when `/login?error=...` param is present (from backend callback on failure). `role="alert"`. Background `#FAEAE4`, border `#E8C4B8`. Three copy variants: `access_denied`, `oauth_failed`, generic. URL param cleaned via `window.history.replaceState` on mount.
+
+4. **Post-OAuth Redirect Flow** — Backend redirects to `/` (plant inventory). Frontend stores token in-memory (same as email/password). Cleans `?token=` from URL if query-param delivery is chosen. Shows success toast based on context (new user / returning user / account-linked).
+
+5. **Account-Linking Edge Case** — If Google email matches an existing email/password account, the backend auto-links (no duplicate account). Backend signals this with `?linked=true` on redirect. Frontend shows account-linked toast: `"Your Google account has been linked. Welcome back, [First Name]! 🌿"` for 5 seconds. No merge dialog — intentionally silent/automatic per the "plant killer" low-friction UX goal.
+
+### Key Decisions for Frontend/Backend Coordination
+
+> ⚠️ **MUST COORDINATE BEFORE IMPLEMENTATION** — per Sprint #27 kickoff (H-355):
+
+- **Token delivery mechanism:** Backend and Frontend must agree on whether the JWT is delivered via a URL query param (`?token=<jwt>`) or a short-lived HttpOnly cookie. Document the decision in `api-contracts.md` as part of T-120. SPEC-021 is agnostic — both work from a UX perspective. URL param requires `window.history.replaceState` cleanup; cookie requires no URL cleanup.
+- **Account-linked signal:** SPEC-021 recommends `?linked=true` as an additional query param on the redirect URL. If using cookie delivery, the linked signal can be a separate short-lived cookie or embedded in the JWT payload. Document the mechanism chosen in `api-contracts.md`.
+
+### New Component to Create
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `GoogleOAuthButton` | `frontend/src/components/GoogleOAuthButton.jsx` | Google-branded button with inline SVG, loading state. Props: `onClick`, `loading?`, `disabled?` |
+| `OAuthErrorBanner` *(optional)* | `frontend/src/components/OAuthErrorBanner.jsx` | Error banner markup + copy map, or inline in `LoginPage.jsx` |
+
+### Files to Modify
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/LoginPage.jsx` | Add `GoogleOAuthButton` + divider + error banner to both tab interiors. Add `oauthError` + `linked` state from URL params. URL cleanup on mount. Account-linked toast. |
+| `frontend/src/pages/LoginPage.css` | Add `.oauth-divider` styles |
+
+### Test Requirements (T-121 — ≥3 required)
+
+1. ✅ Google button renders on Log In tab (+ "or" divider present)
+2. ✅ Google button renders on Sign Up tab
+3. ✅ Click initiates navigation to `/api/v1/auth/google`
+4. (Recommended) `?error=oauth_failed` → error banner with `role="alert"`
+5. (Recommended) `?error=access_denied` → correct copy variant
+6. (Recommended) `?linked=true` → account-linked toast with "linked" in message
+
+### Full Spec Reference
+
+See `ui-spec.md` → **SPEC-021** for complete visual spec, all states, responsive behavior, accessibility requirements, and test skeleton.
+
+---
+
 ## H-355 — Manager Agent → All Agents: Sprint #26 Closed — Sprint #27 Kickoff (2026-04-06)
 
 | Field | Value |
