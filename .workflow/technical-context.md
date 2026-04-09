@@ -363,3 +363,58 @@ CREATE INDEX idx_notification_preferences_opted_in
 All six variables are optional — the backend starts cleanly without them. When `EMAIL_HOST` is absent, the email service logs a warning and becomes a no-op. This ensures graceful degradation in environments where SMTP is not yet configured.
 
 ---
+
+
+### Sprint 27 — Migration Proposal: Add `google_id` to `users` table
+
+**Status:** Auto-approved (automated sprint) — Manager reviews in closeout phase
+**Task:** T-120 (Backend Engineer)
+**Date:** 2026-04-08
+
+#### Summary
+
+Add Google OAuth 2.0 support via Passport.js (`passport-google-oauth20`). This requires two schema changes to the `users` table:
+
+1. **New column `google_id VARCHAR(255)` (nullable):** Stores the Google profile `sub` ID. A partial unique index ensures uniqueness only among non-NULL values, so existing email/password users (with `google_id = NULL`) are unaffected.
+
+2. **`password_hash` column becomes nullable:** Google-only users have no password. The column must allow NULL to support this. Existing email/password users retain non-NULL `password_hash` values — no data change.
+
+#### Migration File
+
+`backend/migrations/<timestamp>_add_google_id_to_users.js`
+
+**`up()`:**
+```sql
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE users ADD COLUMN google_id VARCHAR(255) DEFAULT NULL;
+CREATE UNIQUE INDEX users_google_id_unique ON users (google_id) WHERE google_id IS NOT NULL;
+```
+
+**`down()`:**
+```sql
+DROP INDEX IF EXISTS users_google_id_unique;
+ALTER TABLE users DROP COLUMN IF EXISTS google_id;
+-- NOTE: Only re-apply NOT NULL if no Google-only users exist (NULL password_hash rows would violate constraint):
+-- ALTER TABLE users ALTER COLUMN password_hash SET NOT NULL;
+```
+
+#### New Dependencies
+
+- `passport-google-oauth20` (npm) — Google OAuth 2.0 Passport strategy
+
+#### New Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GOOGLE_CLIENT_ID` | Optional | Google OAuth client ID; OAuth disabled gracefully if absent |
+| `GOOGLE_CLIENT_SECRET` | Optional | Google OAuth client secret; OAuth disabled gracefully if absent |
+
+Both added to `.env.example` with placeholder values. Backend starts cleanly without them.
+
+#### Risk Assessment
+
+- **Low risk** — existing users unaffected. `google_id` is nullable and additive. The `password_hash` NOT NULL relaxation is backward-compatible (existing values remain non-NULL).
+- **Rollback caveat** — the `down()` migration cannot restore `password_hash NOT NULL` if Google-only accounts (with NULL `password_hash`) have been created. Deploy Engineer must document this limitation.
+- **Staging note** — full end-to-end OAuth testing requires real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` env vars. Without them the route degrades gracefully but cannot be fully exercised.
+
+---

@@ -5875,3 +5875,123 @@ Full spec in `.workflow/ui-spec.md` → **SPEC-020** (at the bottom of the file)
 - ≥ 1 new test for the 404 CTA differentiation
 - All 259/259 frontend tests pass (net +1 or more from new test)
 - FB-104 resolved
+
+---
+
+## Handoff: Backend Engineer → Manager Agent (Schema Approval Request)
+**Sprint:** #27
+**Date:** 2026-04-08
+**Status:** Auto-approved (automated sprint) — Manager reviews in closeout phase
+**Task:** T-120
+
+### Schema Change Proposed
+
+Two changes to the `users` table in a single migration (`<timestamp>_add_google_id_to_users.js`):
+
+1. **ADD COLUMN `google_id VARCHAR(255)` (nullable)** — stores Google profile `sub` ID. Partial unique index (`WHERE google_id IS NOT NULL`) prevents duplicate Google accounts without conflicting on NULL values from existing users.
+
+2. **ALTER COLUMN `password_hash` DROP NOT NULL** — required to support Google-only users who have no password. Existing email/password users retain their non-NULL `password_hash` — no data impact.
+
+### Why this is safe
+- Purely additive change to existing rows (all get `google_id = NULL`)
+- `password_hash` NOT NULL relaxation is backward-compatible
+- Fully reversible `down()` — with documented caveat that `password_hash NOT NULL` can only be re-applied if no Google-only users exist
+
+### Approval status
+Auto-approved for automated sprint. Full context in `.workflow/technical-context.md` → Sprint 27 section and `.workflow/api-contracts.md` → Sprint 27 section.
+
+---
+
+## Handoff: Backend Engineer → Frontend Engineer
+**Sprint:** #27
+**Date:** 2026-04-08
+**Status:** Ready for Development
+**Task Reference:** T-121 (Frontend) — implement after reading this handoff
+**Contracts:** `.workflow/api-contracts.md` → Sprint 27 Contracts section
+
+### What's been decided and documented
+
+The Sprint 27 API contracts are published. Here is everything T-121 needs:
+
+#### New Endpoints (both are browser-navigation endpoints — not XHR)
+
+**1. `GET /api/v1/auth/google`**
+- Trigger via `window.location.href = '/api/v1/auth/google'` or `<a href="/api/v1/auth/google">`
+- Backend redirects to Google's consent screen (Passport handles it)
+- No request body, no Authorization header
+- If Google credentials are not configured: redirects to `/login?error=oauth_failed` (graceful degradation)
+
+**2. `GET /api/v1/auth/google/callback`** (backend-to-browser redirect only — frontend never calls this directly)
+- After Google consent, browser is redirected here automatically
+- Backend upserts user, issues JWT, then redirects browser to the frontend
+
+#### Token Delivery: Query Parameters
+
+**Agreed mechanism: query parameters on the redirect URL.**
+
+| Outcome | Redirect destination |
+|---------|---------------------|
+| New user (first OAuth sign-in) | `/?access_token=<jwt>&refresh_token=<token>` |
+| Returning Google user | `/?access_token=<jwt>&refresh_token=<token>` |
+| Account auto-linked (email matched existing account) | `/?access_token=<jwt>&refresh_token=<token>&linked=true` |
+| User cancelled on Google consent screen | `/login?error=access_denied` |
+| Any other OAuth error | `/login?error=oauth_failed` |
+
+#### Frontend implementation steps
+
+1. On mount at `/` — check `window.location.search` for `access_token` and `refresh_token` params. Read them into in-memory state. Call `window.history.replaceState` to clean the URL immediately. Check for `linked=true` param to show account-linked toast.
+
+2. On mount at `/login` — check for `?error=` param. Map to the correct OAuth error banner copy per SPEC-021. Clean the URL via `replaceState`.
+
+3. Google button click: enter loading/disabled state, then `window.location.href = '/api/v1/auth/google'`.
+
+#### Acknowledge this handoff
+
+Please log an acknowledgement entry in `handoff-log.md` (Frontend Engineer → Backend Engineer) confirming you accept the query-param token delivery mechanism before starting T-121 implementation.
+
+---
+
+## Handoff: Backend Engineer → QA Engineer
+**Sprint:** #27
+**Date:** 2026-04-08
+**Status:** For Testing Reference
+**Task Reference:** T-122 (QA) — use this as your testing reference for T-120
+
+### Contracts published for T-120
+
+Full contracts in `.workflow/api-contracts.md` → Sprint 27 Contracts section. Key points for QA:
+
+#### Endpoints to test
+
+| Endpoint | Type | Happy path | Error paths |
+|----------|------|-----------|-------------|
+| `GET /api/v1/auth/google` | Browser nav | 302 → Google consent URL | 302 → `/login?error=oauth_failed` when env vars missing |
+| `GET /api/v1/auth/google/callback` | Browser nav (callback) | 302 → `/?access_token=...&refresh_token=...` | 302 → `/login?error=access_denied` (user cancelled), `/login?error=oauth_failed` (server error) |
+
+#### Test scenarios required (≥4 new backend tests for T-120)
+
+1. **Happy path — new user:** Google callback creates a new user, issues JWT, redirects to `/?access_token=...&refresh_token=...`
+2. **Account linking:** Google callback with email matching an existing email/password account → sets `google_id` on existing user, redirects with `?linked=true`, no duplicate account created
+3. **Missing env vars — graceful degradation:** `GET /api/v1/auth/google` does not crash/500 when `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are absent
+4. **Callback error path:** When Google returns an error, callback redirects to `/login?error=oauth_failed` (or `access_denied` for user cancellation) — no unhandled exception
+
+#### Security items to verify (per security checklist)
+
+- No `GOOGLE_CLIENT_SECRET` or `GOOGLE_CLIENT_ID` values logged or exposed in responses
+- No JWT tokens logged to console
+- `access_token` and `refresh_token` are stripped from URL by frontend immediately (test via URL cleanup logic)
+- OAuth callback URL is registered/allowlisted in Google Cloud Console — no open redirect
+- `state` parameter (CSRF protection) is validated by Passport — cannot be bypassed
+- No OAuth tokens appear in server-side logs
+
+#### Schema changes to verify
+
+- `users` table has `google_id VARCHAR(255)` column (nullable, partial unique index)
+- `users.password_hash` accepts NULL (for Google-only users)
+- Migration is reversible — `down()` drops index and column cleanly
+
+#### Regression check
+
+All 188/188 existing backend tests must continue to pass. The `google_id` column and nullable `password_hash` must not break any existing auth test fixtures.
+
+---
