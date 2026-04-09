@@ -5,9 +5,11 @@ const cookieParser = require('cookie-parser');
 const path = require('path');
 const { authLimiter, statsLimiter, globalLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
+const { initializePassport } = require('./config/passport');
 
 // Route imports
 const authRoutes = require('./routes/auth');
+const googleAuthRoutes = require('./routes/googleAuth');
 const plantsRoutes = require('./routes/plants');
 const careActionsRoutes = require('./routes/careActions');
 const aiRoutes = require('./routes/ai');
@@ -49,6 +51,10 @@ app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Passport initialization (Google OAuth — T-120)
+const passport = initializePassport();
+app.use(passport.initialize());
+
 // Serve uploaded files as static assets (T-059).
 // In production, a reverse proxy (nginx) would typically handle this,
 // but the Express fallback ensures photo_url is always browser-accessible.
@@ -74,6 +80,7 @@ app.get('/api/health', (req, res) => {
 
 // API routes
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/auth', googleAuthRoutes);
 app.use('/api/v1/plants', plantsRoutes);
 app.use('/api/v1/plants', careActionsRoutes);  // care-actions are nested under plants
 app.use('/api/v1/ai', aiRoutes);

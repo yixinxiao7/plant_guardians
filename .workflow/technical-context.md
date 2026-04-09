@@ -30,6 +30,7 @@ All schema changes must be tracked here. Before deploying any migration, verify 
 | 4 | 1 | Create `care_schedules` table | Create | `20260323_04_create_care_schedules.js` | Implemented — Ready for Deploy |
 | 5 | 1 | Create `care_actions` table | Create | `20260323_05_create_care_actions.js` | Implemented — Ready for Deploy |
 | 6 | 22 | Create `notification_preferences` table | Create | `20260405_01_create_notification_preferences.js` | Implemented — Ready for Deploy |
+| 7 | 27 | Add `google_id` to `users`, make `password_hash` nullable | Alter | `20260408_01_add_google_id_to_users.js` | Implemented — Ready for Deploy |
 
 ---
 
