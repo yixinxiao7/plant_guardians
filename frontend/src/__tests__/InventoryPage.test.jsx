@@ -17,6 +17,13 @@ vi.mock('@phosphor-icons/react', () => ({
   PottedPlant: (props) => <span data-testid="icon-potted-plant" {...props} />,
 }));
 
+vi.mock('../hooks/useAuth.jsx', () => ({
+  useAuth: () => ({
+    user: { full_name: 'Test User', email: 'test@example.com' },
+    consumeOAuthToast: () => null,
+  }),
+}));
+
 vi.mock('../hooks/usePlants.js', () => ({
   usePlants: () => ({
     plants: [],

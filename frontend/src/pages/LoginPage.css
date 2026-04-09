@@ -153,6 +153,31 @@
   background: #2C2A26;
 }
 
+/* OAuth divider */
+.oauth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.oauth-divider > div {
+  flex: 1;
+}
+
+.oauth-divider-line {
+  border: none;
+  border-top: 1px solid #E0DDD6;
+  margin: 0;
+}
+
+.oauth-divider-text {
+  font-size: 13px;
+  font-weight: 400;
+  color: #B0ADA5;
+  flex-shrink: 0;
+}
+
 /* Form */
 .login-form {
   display: flex;

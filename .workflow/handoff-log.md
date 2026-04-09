@@ -4,6 +4,71 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-357 — Frontend Engineer → QA Engineer: T-121 Complete — Google OAuth Frontend Implementation (2026-04-08)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-357 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Sprint** | #27 |
+| **Date** | 2026-04-08 |
+| **Status** | Complete |
+| **Task** | T-121 |
+
+### Summary
+
+T-121 — Google OAuth frontend implementation — is complete and moved to In Review. All SPEC-021 requirements implemented.
+
+### API Contract Acknowledgment
+
+Token delivery mechanism via query params (as documented in `api-contracts.md` Sprint 27 section) is acknowledged and implemented:
+- Success: `/?access_token=<jwt>&refresh_token=<token>` — frontend reads tokens, stores access_token in memory, cleans URL via `replaceState`
+- Account linked: `/?access_token=<jwt>&refresh_token=<token>&linked=true` — shows linked toast
+- Error (cancelled): `/login?error=access_denied` — shows "You cancelled" banner
+- Error (failed): `/login?error=oauth_failed` — shows "Something went wrong" banner
+
+### What Was Built
+
+| File | Change |
+|------|--------|
+| `frontend/src/components/GoogleOAuthButton.jsx` | **New.** Google-branded button with inline multi-color "G" SVG, loading spinner, disabled states. |
+| `frontend/src/components/GoogleOAuthButton.css` | **New.** Google brand-compliant styling (hover, active, focus, disabled states). |
+| `frontend/src/components/OAuthErrorBanner.jsx` | **New.** Error banner with `role="alert"`, 3 copy variants by error code. |
+| `frontend/src/components/OAuthErrorBanner.css` | **New.** Error banner styling per SPEC-021. |
+| `frontend/src/pages/LoginPage.jsx` | Added Google button, "or" divider, OAuth error banner, `oauthLoading` state, mutual disable (Google ↔ submit), URL error param reading + cleanup. |
+| `frontend/src/pages/LoginPage.css` | Added `.oauth-divider` styles. |
+| `frontend/src/hooks/useAuth.jsx` | Added `consumeOAuthParams()` — reads `access_token`, `refresh_token`, `linked` from URL on app init, fetches user profile, cleans URL. Added `consumeOAuthToast()` for one-time toast consumption. |
+| `frontend/src/pages/InventoryPage.jsx` | Added OAuth success toast on mount (new user / returning user / linked account). |
+
+### Test Coverage
+
+14 new tests added across 3 test files:
+- `GoogleOAuthButton.test.jsx` — 5 tests (render, click, loading state, disabled states)
+- `OAuthErrorBanner.test.jsx` — 4 tests (null, access_denied, oauth_failed, unknown)
+- `LoginPage.test.jsx` — 5 new tests (Google button on Login tab, Sign Up tab, click navigation, error banners)
+
+**All 276/276 frontend tests pass.**
+
+### What to Test (QA)
+
+1. **Google button visible** on both Log In and Sign Up tabs
+2. **Click navigates** to `/api/v1/auth/google` (full-page nav, requires backend running)
+3. **Error banner** at `/login?error=oauth_failed` and `/login?error=access_denied` — correct copy, `role="alert"`
+4. **OAuth success flow** — after backend redirect to `/?access_token=...`, user lands on inventory with toast
+5. **Account linking** — `/?access_token=...&linked=true` shows account-linked toast (5s)
+6. **Mutual disable** — while Google OAuth loading, submit button disabled; while form submitting, Google button disabled
+7. **URL cleanup** — tokens and error params are removed from URL after reading
+8. **Responsive** — Google button + divider display correctly at all breakpoints
+
+### Known Limitations
+
+- OAuth happy-path requires real Google credentials (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`) — not testable in automated unit tests
+- The toast duration for account-linked (5s) uses the default `useToast` duration (4s) — the ToastProvider uses a fixed 4s timeout; if strict 5s is needed, `useToast` would need a duration parameter (not in scope for T-121)
+- The `consumeOAuthToast` in InventoryPage determines new vs returning user by presence of `full_name` — if the backend returns a user with `full_name`, it shows "Welcome back"; otherwise "Welcome to Plant Guardians". This heuristic may not distinguish new Google users who have a full_name from Google profile.
+
+---
+
 ## H-356 — Design Agent → Frontend Engineer + Backend Engineer: SPEC-021 Approved — Google OAuth Login/Register UI Spec (2026-04-08)
 
 | Field | Value |

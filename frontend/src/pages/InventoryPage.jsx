@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Plant as PlantIcon } from '@phosphor-icons/react';
 import { usePlants } from '../hooks/usePlants.js';
+import { useAuth } from '../hooks/useAuth.jsx';
 import { useToast } from '../hooks/useToast.jsx';
 import PlantCard from '../components/PlantCard.jsx';
 import Button from '../components/Button.jsx';
@@ -16,6 +17,7 @@ import './InventoryPage.css';
 
 export default function InventoryPage() {
   const { plants, pagination, loading, error, fetchPlants, deletePlant } = usePlants();
+  const { user, consumeOAuthToast } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
 
@@ -42,6 +44,21 @@ export default function InventoryPage() {
       setFetchError(err.message || 'Failed to load plants.');
     }
   }, [fetchPlants, initialLoaded]);
+
+  // Show OAuth success toast on first mount after Google OAuth redirect
+  useEffect(() => {
+    const oauthInfo = consumeOAuthToast();
+    if (!oauthInfo) return;
+
+    const firstName = user?.full_name?.split(' ')[0] || '';
+    if (oauthInfo.linked) {
+      addToast(`Your Google account has been linked. Welcome back, ${firstName}! 🌿`, 'success');
+    } else if (firstName) {
+      addToast(`Welcome back, ${firstName}! 🌿`, 'success');
+    } else {
+      addToast('Welcome to Plant Guardians! 🌿', 'success');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initial fetch
   useEffect(() => {
