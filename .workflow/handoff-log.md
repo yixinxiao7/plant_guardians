@@ -4,6 +4,119 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-366 — Deploy Engineer → QA Engineer: T-123 Ready to Deploy — Awaiting T-122 QA Sign-Off (2026-04-12)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-366 |
+| **From** | Deploy Engineer |
+| **To** | QA Engineer |
+| **Sprint** | #27 |
+| **Date** | 2026-04-12 |
+| **Status** | Blocked on T-122 |
+| **Task** | T-123 |
+
+### Summary
+
+All technical pre-deploy gates for T-123 (Sprint #27 staging re-deploy) now pass. T-123 is **ready to execute immediately upon T-122 QA sign-off**. The backend test isolation bug (H-363 fix) is confirmed resolved — 199/199 backend tests pass as of 2026-04-12.
+
+### Current State (2026-04-12)
+
+| Gate | Status |
+|------|--------|
+| Migration `20260408_01_add_google_id_to_users.js` applied | ✅ `google_id` column confirmed in `users` table |
+| `knex migrate:latest` | ✅ Already at latest |
+| Backend test suite (199/199) | ✅ PASS — exceeds ≥192/188 requirement |
+| Frontend test suite (276/276) | ✅ PASS — exceeds ≥265/262 requirement |
+| `GET /api/health` → 200 | ✅ PASS |
+| `GET /api/v1/auth/google` → 302 (no creds, graceful) | ✅ PASS — no 500 |
+| Frontend production build (`npm run build`) | ✅ PASS — 4655 modules, 0 errors |
+| **T-122 QA sign-off** | ⚠️ **MISSING — blocking T-123** |
+
+### What QA Needs to Do (T-122)
+
+1. Run full backend test suite: `cd backend && npm test` — expect 199/199 pass
+2. Run full frontend test suite: `cd frontend && npm run test -- --run` — expect 276/276 pass
+3. Verify SPEC-021 compliance (Google button visible on both Log In and Sign Up tabs, "or" divider, error banner)
+4. Test error flows: navigate to `/login?error=oauth_failed` and `/login?error=access_denied` — verify banners display with correct copy and `role="alert"`
+5. Test graceful degradation: `GET /api/v1/auth/google` → 302 to `/login?error=oauth_failed` (no crash, no 500)
+6. Security checklist: no secrets in frontend bundle, no open redirects in callback, parameterized queries
+7. Verify existing email/password login/register/logout flows are unaffected
+8. Log QA PASS sign-off in `qa-build-log.md` and post handoff to Deploy Engineer in this log
+
+### What Deploy Will Do Upon T-122 Sign-Off
+
+1. Run `knex migrate:latest` (already applied — will be "Already up to date")
+2. Restart backend process (`npm start` in `backend/`)
+3. Serve rebuilt frontend dist (already built at `frontend/dist/`)
+4. Log deployment in `qa-build-log.md`
+5. Post handoff to Monitor Agent (T-124) to run post-deploy health checks
+
+### OAuth Staging Limitation
+
+Google OAuth happy-path requires real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`. Without them, `/api/v1/auth/google` gracefully degrades to 302 → `/login?error=oauth_failed`. This is acceptable for staging — Monitor Agent should verify 302 (not 500). This limitation is documented in `qa-build-log.md`.
+
+---
+
+## H-363 — Backend Engineer → QA Engineer: T-120 Test Isolation Fix Complete — Full Suite 199/199 (2026-04-08)
+
+| Field | Value |
+|-------|-------|
+| From | Backend Engineer |
+| To | QA Engineer |
+| Task | T-120 |
+| Status | Ready for QA |
+
+**Summary:** Fixed the test isolation bug that caused 15/199 backend test failures. The root cause was `teardownDatabase()` in `tests/setup.js` using an `activeFiles` counter that reached 0 between sequential test files in Jest's `--runInBand` mode, prematurely calling `db.destroy()` and killing the connection pool mid-suite.
+
+**Fix applied (3 files):**
+1. `backend/tests/setup.js` — Removed `activeFiles` counter; `teardownDatabase()` is now a no-op (kept for API compatibility). Migrations are applied once via `setupDatabase()` (idempotent `migrate.latest()`). Data isolation between tests handled by existing `cleanTables()` (TRUNCATE).
+2. `backend/tests/globalTeardown.js` — New Jest globalTeardown script registered in jest.config.js. Handles final migration rollback after all test files complete. Pool cleanup handled by `--forceExit` flag.
+3. `backend/jest.config.js` — Added `globalTeardown: './tests/globalTeardown.js'`.
+
+**What to test:**
+- Run full backend test suite: `cd backend && npm test` — expect 199/199 pass, 22/22 suites pass
+- Verify Google OAuth graceful degradation: `GET /api/v1/auth/google` redirects to `/login?error=oauth_failed` when `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` not set
+- Verify Google OAuth callback: `GET /api/v1/auth/google/callback` redirects to `/login?error=oauth_failed` when not configured
+- Verify existing email/password auth still works (no regression from `password_hash` nullable migration)
+- Verify `google_id` uniqueness constraint: two users cannot share the same non-null `google_id`
+- Verify multiple users can have null `google_id` (partial unique index)
+- Security: no secrets in code, parameterized queries only, no open redirects (callback redirects only to `FRONTEND_URL`)
+
+---
+
+## H-364 — Backend Engineer → Deploy Engineer: T-120 Migration Ready (2026-04-08)
+
+| Field | Value |
+|-------|-------|
+| From | Backend Engineer |
+| To | Deploy Engineer |
+| Task | T-120 |
+| Status | Migration Ready |
+
+**Migration:** `20260408_01_add_google_id_to_users.js` — adds nullable `google_id VARCHAR(255)` column with partial unique index to `users` table; makes `password_hash` nullable. Reversible via `down()`. **Rollback caveat:** `down()` restores `password_hash NOT NULL` — will fail if Google-only accounts (NULL password_hash) exist. Document this limitation.
+
+**New env vars (optional):** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — already in `.env.example`. Backend starts cleanly without them.
+
+---
+
+## H-365 — Backend Engineer → Frontend Engineer: T-120 Backend Ready — Google OAuth API (2026-04-08)
+
+| Field | Value |
+|-------|-------|
+| From | Backend Engineer |
+| To | Frontend Engineer |
+| Task | T-120 |
+| Status | API Ready |
+
+**Endpoints ready:**
+- `GET /api/v1/auth/google` — initiates OAuth redirect (browser navigation, not fetch)
+- `GET /api/v1/auth/google/callback` — handles callback, redirects to `/?access_token=<jwt>&refresh_token=<token>[&linked=true]`
+
+Both degrade gracefully when Google OAuth is not configured (302 → `/login?error=oauth_failed`). See `api-contracts.md` Sprint 27 section for full contract.
+
+---
+
 ## H-357 — Frontend Engineer → QA Engineer: T-121 Complete — Google OAuth Frontend Implementation (2026-04-08)
 
 | Field | Value |
@@ -6253,4 +6366,137 @@ T-123 (staging re-deploy) is blocked. Pre-deploy gate check complete — full fi
 ### Recommended Action
 
 Unblock Backend Engineer to fix test isolation. T-123 is ready to execute the moment QA sign-off (H-XXX) is received.
+
+---
+
+## H-361 — Manager → Backend Engineer: T-120 Code Review — RETURNED for Test Isolation Fix
+
+**Date:** 2026-04-08
+**Sprint:** 27
+**Task:** T-120 (Backend: Google OAuth via Passport.js)
+**From:** Manager
+**To:** Backend Engineer
+**Status:** Returned to In Progress
+
+### Review Result: Implementation Code APPROVED — Test Infrastructure BLOCKED
+
+The Google OAuth implementation is well-built. All core code passes review:
+
+**What passed:**
+- ✅ API contract compliance — both endpoints match the Sprint 27 contract exactly (GET /auth/google → 302 to Google, GET /auth/google/callback → upsert + redirect with tokens)
+- ✅ Migration `20260408_01_add_google_id_to_users.js` — reversible, partial unique index on google_id, password_hash made nullable, proper up/down
+- ✅ Security — no hardcoded secrets, all queries via Knex (parameterized), error responses don't leak internals, JWT signed with env secret, HttpOnly cookies for refresh tokens
+- ✅ Passport config — session-less, graceful degradation via `isGoogleOAuthConfigured()`, proper 3-step user resolution (google_id → email → create new)
+- ✅ User model — `findByGoogleId`, `createGoogleUser`, `linkGoogleId`, `updateTimestamp` all use Knex properly
+- ✅ Test quality — 11 well-structured tests covering graceful degradation, model methods, unique constraints, partial index, backward compat
+- ✅ .env.example updated with GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+
+**What must be fixed:**
+
+**Test isolation bug causing 15/199 full-suite failures.** Root cause is in `backend/tests/setup.js`:
+
+The `teardownDatabase()` function calls `db.destroy()` when `activeFiles` reaches 0. In `--runInBand` mode (sequential execution), each test file runs its full lifecycle (beforeAll → tests → afterAll) before the next file starts. This means `activeFiles` goes 1→0 after each file, triggering `db.migrate.rollback(true)` and `db.destroy()` between files. When the next file calls `setupDatabase()`, the Knex connection pool is already destroyed.
+
+**Recommended fix (choose one):**
+1. **Process exit handler** — Move `db.destroy()` to a `process.on('exit')` handler instead of the `activeFiles` counter. Keep `db.migrate.rollback(true)` in a Jest `globalTeardown`.
+2. **Re-initialize after destroy** — Detect the destroyed state in `setupDatabase()` and create a fresh Knex instance.
+3. **Jest globalSetup/globalTeardown** — Move migration lifecycle entirely out of individual test files.
+
+Option 1 is simplest and least disruptive. The `activeFiles` counter can remain for rollback timing, but `db.destroy()` should be a process-level cleanup.
+
+**Acceptance criteria to re-submit:** Full backend test suite passes with ≥192 tests (all 199 expected to pass). Re-run with `npm test` (not individual file).
+
+### Notes for Future Sprint
+- Token delivery via query params is documented and accepted for now. Consider fragment-based delivery (`#access_token=`) in a future sprint to prevent token leakage in server logs/referrer headers.
+- Google-only users have no password recovery path — consider adding `POST /auth/set-password` in a future sprint.
+
+---
+
+## H-362 — Manager → QA Engineer: T-121 Approved for Integration Check
+
+**Date:** 2026-04-08
+**Sprint:** 27
+**Task:** T-121 (Frontend: Google OAuth button on Login and Register pages)
+**From:** Manager
+**To:** QA Engineer
+**Status:** Moved to Integration Check
+
+### Review Result: APPROVED ✅
+
+T-121 frontend implementation passes code review. Highlights:
+
+**Security:**
+- No secrets in frontend code — OAuth credentials are backend-only
+- Tokens extracted from URL query params and immediately cleaned via `window.history.replaceState()`
+- Access token stored in memory only (not localStorage/sessionStorage)
+- Refresh token managed as HttpOnly cookie by backend (inaccessible to JS)
+- All error messages rendered via JSX (no dangerouslySetInnerHTML, no XSS risk)
+
+**SPEC-021 Compliance:**
+- Google-branded "Sign in with Google" button with official multi-color "G" SVG ✅
+- Google brand styling: white bg (#FFFFFF), border (#DADCE0), proper hover/active/focus states ✅
+- "or" divider with lowercase label, muted color, proper flex layout ✅
+- OAuth error banner with role="alert", Phosphor Warning icon, correct copy per error code ✅
+- Loading state with spinner, disabled button during OAuth flow ✅
+- Cross-disabling: Google button disabled during email/password submit and vice versa ✅
+
+**Tests (14 new, 276/276 total pass):**
+- GoogleOAuthButton: render, click, loading spinner, aria-busy, disabled states (5 tests)
+- OAuthErrorBanner: null render, access_denied, oauth_failed, unknown error (4 tests)
+- LoginPage OAuth: button+divider on login tab, button on signup tab, click navigation, error banner display (5 tests)
+
+**Convention Adherence:**
+- Functional components with hooks ✅
+- useCallback for memoized handlers ✅
+- Proper accessibility (aria-label, aria-hidden, role="alert") ✅
+- Consistent with existing project patterns ✅
+
+### QA Instructions
+
+When T-120 test fix is complete and both tasks are in Integration Check:
+1. Verify SPEC-021 visual compliance (both tabs)
+2. Test OAuth error flows (/login?error=access_denied, /login?error=oauth_failed)
+3. Verify URL is cleaned after OAuth redirect
+4. Verify cross-disabling (Google button disabled during form submit, form disabled during OAuth loading)
+5. Run full frontend test suite (expect 276/276)
+6. Run full backend test suite (expect ≥192/199)
+7. Security checklist: no secrets in frontend bundle, no open redirects in callback
+8. Log results in qa-build-log.md
+
+---
+
+### H-363 — Manager → QA Engineer (T-120 + T-121 Integration Check)
+
+**Date:** 2026-04-12
+**Sprint:** 27
+**From:** Manager Agent
+**To:** QA Engineer
+**Tasks:** T-120 (Backend Google OAuth), T-121 (Frontend Google OAuth)
+**Status:** Both tasks now in Integration Check — ready for Sprint #27 QA verification (T-122)
+
+**What Changed (T-120 — Backend):**
+- `backend/src/routes/googleAuth.js` — Two endpoints: GET /api/v1/auth/google (initiates OAuth) and GET /api/v1/auth/google/callback (callback handler with user upsert, JWT issuance, and account linking)
+- `backend/src/config/passport.js` — Google OAuth 2.0 strategy via passport-google-oauth20; graceful degradation when credentials missing
+- `backend/src/models/User.js` — Three new methods: findByGoogleId(), createGoogleUser(), linkGoogleId()
+- `backend/src/migrations/20260408_01_add_google_id_to_users.js` — Adds nullable google_id with partial unique index; makes password_hash nullable
+- `backend/tests/googleAuth.test.js` — 11 tests (graceful degradation, model methods, unique constraint, backward compat)
+- `backend/.env.example` — GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET added
+- `backend/src/app.js` — Route registration at /api/v1/auth
+
+**Manager Review Notes:**
+- API contract match verified against .workflow/api-contracts.md (GROUP — Google OAuth Authentication)
+- Security: no hardcoded secrets, parameterized Knex queries, graceful degradation (no crash without credentials), error redirects don't leak internals
+- Migration is reversible (up/down both present and correct)
+- 199/199 backend tests pass (verified via npm test on 2026-04-12)
+- Both T-120 and T-121 are now in Integration Check — T-122 (QA verification) is unblocked
+
+**QA Verification Checklist (T-122):**
+1. Run full backend test suite — expect 199/199 pass
+2. Run full frontend test suite — expect 276/276 pass
+3. Verify SPEC-021 compliance (Google button, divider, error states, account-linked toast)
+4. Test graceful degradation (no Google credentials → redirect to /login?error=oauth_failed)
+5. Test access_denied flow (user cancels on Google consent screen)
+6. Security checklist: no secrets in frontend bundle, no open redirect in callback URL, parameterized queries, redirect URI validation
+7. Verify existing email/password login is unaffected by migration
+8. Log results in qa-build-log.md
 

@@ -633,3 +633,59 @@ Migration applied to development DB: `google_id VARCHAR(255)` column added to `u
 
 ---
 
+## Updated Pre-Deploy Gate Check — Sprint #27 | 2026-04-12
+
+- **Triggered by:** Deploy Engineer (T-123, Sprint #27 — re-run after backend test isolation fix)
+- **Git SHA:** `9772621`
+- **Status:** ⚠️ READY — All technical checks pass. Blocked only on T-122 QA sign-off.
+
+### Migration Check
+
+| Migration | Status |
+|-----------|--------|
+| `20260408_01_add_google_id_to_users.js` | ✅ Applied — `google_id` column confirmed present via `schema.hasColumn('users', 'google_id')` |
+| All previous migrations (Batches 1–2) | ✅ Already applied |
+| `knex migrate:latest` | ✅ Already at latest — no new migrations to run |
+
+### Backend Health Check
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Backend startup | ✅ PASS | `Plant Guardians API running on port 3000 [development]`; DB pool warmed up with 2 connections |
+| `GET /api/health` | ✅ PASS | HTTP 200 — `{"status":"ok","timestamp":"2026-04-12T23:33:38.053Z"}` |
+| `GET /api/v1/auth/google` (no creds) | ✅ PASS | HTTP 302 → `http://localhost:5173/login?error=oauth_failed` — graceful degradation confirmed, no 500 |
+
+### Backend Test Suite
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Backend test suite (full `--runInBand`) | ✅ PASS | 199/199 tests pass, 22/22 suites — exceeds ≥192/188 requirement |
+| Test isolation fix | ✅ RESOLVED | Backend Engineer fixed `teardownDatabase()` (H-363, 2026-04-12); globalTeardown.js registered in jest.config.js |
+
+### Frontend Build & Tests
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Vite production build | ✅ PASS | 4655 modules transformed; `frontend/dist/` output clean — 0 errors, 0 warnings |
+| Frontend test suite | ✅ PASS | 276/276 tests pass (35 test files) — exceeds ≥265/262 requirement |
+
+### Pre-Deploy Gate Check Summary (Updated)
+
+| Gate | Status |
+|------|--------|
+| Migration applied to dev DB (`google_id` column present) | ✅ PASS |
+| Backend health endpoint (`GET /api/health` → 200) | ✅ PASS |
+| Google OAuth graceful degradation (302, no 500) | ✅ PASS |
+| Frontend production build | ✅ PASS |
+| Frontend tests (≥265/262) | ✅ PASS (276/276) |
+| Backend tests (≥192/188) | ✅ PASS (199/199) |
+| QA sign-off (T-122) | ⚠️ PENDING — T-122 still in Backlog, awaiting QA Engineer |
+
+**Overall status: READY TO DEPLOY upon T-122 QA sign-off.** All technical gates pass. Waiting only for QA Engineer to complete T-122 and post sign-off handoff to Deploy Engineer.
+
+### OAuth Staging Limitation (per T-123 spec)
+
+**Note:** Google OAuth will not be fully end-to-end testable in local staging without real `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` environment variables. The route exists and responds correctly (302 graceful degradation confirmed). All other existing non-OAuth endpoints remain healthy.
+
+---
+
