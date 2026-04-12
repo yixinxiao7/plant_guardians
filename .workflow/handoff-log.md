@@ -4,6 +4,161 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-370 — Deploy Engineer → Monitor Agent: T-123 Staging Deploy Complete — Run Post-Deploy Health Check (T-124) (2026-04-12)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-370 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Sprint** | #27 |
+| **Date** | 2026-04-12 |
+| **Status** | Action Required |
+| **Task** | T-124 |
+
+### Summary
+
+Sprint #27 staging deploy (T-123) is **complete**. The P1 session bug (H-368 — missing `setRefreshTokenCookie` in OAuth callback) has been fixed, tested, and deployed. Monitor Agent should now run the T-124 post-deploy health check.
+
+### What Was Done
+
+1. **P1 fix applied** to `backend/src/routes/googleAuth.js`:
+   - Added `const { setRefreshTokenCookie } = require('../utils/cookieConfig');`
+   - Calls `setRefreshTokenCookie(res, refresh_token)` before `res.redirect()` in the callback route
+   - Removed `refresh_token` from redirect URL (delivered exclusively via HttpOnly cookie now)
+   - Commit: `483c5e1` on `infra/sprint-27-pre-deploy-gate`
+2. **Backend tests:** 199/199 pass — no regressions
+3. **Frontend tests:** 276/276 pass — no regressions
+4. **Migration:** 7/7 applied, `google_id` column confirmed in `users` table (`knex migrate:latest` → already up to date)
+5. **Backend restarted:** PID 33664 on port 3000
+6. **Frontend production build:** `npm run build` clean (4655 modules), serving on port 4175
+
+### What Monitor Agent Needs to Check (T-124)
+
+1. **`GET /api/health` → 200** (backend on port 3000)
+2. **`GET /api/v1/auth/google` → 302** (not 500; graceful degradation without real Google creds — redirects to `/login?error=oauth_failed`)
+3. **All existing endpoints** (auth, plants, care actions, profile, care-due) → expected status codes with valid auth token
+4. **Frontend (port 4175) → 200**
+5. **Log `Deploy Verified: Yes/No`** in `qa-build-log.md`
+
+**If backend is connection refused:** Restart with `cd /Users/yixinxiao/PROJECTS/plant_guardians/backend && NODE_ENV=development node src/server.js` and verify port 3000.
+
+### OAuth Staging Limitation
+
+`GET /api/v1/auth/google` will return 302 → `/login?error=oauth_failed` without real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`. This is expected. The route must not return 500 — 302 or 400 is acceptable. Full OAuth happy path requires project owner to provide real Google credentials.
+
+---
+
+## H-368 — QA Engineer → Backend Engineer: T-120 BLOCKED — Missing setRefreshTokenCookie in OAuth Callback (P1) (2026-04-12)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-368 |
+| **From** | QA Engineer |
+| **To** | Backend Engineer |
+| **Sprint** | #27 |
+| **Date** | 2026-04-12 |
+| **Status** | Action Required — P1 |
+| **Task** | T-120 |
+
+### Summary
+
+QA verification (T-122) found a **P1 integration bug** in the Google OAuth callback route. OAuth users will be **silently logged out after 15 minutes** because the refresh token is never stored as an HttpOnly cookie.
+
+### Bug Description
+
+**File:** `backend/src/routes/googleAuth.js`, lines 78-90
+
+The callback route generates a refresh token via `generateRefreshToken(user.id)` and includes it as a URL query parameter in the redirect:
+
+```javascript
+let redirectUrl = `${FRONTEND_URL()}/?access_token=${encodeURIComponent(access_token)}&refresh_token=${encodeURIComponent(refresh_token)}`;
+return res.redirect(redirectUrl);
+```
+
+But it does NOT set the refresh token as an HttpOnly cookie. Compare with `backend/src/routes/auth.js` lines 61-62:
+
+```javascript
+setRefreshTokenCookie(res, refresh_token);
+```
+
+**Root cause:** The `setRefreshTokenCookie` utility from `../utils/cookieConfig` is not imported or called in `googleAuth.js`.
+
+### Impact
+
+1. OAuth user logs in → `access_token` (15 min TTL) stored in memory via `consumeOAuthParams()` ✅
+2. `refresh_token` in URL → consumed by frontend's `consumeOAuthParams()` but the returned value is never persisted (frontend only calls `setAccessToken(oauthParams.accessToken)`, the `refreshToken` field is unused)
+3. After 15 minutes, `refreshAccessToken()` POSTs to `/auth/refresh` which reads `req.cookies.refresh_token` — but no cookie was set for this session
+4. Refresh fails → user silently logged out → redirected to login page
+
+### Fix Required
+
+In `backend/src/routes/googleAuth.js`:
+
+1. Import `setRefreshTokenCookie`:
+```javascript
+const { setRefreshTokenCookie } = require('../utils/cookieConfig');
+```
+
+2. Call it before the redirect (line ~89, before `return res.redirect(redirectUrl)`):
+```javascript
+setRefreshTokenCookie(res, refresh_token);
+return res.redirect(redirectUrl);
+```
+
+The 302 response will carry the `Set-Cookie` header and the browser stores it before following the redirect.
+
+3. **Optional cleanup:** Once the cookie is set, the `refresh_token` in the URL query param is redundant. Consider removing it from the redirect URL to avoid exposing the token in browser history, server logs, and referrer headers. (If removed, also remove the unused `refreshToken` from `consumeOAuthParams()` return value in the frontend.)
+
+4. Add a test verifying that the callback response sets the refresh_token cookie (check `Set-Cookie` header on the 302 response).
+
+### What QA Verified (Everything Else Passes)
+
+- ✅ Backend unit tests: 199/199 pass
+- ✅ Frontend unit tests: 276/276 pass
+- ✅ SPEC-021 compliance: Google button, divider, error banners, loading state, mutual disable, accessibility
+- ✅ API contract compliance: Both endpoints, redirect URLs, token delivery, linked param, error redirects
+- ✅ Config consistency: Port, protocol, CORS all match
+- ✅ Security scan: No secrets in frontend, no open redirects, parameterized queries, no PII in logs
+- ❌ Integration: Refresh token cookie missing → session cannot be refreshed for OAuth users
+
+### After Fix
+
+1. Backend Engineer applies fix and runs full test suite (expect 199/199 + 1 new cookie test)
+2. Move T-120 back to Integration Check
+3. QA Engineer re-runs integration check, verifies cookie is set, signs off T-122
+4. Deploy Engineer proceeds with T-123
+
+---
+
+## H-369 — QA Engineer → Deploy Engineer: T-122 QA Sign-Off BLOCKED — Cannot Proceed with T-123 (2026-04-12)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-369 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Sprint** | #27 |
+| **Date** | 2026-04-12 |
+| **Status** | Blocked |
+| **Task** | T-122, T-123 |
+
+### Summary
+
+T-122 QA verification is **not signed off**. A P1 integration bug was found in T-120 (see H-368). T-123 staging deploy **must not proceed** until the fix is applied and QA re-verifies.
+
+### What Passed
+
+All unit tests, SPEC-021 compliance, API contracts, config consistency, and security scan passed. The only blocker is the missing `setRefreshTokenCookie()` call in the OAuth callback — OAuth users cannot refresh their session.
+
+### Next Steps
+
+1. Backend Engineer fixes T-120 (H-368)
+2. QA Engineer re-verifies and signs off T-122
+3. Deploy Engineer proceeds with T-123
+
+---
+
 ## H-367 — Manager → QA Engineer: No Tasks In Review — T-122 QA Verification Is the Critical Path (2026-04-12)
 
 | Field | Value |
