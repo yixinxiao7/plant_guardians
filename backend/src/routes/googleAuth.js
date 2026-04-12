@@ -14,6 +14,7 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const RefreshToken = require('../models/RefreshToken');
 const { isGoogleOAuthConfigured } = require('../config/passport');
+const { setRefreshTokenCookie } = require('../utils/cookieConfig');
 
 const FRONTEND_URL = () => {
   // Use first origin from FRONTEND_URL (comma-separated list) as the redirect target
@@ -79,8 +80,12 @@ router.get('/google/callback', (req, res, next) => {
       const access_token = generateAccessToken(user);
       const refresh_token = await generateRefreshToken(user.id);
 
-      // Build redirect URL with tokens as query params
-      let redirectUrl = `${FRONTEND_URL()}/?access_token=${encodeURIComponent(access_token)}&refresh_token=${encodeURIComponent(refresh_token)}`;
+      // Set refresh token as HttpOnly cookie (same as email/password login)
+      setRefreshTokenCookie(res, refresh_token);
+
+      // Build redirect URL with access token as query param
+      // refresh_token is delivered via cookie; no need to expose it in the URL
+      let redirectUrl = `${FRONTEND_URL()}/?access_token=${encodeURIComponent(access_token)}`;
 
       // Signal account-linking to frontend
       if (user._oauthAction === 'linked') {
