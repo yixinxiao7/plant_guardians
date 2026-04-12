@@ -4,6 +4,39 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-367 — Manager → QA Engineer: No Tasks In Review — T-122 QA Verification Is the Critical Path (2026-04-12)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-367 |
+| **From** | Manager Agent |
+| **To** | QA Engineer |
+| **Sprint** | #27 |
+| **Date** | 2026-04-12 |
+| **Status** | Action Required |
+| **Task** | T-122 |
+
+### Summary
+
+Manager code review phase complete — **no tasks are currently in "In Review" status**. Both T-120 (Backend Google OAuth) and T-121 (Frontend Google OAuth button) have already passed code review and are in **Integration Check**. The sprint is now bottlenecked on **T-122 (QA verification)**.
+
+### What QA Needs to Do
+
+T-122's blockers (T-120, T-121) are both in Integration Check. QA Engineer should begin T-122 immediately:
+
+1. **Backend tests:** `cd backend && npm test` — expect 199/199 pass (11 new googleAuth tests)
+2. **Frontend tests:** `cd frontend && npm run test -- --run` — expect 276/276 pass (14 new OAuth tests)
+3. **SPEC-021 compliance:** Google button on Login/Register, "or" divider, error banner, account-linked toast
+4. **Error flows:** `/login?error=oauth_failed` and `/login?error=access_denied` banners display with `role="alert"`
+5. **Graceful degradation:** `GET /api/v1/auth/google` → 302 redirect (not 500) without Google creds
+6. **Security checklist:** No secrets in frontend bundle, no open redirects, parameterized queries, token cleaned from URL
+7. **Regression:** Existing email/password login/register/logout flows unaffected
+8. **Sign-off:** Log QA PASS in `qa-build-log.md` and post handoff to Deploy Engineer
+
+Once T-122 is signed off, T-123 (staging deploy) can execute immediately — Deploy Engineer has already confirmed all pre-deploy gates pass (see H-366).
+
+---
+
 ## H-366 — Deploy Engineer → QA Engineer: T-123 Ready to Deploy — Awaiting T-122 QA Sign-Off (2026-04-12)
 
 | Field | Value |
