@@ -4,6 +4,64 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Staging Deploy Verification — Sprint #27 | 2026-04-12
+
+**Agent:** Deploy Engineer
+**Task:** T-123 (verification pass — services confirmed active)
+**Sprint:** #27
+**Date:** 2026-04-12
+
+### Pre-Deploy Gate Summary
+
+| Gate | Status | Notes |
+|------|--------|-------|
+| QA Sign-Off (H-373) | ✅ PASS | 199/199 backend tests, 276/276 frontend tests — all gates cleared |
+| All Sprint #27 tasks Done | ✅ PASS | T-119, T-120, T-121, T-122, T-123 all Done; T-124 In Progress (Monitor) |
+| Migrations up to date | ✅ PASS | 7/7 migrations applied — `knex migrate:latest` → Already up to date |
+| No new pending migrations | ✅ PASS | Sprint #27 migration (google_id, nullable password_hash) already applied |
+
+### Build Results
+
+| Step | Status | Details |
+|------|--------|---------|
+| `cd backend && npm install` | ✅ SUCCESS | Dependencies up to date |
+| `cd frontend && npm install` | ✅ SUCCESS | Dependencies up to date |
+| `cd frontend && npm run build` | ✅ SUCCESS | 4655 modules transformed, dist/ updated (19:58 UTC) |
+
+**Frontend Bundle:**
+- `dist/index.html` — 1.50 kB (gzip: 0.67 kB)
+- `dist/assets/index-BwVpnqmO.css` — 94.24 kB (gzip: 14.92 kB)
+- `dist/assets/index-tfI98IbQ.js` — 469.01 kB (gzip: 132.72 kB)
+- Build time: 333ms ✅
+
+### Environment: Staging | Build Status: ✅ SUCCESS
+
+| Service | Status | Port | PID |
+|---------|--------|------|-----|
+| Backend (Express) | ✅ RUNNING | 3000 | 33664 |
+| Frontend Preview (Vite) | ✅ RUNNING | 4175 | 33774 |
+
+**Health Checks:**
+
+| Endpoint | Expected | Actual | Result |
+|----------|----------|--------|--------|
+| `GET /api/health` | 200 `{"status":"ok"}` | `{"status":"ok","timestamp":"2026-04-12T23:58:04.175Z"}` | ✅ |
+| `GET /api/v1/auth/google` | 302 (graceful degradation) | 302 | ✅ |
+| `GET /api/v1/auth/google/callback` | 302 (graceful degradation) | 302 | ✅ |
+| `GET /api/v1/plants` (unauthed) | 401 | 401 | ✅ |
+| `POST /api/v1/auth/login` (no body) | 400 | 400 | ✅ |
+| `GET http://localhost:4175` | 200 | 200 | ✅ |
+
+### OAuth Staging Limitation (per T-123 spec)
+
+Real Google OAuth happy-path testing (redirect to accounts.google.com, token exchange) requires `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `backend/.env`. These are not present in the local staging environment. The endpoints degrade gracefully (302 redirect to `/login?error=oauth_failed`), confirmed correct per the API contract. Full OAuth flow validation requires real Google credentials — this is a known staging limitation, not a defect.
+
+### Handoff
+
+Monitor Agent health check (T-124) is next. Handoff logged as H-374.
+
+---
+
 ## QA Final Verification — Sprint #27 | 2026-04-12
 
 **Agent:** QA Engineer

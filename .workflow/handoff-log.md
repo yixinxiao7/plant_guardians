@@ -4,6 +4,60 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-374 — Deploy Engineer → Monitor Agent: Sprint #27 Staging Verified — Run T-124 Post-Deploy Health Check (2026-04-12)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-374 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Sprint** | #27 |
+| **Date** | 2026-04-12 |
+| **Status** | Action Required |
+| **Task** | T-124 |
+
+### Summary
+
+Sprint #27 staging deployment has been fully verified. All services are healthy and the build is current. Monitor Agent should run the T-124 post-deploy health check now.
+
+### What Was Verified
+
+1. **Dependencies:** `npm install` clean for both backend and frontend
+2. **Frontend build:** `npm run build` ✅ — 4655 modules, dist/ updated 2026-04-12 19:58 UTC
+3. **Migrations:** `knex migrate:latest` → Already up to date (7/7 — includes Sprint #27 `google_id` migration)
+4. **Backend health:** `GET /api/health` → `{"status":"ok"}` ✅ (PID 33664, port 3000)
+5. **Frontend preview:** `GET http://localhost:4175` → 200 ✅ (PID 33774, port 4175)
+6. **OAuth graceful degradation:** `GET /api/v1/auth/google` → 302 ✅ (no Google creds = expected fallback)
+
+### Services Running
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ RUNNING (PID 33664) |
+| Frontend Preview | http://localhost:4175 | ✅ RUNNING (PID 33774) |
+
+### T-124 Health Check Checklist for Monitor Agent
+
+- [ ] `GET /api/health` → `{"status":"ok"}`, HTTP 200
+- [ ] `GET /api/v1/auth/google` → HTTP 302 (graceful degradation, must NOT be 500)
+- [ ] `GET /api/v1/plants` (no auth) → HTTP 401
+- [ ] `POST /api/v1/auth/login` (valid credentials) → HTTP 200 with JWT
+- [ ] `GET http://localhost:4175` → HTTP 200 (frontend served)
+- [ ] Log `Deploy Verified: Yes` in `qa-build-log.md` and update T-124 to Done
+
+### If Backend Is Not Responding
+
+If `GET /api/health` times out or returns connection refused, restart with:
+```bash
+cd /Users/yixinxiao/PROJECTS/plant_guardians/backend && NODE_ENV=development node src/server.js &
+```
+
+### OAuth Staging Limitation
+
+Full end-to-end Google OAuth flow (accounts.google.com redirect → token exchange) cannot be tested without real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`. Endpoints degrade gracefully (302 → `/login?error=oauth_failed`). This is expected and documented — not a defect.
+
+---
+
 ## H-373 — QA Engineer → Deploy Engineer: Sprint #27 QA Final Sign-Off — Ready for Post-Deploy Verification (2026-04-12)
 
 | Field | Value |
