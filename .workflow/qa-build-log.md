@@ -4,6 +4,160 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## QA Final Verification — Sprint #27 | 2026-04-12
+
+**Agent:** QA Engineer
+**Task:** T-122 — Sprint #27 Full QA Verification (Final Pass)
+**Date:** 2026-04-12
+
+---
+
+### Unit Tests (Test Type: Unit Test)
+
+| Suite | Tests | Result |
+|-------|-------|--------|
+| Backend (22 suites) | 199/199 pass | ✅ PASS |
+| Frontend (35 suites) | 276/276 pass | ✅ PASS |
+
+**Backend exceeds target:** 199 ≥ 192 (acceptance criterion). **Frontend exceeds target:** 276 ≥ 265.
+
+**Sprint #27 OAuth Test Coverage:**
+
+| Test File | Tests | Coverage |
+|-----------|-------|----------|
+| `backend/tests/googleAuth.test.js` | 11 tests | Graceful degradation (no creds), user model (create Google user, find by google_id, link google_id, unique constraint, null google_id partial index), email/password regression |
+| `frontend/src/__tests__/GoogleOAuthButton.test.jsx` | 5 tests | Render, click, loading spinner, disabled states |
+| `frontend/src/__tests__/OAuthErrorBanner.test.jsx` | 4 tests | Null (renders nothing), access_denied, oauth_failed, unknown error |
+| `frontend/src/__tests__/LoginPage.test.jsx` | 10 tests | Google button on Log In tab, Google button on Sign Up tab, click navigates to /api/v1/auth/google, OAuth error banners (oauth_failed, access_denied), plus existing login tests |
+
+Happy-path and error-path coverage verified for all new endpoints/components. ✅
+
+---
+
+### Integration Tests (Test Type: Integration Test)
+
+**API Contract Compliance:**
+
+| Check | Result | Details |
+|-------|--------|---------|
+| `GET /api/v1/auth/google` exists | ✅ PASS | Returns 302 redirect (graceful degradation without real Google creds) |
+| `GET /api/v1/auth/google/callback` exists | ✅ PASS | Returns 302 redirect on error/no-config paths |
+| Callback handles `error=access_denied` | ✅ PASS | Redirects to `/login?error=access_denied` |
+| Callback issues JWT + refresh token cookie | ✅ PASS | `setRefreshTokenCookie(res, refresh_token)` confirmed in code (line 84) |
+| Account linking sets `linked=true` param | ✅ PASS | Code line 92: `redirectUrl += '&linked=true'` |
+| Error path redirects to `/login?error=oauth_failed` | ✅ PASS | All error branches redirect correctly |
+
+**Frontend ↔ Backend Integration:**
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Google button click → `window.location.href = '/api/v1/auth/google'` | ✅ PASS | Verified in LoginPage.test.jsx |
+| Frontend reads `access_token` from callback URL | ✅ PASS | `useAuth.jsx:consumeOAuthParams()` reads from `window.location.search` |
+| Frontend cleans tokens from URL via `replaceState` | ✅ PASS | `useAuth.jsx:24` — no token exposure in browser history |
+| Frontend handles `linked=true` param → toast | ✅ PASS | `InventoryPage.jsx:54` shows account-linked toast |
+| Frontend handles `?error=` param → OAuthErrorBanner | ✅ PASS | LoginPage renders `<OAuthErrorBanner>` from URL search params |
+| Refresh token delivered via HttpOnly cookie (not URL) | ✅ PASS | P1 fix (commit 483c5e1) removed `refresh_token` from URL |
+
+**UI States (SPEC-021 Compliance):**
+
+| State | Result | Details |
+|-------|--------|---------|
+| Google button visible on Log In tab | ✅ PASS | Renders with "Sign in with Google" label |
+| Google button visible on Sign Up tab | ✅ PASS | Same button after tab switch |
+| "or" divider between Google button and form | ✅ PASS | Verified in tests and code |
+| Google brand styling (SVG logo, correct colors) | ✅ PASS | Multi-color "G" SVG (#4285F4, #34A853, #FBBC05, #EA4335) |
+| Loading state (spinner, disabled) | ✅ PASS | `loading` prop shows spinner, sets aria-busy |
+| Error state: `oauth_failed` | ✅ PASS | "Something went wrong" banner with role="alert" |
+| Error state: `access_denied` | ✅ PASS | "You cancelled" banner with role="alert" |
+| Error state: unknown code | ✅ PASS | Generic fallback message |
+| Account-linked toast on redirect | ✅ PASS | "Your Google account has been linked" toast (5s) |
+| Accessibility: aria-hidden on decorative SVG | ✅ PASS | `aria-hidden="true"` on Google logo SVG |
+| Accessibility: role="alert" on error banner | ✅ PASS | `<div role="alert">` in OAuthErrorBanner |
+
+**Documentation Issue (Non-blocking):**
+
+The API contract (`api-contracts.md` lines 4311-4336) still documents `refresh_token` in the redirect URL query params. After the P1 fix (H-370, commit 483c5e1), the refresh token is delivered exclusively via HttpOnly cookie. The contract should be updated to reflect this. **Not a code bug — documentation only.** Handoff created for Backend Engineer.
+
+---
+
+### Config Consistency Check (Test Type: Config Consistency)
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Backend PORT (3000) matches vite proxy target | ✅ PASS | `vite.config.js`: `backendTarget = 'http://localhost:3000'` |
+| Vite proxy uses http:// (no SSL in dev) | ✅ PASS | No SSL configured; `http://` is correct |
+| CORS_ORIGIN includes `http://localhost:5173` | ✅ PASS | `FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` |
+| Docker postgres port matches DATABASE_URL | ✅ PASS | Both use port 5432 for dev, 5433 for test |
+| `.env.example` has Google OAuth placeholders | ✅ PASS | `GOOGLE_CLIENT_ID=your_google_client_id_here`, `GOOGLE_CLIENT_SECRET=your_google_client_secret_here` |
+
+No config consistency issues found. ✅
+
+---
+
+### Security Scan (Test Type: Security Scan)
+
+**Security Checklist Verification:**
+
+| Item | Result | Details |
+|------|--------|---------|
+| **Auth & Authorization** | | |
+| All API endpoints require auth | ✅ PASS | OAuth endpoints are public (correct — browser navigation). All plant/care/profile endpoints require JWT. |
+| Auth tokens have expiration | ✅ PASS | JWT 15m expiry, refresh token 7 days |
+| Password hashing uses bcrypt | ✅ PASS | bcrypt with 12 rounds (confirmed in test file) |
+| **Input Validation & Injection** | | |
+| SQL uses parameterized queries (Knex) | ✅ PASS | All DB queries use Knex query builder |
+| HTML output sanitized (XSS) | ✅ PASS | React auto-escapes JSX output |
+| **API Security** | | |
+| CORS configured for expected origins only | ✅ PASS | `FRONTEND_URL` whitelist in `.env` |
+| Rate limiting on public endpoints | ✅ PASS | Auth endpoints rate-limited (10 req/15min) |
+| Error responses don't leak internals | ✅ PASS | OAuth errors redirect with generic codes (`oauth_failed`, `access_denied`), no stack traces |
+| **OAuth-Specific Security** | | |
+| No GOOGLE_CLIENT_SECRET in frontend code | ✅ PASS | Grep confirmed zero matches in `frontend/src/` |
+| No JWT_SECRET in frontend code | ✅ PASS | Grep confirmed zero matches |
+| No secrets in git-tracked files | ✅ PASS | `.env` is in `.gitignore`; not tracked |
+| Refresh token in HttpOnly cookie (not URL) | ✅ PASS | P1 fix applied — `setRefreshTokenCookie()` called, `refresh_token` removed from redirect URL |
+| Access token cleaned from URL after read | ✅ PASS | `window.history.replaceState` removes token from browser history |
+| No open redirect vulnerability | ✅ PASS | `FRONTEND_URL()` is server-controlled from env; user input never used in redirect target |
+| OAuth session: false (no Passport sessions) | ✅ PASS | `session: false` in both passport.authenticate calls |
+| Cookie: httpOnly=true, secure in production | ✅ PASS | `cookieConfig.js` enforces httpOnly, secure when production/sameSite=none |
+| **Infrastructure** | | |
+| Dependencies checked for vulnerabilities | ⚠️ NOTE | `npm audit`: 1 moderate vulnerability in `nodemailer` (CRLF injection in EHLO/HELO). Not Sprint #27 related. Fix available via `npm audit fix`. |
+| `.env` not committed to git | ✅ PASS | `.gitignore` includes `.env` |
+| `.env.example` has placeholder values only | ✅ PASS | No real secrets in `.env.example` |
+
+**Security Scan Result: ✅ PASS** — No P1 security issues. The nodemailer vulnerability is pre-existing (not Sprint #27) and moderate severity — logged as advisory.
+
+---
+
+### Product-Perspective Testing (Test Type: Product Perspective)
+
+**Tested from the perspective of a "plant killer" user (target persona):**
+
+1. **Google OAuth flow (no real creds):** Clicking "Sign in with Google" redirects to `/login?error=oauth_failed` — graceful degradation. Error banner is clear and non-scary. User can fall back to email/password. ✅
+2. **Existing email/password login:** Verified unaffected by Sprint #27 changes. Login returns 200 with valid JWT. ✅
+3. **Registration flow:** Still works. New users not forced into Google OAuth. ✅
+4. **Account linking logic:** Code correctly links by email match, sets `linked=true` flag. No duplicate accounts created. ✅
+5. **Button UX:** Google button disabled during loading prevents double-click. Mutual disable with email form prevents race conditions. ✅
+6. **Accessibility:** `role="alert"` on error banners, `aria-hidden` on decorative icons, `aria-busy` on loading state. Screen reader-friendly. ✅
+
+---
+
+### QA Sign-Off Summary
+
+| Criterion | Target | Actual | Result |
+|-----------|--------|--------|--------|
+| Backend tests | ≥ 192/188 | 199/199 | ✅ PASS |
+| Frontend tests | ≥ 265/262 | 276/276 | ✅ PASS |
+| SPEC-021 compliance | All states | All verified | ✅ PASS |
+| API contract compliance | Match contract | Match (1 doc-only issue) | ✅ PASS |
+| Config consistency | No mismatches | No mismatches | ✅ PASS |
+| Security checklist | All items pass | All pass (1 pre-existing advisory) | ✅ PASS |
+| No regressions | Zero | Zero | ✅ PASS |
+
+**QA Sign-Off: ✅ APPROVED** — Sprint #27 passes all verification gates. T-121 cleared for Done. T-123 deploy confirmed good. Ready for T-124 post-deploy health check.
+
+---
+
 ## Staging Deploy — Sprint #27 | 2026-04-12
 
 **Agent:** Deploy Engineer

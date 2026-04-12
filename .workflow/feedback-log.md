@@ -20,6 +20,106 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-117 — QA: Positive — Google OAuth implementation is clean, secure, and user-friendly (Sprint 27 Final)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-117 |
+| Source | QA Engineer |
+| Sprint | 27 |
+| Category | Positive |
+| Severity | N/A |
+| Description | The Sprint #27 Google OAuth implementation is well-executed across the full stack. The Passport.js strategy with graceful degradation, the account-linking logic (find by google_id → find by email → create new), and the HttpOnly cookie token delivery (after P1 fix) are all solid. The frontend Google button follows brand guidelines with the multi-color "G" SVG, the "or" divider is clean, and the error/loading/disabled states are all handled. The `replaceState` URL cleanup and mutual button disable during loading are thoughtful security and UX touches. 199/199 backend tests and 276/276 frontend tests with zero regressions. This feature delivers on the sprint goal of reducing signup friction for "plant killer" users. |
+| Status | New |
+
+---
+
+## FB-118 — QA: Observation — nodemailer moderate vulnerability (pre-existing, not Sprint 27)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-118 |
+| Source | QA Engineer |
+| Sprint | 27 |
+| Category | Suggestion |
+| Severity | Minor |
+| Description | `npm audit` reports 1 moderate vulnerability in `nodemailer` (≤8.0.4) — SMTP command injection via CRLF in transport name option (GHSA-vvjj-xcjg-gr5g). Fix available via `npm audit fix`. This is pre-existing and not Sprint #27 related, but should be addressed in a housekeeping pass. Email sending is currently disabled (no SMTP credentials configured), so the practical risk is low. |
+| Status | New |
+
+---
+
+## FB-119 — QA: Observation — API contract for /auth/google/callback needs refresh_token delivery update (Sprint 27)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-119 |
+| Source | QA Engineer |
+| Sprint | 27 |
+| Category | UX Issue |
+| Severity | Minor |
+| Description | The API contract in `api-contracts.md` still documents `refresh_token` in the callback redirect URL. After the P1 fix (H-370), refresh token is delivered exclusively via HttpOnly cookie. The contract should be updated to match the actual (and more secure) implementation. Handoff H-372 created for Backend Engineer. |
+| Status | New |
+
+---
+
+## FB-113 — QA: Bug — OAuth users silently logged out after 15 minutes (Sprint 27)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-113 |
+| Source | QA Engineer |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Critical |
+| Description | Users who sign in via Google OAuth will be silently logged out after 15 minutes (when the JWT access token expires). The refresh token is passed in the URL but never stored as an HttpOnly cookie, so the silent refresh mechanism fails. For the target "plant killer" persona who may have long gaps between interactions, this means they'd need to re-authenticate via Google every time they return — destroying the "one-tap onboarding" value proposition of Sprint 27. |
+| Steps to Reproduce | 1. Click "Sign in with Google" → complete OAuth flow → land on `/` with valid session. 2. Wait 15+ minutes (or manually expire the access token). 3. Perform any authenticated action (e.g., view plants). 4. Session refresh fails → user redirected to login page. |
+| Expected vs Actual | **Expected:** Session persists via refresh token cookie, same as email/password users. **Actual:** No refresh token cookie set; session cannot be refreshed. |
+| Status | Resolved — P1 fix applied by Deploy Engineer (H-370, commit 483c5e1). `setRefreshTokenCookie` now called in OAuth callback. 199/199 tests pass. Verified in QA final pass 2026-04-12. |
+
+---
+
+## FB-114 — QA: Positive — Graceful OAuth degradation is exactly right for staging (Sprint 27)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-114 |
+| Source | QA Engineer |
+| Sprint | 27 |
+| Category | Positive |
+| Severity | — |
+| Description | The graceful degradation when `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are absent is well-implemented. Both endpoints return 302 → `/login?error=oauth_failed` instead of crashing with a 500. The `isGoogleOAuthConfigured()` check is clean and the Passport strategy simply isn't registered when credentials are missing. This means staging and dev environments work without real Google credentials — the routes exist, respond, and degrade gracefully. No code changes needed when real credentials are eventually provided. |
+| Status | Acknowledged |
+
+---
+
+## FB-115 — QA: Positive — OAuth token cleanup from URL is a good security practice (Sprint 27)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-115 |
+| Source | QA Engineer |
+| Sprint | 27 |
+| Category | Positive |
+| Severity | — |
+| Description | The frontend immediately cleans OAuth tokens from the URL via `window.history.replaceState` in `consumeOAuthParams()`. This prevents tokens from appearing in browser history, the back button URL, or accidental sharing. The error param is also cleaned in `LoginPage.jsx`. The `_oauthAction` pattern (returning, linked, new) for controlling toast behavior is a clean approach to passing context through the OAuth redirect without adding more URL params. |
+| Status | Acknowledged |
+
+---
+
+## FB-116 — QA: Positive — Mutual button disable prevents double-submit race (Sprint 27)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-116 |
+| Source | QA Engineer |
+| Sprint | 27 |
+| Category | Positive |
+| Severity | — |
+| Description | The `anyLoading = loading || oauthLoading` pattern in LoginPage disables both the Google button and the email/password submit button when either is in progress. This prevents a race condition where a user could click both buttons simultaneously. The loading states are also properly reflected in aria attributes (`aria-busy`, `disabled`). Good attention to accessibility. |
+| Status | Acknowledged |
+
+---
+
 ## FB-111 — QA: Positive — Unsubscribe CTA differentiation is a thoughtful UX improvement (Sprint 26)
 
 | Field | Value |
