@@ -4,6 +4,78 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #27 — 2026-06-07 to 2026-06-13
+
+**Sprint Goal:** Reduce signup friction for "plant killer" users by adding Google OAuth (Sign in with Google) — so new users can onboard in one tap instead of filling in a registration form.
+
+**Outcome:** ✅ Goal fully met — all six tasks (T-119 through T-124) completed. One P1 regression discovered mid-sprint (FB-113: refresh token cookie missing from OAuth callback) and fixed same-day by Deploy Engineer (H-370, commit 483c5e1) before staging deploy. Backend: 199/199 tests pass (+11 new OAuth tests). Frontend: 276/276 tests pass (+14 new OAuth/UI tests). Staging deploy successful. **Deploy Verified: Yes** (Monitor Agent H-375, 2026-04-12). Fourteenth consecutive sprint with zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-119 | Design: SPEC-021 — Google OAuth login/register UI spec — extended SPEC-001 with Google-branded button placement, "or" divider, post-OAuth redirect flow (→ /), and account-linking edge case UX (same email → auto-link with toast confirmation). Gated T-120 and T-121. |
+| T-120 | Backend: Google OAuth via Passport.js — added `passport-google-oauth20`; migration adding nullable `google_id VARCHAR(255) UNIQUE` to users table; `GET /api/v1/auth/google` (initiates OAuth); `GET /api/v1/auth/google/callback` (upserts user, issues JWT via HttpOnly cookie, handles account linking for matching email); graceful degradation when Google credentials absent; P1 fix (H-370) applied to add `setRefreshTokenCookie` call in callback; 11 new tests; 199/199 backend tests pass; API contract published. |
+| T-121 | Frontend: "Sign in with Google" button on Login and Register pages — Google-branded multi-color "G" SVG button, "or" divider, redirect to `/api/v1/auth/google`, `consumeOAuthParams()` with `window.history.replaceState` URL cleanup, mutual button disable (`anyLoading` pattern), toast differentiation (`_oauthAction`: returning/linked/new), inline error on callback error param; 14 new tests; 276/276 frontend tests pass. |
+| T-122 | QA: Full regression + OAuth flow verification — 199/199 backend, 276/276 frontend; SPEC-021 compliance verified; security checklist pass (no secrets in frontend, HttpOnly cookie delivery, no open redirects, graceful degradation without real Google creds); P1 fix re-verified post-H-370. |
+| T-123 | Deploy: Staging redeploy — 7/7 migrations applied (`google_id` column confirmed); backend restarted (PID 33664, port 3000); frontend production build (4655 modules, 19:58 UTC); OAuth staging limitation documented in qa-build-log.md. |
+| T-124 | Monitor: Post-deploy health check — all 13 checks PASS; config consistency PASS (port 3000, HTTP protocol, CORS, Docker); all API endpoints returned expected status codes; `GET /api/v1/auth/google` → 302 graceful degradation; no 5xx; live DB data confirmed. Deploy Verified: Yes. |
+
+---
+
+#### Tasks Carried Over
+
+None. Fourteenth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. **Deploy Verified: Yes** (Monitor Agent H-375, 2026-04-12). All 13 health checks passed. Note: one P1 integration issue (FB-113) was discovered during QA and fixed within the same sprint cycle before staging deploy — it is not a carry-over, as it was resolved before T-122 final sign-off.
+
+---
+
+#### Key Feedback Themes
+
+- **FB-113** (Critical Bug — Resolved): OAuth callback did not call `setRefreshTokenCookie`, causing OAuth users to be silently logged out after 15 minutes. P1 hotfix applied same-day (Deploy Engineer, H-370, commit 483c5e1). `setRefreshTokenCookie` now called in `googleAuth.js`; `refresh_token` removed from redirect URL (security improvement). 199/199 tests re-verified.
+- **FB-114** (Positive): Graceful OAuth degradation when `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are absent is well-implemented — 302 → `/login?error=oauth_failed` instead of 500. Routes exist and degrade cleanly in staging/dev without real credentials.
+- **FB-115** (Positive): OAuth token URL cleanup via `window.history.replaceState` in `consumeOAuthParams()` is a solid security practice — prevents tokens in browser history or back-button URL. The `_oauthAction` pattern for toast control is clean.
+- **FB-116** (Positive): Mutual button disable (`anyLoading = loading || oauthLoading`) prevents double-submit race. `aria-busy` / `disabled` attributes reflect loading state correctly.
+- **FB-117** (Positive): Overall OAuth implementation is well-executed across the full stack. Account-linking logic, HttpOnly cookie delivery, and UI states are all correctly implemented.
+- **FB-118** (Minor Suggestion → Tasked T-127): `nodemailer` moderate vulnerability (GHSA-vvjj-xcjg-gr5g) reported by `npm audit`. Pre-existing. SMTP currently disabled so practical risk is low. Fix via `npm audit fix` tasked for Sprint #28.
+- **FB-119** (Minor UX Issue → Tasked T-127): `api-contracts.md` still documents `refresh_token` in the OAuth callback redirect URL — should reflect HttpOnly cookie delivery after H-370 fix. Tasked for Sprint #28.
+
+---
+
+#### What Went Well
+
+- P1 bug (FB-113, missing refresh cookie) discovered and fixed within the same sprint cycle — zero carry-over impact
+- `setRefreshTokenCookie` fix also removed `refresh_token` from redirect URL, a security improvement over the original spec
+- Graceful OAuth degradation without real Google credentials is architecturally correct — no credential-gated blockers in staging
+- `consumeOAuthParams()` URL cleanup and `_oauthAction` toast differentiation are thoughtful UX touches that went beyond the spec
+- 199/199 backend and 276/276 frontend tests — both well above acceptance criteria thresholds
+- Fourteenth consecutive sprint with zero carry-over tasks
+
+#### What To Improve
+
+- The P1 refresh cookie miss was a spec gap: the OAuth callback spec should have explicitly required `setRefreshTokenCookie` (same as the email/password flow). Future OAuth-adjacent tasks should cross-check against the full auth session lifecycle.
+- API contract was not updated to reflect the P1 fix before QA sign-off — caught by FB-119. Contract should be updated in the same commit/task as the fix.
+
+#### Technical Debt Noted
+
+- `nodemailer` moderate vulnerability — tasked T-127 (Sprint #28 housekeeping)
+- `api-contracts.md` OAuth callback section documents stale `refresh_token` in redirect URL — tasked T-127
+- Express 5 migration — advisory backlog; no urgency
+- Soft-delete / grace period for account deletion — post-MVP
+- Production deployment blocked on project owner providing SSL certificates
+- Production email delivery blocked on project owner providing SMTP credentials
+- Local process-based staging is not persistent — Monitor Agent must restart backend if connection refused before health checks
+- Real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` needed for full end-to-end OAuth staging test
+
+---
+
 ### Sprint #26 — 2026-05-24 to 2026-05-30
 
 **Sprint Goal:** Harden test reliability and polish edge-case UX — fix timezone-dependent flakiness in `careActionsStreak.test.js` (T-117) and improve the unsubscribe error page CTA to be contextually appropriate for deleted-account users (T-118).

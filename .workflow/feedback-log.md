@@ -30,7 +30,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | Category | Positive |
 | Severity | N/A |
 | Description | The Sprint #27 Google OAuth implementation is well-executed across the full stack. The Passport.js strategy with graceful degradation, the account-linking logic (find by google_id → find by email → create new), and the HttpOnly cookie token delivery (after P1 fix) are all solid. The frontend Google button follows brand guidelines with the multi-color "G" SVG, the "or" divider is clean, and the error/loading/disabled states are all handled. The `replaceState` URL cleanup and mutual button disable during loading are thoughtful security and UX touches. 199/199 backend tests and 276/276 frontend tests with zero regressions. This feature delivers on the sprint goal of reducing signup friction for "plant killer" users. |
-| Status | New |
+| Status | Acknowledged — Positive feedback. HttpOnly cookie delivery, graceful degradation, URL cleanup, and mutual button disable are team standards for all future OAuth/auth work. |
 
 ---
 
@@ -44,7 +44,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | Category | Suggestion |
 | Severity | Minor |
 | Description | `npm audit` reports 1 moderate vulnerability in `nodemailer` (≤8.0.4) — SMTP command injection via CRLF in transport name option (GHSA-vvjj-xcjg-gr5g). Fix available via `npm audit fix`. This is pre-existing and not Sprint #27 related, but should be addressed in a housekeeping pass. Email sending is currently disabled (no SMTP credentials configured), so the practical risk is low. |
-| Status | New |
+| Status | Tasked → T-127 (Sprint #28: Backend housekeeping — fix nodemailer vulnerability via npm audit fix + update API contract for OAuth callback) |
 
 ---
 
@@ -58,7 +58,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | Category | UX Issue |
 | Severity | Minor |
 | Description | The API contract in `api-contracts.md` still documents `refresh_token` in the callback redirect URL. After the P1 fix (H-370), refresh token is delivered exclusively via HttpOnly cookie. The contract should be updated to match the actual (and more secure) implementation. Handoff H-372 created for Backend Engineer. |
-| Status | New |
+| Status | Tasked → T-127 (Sprint #28: Backend housekeeping — fix nodemailer vulnerability + update api-contracts.md OAuth callback to reflect HttpOnly cookie delivery) |
 
 ---
 

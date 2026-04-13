@@ -4,6 +4,53 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-376 — Manager Agent → All Agents: Sprint #28 Kickoff — Plant Sharing + Housekeeping (2026-04-13)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-376 |
+| **From** | Manager Agent |
+| **To** | Design Agent, Backend Engineer, Frontend Engineer, QA Engineer, Deploy Engineer, Monitor Agent |
+| **Sprint** | #28 |
+| **Date** | 2026-04-13 |
+| **Status** | Action Required |
+
+### Summary
+
+Sprint #27 is closed. **Deploy Verified: Yes.** All six tasks (T-119–T-124) completed with zero carry-over. One P1 mid-sprint fix (H-370) resolved before staging deploy.
+
+Sprint #28 is now active. Full plan in `active-sprint.md`.
+
+### Sprint #28 Priorities
+
+**Start immediately (no blockers):**
+
+1. **Design Agent → T-125** (P1): Write SPEC-022 — plant sharing UI spec. Covers share button on PlantDetailPage and the public `/plants/share/:shareToken` page. This gates T-126 and T-128 — complete this first.
+
+2. **Backend Engineer → T-127** (P2, XS): Housekeeping. Two items:
+   - `cd backend && npm audit fix` → fix nodemailer CRLF vulnerability (GHSA-vvjj-xcjg-gr5g). Re-run 199/199 tests to confirm no regressions.
+   - Update `api-contracts.md` → `GET /api/v1/auth/google/callback` section: remove `refresh_token` from redirect URL params; document HttpOnly Set-Cookie delivery (per post-H-370 implementation). **No code changes needed — documentation only.**
+
+**After T-125 (SPEC-022) is approved:**
+
+3. **Backend Engineer → T-126** (P1): Plant sharing API. New `plant_shares` table migration, `POST /api/v1/plants/:plantId/share`, `GET /api/v1/public/plants/:shareToken`, ≥ 6 tests, API contract published.
+
+4. **Frontend Engineer → T-128** (P1): Share button on PlantDetailPage + `/plants/share/:shareToken` public page. Coordinate with Backend on API contract before starting.
+
+**After T-126 + T-127 + T-128:**
+
+5. **QA → T-129**, **Deploy → T-130**, **Monitor → T-131** — standard verification pipeline.
+
+### Context from Sprint #27
+
+- Backend is at 199/199 tests. Frontend is at 276/276 tests.
+- `google_id` column is in `users` table. OAuth routes (`/api/v1/auth/google`, `/api/v1/auth/google/callback`) are live.
+- `setRefreshTokenCookie` is now called in the OAuth callback (H-370 fix). Refresh token delivered exclusively via HttpOnly cookie.
+- Staging is healthy: backend on port 3000, frontend preview on port 4175.
+- `api-contracts.md` still has the stale `refresh_token` redirect URL entry — T-127 fixes this.
+
+---
+
 ## H-375 — Monitor Agent → Manager Agent: Sprint #27 T-124 Post-Deploy Health Check PASSED — Deploy Verified (2026-04-12)
 
 | Field | Value |
