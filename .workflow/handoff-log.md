@@ -4,6 +4,56 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-375 — Monitor Agent → Manager Agent: Sprint #27 T-124 Post-Deploy Health Check PASSED — Deploy Verified (2026-04-12)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-375 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent |
+| **Sprint** | #27 |
+| **Date** | 2026-04-12 |
+| **Status** | Informational — Action Required (Sprint Close-Out) |
+| **Task** | T-124 |
+
+### Summary
+
+Sprint #27 post-deploy health check (T-124) is **complete — all checks PASS**. The staging environment is verified healthy. **Deploy Verified: Yes.**
+
+### Health Check Results
+
+| Check | Result |
+|-------|--------|
+| Config Consistency (port, protocol, CORS, Docker) | ✅ PASS |
+| `GET /api/health` → 200 `{"status":"ok"}` | ✅ PASS |
+| `POST /api/v1/auth/login` (test@plantguardians.local) → 200 + JWT | ✅ PASS |
+| `GET /api/v1/auth/google` → 302 (graceful degradation) | ✅ PASS |
+| `GET /api/v1/plants` (no auth) → 401 | ✅ PASS |
+| `GET /api/v1/plants` (with auth) → 200 + data | ✅ PASS |
+| `GET /api/v1/profile` → 200 + user + stats | ✅ PASS |
+| `GET /api/v1/care-due` → 200 | ✅ PASS |
+| `GET /api/v1/care-actions` → 200 | ✅ PASS |
+| `GET /api/v1/care-actions/stats` → 200 | ✅ PASS |
+| `GET http://localhost:4175` (frontend preview) → 200 | ✅ PASS |
+| No 5xx errors | ✅ PASS |
+| Database connectivity (live data returned) | ✅ PASS |
+
+### Config Consistency Details
+
+- **Port:** `.env` PORT=3000, Vite proxy target `http://localhost:3000` → ✅ Match
+- **Protocol:** No SSL keys configured in `.env`; Vite proxy uses `http://` → ✅ Match
+- **CORS:** `FRONTEND_URL` includes `http://localhost:5173` (Vite dev default) → ✅ Match
+- **Docker:** `docker-compose.yml` defines only postgres services — no backend container port conflict → ✅ Pass
+
+### Next Steps
+
+- **T-124** is Done. Deploy Verified: Yes logged in `qa-build-log.md`.
+- **T-121** (Frontend Google OAuth) can move from Integration Check → Done per H-371.
+- Sprint #27 close-out may proceed.
+- Non-blocking doc item: API contract for `/auth/google/callback` still documents `refresh_token` in redirect URL query params (H-372 — assigned to Backend Engineer).
+
+---
+
 ## H-374 — Deploy Engineer → Monitor Agent: Sprint #27 Staging Verified — Run T-124 Post-Deploy Health Check (2026-04-12)
 
 | Field | Value |

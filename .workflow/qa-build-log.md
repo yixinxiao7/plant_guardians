@@ -4,6 +4,75 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Post-Deploy Health Check — Sprint #27 | 2026-04-12
+
+**Agent:** Monitor Agent
+**Task:** T-124 — Post-Deploy Health Check
+**Sprint:** #27
+**Date:** 2026-04-12T23:59:00Z
+**Environment:** Staging
+
+---
+
+### Config Consistency Check (Test Type: Config Consistency)
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Backend PORT vs Vite proxy port | Must match | `.env` PORT=3000 / Vite target `http://localhost:3000` → both 3000 | ✅ PASS |
+| Protocol: SSL configured → HTTPS proxy | No SSL keys set → HTTP is correct | No `SSL_KEY_PATH` / `SSL_CERT_PATH` in `.env`; Vite uses `http://` | ✅ PASS |
+| CORS_ORIGIN includes frontend dev server | `FRONTEND_URL` must include `http://localhost:5173` | `FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` | ✅ PASS |
+| Docker port mapping vs backend PORT | Container must expose port matching `.env` PORT | `docker-compose.yml` only defines postgres services — no backend container port conflict | ✅ PASS |
+
+**Config Consistency Result: ✅ PASS — No mismatches detected**
+
+---
+
+### Health Check Results (Test Type: Post-Deploy Health Check)
+
+**Token Acquisition:** `POST /api/v1/auth/login` with `test@plantguardians.local` / `TestPass123!`
+- Response: HTTP 200 ✅
+- Token issued: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` (access_token confirmed)
+- Used for all protected endpoint checks below
+
+| Check | Endpoint | Expected | Actual | Result |
+|-------|----------|----------|--------|--------|
+| App responds | `GET /api/health` | 200 `{"status":"ok"}` | `{"status":"ok","timestamp":"2026-04-12T23:59:43.581Z"}` | ✅ PASS |
+| Auth — login | `POST /api/v1/auth/login` (test@plantguardians.local) | 200 + access_token | 200, user object + access_token returned | ✅ PASS |
+| Google OAuth graceful degradation | `GET /api/v1/auth/google` | 302 (not 500) | 302 | ✅ PASS |
+| Plant list — unauthenticated | `GET /api/v1/plants` (no auth) | 401 | 401 | ✅ PASS |
+| Plant list — authenticated | `GET /api/v1/plants` (Bearer token) | 200 + data array | 200, data array with plants returned | ✅ PASS |
+| User profile | `GET /api/v1/profile` (Bearer token) | 200 + user + stats | 200, `{"data":{"user":{...},"stats":{"plant_count":4,"days_as_member":19,"total_care_actions":9}}}` | ✅ PASS |
+| Care due | `GET /api/v1/care-due` (Bearer token) | 200 | 200 | ✅ PASS |
+| Care actions | `GET /api/v1/care-actions` (Bearer token) | 200 | 200 | ✅ PASS |
+| Care actions stats | `GET /api/v1/care-actions/stats` (Bearer token) | 200 | 200 | ✅ PASS |
+| Frontend preview | `GET http://localhost:4175` | 200 | 200 | ✅ PASS |
+| 5xx errors | All endpoints above | None | None observed | ✅ PASS |
+| Database connected | Implicit via successful data queries | Connected | Plants, profile, stats all returned live data | ✅ PASS |
+
+### OAuth Staging Limitation (Expected — Not a Defect)
+
+Full Google OAuth happy-path (accounts.google.com redirect → token exchange → callback) cannot be tested without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`. `GET /api/v1/auth/google` returns HTTP 302 → `/login?error=oauth_failed` as designed. This is documented expected behavior per H-370 and the API contract.
+
+---
+
+### Summary
+
+| Category | Status |
+|----------|--------|
+| Config Consistency | ✅ PASS |
+| Backend Health | ✅ PASS |
+| Auth Flow | ✅ PASS |
+| All Key API Endpoints | ✅ PASS |
+| Frontend Accessible | ✅ PASS |
+| 5xx Errors | ✅ None |
+| Database Connectivity | ✅ PASS |
+
+**Deploy Verified: Yes**
+
+All post-deploy health checks passed. Staging environment is verified healthy for Sprint #27.
+
+---
+
 ## Staging Deploy Verification — Sprint #27 | 2026-04-12
 
 **Agent:** Deploy Engineer
