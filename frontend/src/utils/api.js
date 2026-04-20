@@ -332,7 +332,7 @@ export const profile = {
   },
 };
 
-// Plant sharing (Sprint 28 / T-126 / SPEC-022)
+// Plant sharing (Sprint 28 / T-126 / SPEC-022 — extended Sprint 29 / T-133 / SPEC-023)
 export const plantShares = {
   /**
    * Create (or retrieve — idempotent) a public share link for a plant the
@@ -344,6 +344,83 @@ export const plantShares = {
     return request(`/plants/${plantId}/share`, {
       method: 'POST',
     });
+  },
+
+  /**
+   * GET /api/v1/plants/:plantId/share — check whether an active share link
+   * exists for a plant the authenticated user owns. Used by
+   * `PlantDetailPage` on mount (Sprint 29 / SPEC-023 Surface 1).
+   *
+   * @param {string} plantId
+   * @returns {Promise<{ share_url: string }>} on 200
+   * @throws {ApiError} 404 when no share row exists; 403 wrong owner; etc.
+   */
+  getStatus(plantId) {
+    return request(`/plants/${plantId}/share`);
+  },
+
+  /**
+   * DELETE /api/v1/plants/:plantId/share — revoke an active share link.
+   * Returns `null` on a 204 No Content; throws an ApiError for any other
+   * response. Called by `ShareRevokeModal` (Sprint 29 / SPEC-023 Surface 2).
+   *
+   * This endpoint returns **no body**, so `request()` cannot be reused
+   * (it eagerly parses JSON). We use a thin bespoke fetch, piggybacking on
+   * the same Bearer + refresh flow as `profile.delete`.
+   *
+   * @param {string} plantId
+   * @returns {Promise<null>}
+   */
+  async revoke(plantId) {
+    const url = `${API_BASE}/plants/${plantId}/share`;
+    const headers = {};
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
+    let res = await fetch(url, {
+      method: 'DELETE',
+      headers,
+      credentials: 'include',
+    });
+
+    // Auto-refresh on 401 — mirrors `request()`.
+    if (res.status === 401) {
+      try {
+        await refreshAccessToken();
+        headers['Authorization'] = `Bearer ${accessToken}`;
+        res = await fetch(url, {
+          method: 'DELETE',
+          headers,
+          credentials: 'include',
+        });
+      } catch {
+        if (onAuthFailure) onAuthFailure();
+        throw new ApiError(
+          'Session expired. Please log in again.',
+          'UNAUTHORIZED',
+          401,
+        );
+      }
+    }
+
+    if (res.status === 204) {
+      return null;
+    }
+
+    // Non-204: try to read a JSON error body; fall back to a generic message.
+    let err = {};
+    try {
+      const json = await res.json();
+      err = json.error || {};
+    } catch {
+      // response may not have a JSON body
+    }
+    throw new ApiError(
+      err.message || 'Something went wrong.',
+      err.code || 'UNKNOWN',
+      res.status,
+    );
   },
 
   /**

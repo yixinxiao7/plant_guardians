@@ -4,6 +4,100 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint #29 Pre-Deploy Gate Check (Pass 2) — T-137 | 2026-04-20
+
+- **Agent:** Deploy Engineer
+- **Task:** T-137 (Sprint #29 Staging Re-Deploy — pre-flight gate check pass 2; deploy NOT executed)
+- **Sprint:** 29
+- **Date:** 2026-04-20
+- **Environment:** Local staging
+- **Build Status:** ⛔ **BLOCKED — DEPLOY NOT EXECUTED**
+- **Reason:** QA sign-off (T-136) still missing. All technical gates now pass. One secondary gap: T-134 frontend tests still at 287 (spec requires ≥293 for QA sign-off).
+
+### Pre-Deploy Gate Check — Pass 2
+
+| Gate | Status | Details |
+|------|--------|---------|
+| QA sign-off (T-136) in handoff-log.md | ❌ **MISSING** | No Sprint #29 T-136 sign-off entry found — deploy remains blocked |
+| Backend `npm test` (--runInBand) | ✅ **PASS** | `226 passed, 226 total` — 25/25 suites (H-391: T-133 DELETE bug fixed) |
+| Frontend `npm test -- --run` | ✅ **PASS** | `287 passed, 287 total` — 37 files |
+| Frontend T-134 test coverage | ❌ **SHORT** | Still 287; spec requires ≥293 new tests (ShareRevokeModal, share status states, OG meta tags not yet tested) |
+| Frontend `npm audit` | ✅ **PASS** | `found 0 vulnerabilities` (T-135 complete) |
+| Backend `npm audit` | ✅ **PASS** | `found 0 vulnerabilities` |
+| `knex migrate:latest` | ✅ **PASS** | "Already up to date" — 8 migrations applied, 0 pending. No Sprint #29 migrations. |
+| Backend process (port 3000) | ⚠️ DOWN | Connection refused — will start at deploy time |
+
+### Change From Pass 1 (H-390)
+
+| Gate | Pass 1 | Pass 2 |
+|------|--------|--------|
+| Backend test failures | ❌ 4 failed (T-133 DELETE bug) | ✅ 226/226 passing (H-391 fix) |
+| `plantSharesStatusRevoke.test.js` | ❌ 4/13 failing | ✅ 226 total — fixed per H-391 |
+| QA sign-off | ❌ Missing | ❌ Still missing |
+| T-134 tests | ❌ 0 new tests | ❌ Still 0 new T-134 tests (287 baseline) |
+
+### Remaining Blockers Before T-137 Can Execute
+
+1. **QA Engineer (MUST HAVE):** Complete T-136 verification and log sign-off in `qa-build-log.md` + post handoff to Deploy Engineer in `handoff-log.md`.
+2. **Frontend Engineer (for QA sign-off to be possible):** Add ≥6 new tests for T-134 — ShareRevokeModal, share status states (loading/shared/not-shared), OG meta tags on PublicPlantPage. Raise frontend test count to ≥293.
+
+### Migration Confirmation (for when deploy executes)
+
+No new migrations needed for Sprint #29. `knex migrate:latest` → "Already up to date". T-137 will be a code-only restart: backend `npm start` + frontend `npm run build`.
+
+---
+
+## Sprint #29 Pre-Deploy Gate Check — T-137 | 2026-04-20
+
+- **Agent:** Deploy Engineer
+- **Task:** T-137 (Sprint #29 Staging Re-Deploy — pre-flight only; deploy NOT executed)
+- **Sprint:** 29
+- **Date:** 2026-04-20
+- **Environment:** Local staging
+- **Build Status:** ⛔ **BLOCKED — DEPLOY NOT EXECUTED**
+- **Reason:** Missing QA sign-off (T-136) + backend test failures + T-134 frontend tests incomplete
+
+### Pre-Deploy Gate Check
+
+| Gate | Status | Details |
+|------|--------|---------|
+| QA sign-off (T-136) in handoff-log.md | ❌ **MISSING** | Most recent QA handoff is H-384 (Sprint #28). No Sprint #29 QA sign-off found. |
+| Backend `npm test` (--runInBand) | ❌ **FAILING** | `4 failed, 205 passed, 209 total` |
+| `plantSharesStatusRevoke.test.js` (T-133) | ❌ **FAILING** | 4/13 tests fail — DELETE endpoint returns 404 instead of 204 |
+| `plants.test.js` | ❌ **FAILING** | Cascading failure from plantSharesStatusRevoke DB state contamination |
+| `auth.test.js` | ❌ **FAILING** | Cascading failure from plantSharesStatusRevoke DB state contamination |
+| `careActionsBatchLastDoneAt.test.js` (T-139) | ✅ PASS | 4/4 tests pass in isolation |
+| Frontend `npm test -- --run` | ✅ PASS | 287/287 pass, 37 files |
+| Frontend `npm audit` | ✅ PASS | `found 0 vulnerabilities` (T-135 complete) |
+| Backend `npm audit` | ✅ PASS | `found 0 vulnerabilities` |
+| `knex migrate:latest` | ✅ PASS | "No Pending Migration files Found" — 8 migrations applied, 0 pending |
+| Backend process (port 3000) | ⚠️ DOWN | `curl localhost:3000/api/health` → connection refused — will restart at deploy time |
+| T-134 frontend test coverage | ⚠️ INCOMPLETE | No test files for ShareRevokeModal, ShareStatusArea, or OG meta tags; still at 287 baseline |
+
+### What Still Needs to Happen Before T-137 Can Execute
+
+1. **Backend Engineer:** Fix `DELETE /api/v1/plants/:plantId/share` (T-133) — 4 tests in `plantSharesStatusRevoke.test.js` returning 404 instead of 204. Fix until `npm test` (--runInBand) = ≥215 passing, 0 failures.
+2. **Frontend Engineer:** Add ≥6 new tests for T-134 (ShareRevokeModal, share status states, OG meta tags). Raise frontend count to ≥293.
+3. **QA Engineer:** Complete T-136 verification; log sign-off in this file and post handoff to Deploy Engineer in `handoff-log.md`.
+
+### Sprint #29 Implementation Status (as observed)
+
+| Task | Observed State |
+|------|---------------|
+| T-132: SPEC-023 | ✅ Done (H-389) |
+| T-135: Vite fix | ✅ Done (0 high-severity vulns) |
+| T-139: Batch last_done_at fix | ✅ Done (`CareAction.batchCreate` updated; 4 new tests pass in isolation) |
+| T-133: GET + DELETE share routes | ✅ Routes + model exist; ❌ 4 tests failing |
+| T-134: Frontend share status UI | ✅ Components exist (ShareRevokeModal.jsx, ShareStatusArea.jsx, useShareStatus.js); ❌ No test files |
+| T-136: QA verification | ❌ Not started |
+| T-137: Staging re-deploy | ❌ **BLOCKED** (this entry) |
+
+### Handoff
+
+H-390 posted in `handoff-log.md` → QA Engineer + Backend Engineer. T-137 will execute immediately upon receipt of T-136 sign-off.
+
+---
+
 ## Sprint #28 Staging Deploy — T-130 | 2026-04-20
 
 - **Deploy Engineer:** T-130

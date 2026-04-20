@@ -309,11 +309,22 @@ const CareAction = {
   },
 
   /**
-   * Batch-create care actions (T-109).
+   * Batch-create care actions (T-109, fixed in T-139).
    *
    * Validates ownership for all plant_ids in a single query, then inserts
    * all valid actions in a single transaction. Returns a results array with
    * per-item status ("created" | "error").
+   *
+   * T-139 fix: After the batch insert succeeds, synchronize
+   * `care_schedules.last_done_at` for each affected (plant_id, care_type)
+   * pair — mirroring the single-action path in POST /api/v1/care-actions.
+   * Only updates when the action's `performed_at` is strictly newer than the
+   * schedule's current `last_done_at`, so an older batch entry never regresses
+   * a more recent value. Schedules without an existing `last_done_at` (NULL)
+   * are always updated. All updates happen inside the same transaction as the
+   * inserts to preserve atomicity. Actions whose plant has no schedule for the
+   * given care_type are still inserted as `created` — the `care_schedules`
+   * table is only touched where a matching schedule exists.
    *
    * @param {string} userId - UUID of the authenticated user
    * @param {Array<{plant_id: string, care_type: string, performed_at: string}>} actions
@@ -354,11 +365,62 @@ const CareAction = {
       }
     }
 
-    // 3. Insert valid actions in a single transaction
+    // 3. Insert valid actions AND sync affected schedules' last_done_at
+    // inside a single transaction (T-139).
     if (validInserts.length > 0) {
+      // Compute the most recent performed_at per (plant_id, care_type).
+      // A batch may contain multiple actions for the same schedule — only the
+      // newest matters for last_done_at. Older entries must never regress it.
+      const maxByKey = new Map(); // key = `${plant_id}:${care_type}` → ISO string
+      for (const v of validInserts) {
+        const key = `${v.row.plant_id}:${v.row.care_type}`;
+        const prev = maxByKey.get(key);
+        if (!prev || new Date(v.row.performed_at) > new Date(prev)) {
+          maxByKey.set(key, v.row.performed_at);
+        }
+      }
+
       await db.transaction(async (trx) => {
+        // 3a. Insert the care actions.
         const rows = validInserts.map(v => v.row);
         await trx('care_actions').insert(rows);
+
+        // 3b. Load all affected schedules in a single query (same transaction
+        // so we see a consistent snapshot). Filter to only the (plant_id,
+        // care_type) pairs that actually received inserts.
+        const pairs = [...maxByKey.keys()].map(k => {
+          const [plantId, careType] = k.split(':');
+          return { plantId, careType };
+        });
+        const plantIds = [...new Set(pairs.map(p => p.plantId))];
+        const careTypes = [...new Set(pairs.map(p => p.careType))];
+        const schedules = await trx('care_schedules')
+          .select('id', 'plant_id', 'care_type', 'last_done_at')
+          .whereIn('plant_id', plantIds)
+          .whereIn('care_type', careTypes);
+
+        // 3c. For each affected schedule, update last_done_at ONLY if the
+        // batch's newest performed_at is strictly greater than the current
+        // value. Treat NULL last_done_at as "always update".
+        for (const sched of schedules) {
+          const key = `${sched.plant_id}:${sched.care_type}`;
+          const newest = maxByKey.get(key);
+          if (!newest) continue; // schedule exists but no action in this batch
+
+          const current = sched.last_done_at;
+          const shouldUpdate = current === null
+            || current === undefined
+            || new Date(newest) > new Date(current);
+
+          if (shouldUpdate) {
+            await trx('care_schedules')
+              .where('id', sched.id)
+              .update({
+                last_done_at: newest,
+                updated_at: trx.fn.now(),
+              });
+          }
+        }
       });
 
       for (const v of validInserts) {

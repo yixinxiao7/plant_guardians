@@ -401,4 +401,63 @@ router.post('/:plantId/share', validateUUIDParam('plantId'), async (req, res, ne
   }
 });
 
+// GET /api/v1/plants/:plantId/share — T-133
+// Returns the active share URL for an owned plant; 404 if no share row exists.
+// Used by PlantDetailPage on mount to decide between "Copy link"+"Remove link"
+// vs. original "Share" button (see SPEC-023).
+router.get('/:plantId/share', validateUUIDParam('plantId'), async (req, res, next) => {
+  try {
+    // 404 if the plant doesn't exist at all (avoids enumeration);
+    // 403 if the plant exists but belongs to another user.
+    const plant = await Plant.findById(req.params.plantId);
+    if (!plant) {
+      throw new NotFoundError('Plant', 'PLANT_NOT_FOUND');
+    }
+    if (plant.user_id !== req.user.id) {
+      throw new ForbiddenError('You do not have permission to view this share.');
+    }
+
+    const share = await PlantShare.findByPlantId(plant.id);
+    if (!share) {
+      // Plant is owned but has never been shared (or share was revoked).
+      throw new NotFoundError('Share', 'NOT_FOUND');
+    }
+
+    const baseUrl = resolveFrontendBaseUrl();
+    const share_url = `${baseUrl}/plants/share/${share.share_token}`;
+    res.status(200).json({ data: { share_url } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/v1/plants/:plantId/share — T-133
+// Revokes the share link for an owned plant. Returns 204 No Content (no body).
+// After revocation, GET /api/v1/public/plants/:shareToken returns 404 for the
+// old token. Called by ShareRevokeModal (see SPEC-023).
+router.delete('/:plantId/share', validateUUIDParam('plantId'), async (req, res, next) => {
+  try {
+    // 404 if the plant doesn't exist at all (avoids enumeration);
+    // 403 if the plant exists but belongs to another user.
+    const plant = await Plant.findById(req.params.plantId);
+    if (!plant) {
+      throw new NotFoundError('Plant', 'PLANT_NOT_FOUND');
+    }
+    if (plant.user_id !== req.user.id) {
+      throw new ForbiddenError('You do not have permission to revoke this share.');
+    }
+
+    const deletedCount = await PlantShare.deleteByPlantId(plant.id);
+    if (deletedCount === 0) {
+      // Plant is owned but has no share row (never shared, or already revoked).
+      throw new NotFoundError('Share', 'NOT_FOUND');
+    }
+
+    // 204 No Content — do NOT emit a JSON body (per API contract).
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

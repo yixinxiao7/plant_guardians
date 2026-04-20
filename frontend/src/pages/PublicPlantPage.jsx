@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import {
   Leaf,
   Drop,
@@ -12,6 +13,32 @@ import {
 } from '@phosphor-icons/react';
 import { plantShares, ApiError } from '../utils/api.js';
 import './PublicPlantPage.css';
+
+/**
+ * buildOgDescription — pure helper (Sprint 29 / SPEC-023 Surface 3).
+ *
+ * Constructs the `og:description` / `twitter:description` string from a
+ * plant object's care-schedule frequencies. Exported so it can be unit-
+ * tested in isolation and covered by the 2×2 null matrix from SPEC-023.
+ *
+ * Null/missing rules:
+ *   - Both frequencies null → "Learn how to care for {name} on Plant Guardians."
+ *   - One or both non-null → "Learn how to care for {name}: <parts>."
+ *   - `repotting_frequency_days` is never included per SPEC-023.
+ */
+export function buildOgDescription(plant) {
+  const parts = [];
+  if (plant.watering_frequency_days != null) {
+    parts.push(`watering every ${plant.watering_frequency_days} days`);
+  }
+  if (plant.fertilizing_frequency_days != null) {
+    parts.push(`fertilizing every ${plant.fertilizing_frequency_days} days`);
+  }
+  if (parts.length === 0) {
+    return `Learn how to care for ${plant.name} on Plant Guardians.`;
+  }
+  return `Learn how to care for ${plant.name}: ${parts.join(', ')}.`;
+}
 
 /**
  * PublicPlantPage — Sprint 28 / SPEC-022
@@ -291,25 +318,56 @@ export default function PublicPlantPage() {
     fetchPlant(false);
   }, [shareToken, fetchPlant]);
 
-  // Set document title based on state.
-  useEffect(() => {
-    const prev = document.title;
-    if (state === STATE.SUCCESS && plant?.name) {
-      document.title = `${plant.name}'s Care Profile — Plant Guardians`;
-    } else if (state === STATE.NOT_FOUND) {
-      document.title = 'Plant not found — Plant Guardians';
-    } else if (state === STATE.ERROR) {
-      document.title = 'Error — Plant Guardians';
-    } else {
-      document.title = 'Plant Guardians';
-    }
-    return () => {
-      document.title = prev;
-    };
-  }, [state, plant]);
+  // Title + OG meta tags are owned by <Helmet> below per SPEC-023.
+  // Non-success states render only <title> via Helmet (no preview tags so
+  // link scrapers don't cache an incorrect preview during loading / errors).
+
+  const hasPhoto =
+    typeof plant?.photo_url === 'string' && plant.photo_url.trim() !== '';
+  const ogImage = hasPhoto ? plant.photo_url : '/og-default.png';
+  const ogTitle = plant?.name ? `${plant.name} on Plant Guardians` : '';
+  const ogDescription = plant ? buildOgDescription(plant) : '';
+  const ogUrl =
+    typeof window !== 'undefined' && window.location
+      ? window.location.href
+      : '';
 
   return (
     <div className="public-page">
+      {state === STATE.LOADING && (
+        <Helmet>
+          <title>Loading… — Plant Guardians</title>
+        </Helmet>
+      )}
+      {state === STATE.NOT_FOUND && (
+        <Helmet>
+          <title>Plant not found — Plant Guardians</title>
+        </Helmet>
+      )}
+      {state === STATE.ERROR && (
+        <Helmet>
+          <title>Plant Guardians</title>
+        </Helmet>
+      )}
+      {state === STATE.SUCCESS && plant && (
+        <Helmet>
+          <title>{ogTitle}</title>
+          <meta property="og:title" content={ogTitle} />
+          <meta property="og:description" content={ogDescription} />
+          <meta property="og:image" content={ogImage} />
+          <meta property="og:url" content={ogUrl} />
+          <meta property="og:type" content="article" />
+          <meta property="og:site_name" content="Plant Guardians" />
+          <meta
+            name="twitter:card"
+            content={hasPhoto ? 'summary_large_image' : 'summary'}
+          />
+          <meta name="twitter:title" content={ogTitle} />
+          <meta name="twitter:description" content={ogDescription} />
+          <meta name="twitter:image" content={ogImage} />
+        </Helmet>
+      )}
+
       <MinimalHeader />
       {state === STATE.LOADING && <LoadingSkeleton />}
       {state === STATE.SUCCESS && plant && <SuccessState plant={plant} />}

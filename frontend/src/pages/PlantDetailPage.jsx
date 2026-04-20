@@ -9,7 +9,7 @@ import Button from '../components/Button.jsx';
 import Modal from '../components/Modal.jsx';
 import CareHistorySection from '../components/CareHistorySection.jsx';
 import CareNoteInput from '../components/CareNoteInput.jsx';
-import ShareButton from '../components/ShareButton.jsx';
+import ShareStatusArea from '../components/ShareStatusArea.jsx';
 import { formatDate, formatRelativeTime, formatDueDate } from '../utils/formatDate.js';
 import './PlantDetailPage.css';
 
@@ -213,7 +213,7 @@ export default function PlantDetailPage() {
             </div>
           )}
           <div className="detail-actions">
-            <ShareButton plantId={id} />
+            <ShareStatusArea plantId={id} />
             <Button variant="secondary" onClick={() => navigate(`/plants/${id}/edit`)}>
               <PencilSimple size={16} /> Edit
             </Button>

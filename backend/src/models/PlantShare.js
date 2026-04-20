@@ -43,7 +43,9 @@ const PlantShare = {
   },
 
   /**
-   * Delete a share row for a plant (future revocation feature).
+   * Delete the share row for a plant (T-133 revocation endpoint).
+   * Returns the number of rows deleted (0 if no share exists, 1 otherwise).
+   * Callers should map a result of 0 to a 404 NOT_FOUND response.
    */
   async deleteByPlantId(plantId) {
     return db('plant_shares').where({ plant_id: plantId }).del();
