@@ -8382,3 +8382,81 @@ T-134 and T-135 are implemented and ready for QA (T-136). Both the behavioral ch
 
 **Blockers for QA (T-136):** None — proceed with full regression + security checklist + SPEC-023 compliance verification.
 
+
+---
+
+### H-394 — Manager Agent → QA Engineer (Sprint 29 Code Review PASS — T-133, T-134, T-135 → Integration Check)
+
+**Date:** 2026-04-20
+**Sprint:** 29
+**From:** Manager Agent
+**To:** QA Engineer
+**Tasks:** T-133 (Share status + revocation endpoints), T-134 (Share status UI + revocation modal + OG meta tags), T-135 (Vite audit fix)
+**Status:** Code Review PASSED — all three tasks moved In Review → Integration Check. Ready for T-136 QA verification.
+
+---
+
+**Summary:**
+
+Three Sprint 29 tasks cleared code review. T-139 (batch `last_done_at` fix) was already at Integration Check from a prior review cycle. All four engineering tasks are now ready for QA (T-136). Test counts currently:
+
+- Backend: **226/226 passing** (baseline 209; +17 new across T-139 and T-133)
+- Frontend: **312/312 passing** (baseline 287; +25 new from T-134)
+- `npm audit`: 0 vulnerabilities in both backend and frontend
+
+---
+
+**T-133 — Backend Share Status + Revocation Endpoints (PASS)**
+
+File: `backend/src/routes/plants.js` (lines 404–461), `backend/src/models/PlantShare.js` (lines 45–52), tests in `backend/tests/plantSharesStatusRevoke.test.js` (13 tests).
+
+Verified:
+- Route ordering clean — Express matches full paths, `/:id` does not shadow `/:plantId/share`.
+- GET returns `{ data: { share_url } }` exactly per contract; URL built via `resolveFrontendBaseUrl()` helper (same as POST — consistent).
+- DELETE uses `res.status(204).end()` — no JSON body. Test `plantSharesStatusRevoke.test.js:154-155` asserts empty body AND empty text.
+- Ownership pattern: `Plant.findById → 404 (missing) → 403 (wrong owner) → share lookup`. Prevents enumeration leaks.
+- `PlantShare.deleteByPlantId()` uses parameterized Knex (`.where({plant_id}).del()`) — no SQL injection.
+- 0-row delete → 404 NOT_FOUND (correct per contract).
+- `validateUUIDParam('plantId')` enforces 400 on malformed input.
+- Auth enforced globally via `router.use(authenticate)`.
+- 13 new tests (target ≥6) cover: GET happy path + 404 no-share + 404 plant-missing + 403 wrong-owner + 401 no-auth + 400 bad-UUID; DELETE same 5 + idempotency (2nd DELETE → 404) + re-share after revocation generates fresh 43-char token + old token 404s publicly. The wrong-owner DELETE test also verifies the share row was NOT deleted (`stillThere.status === 200` via owner GET).
+
+**QA focus:** security checklist — auth + ownership enforcement; IDOR prevention; 204-no-body; no info leak in 404 paths.
+
+---
+
+**T-134 — Frontend Share Status UI + Revocation + OG Meta Tags (PASS)**
+
+Files: `frontend/src/hooks/useShareStatus.js`, `frontend/src/components/ShareStatusArea.jsx` + `.css`, `frontend/src/components/ShareRevokeModal.jsx` + `.css`, `frontend/src/pages/PublicPlantPage.jsx` (with `buildOgDescription` helper + `<Helmet>` block), `frontend/src/main.jsx` (HelmetProvider wrap), `frontend/src/utils/api.js` (added `plantShares.getStatus` + `plantShares.revoke`), `frontend/public/og-default.png` (fallback image committed). Tests: `ShareStatusArea.test.jsx` (8), `ShareRevokeModal.test.jsx` (7), `PublicPlantPageOgTags.test.jsx` (10).
+
+Verified:
+- **Surface 1 (share status):** `useShareStatus` correctly maps LOADING → SHARED (200) / NOT_SHARED (404 or any other error) with safe-degradation `console.warn`, no error toast — matches SPEC-023. Cancelled-fetch guard prevents stale state writes on `plantId` change. `ShareStatusArea` aria-busy skeleton in LOADING; "Copy link" (uses stored `shareUrl`, zero extra POST) + "Remove share link" in SHARED; original `<ShareButton />` in NOT_SHARED. Clipboard-failure path → `ClipboardFallbackModal`. Focus restored to Share button on revoke success via `requestAnimationFrame`.
+- **Surface 2 (revocation modal):** `role="dialog"` + `aria-modal` + `aria-labelledby`; focus trap; Escape closes when not loading; backdrop click intentionally no-op; buttons disable during loading; loading sets `aria-busy` + spinner. Copy verbatim per SPEC-023. Success → `addToast('Share link removed.', 'success')` + parent transitions to NOT_SHARED. Error → `addToast('Failed to remove link. Please try again.', 'error')` + modal stays open.
+- **Surface 3 (OG tags):** `<Helmet>` block renders ONLY in SUCCESS state (non-success states render only `<title>` so link scrapers don't cache a loading/error preview). All SPEC-023 OG + Twitter tags present. Twitter card flips between `summary_large_image` and `summary` based on `hasPhoto`. `/og-default.png` fallback committed. `buildOgDescription()` exported as pure helper — 2×2 null matrix + repotting-exclusion covered.
+- **API layer:** `plantShares.getStatus()` uses shared `request()` (throws on 404 — hook catches); `plantShares.revoke()` is bespoke fetch for 204 handling + 401 refresh, mirroring `profile.delete` pattern. Public path bypasses Bearer/401-refresh — correct for unauthenticated visitors.
+- **Security:** React default-escaping handles all rendered strings (plant name, species, AI notes, alt text). No hardcoded secrets. No XSS risks. No leaked auth state on public route.
+- 25 new tests (target ≥6) cover all SPEC-023 states, all error classes (403/500/network safe-degradation), and a11y attributes.
+
+**QA focus:** SPEC-023 compliance (share status states, revocation modal copy + buttons + behavior, OG tag values); integration with new T-133 backend endpoints.
+
+---
+
+**T-135 — Frontend Vite Audit Fix (PASS)**
+
+Verified independently:
+- `npm ls vite` → `vite@8.0.9` (both direct and via `@vitejs/plugin-react` deduped)
+- `cd frontend && npm audit` → **0 vulnerabilities**
+- `npm test -- --run` → 312/312 pass
+- `npm run build` → 0 errors, 4661 modules, 345ms
+
+No dependency lockfile regression. Acceptance criteria satisfied.
+
+---
+
+**T-139 status (already at Integration Check from prior review cycle):**
+
+`CareAction.batchCreate()` now runs inserts + `care_schedules.last_done_at` sync inside a single Knex transaction. Uses `maxByKey` map to pick the newest `performed_at` per (plant_id, care_type) pair, treats NULL `last_done_at` as "always update", never regresses a newer value. 4 new tests in `backend/tests/careActionsBatchLastDoneAt.test.js` — happy path, anti-regression, end-to-end (GET /plants overdue → on_track), multi-entry batch.
+
+---
+
+**Ready for T-136 QA verification.** All four engineering tasks (T-139, T-133, T-134, T-135) are Integration Check. No blockers.
