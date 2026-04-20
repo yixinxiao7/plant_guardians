@@ -8,12 +8,22 @@ const AuthContext = createContext(null);
  * Returns { accessToken, refreshToken, linked } if present, null otherwise.
  * Cleans the URL immediately after reading.
  */
+// Cache OAuth params at module level so they survive React StrictMode's
+// double-invocation of useEffect (which cancels the first run).
+// The URL is cleaned on first read; the cached value is returned on re-reads.
+let _cachedOAuthParams = undefined;
+
 function consumeOAuthParams() {
+  if (_cachedOAuthParams !== undefined) return _cachedOAuthParams;
+
   const url = new URL(window.location.href);
   const accessToken = url.searchParams.get('access_token');
   const refreshToken = url.searchParams.get('refresh_token');
 
-  if (!accessToken) return null;
+  if (!accessToken) {
+    _cachedOAuthParams = null;
+    return null;
+  }
 
   const linked = url.searchParams.get('linked') === 'true';
 
@@ -23,7 +33,8 @@ function consumeOAuthParams() {
   url.searchParams.delete('linked');
   window.history.replaceState({}, '', url.toString());
 
-  return { accessToken, refreshToken, linked };
+  _cachedOAuthParams = { accessToken, refreshToken, linked };
+  return _cachedOAuthParams;
 }
 
 export function AuthProvider({ children }) {

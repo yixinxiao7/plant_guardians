@@ -67,12 +67,14 @@ router.get('/google/callback', (req, res, next) => {
     return res.redirect(`${FRONTEND_URL()}/login?error=access_denied`);
   }
 
+  console.log('[GoogleOAuth] Callback hit. Query params:', req.query.error || 'none', 'Code present:', !!req.query.code);
   passport.authenticate('google', {
     session: false,
-    failureRedirect: `${FRONTEND_URL()}/login?error=oauth_failed`,
-  }, async (err, user) => {
+  }, async (err, user, info) => {
+    console.log('[GoogleOAuth] Passport authenticate returned. err:', err?.message || null, 'user:', !!user, 'info:', info);
     try {
       if (err || !user) {
+        console.error('[GoogleOAuth] Passport callback error:', err?.message || 'No user returned', 'info:', info);
         return res.redirect(`${FRONTEND_URL()}/login?error=oauth_failed`);
       }
 
@@ -94,6 +96,7 @@ router.get('/google/callback', (req, res, next) => {
 
       return res.redirect(redirectUrl);
     } catch (error) {
+      console.error('[GoogleOAuth] Token/redirect error:', error.message);
       return res.redirect(`${FRONTEND_URL()}/login?error=oauth_failed`);
     }
   })(req, res, next);
