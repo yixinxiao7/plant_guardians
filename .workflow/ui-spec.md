@@ -6260,3 +6260,377 @@ The Google "G" SVG + label `"Sign in with Google"` fits on a single line at all 
 | 6 | **Account-linked toast** — render with `?linked=true` in URL (and a valid token param or mock the auth hook), assert toast message contains `"linked"` | Recommended |
 
 ---
+
+### SPEC-022 — Plant Sharing: Share Button + Public Plant Profile Page
+
+**Status:** Approved
+**Related Tasks:** T-125 (Design), T-126 (Backend API), T-128 (Frontend Implementation)
+**Sprint:** #28
+
+---
+
+#### Overview
+
+SPEC-022 covers two surfaces that together form the plant sharing experience:
+
+1. **Share Button** — An icon button added to the existing `PlantDetailPage` header that generates (or retrieves) a shareable link and copies it to the clipboard.
+2. **Public Plant Profile Page** — A new read-only, no-auth-required page at `/plants/share/:shareToken` that displays a curated, privacy-safe view of a single plant's care profile.
+
+The sharing feature serves the "plant killer" persona's desire to show off a thriving plant or share care instructions with a partner or family member. The public page must function as a standalone micro-site — coherent to a first-time visitor who has never heard of Plant Guardians.
+
+---
+
+#### Privacy Boundary (Explicit)
+
+| Data Field | Shown on Public Page? | Rationale |
+|---|---|---|
+| Plant name | ✅ Yes | Explicitly chosen by owner when creating the plant |
+| Species / type | ✅ Yes | Explicitly chosen by owner |
+| Photo (if uploaded) | ✅ Yes | Explicitly uploaded by owner |
+| Watering frequency (days) | ✅ Yes | Schedule configuration, not history |
+| Fertilizing frequency (days) | ✅ Yes (if set) | Schedule configuration, not history |
+| Repotting frequency (days) | ✅ Yes (if set) | Schedule configuration, not history |
+| AI care notes | ✅ Yes (if present) | Informational advice, not personal |
+| Care history (when last watered, etc.) | ❌ No | Private behavioral data |
+| Overdue / due-today status | ❌ No | Derived from private history — also embarrassing |
+| Plant owner name | ❌ No | User-identifiable |
+| Plant owner email / user ID | ❌ No | User-identifiable |
+| Account creation date | ❌ No | User-identifiable |
+| Any other account metadata | ❌ No | User-identifiable |
+
+The public page renderer must rely exclusively on the `GET /api/v1/public/plants/:shareToken` response. It must not read any auth state, user context, or local storage.
+
+---
+
+#### Surface 1: Share Button on PlantDetailPage
+
+##### Placement
+
+- The "Share" icon button is placed in the **plant detail header** — the same row as the plant name, alongside the existing Edit (pencil) and Delete (trash) icon buttons.
+- Layout (left → right): plant name (heading, expands to fill space) | Share icon button | Edit icon button | Delete icon button.
+- On mobile: the same three icon buttons stack into a row just below the plant name, right-aligned.
+- Button style: **Icon variant** (see Design System Conventions) — transparent background, `#6B6B5F` icon, circular hover state (`background: #F0EDE6`, `border-radius: 50%`).
+- Icon: `ShareNetwork` (Phosphor Icons, outlined) or equivalent share/export icon. Size: 20px.
+- `aria-label="Share plant"` on the `<button>` element.
+- `title="Share"` for tooltip on hover (desktop only).
+
+##### User Flow
+
+1. User is on the `PlantDetailPage` for a plant they own.
+2. User clicks the Share icon button.
+3. The button enters a **loading state** (spinner replaces icon; button disabled).
+4. The frontend calls `POST /api/v1/plants/:plantId/share`.
+5. **Success path:** The API returns `{ share_url: "https://…/plants/share/<token>" }`.
+   - The frontend calls `navigator.clipboard.writeText(share_url)`.
+   - A **"Link copied!" success toast** appears (see Toast spec below).
+   - The button returns to its default state (share icon restored, enabled).
+6. **Clipboard unavailable path:** If `navigator.clipboard` is undefined or throws (e.g., non-HTTPS context or browser restriction):
+   - A small inline **copy fallback modal** opens (see Fallback Modal spec below).
+   - The share URL is shown in a read-only `<input>` pre-selected for easy manual copy.
+7. **API error path:** If the API call fails (network error, 4xx, 5xx):
+   - The button returns to its default state.
+   - An **error toast** appears: `"Failed to generate link. Please try again."` (see Toast spec).
+8. **Idempotent behavior:** If the plant already has a share link, the API returns the same token. The UX is identical to step 5 — the user just sees "Link copied!" again. No special "already shared" state is shown.
+
+##### Share Button States
+
+| State | Visual | Behavior |
+|---|---|---|
+| Default | `ShareNetwork` icon, `#6B6B5F`, transparent bg | Clickable |
+| Hover | Icon color `#2C2C2C`, circular bg `#F0EDE6` | Cursor: pointer |
+| Active (pressed) | `scale(0.93)` | Momentary press feel |
+| Loading | 16px spinner (sage green `#5C7A5C`, 2px stroke) replaces icon; `cursor: wait`; `disabled` | Not clickable; `aria-label="Generating share link…"`, `aria-busy="true"` |
+| Error recovery | Returns to Default immediately after error toast fires | Ready for retry |
+
+##### "Link Copied!" Success Toast
+
+- **Position:** Bottom-center of the viewport, `24px` from bottom edge. Stacks above any other existing toasts.
+- **Style:** `background: #2C2C2C` (near-black), text `#FFFFFF`, `border-radius: 12px`, `padding: 12px 20px`, `box-shadow: 0 4px 16px rgba(44, 44, 44, 0.18)`.
+- **Content:** Checkmark icon (Phosphor `CheckCircle`, outlined, 16px, `#4A7C59`) + text `"Link copied!"` in `DM Sans`, 14px, weight 500.
+- **Animation:** Slides up from `translateY(12px)` to `translateY(0)` + fade in (`opacity: 0 → 1`) over `0.25s ease-out`. Auto-dismisses after **3 seconds** with fade-out over `0.2s`.
+- **Dismiss:** Also dismissable by clicking anywhere on the toast.
+- **Role:** `role="status"` + `aria-live="polite"` — screen readers announce the message without interrupting.
+
+##### Error Toast
+
+- Same position and animation as success toast.
+- **Style:** `background: #FAEAE4` (light terracotta), text `#B85C38`, border `1px solid #B85C38`, `border-radius: 12px`, `padding: 12px 20px`.
+- **Content:** Warning icon (Phosphor `Warning`, outlined, 16px, `#B85C38`) + text `"Failed to generate link. Please try again."`, 14px, weight 500.
+- **Role:** `role="alert"` — screen readers announce immediately.
+- Auto-dismisses after **5 seconds**.
+
+##### Clipboard Fallback Modal
+
+Shown only when `navigator.clipboard` is unavailable or throws.
+
+- **Trigger:** After successful API call when clipboard write fails.
+- **Style:** Standard app modal — centered overlay with backdrop `rgba(44, 44, 44, 0.45)`, card `background: #FFFFFF`, `border-radius: 12px`, `padding: 32px`, max-width 440px.
+- **Title:** `"Share this plant"` in `DM Sans`, 18px, weight 600, `#2C2C2C`.
+- **Body:** `"Copy the link below to share this plant's care profile."` in 14px, `#6B6B5F`.
+- **Input:** Full-width read-only `<input type="url">` showing the share URL. On render, the input is focused and its text is fully selected (via `input.select()`). `border: 1.5px solid #E0DDD6`, `border-radius: 8px`, `padding: 10px 16px`, `font-size: 14px`, `color: #2C2C2C`, `background: #F0EDE6`.
+- **"Copy" button:** Primary button variant. On click, attempts to copy using `document.execCommand('copy')` (legacy fallback). If successful, button text changes to `"Copied ✓"` for 2 seconds then reverts.
+- **Close button:** Ghost icon button (`✕`) in top-right corner. `aria-label="Close"`.
+- **Keyboard:** `Escape` closes the modal. Focus trap within modal while open.
+
+---
+
+#### Surface 2: Public Plant Profile Page (`/plants/share/:shareToken`)
+
+##### Route
+
+- **Path:** `/plants/share/:shareToken`
+- **Auth:** None required. This route must be accessible to unauthenticated users.
+- **Router:** Add to `App.jsx` as a public route (no `<PrivateRoute>` wrapper).
+- **Data source:** `GET /api/v1/public/plants/:shareToken` (see T-126 API contract).
+
+##### Page Layout
+
+The public page uses a **centered single-column layout** — not the standard app shell with the authenticated sidebar nav. This is a standalone micro-site experience.
+
+```
+┌─────────────────────────────────────────┐
+│  [Minimal Header]                       │  height: 56px
+│  🌿 Plant Guardians                     │
+├─────────────────────────────────────────┤
+│                                         │
+│  [Plant Photo — if present]             │  max-height: 320px (desktop)
+│  [Plant Name — H1]                      │
+│  [Species chip]                         │
+│                                         │
+│  ─ Care Schedule ─────────────────────  │
+│  [Watering chip] [Fert chip] [Repot]   │
+│                                         │
+│  ─ AI Care Notes ──────────────────────  │  (if present)
+│  [Notes text block]                     │
+│                                         │
+│  ─────────────────────────────────────  │
+│  [Discover Plant Guardians CTA]         │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+**Max content width:** 680px, centered with `margin: 0 auto`, `padding: 0 24px`.
+
+##### Minimal Header
+
+- **Height:** 56px, `background: var(--color-background)`, `border-bottom: 1px solid var(--color-border)`.
+- **Content:** App wordmark — leaf icon (🌿 SVG or Phosphor `Plant` icon in sage green) + `"Plant Guardians"` in `DM Sans`, 16px, weight 600, `#2C2C2C`. Left-aligned with `padding-left: 24px`.
+- **No navigation links.** No login/signup links. No user menu. This header is intentionally minimal so it doesn't confuse unauthenticated visitors.
+- The wordmark is a link to `/` (homepage) but there is no explicit "Home" label.
+- `<header role="banner">` landmark.
+
+##### Plant Photo
+
+- Displayed when `photo_url` is present in the API response.
+- **Desktop:** Full-width within the content column, `border-radius: 16px`, `max-height: 320px`, `object-fit: cover`. Positioned at the very top of the content area, above the plant name.
+- **Mobile:** Full-width, `border-radius: 12px`, `max-height: 240px`, `object-fit: cover`.
+- **Alt text:** `"Photo of [plant name]"` — constructed from the plant name returned by the API.
+- When `photo_url` is absent: no image placeholder or empty state image is shown. The page simply begins with the plant name.
+
+##### Plant Name (Heading)
+
+- **Element:** `<h1>` — primary landmark.
+- **Font:** `Playfair Display`, 32px (desktop) / 26px (mobile), weight 700 (or bold), `#2C2C2C`.
+- **Margin:** `margin-top: 24px` when no photo; `margin-top: 20px` when photo is present above it.
+- This is the most prominent element on the page.
+
+##### Species Chip
+
+- Displayed below the plant name.
+- **Style:** Pill badge — `background: #F0EDE6`, `color: #6B6B5F`, `border-radius: 24px`, `padding: 4px 14px`, `font-size: 13px`, `font-weight: 500`, `DM Sans`.
+- **Content:** Plant species / type text (e.g., `"Monstera Deliciosa"`).
+- **Icon:** Optional Phosphor `Leaf` icon (14px, `#5C7A5C`) prepended before the text.
+- Margin: `margin-top: 10px`.
+
+##### Care Schedule Section
+
+- **Section heading:** `"Care Schedule"` — `DM Sans`, 12px, `font-weight: 600`, `letter-spacing: 0.08em`, `text-transform: uppercase`, `color: #B0ADA5`. With a `<hr>` rule at full content width, `border: none`, `border-top: 1px solid #E0DDD6`, above the heading. The heading sits in a flex row with the divider.
+- **Margin:** `margin-top: 32px`.
+- **Layout:** Flex row, `gap: 10px`, `flex-wrap: wrap`.
+- Each schedule item is a **care chip**:
+
+| Chip | Icon (Phosphor) | Label |
+|---|---|---|
+| Watering | `Drop` (outlined, sage green `#5C7A5C`) | `"Water every N days"` |
+| Fertilizing | `Flask` (outlined, terracotta `#A67C5B`) | `"Fertilize every N days"` |
+| Repotting | `Flower` (outlined, warm gray `#6B6B5F`) | `"Repot every N days"` |
+
+- **Chip style:** `background: #FFFFFF`, `border: 1.5px solid #E0DDD6`, `border-radius: 24px`, `padding: 8px 16px`, `font-size: 13px`, `font-weight: 500`, `color: #2C2C2C`, `DM Sans`. Icon is 14px and sits left of text with `gap: 6px`.
+- **Chip hover:** `border-color: #5C7A5C`, `background: #F7F4EF`. No click action — chips are display-only.
+- Only chips where the frequency is set (non-null) are rendered. If only watering is configured, only the watering chip shows.
+- If no schedules at all are set (edge case): show a single muted chip `"No schedule set"` in the Not Set badge style.
+
+##### AI Care Notes Section
+
+- Rendered only when `ai_care_notes` is non-null and non-empty.
+- **Section heading:** Same style as "Care Schedule" heading: `"AI Care Notes"`, uppercase, 12px, `#B0ADA5`, with divider rule above.
+- **Margin:** `margin-top: 32px`.
+- **Content block:** `background: #F7F4EF`, `border-radius: 12px`, `padding: 20px 24px`, `border-left: 3px solid #5C7A5C`.
+- **Text:** `DM Sans`, 14px, `font-weight: 400`, `color: #2C2C2C`, `line-height: 1.7`. The notes text may contain line breaks — render with `white-space: pre-wrap` or parse newlines to `<br>` elements.
+- **AI attribution:** Below the notes text, in a smaller muted line: Phosphor `Sparkle` icon (12px, `#B0ADA5`) + `"Generated by AI — always verify plant care advice"`, `font-size: 11px`, `color: #B0ADA5`, `font-style: italic`.
+
+##### "Discover Plant Guardians" CTA
+
+- Shown at the bottom of every public page, regardless of plant data.
+- **Margin:** `margin-top: 48px`, `margin-bottom: 48px`.
+- **Style:** Centered column. Horizontal rule divider above (`border-top: 1px solid #E0DDD6`, full content width, `margin-bottom: 32px`).
+- **Illustration:** Small SVG or emoji leaf graphic (🌱) centered above the CTA text. Optional — omit if asset is unavailable.
+- **Headline:** `"Track your own plants with Plant Guardians"` — `DM Sans`, 18px, weight 600, `#2C2C2C`, centered.
+- **Sub-copy:** `"Free to use. No green thumb required."` — 14px, `#6B6B5F`, centered.
+- **Button:** Primary button variant — `"Get started for free"`, links to `/`. `padding: 12px 28px`, `border-radius: 8px`, `background: #5C7A5C`, `color: #FFFFFF`, `font-size: 15px`, weight 600. Centered horizontally.
+- **Button hover:** `background: #4A6449`.
+- `<section aria-label="Discover Plant Guardians">` wraps the entire CTA block.
+
+---
+
+#### Page States
+
+##### Loading State
+
+Shown while `GET /api/v1/public/plants/:shareToken` is in flight.
+
+- No spinner page takeover. Instead, show a **skeleton layout** that mirrors the real page structure:
+  - Photo skeleton: full-width rectangle, `border-radius: 16px`, `height: 240px`, animated shimmer.
+  - Name skeleton: `width: 60%`, `height: 36px`, `border-radius: 8px`, shimmer.
+  - Species chip skeleton: `width: 120px`, `height: 24px`, `border-radius: 24px`, shimmer.
+  - Care section label skeleton: `width: 100px`, `height: 12px`, `border-radius: 4px`, shimmer.
+  - Three chip skeletons: `width: 140px`, `height: 36px` each, `border-radius: 24px`, shimmer.
+- Shimmer animation: `background: linear-gradient(90deg, #F0EDE6 25%, #E8E4DC 50%, #F0EDE6 75%)`, `background-size: 200% 100%`, `animation: shimmer 1.4s infinite`.
+- The minimal header is always visible (not skeletonized).
+- The CTA section is also always visible at the bottom (or hidden during loading — acceptable either way; consistency preferred; hide during loading to avoid layout shift).
+- `aria-busy="true"` on the main content region during load. `aria-label="Loading plant profile"` on the skeleton container.
+
+##### 404 / Revoked State
+
+Shown when the API returns 404 (share token not found, expired, or revoked).
+
+- **Layout:** Centered content in the middle of the page, below the minimal header.
+- **Illustration:** Phosphor `PlantWithError` / `WarningCircle` icon (64px, `#E0DDD6`) or a wilted plant SVG if available.
+- **Headline:** `"This plant link is no longer active"` — `DM Sans`, 22px, weight 600, `#2C2C2C`, centered.
+- **Sub-copy:** `"The link may have been removed or it never existed."` — 14px, `#6B6B5F`, centered. `margin-top: 8px`.
+- **CTA:** Same "Get started for free" primary button linking to `/`. `margin-top: 32px`.
+- No retry button — 404 is not a transient error.
+- `<main role="main">` contains this state.
+- Page `<title>`: `"Plant not found — Plant Guardians"`.
+
+##### Error State (Network / 5xx)
+
+Shown when the API call fails with a non-404 error (network timeout, 500, etc.).
+
+- **Layout:** Same centered layout as 404 state.
+- **Icon:** Phosphor `WifiSlash` or `Warning` (64px, `#E0DDD6`).
+- **Headline:** `"Something went wrong"` — 22px, weight 600, `#2C2C2C`.
+- **Sub-copy:** `"We couldn't load this plant profile. Please try again."` — 14px, `#6B6B5F`.
+- **Retry button:** Secondary button variant — `"Try again"`. On click, re-fetches `GET /api/v1/public/plants/:shareToken`. Shows a small inline spinner during retry.
+- **CTA:** Same "Get started for free" primary button below the retry button. `margin-top: 16px`.
+- `role="alert"` on the error headline container so screen readers announce it.
+
+##### Success State (Populated)
+
+All sections described above. No additional special treatment needed.
+
+---
+
+#### Dark Mode
+
+The public page must fully support dark mode. All colors are defined via CSS custom properties that switch based on `prefers-color-scheme: dark`. The share button on `PlantDetailPage` should also respond to dark mode via the same custom property system already in use on the app.
+
+| Custom Property | Light Value | Dark Value |
+|---|---|---|
+| `--color-background` | `#F7F4EF` | `#1A1C1A` |
+| `--color-surface` | `#FFFFFF` | `#252825` |
+| `--color-surface-alt` | `#F0EDE6` | `#1E201E` |
+| `--color-text-primary` | `#2C2C2C` | `#E8E4DC` |
+| `--color-text-secondary` | `#6B6B5F` | `#9A9A8E` |
+| `--color-text-disabled` | `#B0ADA5` | `#5C5C54` |
+| `--color-accent-primary` | `#5C7A5C` | `#7FA87F` |
+| `--color-accent-hover` | `#4A6449` | `#6A946A` |
+| `--color-accent-warm` | `#A67C5B` | `#C49A78` |
+| `--color-border` | `#E0DDD6` | `#2E312E` |
+| `--color-border-focus` | `#5C7A5C` | `#7FA87F` |
+
+The skeleton shimmer animation should use dark-appropriate colors:
+- `background: linear-gradient(90deg, #1E201E 25%, #252825 50%, #1E201E 75%)` in dark mode.
+
+AI care notes block in dark mode: `background: #1E201E`, `border-left-color: #7FA87F`.
+
+---
+
+#### Responsive Behavior
+
+| Breakpoint | Behavior |
+|---|---|
+| **Desktop (≥1024px)** | Max content width 680px, centered. Photo max-height 320px. Plant name 32px. Care chips in a single row if they fit. |
+| **Tablet (768–1023px)** | Max content width 100%, `padding: 0 32px`. Photo max-height 280px. Same chip layout. |
+| **Mobile (<768px)** | `padding: 0 20px`. Plant name 26px. Photo max-height 220px. Care chips wrap to multiple rows as needed (`flex-wrap: wrap`). CTA button full-width. |
+
+The minimal header is the same at all breakpoints — wordmark only, 56px height.
+
+**Share button on PlantDetailPage (responsive):**
+- Desktop: icon button in header row alongside Edit and Delete.
+- Mobile: icon buttons row below the plant name — Share, Edit, Delete, right-aligned, `gap: 4px`. Minimum tap target: 44×44px per button.
+
+---
+
+#### Accessibility
+
+| Requirement | Implementation |
+|---|---|
+| Share button label | `aria-label="Share plant"` on the `<button>` |
+| Share button loading | `aria-label="Generating share link…"`, `aria-busy="true"` when spinner visible |
+| Plant photo | `alt="Photo of [plant name]"` — dynamic from API response |
+| Landmark roles | `<header role="banner">`, `<main role="main">`, `<footer>` (if footer used), `<section aria-label="Care Schedule">`, `<section aria-label="AI Care Notes">`, `<section aria-label="Discover Plant Guardians">` |
+| Page `<title>` | `"[Plant Name]'s Care Profile — Plant Guardians"` in success state; `"Plant not found — Plant Guardians"` in 404 state |
+| Headings | `<h1>` for plant name; `<h2>` for section headings (Care Schedule, AI Care Notes) if they are full headings rather than label-style caps |
+| Success toast | `role="status"` + `aria-live="polite"` |
+| Error toast | `role="alert"` + `aria-live="assertive"` |
+| Error state headline | `role="alert"` — auto-announced on mount |
+| Keyboard navigation | All interactive elements (share button, modal close, retry button, CTA) reachable via `Tab`. Focus order follows visual order. |
+| Focus ring | `outline: 2px solid var(--color-border-focus); outline-offset: 2px` on all interactive elements |
+| Color contrast | All text colors verified ≥4.5:1 against backgrounds in both light and dark mode |
+| Care chips | `role="list"` on the chip container; each chip is `role="listitem"`. Chips are not interactive — `tabindex="-1"` if needed. |
+| Skeleton | `aria-busy="true"` + `aria-label="Loading plant profile"` on `<main>` during skeleton state |
+| Clipboard fallback modal | `role="dialog"`, `aria-modal="true"`, `aria-labelledby` pointing to modal title. Focus moves to modal on open. Focus returns to Share button on close. |
+
+---
+
+#### Share Link Revocation (Data Model Consideration)
+
+Revocation UI is out of scope for Sprint #28 but must be accounted for in the data model:
+
+- The `plant_shares` table stores one token per plant. **Deleting the row revokes the link** — the public `GET` endpoint returns 404, and the public page shows the "no longer active" state.
+- **Future sprint revocation UX:** A "Remove share link" option on `PlantDetailPage` (e.g., in a share settings popover or as a secondary action after clicking Share again). This would call `DELETE /api/v1/plants/:plantId/share`.
+- **CASCADE DELETE:** The backend migration should define `plant_id` FK with `ON DELETE CASCADE` so that deleting a plant automatically removes its share token.
+- The Share button has no "already shared" visual state in Sprint #28 — clicking it again is idempotent and simply copies the existing link. The revocation entry point is deferred.
+
+---
+
+#### Files to Create / Modify
+
+| File | Change |
+|---|---|
+| `frontend/src/pages/PublicPlantPage.jsx` | **New file.** Full public plant profile page component. Fetches data, handles all states. |
+| `frontend/src/pages/PublicPlantPage.css` | **New file.** Page-specific styles (minimal header, content layout, skeleton, CTA, dark mode custom properties). |
+| `frontend/src/pages/PlantDetailPage.jsx` | Add Share icon button to plant header. Add loading, success, and error state logic. Add clipboard copy logic with fallback modal. |
+| `frontend/src/components/ShareButton.jsx` | **New file (recommended).** Encapsulates share button: icon, loading spinner, click handler, clipboard logic, toast fire, fallback modal trigger. Props: `plantId`, `onSuccess?: () => void`, `onError?: () => void`. |
+| `frontend/src/components/ClipboardFallbackModal.jsx` | **New file (optional).** Encapsulates the fallback modal for manual copy. Props: `shareUrl`, `onClose`. |
+| `frontend/src/App.jsx` | Add route `<Route path="/plants/share/:shareToken" element={<PublicPlantPage />} />` as a public (non-protected) route. |
+| `frontend/src/index.css` (or global CSS) | Ensure all `--color-*` CSS custom properties are defined (light + dark). If already defined from previous sprints, verify the dark mode values match the table above. |
+
+---
+
+#### Minimum Test Coverage (T-128 — ≥5 new tests required)
+
+| # | Test | Required? |
+|---|---|---|
+| 1 | **Share button renders on PlantDetailPage** — render `<PlantDetailPage />` for an owned plant, assert button with `aria-label="Share plant"` is in the document | ✅ Required |
+| 2 | **Click → API call** — click Share button, assert `POST /api/v1/plants/:plantId/share` was called; assert button enters loading state (disabled) during the call | ✅ Required |
+| 3 | **Clipboard copy + "Link copied!" toast** — mock `navigator.clipboard.writeText` to resolve, click Share button, assert the clipboard API was called with the returned `share_url`; assert toast element with text `"Link copied!"` appears | ✅ Required |
+| 4 | **Public page 404 state** — render `<PublicPlantPage />` with `shareToken="invalid"`, mock API to return 404, assert `"This plant link is no longer active"` text is in the document | ✅ Required |
+| 5 | **Public page error state** — mock API to return 500, assert error message `"Something went wrong"` is present and retry button is rendered | ✅ Required |
+| 6 | **Share button error state** — mock API to reject, click Share button, assert error toast `"Failed to generate link"` is shown | Strongly recommended |
+| 7 | **Public page success state** — mock API to return a full plant object, assert plant name h1, species chip, watering chip, and CTA link to `/` are all rendered | Strongly recommended |
+| 8 | **Public page — no photo** — mock API with `photo_url: null`, assert no `<img>` element rendered | Recommended |
+| 9 | **Clipboard fallback modal** — mock `navigator.clipboard` as `undefined`, click Share button after successful API call, assert fallback modal opens with share URL in input | Recommended |
+
+---

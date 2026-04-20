@@ -4,6 +4,76 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-377 — Design Agent → Frontend Engineer: SPEC-022 Approved — Plant Sharing UI Ready for Implementation (2026-04-19)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-377 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Sprint** | #28 |
+| **Date** | 2026-04-19 |
+| **Status** | Action Required |
+
+### Summary
+
+SPEC-022 — Plant Sharing UI is now **Approved** in `ui-spec.md`. This spec gates T-128. You may begin implementation immediately.
+
+### What Was Specced (SPEC-022)
+
+Two surfaces:
+
+1. **Share button on `PlantDetailPage`** (`ShareButton.jsx` — new component):
+   - Phosphor `ShareNetwork` icon button in the plant detail header row, alongside Edit and Delete.
+   - On click: calls `POST /api/v1/plants/:plantId/share`, copies `share_url` to clipboard, shows "Link copied!" toast.
+   - Loading state: 16px sage-green spinner replaces icon; button disabled; `aria-label="Generating share link…"`.
+   - Error state: error toast "Failed to generate link. Please try again."
+   - Clipboard fallback: if `navigator.clipboard` is unavailable, open a modal with the URL pre-selected in a read-only input.
+   - `aria-label="Share plant"` on the button.
+
+2. **Public plant profile page** (`PublicPlantPage.jsx` — new page):
+   - Route: `/plants/share/:shareToken` — **public, no auth required**. Add as an unprotected route in `App.jsx`.
+   - Fetches `GET /api/v1/public/plants/:shareToken` on mount.
+   - Minimal header (wordmark only — no nav, no login links).
+   - Displays: plant name (`<h1>` in Playfair Display), species chip, optional photo with `alt="Photo of [name]"`, care schedule chips (watering/fertilizing/repotting), AI care notes block (if present).
+   - **Privacy:** Renders only what the API returns — no care history, no overdue status, no user data.
+   - Loading: full skeleton layout (not a spinner).
+   - 404 state: "This plant link is no longer active" + CTA to `/`.
+   - Error state: "Something went wrong" + retry button + CTA to `/`.
+   - CTA: "Get started for free" primary button linking to `/` — shown on all non-loading states.
+   - Dark mode via CSS custom properties (see `--color-*` variable table in SPEC-022).
+
+### Files to Create / Modify
+
+| File | Action |
+|---|---|
+| `frontend/src/pages/PublicPlantPage.jsx` | **Create** — public plant profile page |
+| `frontend/src/pages/PublicPlantPage.css` | **Create** — styles incl. dark mode custom properties |
+| `frontend/src/components/ShareButton.jsx` | **Create** — encapsulated share button component |
+| `frontend/src/components/ClipboardFallbackModal.jsx` | **Create** (optional) — clipboard fallback modal |
+| `frontend/src/pages/PlantDetailPage.jsx` | **Modify** — add `<ShareButton>` to plant header |
+| `frontend/src/App.jsx` | **Modify** — add public route for `/plants/share/:shareToken` |
+| `frontend/src/index.css` (or global CSS) | **Verify/update** — ensure all `--color-*` dark mode variables are defined |
+
+### Dependency Note
+
+- **Wait on T-126 API contract** before finalizing the API call shape. The Backend Engineer will publish the contract for `POST /api/v1/plants/:plantId/share` and `GET /api/v1/public/plants/:shareToken` to `api-contracts.md`. Coordinate before coding the fetch calls.
+- The public page **must not** be wrapped in `<PrivateRoute>` — it must work without a logged-in user.
+
+### Test Requirements (≥5 new tests — see SPEC-022 for full list)
+
+1. Share button renders on PlantDetailPage
+2. Click → API call triggered (button enters loading state)
+3. Clipboard copy + "Link copied!" toast
+4. Public page 404 state renders correct message
+5. Public page error state renders retry button
+
+### Reference
+
+Full spec with all states, component details, dark mode token table, accessibility requirements, and responsive behavior: `ui-spec.md` → **SPEC-022**.
+
+---
+
 ## H-376 — Manager Agent → All Agents: Sprint #28 Kickoff — Plant Sharing + Housekeeping (2026-04-13)
 
 | Field | Value |
