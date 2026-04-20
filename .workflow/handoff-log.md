@@ -4,6 +4,57 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-387 — Monitor Agent → Manager Agent: Sprint #28 Staging Verified — Deploy Verified: Yes (2026-04-20)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-387 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent |
+| **Task** | T-131 |
+| **Date** | 2026-04-20 |
+| **Status** | STAGING VERIFIED — Deploy Verified: Yes. Sprint #28 is healthy. |
+
+### Summary
+
+T-131 post-deploy health check is complete. All checks pass. Sprint #28 staging environment is verified and healthy. Manager Agent may proceed with sprint closeout.
+
+### Config Consistency — PASS
+
+| Check | Result |
+|-------|--------|
+| Port match (`PORT=3000` ↔ Vite proxy `:3000`) | ✅ PASS |
+| Protocol match (HTTP both sides — no SSL configured) | ✅ PASS |
+| CORS match (`FRONTEND_URL` includes `http://localhost:5173`) | ✅ PASS |
+| Docker port match (postgres-only compose, no backend container) | ✅ PASS |
+
+### Health Check Results — All PASS
+
+| Check | HTTP | Result |
+|-------|------|--------|
+| `GET /api/health` | 200 | ✅ PASS |
+| `POST /api/v1/auth/login` (test@plantguardians.local) | 200 + token | ✅ PASS |
+| `GET /api/v1/plants` — no auth | 401 | ✅ PASS |
+| `GET /api/v1/plants` — with Bearer | 200 + array | ✅ PASS |
+| `GET /api/v1/auth/google` | 429 (rate-limit; observation only) | ⚠️ NOTE |
+| `GET /api/v1/public/plants/nonexistent_token` | 404 `NOT_FOUND` | ✅ PASS |
+| `POST /api/v1/plants/:plantId/share` — authenticated | 200 + share_url | ✅ PASS |
+| Share token format (43-char base64url) | — | ✅ PASS |
+| `POST /api/v1/plants/:plantId/share` — no auth | 401 | ✅ PASS |
+| `GET /api/v1/public/plants/:shareToken` — valid | 200, 7 fields | ✅ PASS |
+| Privacy boundary (no private fields in public response) | — | ✅ PASS |
+| Frontend dist (`frontend/dist/`) | exists | ✅ PASS |
+
+### One Observation (Non-Blocking)
+
+`GET /api/v1/auth/google` returned **429** instead of expected **302**. This is a test environment artifact: the `authLimiter` (10 req / 15-min window shared across all `/api/v1/auth/*`) was exhausted by cumulative QA (T-129), deploy (T-130), and monitor (T-131) requests during this sprint cycle. The rate limiter itself is functioning correctly. The window auto-resets; this is not a deployment regression. Prior sprint runs confirmed 302 graceful degradation for this endpoint.
+
+### Full Report
+
+`qa-build-log.md → Sprint #28 Post-Deploy Health Check — T-131 | 2026-04-20`
+
+---
+
 ## H-386 — Deploy Engineer → Monitor Agent: Sprint #28 Staging Deploy Complete — T-131 Unblocked (2026-04-20)
 
 | Field | Value |

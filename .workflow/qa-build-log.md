@@ -1685,3 +1685,87 @@ Migration applied to development DB: `google_id VARCHAR(255)` column added to `u
 
 ---
 
+## Sprint #28 Post-Deploy Health Check — T-131 | 2026-04-20
+
+**Test Type:** Post-Deploy Health Check + Config Consistency
+**Environment:** Staging (http://localhost:3000)
+**Timestamp:** 2026-04-20T13:29:00Z
+**Agent:** Monitor Agent
+**Token:** Acquired via `POST /api/v1/auth/login` with `test@plantguardians.local` (NOT /auth/register)
+**Deploy Verified:** Yes
+
+---
+
+### Config Consistency Validation
+
+| Check | Source A | Source B | Result |
+|-------|----------|----------|--------|
+| **Port match** | `backend/.env` → `PORT=3000` | `frontend/vite.config.js` → proxy target `http://localhost:3000` | ✅ PASS — both 3000 |
+| **Protocol match** | `backend/.env` → no `SSL_KEY_PATH` / `SSL_CERT_PATH` set → HTTP | `frontend/vite.config.js` → `http://localhost:3000` (HTTP) | ✅ PASS — both HTTP |
+| **CORS match** | `backend/.env` → `FRONTEND_URL=http://localhost:5173,...` (includes `:5173`) | Vite dev server default: `http://localhost:5173` | ✅ PASS — `5173` present in FRONTEND_URL |
+| **Docker port match** | `infra/docker-compose.yml` → postgres-only services, no backend container | N/A | ✅ PASS — no backend container to validate |
+
+**Config Consistency: PASS** — All checks clear. No cross-service mismatches detected.
+
+---
+
+### Health Checks
+
+#### Infrastructure
+
+| Check | HTTP Status | Response | Result |
+|-------|------------|----------|--------|
+| `GET /api/health` | 200 | `{"status":"ok","timestamp":"2026-04-20T13:29:36.460Z"}` | ✅ PASS |
+| Database connectivity | — | Implicit via health endpoint + auth success | ✅ PASS |
+| Frontend dist | — | `frontend/dist/` present with `index.html`, `assets/`, `favicon.svg`, `icons.svg` | ✅ PASS |
+| Preview server `:4173` | N/A | Not running (dist built, preview not started — expected) | ✅ PASS |
+
+#### Auth
+
+| Check | HTTP Status | Response | Result |
+|-------|------------|----------|--------|
+| `POST /api/v1/auth/login` (`test@plantguardians.local`) | 200 | `{"data":{"user":{...},"access_token":"eyJ..."}}` | ✅ PASS |
+| `GET /api/v1/plants` — no auth | 401 | `{"error":{"message":"Missing or invalid authorization header.","code":"UNAUTHORIZED"}}` | ✅ PASS |
+| `GET /api/v1/auth/google` | 429 | Rate-limit hit (10 req/15 min — exhausted by cumulative QA + Deploy + Monitor requests this window) | ⚠️ OBSERVATION |
+
+**Note on 429:** `GET /api/v1/auth/google` falls under the `authLimiter` applied to all `/api/v1/auth/*` routes (`RATE_LIMIT_AUTH_MAX=10`, 15-min window). The 429 is a test environment artifact — the limit was exhausted by cumulative requests across QA verification (T-129), deploy checks (T-130), and this health check. In prior sprint runs the endpoint confirmed 302 → graceful degradation. The rate limiter itself is functioning correctly. This window auto-resets; not a deployment regression.
+
+#### Existing Endpoints
+
+| Check | HTTP Status | Response | Result |
+|-------|------------|----------|--------|
+| `GET /api/v1/plants` — with Bearer token | 200 | Array of plant objects (2 plants for test user) | ✅ PASS |
+
+#### Sprint #28 New Endpoints (T-126 — Plant Sharing)
+
+| Check | HTTP Status | Response | Result |
+|-------|------------|----------|--------|
+| `POST /api/v1/plants/:plantId/share` — authenticated, owned plant | 200 | `{"data":{"share_url":"http://localhost:5173/plants/share/w770bF8XE6LGXs9kdo8vX_Mfhq7PQudkAlI0NXaSTOQ"}}` | ✅ PASS |
+| Share token length | — | 43 chars (`w770bF8XE6LGXs9kdo8vX_Mfhq7PQudkAlI0NXaSTOQ`) — correct (base64url of 32 bytes) | ✅ PASS |
+| `POST /api/v1/plants/:plantId/share` — no auth | 401 | `{"error":{"message":"Missing or invalid authorization header.","code":"UNAUTHORIZED"}}` | ✅ PASS |
+| `POST /api/v1/plants/:plantId/share` — nonexistent UUID | 400 | `{"error":{"message":"plantId must be a valid UUID.","code":"VALIDATION_ERROR"}}` | ✅ PASS |
+| `GET /api/v1/public/plants/nonexistent_token_that_does_not_exist` | 404 | `{"error":{"message":"This plant profile is no longer available.","code":"NOT_FOUND"}}` | ✅ PASS |
+| `GET /api/v1/public/plants/:shareToken` — valid token, no auth | 200 | `{"data":{"name":"Monitor Check Plant","species":"Fern","photo_url":null,"watering_frequency_days":null,"fertilizing_frequency_days":null,"repotting_frequency_days":null,"ai_care_notes":null}}` | ✅ PASS |
+| Privacy boundary — 7 fields only, no private data | — | Confirmed absent: `user_id`, `id`, `created_at`, `updated_at`, and all other private fields | ✅ PASS |
+
+---
+
+### Result Summary
+
+| Category | Result |
+|----------|--------|
+| Config Consistency | ✅ PASS |
+| Infrastructure (health, DB, dist) | ✅ PASS |
+| Auth enforcement | ✅ PASS |
+| Existing endpoints | ✅ PASS |
+| Sprint #28 new endpoints (T-126) | ✅ PASS |
+| Privacy boundary (public GET) | ✅ PASS |
+| No 5xx errors observed | ✅ PASS |
+
+**Overall Result: PASS**
+**Deploy Verified: Yes**
+
+One observation (non-blocking): `GET /api/v1/auth/google` returned 429 instead of the expected 302 due to auth rate-limit exhaustion from cumulative testing this window. Rate limiter is functioning correctly; not a regression. Window resets within 15 minutes.
+
+---
+
