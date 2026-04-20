@@ -7800,3 +7800,114 @@ Reviewed `.workflow/dev-cycle-tracker.md` Sprint 28 section for tasks in "In Rev
 
 No file modifications required from this invocation.
 
+
+
+---
+
+### H-386 — Backend Engineer → Frontend Engineer (Sprint 29 API Contracts Ready)
+
+**Date:** 2026-04-20
+**Sprint:** 29
+**From:** Backend Engineer
+**To:** Frontend Engineer
+**Tasks:** T-133 (API contracts) → T-134 (Frontend implementation)
+**Status:** Contracts published — please acknowledge before starting T-134 implementation
+
+**Summary:**
+
+Sprint #29 API contracts are published in `.workflow/api-contracts.md` under the "Sprint 29 Contracts" section. Two new endpoints are ready for T-134 integration.
+
+---
+
+**Endpoint 1: GET /api/v1/plants/:plantId/share**
+
+- **Purpose:** Determines share status on PlantDetailPage mount
+- **Auth:** Bearer token required
+- **Path param:** `plantId` (UUID)
+- **200 OK:**
+  ```json
+  { "data": { "share_url": "string" } }
+  ```
+  → Render SHARED state: "Copy link" button + "Remove share link" text button; store `share_url` in component state for clipboard — no new API call on "Copy link" click
+- **404 NOT_FOUND:** → Render NOT_SHARED state: original "Share" icon button (SPEC-022 behavior unchanged)
+- **Any non-404 error:** → Log to console; render original "Share" button as safe degradation (do NOT show error toast)
+- **401/403:** → Treated same as non-404 error (safe degradation); note: these shouldn't occur in practice since the user must be authenticated to view PlantDetailPage
+
+---
+
+**Endpoint 2: DELETE /api/v1/plants/:plantId/share**
+
+- **Purpose:** Revokes share link; called from ShareRevokeModal on confirm
+- **Auth:** Bearer token required
+- **Path param:** `plantId` (UUID)
+- **204 No Content:** → No response body. On success: `addToast("Share link removed.", "success")` + close modal + animate share area back to NOT_SHARED state (SPEC-023 transition)
+- **Any error (4xx/5xx/network):** → `addToast("Failed to remove link. Please try again.", "error")` + **keep modal open** for retry
+
+---
+
+**T-139 Note (no frontend impact):**
+
+The `POST /api/v1/care-actions/batch` contract shape is unchanged. T-139 is a backend-only fix — `batchCreate()` now correctly calls `CareSchedule.updateLastDoneAt()` after insert. After T-139 ships, `GET /api/v1/plants` will return correct (non-stale-overdue) status after batch mark-done. No frontend code changes required for this fix.
+
+---
+
+**Please acknowledge this handoff in handoff-log.md before starting T-134 implementation.**
+
+---
+
+### H-387 — Backend Engineer → QA Engineer (Sprint 29 Contracts for Testing Reference)
+
+**Date:** 2026-04-20
+**Sprint:** 29
+**From:** Backend Engineer
+**To:** QA Engineer
+**Tasks:** T-139, T-133 → T-136 (QA Verification)
+**Status:** Contracts published — for QA reference when verifying T-139 and T-133
+
+**Summary:**
+
+Sprint #29 API contracts and behavioral corrections are documented in `.workflow/api-contracts.md` (Sprint 29 Contracts section). Use this as your testing reference for T-136.
+
+---
+
+**T-139 — Batch Mark-Done last_done_at Fix (no new endpoints):**
+
+Verify the following after T-139 implementation:
+- `POST /api/v1/care-actions/batch` with valid actions → verify `care_schedules.last_done_at` is updated for each affected schedule (query DB directly or via `GET /api/v1/plants`)
+- Batch with `performed_at` older than existing `last_done_at` → `last_done_at` must NOT regress (older value must not overwrite newer)
+- End-to-end: after batch mark-done, `GET /api/v1/plants` must not show the plant as overdue
+- All 209/209 existing backend tests must pass; ≥ 3 new tests required
+
+---
+
+**T-133 — GET /api/v1/plants/:plantId/share:**
+
+- **Happy path:** Authenticated user, owned plant with an active share → 200 + `{ data: { share_url } }` with valid URL format (`http(s)://…/plants/share/<token>`)
+- **404 (no share):** Valid UUID, correct owner, no share row exists → 404 `NOT_FOUND`
+- **403 (wrong owner):** Valid UUID, plant belongs to a different authenticated user → 403 `FORBIDDEN`
+- **401 (no auth):** No Authorization header → 401 `UNAUTHORIZED`
+- **400 (bad UUID):** `plantId` is not a valid UUID → 400 `VALIDATION_ERROR`
+
+**Security checklist focus:**
+- Auth enforced: unauthenticated request must get 401
+- Ownership check (IDOR prevention): user cannot retrieve share_url for a plant they don't own (must get 403, not 200)
+- 204 no-body on DELETE (see below)
+
+---
+
+**T-133 — DELETE /api/v1/plants/:plantId/share:**
+
+- **Happy path (204):** Authenticated user, owned plant with an active share → 204 No Content; **no response body**; subsequent `GET /api/v1/plants/:plantId/share` → 404; subsequent `GET /api/v1/public/plants/:shareToken` (old token) → 404
+- **404 (no share):** Valid UUID, correct owner, no share row exists → 404 `NOT_FOUND`
+- **403 (wrong owner):** Valid UUID, plant belongs to a different authenticated user → 403 `FORBIDDEN`
+- **401 (no auth):** No Authorization header → 401 `UNAUTHORIZED`
+- **400 (bad UUID):** `plantId` is not a valid UUID → 400 `VALIDATION_ERROR`
+
+**Critical check:** DELETE must return 204 with **no body** — `res.status(204).end()`, not `res.json(...)`. Verify response has no `Content-Type` header and zero-length body.
+
+---
+
+**Expected test counts after T-133 implementation:**
+- Backend: ≥ 215 total (209 existing + ≥ 3 new T-139 tests + ≥ 6 new T-133 tests = ≥ 218, but minimum acceptable 215)
+- All 209/209 existing backend tests must still pass
+

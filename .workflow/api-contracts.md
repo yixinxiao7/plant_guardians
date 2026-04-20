@@ -4661,3 +4661,144 @@ await knex.schema.dropTableIfExists('plant_shares');
 ---
 
 *Sprint 28 contracts written by Backend Engineer — 2026-04-19. Two new endpoints: POST /api/v1/plants/:plantId/share (auth required, idempotent share token creation) and GET /api/v1/public/plants/:shareToken (public, no-auth plant profile). New migration: plant_shares table. T-127 housekeeping: OAuth callback contract updated to reflect HttpOnly cookie delivery for refresh_token (post-H-370 implementation).*
+
+---
+
+## Sprint 29 Contracts
+
+---
+
+### GROUP 1 — Batch Mark-Done Behavioral Correction (T-139)
+
+---
+
+#### POST /api/v1/care-actions/batch — Behavioral Clarification
+
+**No contract shape changes.** The existing Sprint 24 contract for `POST /api/v1/care-actions/batch` remains fully authoritative for request/response shapes, error codes, and status codes.
+
+**Sprint #29 behavioral correction:** Prior to T-139, `batchCreate()` inserted into `care_actions` but did NOT update `care_schedules.last_done_at`. This caused `GET /api/v1/plants` to continue computing plants as overdue after a batch mark-done — a divergence from the single-action `POST /api/v1/care-actions` path (which correctly calls `CareSchedule.updateLastDoneAt()`).
+
+After T-139, `batchCreate()` mirrors the single-action path: for each successfully inserted care action, it calls `CareSchedule.updateLastDoneAt(schedule_id, performed_at)` — but **only if** the action's `performed_at` is more recent than the schedule's current `last_done_at`. This preserves idempotency and prevents an older batch entry from regressing a newer single-action entry.
+
+**Observable change:** After a successful `POST /api/v1/care-actions/batch`, a subsequent `GET /api/v1/plants` will no longer return those plants as overdue (assuming `performed_at` is current). This is the correct behavior — the fix restores consistency between the batch and single-action code paths.
+
+**No request/response shape changes. No new migrations. No new endpoints.**
+
+---
+
+### GROUP 2 — Share Status & Revocation Endpoints (T-133)
+
+---
+
+#### GET /api/v1/plants/:plantId/share
+
+**Auth:** Bearer token required (`Authorization: Bearer <access_token>`)
+
+**Description:** Returns the active share URL for a plant owned by the authenticated user. If no share row exists for this plant, returns 404. Used by `PlantDetailPage` on mount to determine whether to render the "Copy link" + "Remove share link" pair (200) or the original "Share" button (404). Response shape is identical to the `POST /api/v1/plants/:plantId/share` success shape so the frontend can reuse the same handler.
+
+**Path Parameters:**
+
+| Parameter | Type | Rules |
+|-----------|------|-------|
+| `plantId` | UUID v4 string | Required; must be a valid UUID — invalid format returns 400 |
+
+**Request Body:** None
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "share_url": "string"
+  }
+}
+```
+
+- `share_url`: Full absolute URL in the format `${FRONTEND_URL}/plants/share/<share_token>`. Built via `resolveFrontendBaseUrl()` — same helper as the existing `POST` share endpoint.
+
+**Example:**
+
+```json
+{
+  "data": {
+    "share_url": "http://localhost:5173/plants/share/abc123def456xyz789..."
+  }
+}
+```
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `plantId` is not a valid UUID (e.g., `"not-a-uuid"`) |
+| 401 | `UNAUTHORIZED` | No `Authorization` header, or token is expired/invalid |
+| 403 | `FORBIDDEN` | `plantId` exists but belongs to a different user |
+| 404 | `NOT_FOUND` | `plantId` is a valid UUID that exists and is owned by the user, but no share row exists in `plant_shares` for this plant |
+| 404 | `NOT_FOUND` | `plantId` is a valid UUID that does not exist in `plants` at all — treated as not found (same 404 code; does not distinguish between "plant doesn't exist" and "share doesn't exist" to avoid enumeration) |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Implementation Notes:**
+
+- Uses `PlantShare.findByPlantId(plantId)` (already exists from T-126 sprint). No new model method required.
+- Ownership check: verify `plants.user_id = req.user.id` via a JOIN or a separate `Plant.findById()` lookup before querying `plant_shares`.
+- 403 vs 404 disambiguation: if the plant exists but belongs to another user → 403. If the plant does not exist → 404. If the plant exists + is owned + has no share → 404. Frontend treats both 404 variants identically (renders "Share" button).
+
+**Frontend Integration Note:**
+
+On `PlantDetailPage` mount:
+- `200` → render "Copy link" + "Remove share link" (SHARED state); store `share_url` from response for clipboard writes — no new API call needed when user clicks "Copy link"
+- `404` → render original "Share" icon button (NOT_SHARED state)
+- Any non-404 error (network, 5xx, 401 outside of share fetch, etc.) → log to console; render original "Share" button as safe degradation (ERROR state per SPEC-023)
+
+---
+
+#### DELETE /api/v1/plants/:plantId/share
+
+**Auth:** Bearer token required (`Authorization: Bearer <access_token>`)
+
+**Description:** Permanently deletes the `plant_shares` row for the specified plant, revoking the share link. After deletion, any request to `GET /api/v1/public/plants/:shareToken` using the old token will return 404. Called by `ShareRevokeModal` when the user confirms revocation. Returns `204 No Content` on success — **no response body**.
+
+**Path Parameters:**
+
+| Parameter | Type | Rules |
+|-----------|------|-------|
+| `plantId` | UUID v4 string | Required; must be a valid UUID — invalid format returns 400 |
+
+**Request Body:** None
+
+**Success Response — 204 No Content:**
+
+No response body. The `Content-Type` header is not set. The share row has been deleted from `plant_shares`.
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `plantId` is not a valid UUID |
+| 401 | `UNAUTHORIZED` | No `Authorization` header, or token is expired/invalid |
+| 403 | `FORBIDDEN` | `plantId` exists but belongs to a different user |
+| 404 | `NOT_FOUND` | No share row exists in `plant_shares` for this plant (either the plant has never been shared, or the share was already deleted); also returned if `plantId` does not exist at all |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Implementation Notes:**
+
+- Requires a new model method: `PlantShare.deleteByPlantId(plantId)` — deletes from `plant_shares` where `plant_id = plantId`. Returns the number of rows deleted (0 or 1). If 0, the route handler returns 404.
+- Ownership check: verify `plants.user_id = req.user.id` before attempting delete (same pattern as the POST and GET endpoints). 403 if the plant belongs to another user.
+- 204 means **no body** — do not return `{ "data": null }` or any JSON. Confirm `res.status(204).end()`.
+- Idempotency note: if the client calls DELETE twice, the second call returns 404 (the row is already gone). This is intentional — 404 on a second DELETE is not an error in practice, and the frontend handles it gracefully by transitioning to the NOT_SHARED state regardless.
+
+**Frontend Integration Note (ShareRevokeModal):**
+
+- On `204` → fire `addToast("Share link removed.", "success")` + close modal + transition share area to NOT_SHARED state (animate "Copy link"/"Remove share link" out, fade "Share" button in per SPEC-023).
+- On any error (400/401/403/404/500/network) → fire `addToast("Failed to remove link. Please try again.", "error")` + **keep modal open** for retry (do not close).
+- The 404 case on DELETE is not expected in normal UX flows (the user can only reach the modal if the GET returned a share), but handle it as a generic error with the same toast + keep-modal-open behavior.
+
+---
+
+#### Schema Changes — Sprint #29 (T-133)
+
+**No new migrations required.** Both new endpoints (`GET` and `DELETE`) operate on the existing `plant_shares` table introduced in Sprint #28 migration `20260419_01_create_plant_shares.js`. The new `PlantShare.deleteByPlantId()` model method is a Knex query against that table — no DDL changes.
+
+---
+
+*Sprint 29 contracts written by Backend Engineer — 2026-04-20. T-139: behavioral clarification for POST /api/v1/care-actions/batch (last_done_at sync fix — no shape changes). T-133: two new endpoints — GET /api/v1/plants/:plantId/share (share status check) and DELETE /api/v1/plants/:plantId/share (share revocation). No new migrations. SPEC-023 (Approved) governs frontend rendering logic for both endpoints.*
