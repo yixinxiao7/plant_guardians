@@ -419,3 +419,54 @@ Both added to `.env.example` with placeholder values. Backend starts cleanly wit
 - **Staging note** — full end-to-end OAuth testing requires real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` env vars. Without them the route degrades gracefully but cannot be fully exercised.
 
 ---
+
+
+### Sprint 28 — Migration Proposal: Create `plant_shares` table
+
+**Status:** Auto-approved (automated sprint) — Manager reviews in closeout phase
+**Task:** T-126 (Backend Engineer)
+**Date:** 2026-04-19
+
+#### Summary
+
+Add a `plant_shares` table to support the plant sharing feature (T-126). This table stores one share token per plant, enabling the idempotent `POST /api/v1/plants/:plantId/share` endpoint and the no-auth `GET /api/v1/public/plants/:shareToken` lookup.
+
+#### New Table: `plant_shares`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | UUID | PK, NOT NULL, DEFAULT gen_random_uuid() |
+| `plant_id` | UUID | NOT NULL, FK → plants.id ON DELETE CASCADE |
+| `user_id` | UUID | NOT NULL, FK → users.id ON DELETE CASCADE |
+| `share_token` | VARCHAR(64) | NOT NULL, UNIQUE |
+| `created_at` | TIMESTAMP | NOT NULL, DEFAULT NOW() |
+
+**Indexes:** Primary key on `id`; unique index on `share_token`.
+
+**Relationships:**
+- `plant_id` → `plants.id` (FK, ON DELETE CASCADE — deleting a plant removes its share token automatically)
+- `user_id` → `users.id` (FK, ON DELETE CASCADE — deleting a user removes all their share tokens)
+
+**Migration file:** `backend/migrations/<timestamp>_create_plant_shares.js`
+
+**Rollback:** `down()` drops the table with `dropTableIfExists('plant_shares')`.
+
+#### New Environment Variable
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `FRONTEND_URL` | Yes (feature-required) | Base URL for constructing share URLs; defaults to `http://localhost:5173` in development |
+
+Check `backend/.env.example` before adding — may already be present from a prior sprint. If absent, add with placeholder `http://localhost:5173`.
+
+#### Impact on Existing Schema
+
+None — purely additive. No columns modified on existing tables. No data migrations required.
+
+#### Risk Assessment
+
+- **Low risk** — new table only; all existing endpoints and data are unaffected
+- **Rollback is clean** — `dropTableIfExists` in `down()` removes the table and its indexes cleanly
+- **Cascade safety** — both FK cascades are intentional: share tokens are inherently tied to their plant and owner's lifetime
+
+---

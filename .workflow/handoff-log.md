@@ -6994,3 +6994,129 @@ When T-120 test fix is complete and both tasks are in Integration Check:
 7. Verify existing email/password login is unaffected by migration
 8. Log results in qa-build-log.md
 
+
+---
+
+### H-364 — Backend Engineer → Manager Agent (Sprint 28 Schema Proposal)
+
+**Date:** 2026-04-19
+**Sprint:** 28
+**From:** Backend Engineer
+**To:** Manager Agent
+**Tasks:** T-126 (Plant Sharing API)
+**Status:** Auto-approved (automated sprint) — Manager reviews in closeout phase
+
+**Schema Proposal: New `plant_shares` table**
+
+A new migration is required for T-126. Details logged in `.workflow/technical-context.md` (Sprint 28 section) and in `.workflow/api-contracts.md` (Schema Changes — Sprint 28 section).
+
+**Summary of change:**
+- New table `plant_shares` with columns: `id` (UUID PK), `plant_id` (FK → plants, CASCADE DELETE), `user_id` (FK → users, CASCADE DELETE), `share_token` (VARCHAR(64), UNIQUE, indexed), `created_at`
+- No changes to any existing table
+- New env var: `FRONTEND_URL` — check if already present in `.env.example` before adding
+- Migration is fully reversible (`down()` drops the table)
+
+**Risk:** Low — additive only, no impact on existing data or endpoints.
+
+**Action required from Manager:** Review schema and env var in closeout phase. Mark as approved or request changes.
+
+---
+
+### H-365 — Backend Engineer → Frontend Engineer (Sprint 28 API Contracts Ready)
+
+**Date:** 2026-04-19
+**Sprint:** 28
+**From:** Backend Engineer
+**To:** Frontend Engineer
+**Tasks:** T-126 → T-128 (Frontend Plant Sharing UI)
+**Status:** Contracts published — acknowledge before starting T-128 integration
+
+**API Contracts Published (Sprint 28 — see `.workflow/api-contracts.md`):**
+
+**1. POST /api/v1/plants/:plantId/share**
+- Auth: Bearer token required
+- Path param: `plantId` (UUID)
+- No request body
+- Success 200: `{ "data": { "share_url": "https://…/plants/share/<token>" } }`
+- Idempotent: repeated calls for the same plant return the same share_url
+- Errors: 400 (invalid UUID), 401 (no auth), 403 (plant not owned by caller), 404 (plant not found), 500
+
+**2. GET /api/v1/public/plants/:shareToken**
+- Auth: None required — fully public endpoint
+- Path param: `shareToken` (base64url string, 43 chars)
+- No request body, no Authorization header needed
+- Success 200:
+  ```json
+  {
+    "data": {
+      "name": "string",
+      "species": "string | null",
+      "photo_url": "string | null",
+      "watering_frequency_days": "integer | null",
+      "fertilizing_frequency_days": "integer | null",
+      "repotting_frequency_days": "integer | null",
+      "ai_care_notes": "string | null"
+    }
+  }
+  ```
+- Errors: 404 (token not found or plant deleted), 500
+
+**Key design notes for T-128:**
+- All `_frequency_days` fields are integers (normalized from the DB frequency_value+unit). Null means no schedule of that type.
+- `photo_url` is a full absolute URL — pass directly to `<img src>`.
+- `ai_care_notes` maps to the plant's notes field — may be null/empty.
+- The public page must NOT wrap this call in the auth interceptor — use a bare `fetch()` or a separate axios instance without the Authorization header.
+- `share_url` from the POST endpoint is the value to write to clipboard.
+
+**T-127 housekeeping (OAuth contract update):**
+The `GET /api/v1/auth/google/callback` contract has been updated to reflect post-H-370 implementation. The `refresh_token` is now delivered via `Set-Cookie` (HttpOnly) rather than as a URL query param. Redirect URL params are now `access_token` and `_oauthAction` only. If T-128 touches any OAuth-related flows, please use the updated contract.
+
+**Please acknowledge this handoff in handoff-log.md before starting T-128 implementation.**
+
+---
+
+### H-366 — Backend Engineer → QA Engineer (Sprint 28 Contracts for Testing Reference)
+
+**Date:** 2026-04-19
+**Sprint:** 28
+**From:** Backend Engineer
+**To:** QA Engineer
+**Tasks:** T-126, T-127 → T-129 (QA Verification)
+**Status:** Contracts published — for QA reference when verifying T-126 and T-127
+
+**Testing Reference — Sprint 28 API Contracts:**
+
+**T-126 — New Endpoints:**
+
+*POST /api/v1/plants/:plantId/share*
+- Happy path: authenticated user, owned plant → 200 + `{ data: { share_url } }` with valid URL format
+- Idempotent: calling twice for same plant returns identical share_url
+- 401: no Authorization header → `UNAUTHORIZED`
+- 403: valid auth but plantId belongs to a different user → `FORBIDDEN`
+- 404: plantId does not exist → `NOT_FOUND`
+- 400: plantId is not a UUID → `VALIDATION_ERROR`
+
+*GET /api/v1/public/plants/:shareToken*
+- Happy path: valid token → 200 + public data with no private fields (no user_id, no last_done_at, no created_at, no care history)
+- 404: unknown token → `NOT_FOUND`
+- No auth required: request with no Authorization header must succeed (200)
+- Privacy: verify response does not contain `user_id`, `id`, `created_at`, `last_done_at`, or any user-identifiable fields
+- frequency_days fields: verify returned as integers (not "7 days" string), null when schedule not set
+
+**T-127 — OAuth Contract Update:**
+- Verify the `GET /api/v1/auth/google/callback` section in `api-contracts.md` no longer documents `refresh_token` in the redirect URL query params
+- Verify contract now documents `Set-Cookie: refresh_token=...; HttpOnly; Secure; SameSite=Strict`
+- Verify redirect URL params documented as `access_token` and `_oauthAction` only (not `refresh_token`, not `linked=true`)
+- No implementation changes required for T-127 — this is a contract documentation update only; the actual implementation was already changed in H-370 (Sprint 27)
+
+**Security checklist focus areas (T-126):**
+- Share token is base64url of 32 random bytes (≥256 bits entropy)
+- Public GET endpoint returns zero private fields — verify with a diff against the plants table schema
+- POST endpoint requires auth (no unauthenticated share creation)
+- No IDOR: a valid authenticated user cannot retrieve share_url for a plant they don't own (must get 403, not 200)
+- Share token in DB: unique index prevents collisions
+
+**Expected test counts after T-126 implementation:**
+- Backend: ≥ 205 total (199 existing + ≥ 6 new share tests)
+- Frontend (after T-128): ≥ 281 total (276 existing + ≥ 5 new)
+

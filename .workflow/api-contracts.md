@@ -4293,7 +4293,7 @@ If `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET` are not configured, the route mu
 
 **Auth:** Public (Google provides the authorization code via query param — no Bearer token)
 
-**Description:** Handles the OAuth callback from Google after user consents (or denies). Passport.js exchanges the `code` for a Google profile, then the backend upserts the user in the `users` table and issues a JWT `access_token` + `refresh_token`. The browser is redirected to the frontend with tokens delivered via query params (see Token Delivery Mechanism above).
+**Description:** Handles the OAuth callback from Google after user consents (or denies). Passport.js exchanges the `code` for a Google profile, then the backend upserts the user in the `users` table and issues a JWT `access_token` and a `refresh_token`. The browser is redirected to the frontend with `access_token` and `_oauthAction` delivered as URL query params; `refresh_token` is delivered exclusively via an HttpOnly `Set-Cookie` response header — it does **not** appear in the redirect URL. *(Updated T-127: reflects post-H-370 implementation.)*
 
 **Request:** Driven by Google's redirect — query params are Google-controlled:
 
@@ -4308,35 +4308,38 @@ If `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET` are not configured, the route mu
 1. If Google returns `error=access_denied` → redirect to `/login?error=access_denied`
 2. Exchange `code` for Google profile via Passport.js
 3. Look up user by `google_id` (exact match — returning Google user):
-   - Found → update `updated_at`, issue JWT, redirect to `/?access_token=<jwt>&refresh_token=<token>`
+   - Found → update `updated_at`, issue JWT, set `refresh_token` HttpOnly cookie, redirect to `/?access_token=<jwt>&_oauthAction=login`
 4. If not found by `google_id`, look up by `email` (account-linking case):
-   - Found → set `google_id` on existing user record, issue JWT, redirect to `/?access_token=<jwt>&refresh_token=<token>&linked=true`
-5. If not found by either → create new user (`id`, `email`, `full_name` from Google profile, `google_id`, `password_hash` = NULL, timestamps), issue JWT, redirect to `/?access_token=<jwt>&refresh_token=<token>`
+   - Found → set `google_id` on existing user record, issue JWT, set `refresh_token` HttpOnly cookie, redirect to `/?access_token=<jwt>&_oauthAction=link`
+5. If not found by either → create new user (`id`, `email`, `full_name` from Google profile, `google_id`, `password_hash` = NULL, timestamps), issue JWT, set `refresh_token` HttpOnly cookie, redirect to `/?access_token=<jwt>&_oauthAction=register`
 6. Any unexpected error during steps 2–5 → redirect to `/login?error=oauth_failed`
 
 **Success Redirect — New User (302 Found):**
 
 ```
-Location: /?access_token=<jwt>&refresh_token=<opaque_token>
+Location: /?access_token=<jwt>&_oauthAction=register
+Set-Cookie: refresh_token=<opaque_token>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800
 ```
 
-No JSON body. The frontend reads tokens from the URL, stores them in-memory, and cleans the URL via `window.history.replaceState`.
+No JSON body. The frontend reads `access_token` from the URL query param and stores it in-memory; `refresh_token` arrives as an HttpOnly cookie and is inaccessible to JavaScript. The frontend cleans the URL via `window.history.replaceState`. The `_oauthAction=register` param signals a new-account welcome flow.
 
 **Success Redirect — Returning Google User (302 Found):**
 
 ```
-Location: /?access_token=<jwt>&refresh_token=<opaque_token>
+Location: /?access_token=<jwt>&_oauthAction=login
+Set-Cookie: refresh_token=<opaque_token>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800
 ```
 
-Same shape as new user. Frontend shows "Welcome back, [First Name]!" toast.
+Same cookie delivery as new user. The `_oauthAction=login` param signals the frontend to show "Welcome back, [First Name]!" toast.
 
 **Success Redirect — Account Auto-Linked (302 Found):**
 
 ```
-Location: /?access_token=<jwt>&refresh_token=<opaque_token>&linked=true
+Location: /?access_token=<jwt>&_oauthAction=link
+Set-Cookie: refresh_token=<opaque_token>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800
 ```
 
-The `linked=true` param signals the frontend to show the account-linked toast: *"Your Google account has been linked. Welcome back, [First Name]! 🌿"* (5s).
+The `_oauthAction=link` param signals the frontend to show the account-linked toast: *"Your Google account has been linked. Welcome back, [First Name]! 🌿"* (5s).
 
 **Error Redirects (302 Found):**
 
@@ -4347,10 +4350,10 @@ The `linked=true` param signals the frontend to show the account-linked toast: *
 
 **Token shapes (same as existing email/password login):**
 
-| Token | Type | Expiry | Notes |
-|-------|------|--------|-------|
-| `access_token` | JWT (signed with `JWT_SECRET`) | 15 minutes | Contains `{ sub: user.id, email: user.email }` |
-| `refresh_token` | Opaque random string (stored in `refresh_tokens` table) | 7 days | Same issuance logic as `POST /api/v1/auth/login` |
+| Token | Delivery | Type | Expiry | Notes |
+|-------|----------|------|--------|-------|
+| `access_token` | URL query param (`?access_token=`) | JWT (signed with `JWT_SECRET`) | 15 minutes | Contains `{ sub: user.id, email: user.email }` |
+| `refresh_token` | HttpOnly `Set-Cookie` header | Opaque random string (stored in `refresh_tokens` table) | 7 days | Attributes: `HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`. Not accessible to JavaScript. Same issuance logic as `POST /api/v1/auth/login`. *(T-127: updated from query param to cookie — post-H-370.)* |
 
 **Notes:**
 - `password_hash` is NULL for Google-only users — existing email/password login with the same email continues to work if already set (account-linking preserves the password)
@@ -4423,6 +4426,238 @@ Both variables added to `.env.example` with placeholder values (`your_google_cli
 
 ---
 
-*Sprint 27 contracts written by Backend Engineer — 2026-04-08. Two new browser-navigation endpoints for Google OAuth (T-120). Schema change: `google_id VARCHAR(255)` column (nullable, partial unique index) added to `users` table; `password_hash` made nullable to support Google-only accounts. Token delivery via query params on frontend redirect. Migration is reversible.*
+*Sprint 27 contracts written by Backend Engineer — 2026-04-08. Two new browser-navigation endpoints for Google OAuth (T-120). Schema change: `google_id VARCHAR(255)` column (nullable, partial unique index) added to `users` table; `password_hash` made nullable to support Google-only accounts. Token delivery originally documented via query params; **updated 2026-04-19 (T-127)** to reflect post-H-370 implementation: `refresh_token` delivered via HttpOnly `Set-Cookie`, redirect URL contains `access_token` and `_oauthAction` only. Migration is reversible.*
 
 *Sprint 26 contracts written by Backend Engineer — 2026-04-06. Zero new endpoints. Zero schema changes. T-117: test-only fix for careActionsStreak.test.js daysAgo(0) timezone issue. T-118: frontend UX fix consuming existing GET /api/v1/unsubscribe — CTA differentiation by HTTP status code. All prior sprint contracts remain authoritative.*
+
+---
+
+## Sprint 28 Contracts
+
+---
+
+### GROUP — Plant Sharing (T-126)
+
+---
+
+#### POST /api/v1/plants/:plantId/share
+
+**Auth:** Bearer token (required)
+
+**Description:** Creates or retrieves a share token for the specified plant (idempotent). If a share record already exists for this plant, the existing token is returned unchanged — clicking "Share" twice always produces the same link. Verifies that the authenticated user owns the plant before issuing (or returning) a share token.
+
+**Path Parameters:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `plantId` | UUID | The ID of the plant to share. Must belong to the authenticated user. |
+
+**Request Body:** None (no body required)
+
+**Business Logic:**
+
+1. Verify `plantId` is a valid UUID → 400 if malformed
+2. Look up the plant by `plantId`. If not found → 404
+3. Verify `plant.user_id === authenticated user id`. If mismatch → 403
+4. Check for an existing row in `plant_shares` where `plant_id = plantId`
+   - Exists → return the existing `share_token` (idempotent)
+   - Does not exist → generate a new random 32-byte token encoded as base64url (URL-safe, no padding characters), insert into `plant_shares`
+5. Construct `share_url` using `FRONTEND_URL` env var: `${FRONTEND_URL}/plants/share/${share_token}`
+6. Return 200 with `share_url`
+
+**Share Token Format:**
+- Source: `crypto.randomBytes(32).toString('base64url')`
+- Length: 43 characters (base64url of 32 bytes)
+- URL-safe: uses `A–Z`, `a–z`, `0–9`, `-`, `_` — no `+`, `/`, or `=`
+- Entropy: 256 bits
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "share_url": "https://app.plantguardians.com/plants/share/abc123def456..."
+  }
+}
+```
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | `plantId` is not a valid UUID |
+| 401 | `UNAUTHORIZED` | Missing or invalid Bearer token |
+| 403 | `FORBIDDEN` | Authenticated user does not own the specified plant |
+| 404 | `NOT_FOUND` | No plant exists with the given `plantId` |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Example error (403):**
+```json
+{
+  "error": {
+    "message": "You do not have permission to share this plant.",
+    "code": "FORBIDDEN"
+  }
+}
+```
+
+**Notes:**
+- No request body is needed — the plant is identified by the URL path param
+- Idempotent: repeated calls for the same plant return the same `share_url`
+- `FRONTEND_URL` must be set in `backend/.env` and `backend/.env.example`; if unset, the backend should fall back to `http://localhost:5173` in development
+- Share token revocation (future sprint): delete the row in `plant_shares` for the plant; subsequent `GET /api/v1/public/plants/:shareToken` calls will return 404
+
+---
+
+#### GET /api/v1/public/plants/:shareToken
+
+**Auth:** Public — no authentication required
+
+**Description:** Returns the public-facing care profile for a plant identified by its share token. This endpoint is intended for unauthenticated visitors following a shared link. It returns only information the plant owner has explicitly shared: name, species, photo, care schedule frequencies, and AI care notes. It does **not** return any user-identifiable data, care history, overdue/due status, or any other private information.
+
+**Path Parameters:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `shareToken` | string | The base64url share token from the `plant_shares` table |
+
+**Request:** No body, no auth header
+
+**Business Logic:**
+
+1. Look up `plant_shares` row where `share_token = :shareToken`
+   - Not found → 404
+2. Look up the associated plant via `plant_id` (JOIN with `plants` and `care_schedules`)
+3. Normalize care schedule frequencies to days:
+   - `frequency_unit = 'days'` → `frequency_days = frequency_value`
+   - `frequency_unit = 'weeks'` → `frequency_days = frequency_value * 7`
+   - `frequency_unit = 'months'` → `frequency_days = frequency_value * 30`
+4. Return only the allowlisted public fields (see Privacy Boundary below)
+
+**Privacy Boundary — Fields Returned:**
+
+| Field | Source column | Returned? |
+|-------|--------------|-----------|
+| `name` | `plants.name` | ✅ Always |
+| `species` | `plants.type` | ✅ Always (null if not set) |
+| `photo_url` | `plants.photo_url` | ✅ If non-null |
+| `watering_frequency_days` | `care_schedules` (type=watering) | ✅ If schedule exists |
+| `fertilizing_frequency_days` | `care_schedules` (type=fertilizing) | ✅ If schedule exists |
+| `repotting_frequency_days` | `care_schedules` (type=repotting) | ✅ If schedule exists |
+| `ai_care_notes` | `plants.notes` | ✅ If non-null and non-empty |
+| `user_id`, `id`, `created_at` | `plants` | ❌ Never returned |
+| `last_done_at`, care history | `care_actions` | ❌ Never returned |
+| Owner name, email, account data | `users` | ❌ Never returned |
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": {
+    "name": "Monstie",
+    "species": "Monstera Deliciosa",
+    "photo_url": "https://storage.example.com/photos/abc.jpg",
+    "watering_frequency_days": 7,
+    "fertilizing_frequency_days": 30,
+    "repotting_frequency_days": null,
+    "ai_care_notes": "This plant prefers indirect bright light and well-draining soil..."
+  }
+}
+```
+
+**Field details:**
+
+| Field | Type | Nullable | Notes |
+|-------|------|----------|-------|
+| `name` | string | No | Always present |
+| `species` | string \| null | Yes | Null if plant type was not set |
+| `photo_url` | string \| null | Yes | Null if no photo uploaded |
+| `watering_frequency_days` | integer \| null | Yes | Null if no watering schedule |
+| `fertilizing_frequency_days` | integer \| null | Yes | Null if no fertilizing schedule |
+| `repotting_frequency_days` | integer \| null | Yes | Null if no repotting schedule |
+| `ai_care_notes` | string \| null | Yes | Null if notes field is empty or null |
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 404 | `NOT_FOUND` | No share token matches `:shareToken` (token never existed, or plant was deleted via CASCADE) |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Example error (404):**
+```json
+{
+  "error": {
+    "message": "This plant profile is no longer available.",
+    "code": "NOT_FOUND"
+  }
+}
+```
+
+**Notes:**
+- No rate limiting required for Sprint #28 (future consideration)
+- No `Authorization` header is checked — this endpoint must be accessible without any token
+- `photo_url` is a full absolute URL (returned as-is from the plants table — the upload endpoint already stores the full URL)
+- The `ai_care_notes` field maps to the `notes` column in the `plants` table; this field stores AI-generated care advice when the user accepts AI suggestions via the AI Advice modal
+- Future revocation: when a plant's `plant_shares` row is deleted, this endpoint returns 404 for that token; cascade delete on `plants` also removes the share row automatically
+
+---
+
+### Schema Changes — Sprint 28
+
+#### Migration: Create `plant_shares` table
+
+**Task:** T-126 (Backend Engineer)
+**Migration file:** `backend/migrations/<timestamp>_create_plant_shares.js`
+**Date proposed:** 2026-04-19
+**Status:** Auto-approved (automated sprint) — Manager reviews in closeout phase
+
+**New table: `plant_shares`**
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PK, NOT NULL, DEFAULT `gen_random_uuid()` | Primary key |
+| `plant_id` | UUID | NOT NULL, FK → `plants.id` ON DELETE CASCADE | The plant being shared |
+| `user_id` | UUID | NOT NULL, FK → `users.id` ON DELETE CASCADE | Owner (for quick auth verification) |
+| `share_token` | VARCHAR(64) | NOT NULL, UNIQUE | URL-safe base64url token (43 chars from 32-byte random) |
+| `created_at` | TIMESTAMP | NOT NULL, DEFAULT `NOW()` | Token creation time |
+
+**Indexes:**
+- Primary key on `id`
+- Unique index on `share_token` (for fast O(1) lookup by public GET endpoint)
+
+**`up()` (via Knex):**
+
+```js
+await knex.schema.createTable('plant_shares', (table) => {
+  table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+  table.uuid('plant_id').notNullable()
+    .references('id').inTable('plants').onDelete('CASCADE');
+  table.uuid('user_id').notNullable()
+    .references('id').inTable('users').onDelete('CASCADE');
+  table.string('share_token', 64).notNullable().unique();
+  table.timestamp('created_at').notNullable().defaultTo(knex.fn.now());
+});
+```
+
+**`down()` (rollback):**
+
+```js
+await knex.schema.dropTableIfExists('plant_shares');
+```
+
+**New environment variable:**
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `FRONTEND_URL` | Yes (for share URL construction) | `http://localhost:5173` | Base URL of the frontend app — used to construct `share_url` in POST response |
+
+- Add `FRONTEND_URL` to `backend/.env.example` if not already present (check first — it may have been added in an earlier sprint for CORS or email CTAs)
+
+**Impact on existing data:** None — additive new table. No changes to existing tables.
+
+**Risk:** Low. Cascade deletes from both `plants` and `users` tables are safe. Unique index on `share_token` prevents duplicates. Rollback is clean (drop table).
+
+---
+
+*Sprint 28 contracts written by Backend Engineer — 2026-04-19. Two new endpoints: POST /api/v1/plants/:plantId/share (auth required, idempotent share token creation) and GET /api/v1/public/plants/:shareToken (public, no-auth plant profile). New migration: plant_shares table. T-127 housekeeping: OAuth callback contract updated to reflect HttpOnly cookie delivery for refresh_token (post-H-370 implementation).*
