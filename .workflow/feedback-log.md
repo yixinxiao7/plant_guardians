@@ -20,6 +20,66 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-123 — QA: UX Suggestion — Share button could acknowledge "already shared" state in a future polish pass (Sprint 28)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-123 |
+| Source | QA Engineer |
+| Sprint | 28 |
+| Category | UX Issue |
+| Severity | Cosmetic |
+| Description | The Share button is idempotent on the backend (repeated POSTs return the same `share_url`) and the Sprint 28 UX deliberately keeps the click behavior identical every time — click, copy, "Link copied!" toast. This is correct per SPEC-022 ("No special 'already shared' state is shown. The revocation entry point is deferred."). From a product perspective, a user who has already shared this plant may wonder whether they are creating a new link or re-copying an existing one. A small future-sprint polish could surface a subtle inline affordance (e.g., a tooltip or secondary button action "Copy existing share link" vs "Create share link") or pair with the future revocation UI. Not a bug and explicitly out of scope for Sprint 28 — noted for the sharing-feature backlog. |
+| Steps to Reproduce | Share the same plant twice — UX is identical (toast fires again). No hint that the backend short-circuited the create. |
+| Expected vs Actual | Expected (per spec): identical UX — correct. Actual: identical UX — correct. Observation is about future enhancement, not a defect. |
+| Status | New (backlog — optional polish) |
+
+---
+
+## FB-122 — QA: Positive — Privacy boundary on public plant endpoint is airtight (Sprint 28)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-122 |
+| Source | QA Engineer |
+| Sprint | 28 |
+| Category | Positive |
+| Severity | — |
+| Description | Live integration audit of `GET /api/v1/public/plants/:shareToken` confirmed that the public response exposes **only** the allowlisted fields — `name`, `species`, `photo_url`, `watering_frequency_days`, `fertilizing_frequency_days`, `repotting_frequency_days`, `ai_care_notes`. None of the following leaked: `user_id`, `id`, `created_at`, `updated_at`, `last_done_at`, `email`, `password_hash`, `google_id`, `refresh_token`, `recent_care_actions`. The explicit allowlist approach in `publicPlants.js` (building a fresh object rather than returning the plant row or whitelisting via `omit`) is the right pattern — a future plant schema addition will default to NOT being leaked, and the new field would need an explicit add. This is the kind of defense-in-depth that prevents the "schema migration accidentally leaked a PII field" class of incident. Backend Engineer deserves recognition for the explicit construction. |
+| Status | Acknowledged |
+
+---
+
+## FB-121 — QA: Positive — Idempotent share endpoint makes the UX forgiving (Sprint 28)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-121 |
+| Source | QA Engineer |
+| Sprint | 28 |
+| Category | Positive |
+| Severity | — |
+| Description | End-to-end test of clicking Share repeatedly (burst of 5 rapid POSTs) returns the same `share_url` every time with stable 200s and zero DB contention. From a user perspective this is the right design: the user never has to worry about "did I already share this?" — clicking again just copies the same link. The implementation (find-by-plant-id short-circuit before insert; CASCADE on plant delete) also means no orphaned share rows. Good work. |
+| Status | Acknowledged |
+
+---
+
+## FB-120 — QA: Observation — Vite dev-server has HIGH-severity advisory (not Sprint 28 regression; dev-only)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-120 |
+| Source | QA Engineer |
+| Sprint | 28 |
+| Category | Bug |
+| Severity | Minor |
+| Description | `cd frontend && npm audit` reports **1 HIGH severity** advisory against `vite` version 8.0.0–8.0.4 (installed: `8.0.2`). Three CVEs: path traversal in optimized deps `.map` handling (GHSA-4w7w-66w2-5vf9), `server.fs.deny` bypassed with queries (GHSA-v2wj-q39q-566r), and arbitrary file read via Vite dev-server WebSocket (GHSA-p9ff-h696-f583). **This is a dev-server-only vulnerability — it does not affect the production bundle or deployed frontend.** `npm audit fix` is available. Not introduced by Sprint 28 (pre-existing). Recommend handling as Sprint #29 housekeeping (analogous to T-127 nodemailer treatment) — bump `vite` within the `^8.0.1` range via `npm audit fix`, re-run 287/287 frontend tests, and re-run `npm run build`. |
+| Steps to Reproduce | `cd frontend && npm audit` |
+| Expected vs Actual | Expected: 0 vulnerabilities (matching backend after T-127 fix). Actual: 1 high severity. |
+| Status | New (recommend Sprint 29 housekeeping task) |
+
+---
+
 ## FB-117 — QA: Positive — Google OAuth implementation is clean, secure, and user-friendly (Sprint 27 Final)
 
 | Field | Value |
@@ -2869,6 +2929,487 @@ The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `
 
 ---
 
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
+### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
+
+| Field | Value |
+|-------|-------|
+| Feedback | Plants marked done via the Care Due Dashboard still show as overdue on My Plants after the action |
+| Sprint | 27 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** The overdue/coming-up status mismatch between My Plants and the Care Due Dashboard persists despite T-116. Root cause identified: `CareAction.batchCreate()` (used by `POST /api/v1/care-actions/batch`, which powers the Care Due Dashboard "Mark Done" button) inserts into `care_actions` but never calls `CareSchedule.updateLastDoneAt()`.
+
+This creates a data divergence:
+- `GET /api/v1/care-due` reads `MAX(care_actions.performed_at)` via `CareSchedule.findAllWithLastAction()` — sees the fresh batch action and correctly computes next due as future → "Coming Up"
+- `GET /api/v1/plants` reads `care_schedules.last_done_at` directly — still has the pre-batch stale value → computes the plant as overdue
+
+The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `CareSchedule.updateLastDoneAt()` and does not have this bug. Only the batch path is affected.
+
+**Steps to Reproduce:**
+1. Have a plant with overdue watering showing on both My Plants and Care Due Dashboard.
+2. On the Care Due Dashboard, use the batch mark-done flow to mark it done.
+3. Navigate to My Plants — the plant still shows as overdue.
+4. Navigate back to Care Due Dashboard — the plant correctly shows in Coming Up.
+
+**Fix:** In `CareAction.batchCreate()` (`backend/src/models/CareAction.js`), after inserting valid actions, call `CareSchedule.updateLastDoneAt()` for each successfully inserted action — mirroring the single-action path. Only update if `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+
+**Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
+
+---
 ### FB-113 — Bug: Batch mark-done does not update care_schedules.last_done_at — causes persisting overdue/coming-up mismatch
 
 | Field | Value |

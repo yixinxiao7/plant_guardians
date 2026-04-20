@@ -4,6 +4,86 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-384 — QA Engineer → Deploy Engineer: Sprint #28 QA Sign-Off — T-130 Unblocked (2026-04-20)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-384 |
+| **From** | QA Engineer |
+| **To** | Deploy Engineer |
+| **Sprint** | #28 |
+| **Date** | 2026-04-20 |
+| **Status** | QA SIGN-OFF — T-130 cleared to execute. |
+
+### Summary
+
+T-129 Sprint #28 verification is complete. All acceptance criteria met; all gates PASS. T-126, T-127, T-128, T-129 are **Done** in `dev-cycle-tracker.md`. T-130 is unblocked.
+
+### Verification Result
+
+| Gate | Target | Actual | Result |
+|------|--------|--------|--------|
+| Backend tests | ≥ 205 | **209/209** | ✅ |
+| Frontend tests | ≥ 281 | **287/287** | ✅ |
+| Backend `npm audit` (T-127) | 0 moderate+ | **0 vulns** | ✅ |
+| SPEC-022 compliance | All items | Verified | ✅ |
+| API contract compliance (live) | 20 scenarios | All pass | ✅ |
+| Privacy boundary (public GET) | Zero private fields | 9/9 fields confirmed absent | ✅ |
+| Share token entropy | ≥ 32 bytes | 256-bit (43-char base64url) | ✅ |
+| Auth enforcement on POST | 401 / 403 / 404 / 400 paths | All correct | ✅ |
+| Config consistency | Match | PORT/proxy/CORS match | ✅ |
+
+Full details: see `qa-build-log.md → Sprint #28 QA Verification — 2026-04-20 (T-129) — SIGN-OFF`.
+
+### Live Integration Highlights
+
+- POST `/api/v1/plants/:plantId/share` idempotent (3 repeated calls returned the same 43-char base64url token). Burst of 5 rapid POSTs all returned 200.
+- GET `/api/v1/public/plants/:shareToken` returns exactly the 7 allowlisted fields: `name`, `species`, `photo_url`, `watering_frequency_days`, `fertilizing_frequency_days`, `repotting_frequency_days`, `ai_care_notes`. **Confirmed absent:** `user_id`, `id`, `created_at`, `updated_at`, `last_done_at`, `email`, `password_hash`, `google_id`, `refresh_token`, `recent_care_actions`.
+- CASCADE delete verified: deleting a plant → its public share token returns 404 immediately.
+- Malformed tokens (1 char, 128 chars, SQL-ish) → 404 (no format leakage, no SQL injection).
+- Unauthenticated request with `Authorization: Bearer garbage` on the public GET → 200 (header ignored correctly).
+- Emoji / script-tag in plant name round-trips through the API and is safely escaped at render by React.
+
+### T-130 Execution (per H-382)
+
+Your pre-deploy plan is still valid:
+
+```bash
+# 1. Apply migration (if staging DB is fresh)
+cd /Users/yixinxiao/PROJECTS/plant_guardians/backend
+npx knex migrate:latest
+# Expected: 1 migration applied → plant_shares table
+
+# 2. Start backend
+node src/server.js &
+# Verify: GET /api/health → 200
+
+# 3. Rebuild frontend
+cd /Users/yixinxiao/PROJECTS/plant_guardians/frontend
+npm run build
+# Expected: 0 errors, dist/ updated
+
+# 4. Spot checks
+curl http://localhost:3000/api/health
+curl http://localhost:3000/api/v1/public/plants/nonexistent-token
+# Expected: 200 {"status":"ok"} and 404 respectively
+```
+
+Note: `npx knex migrate:status` in the dev environment already shows `20260419_01_create_plant_shares.js` as **Completed** — if staging DB is a separate instance, `migrate:latest` will apply there; otherwise it will no-op cleanly.
+
+### Feedback Items Logged (not blocking)
+
+- **FB-120** — Vite dev-server has 1 HIGH severity advisory (dev-only, pre-existing, not Sprint 28 regression). Recommend Sprint #29 housekeeping.
+- **FB-121** — Positive: Idempotent share endpoint is forgiving under repeated clicks.
+- **FB-122** — Positive: Privacy boundary is airtight; explicit allowlist pattern prevents future schema-addition leaks.
+- **FB-123** — UX suggestion (backlog): Future polish could acknowledge "already shared" state alongside the revocation UI.
+
+### Next
+
+Deploy Engineer: proceed with T-130. Log deploy in `qa-build-log.md` and hand off to Monitor Agent (T-131) when complete.
+
+---
+
 ## H-383 — Manager Agent → QA Engineer: Sprint #28 Code Review Complete — T-126 / T-127 / T-128 Approved (2026-04-19)
 
 | Field | Value |
@@ -7459,4 +7539,38 @@ The `GET /api/v1/auth/google/callback` contract has been updated to reflect post
 **Expected test counts after T-126 implementation:**
 - Backend: ≥ 205 total (199 existing + ≥ 6 new share tests)
 - Frontend (after T-128): ≥ 281 total (276 existing + ≥ 5 new)
+
+---
+
+### H-385 — Manager Agent → Orchestrator (Sprint 28 Code Review Phase — No-Op)
+
+**Date:** 2026-04-20
+**Sprint:** 28
+**From:** Manager Agent
+**To:** Orchestrator / Deploy Engineer
+**Status:** No tasks in "In Review" — phase is a no-op for this invocation
+
+**Summary:**
+
+Reviewed `.workflow/dev-cycle-tracker.md` Sprint 28 section for tasks in "In Review" status. **Zero tasks found in `In Review`.**
+
+**Current Sprint 28 state:**
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T-125 (SPEC-022) | Done | Design spec approved |
+| T-126 (Plant sharing API) | Done | Code reviewed + QA signed off (209/209 backend tests) |
+| T-127 (Housekeeping — nodemailer + OAuth contract) | Done | Code reviewed + QA signed off (0 vulnerabilities) |
+| T-128 (Plant sharing UI) | Done | Code reviewed + QA signed off (287/287 frontend tests) |
+| T-129 (QA verification) | Done | Full sign-off in qa-build-log.md (2026-04-20) |
+| T-130 (Staging deploy) | **Ready** | Unblocked — Deploy Engineer to execute next |
+| T-131 (Post-deploy health check) | Backlog | Blocked on T-130 |
+
+**Why no review work:** Code review for all three engineering tasks (T-126, T-127, T-128) was completed during prior Manager Agent invocations on 2026-04-19. Each task passed review (notes recorded in tracker), moved `In Review → Integration Check`, QA signed off (T-129 on 2026-04-20), and they were then moved to `Done`. No rework cycles were required.
+
+**Action:** No handoff to an engineer for rework; no handoff to QA for new integration checks. Sprint 28 is ready to advance to the Deploy phase.
+
+**Next step in pipeline:** Orchestrator should advance to the Deploy phase. T-130 is `Ready` and unblocked — Deploy Engineer should execute `knex migrate:latest` (applies `20260419_01_create_plant_shares.js`), restart backend, rebuild frontend dist, and verify the new public/share endpoints per the T-130 acceptance criteria. Then T-131 (Monitor Agent) for the post-deploy health check.
+
+No file modifications required from this invocation.
 

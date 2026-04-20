@@ -4,6 +4,268 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint #28 QA Re-Verification — 2026-04-20 (post-sign-off spot check)
+
+**Agent:** QA Engineer
+**Task:** T-129 re-verification (orchestrator re-invocation; spot-check that nothing regressed after original sign-off)
+**Sprint:** #28
+**Date:** 2026-04-20
+**Environment:** Local
+**Result:** ✅ **State unchanged. Full sign-off (below) still stands.** T-129 Done. T-130 remains unblocked. H-384 is the authoritative handoff to Deploy Engineer — **no new handoff issued** (would duplicate).
+
+### Re-run Gate Summary
+
+| Gate | Target | Actual | Result |
+|------|--------|--------|--------|
+| Backend unit tests (`cd backend && npm test`) | ≥ 205 | **209/209** in 48.6 s (23 suites) | ✅ PASS |
+| Frontend unit tests (`cd frontend && npm test -- --run`) | ≥ 281 | **287/287** in 3.68 s (37 files) | ✅ PASS |
+| Backend `npm audit` | 0 moderate+ | `found 0 vulnerabilities` | ✅ PASS |
+| Frontend `npm audit` | No new issues | 1 HIGH (vite 8.0.0–8.0.4, dev-only) — pre-existing, already logged as FB-120 | ⚠️ NON-BLOCKING (unchanged) |
+| Config consistency | Match | backend PORT=3000 ↔ vite proxy `http://localhost:3000`; `FRONTEND_URL` includes `http://localhost:5173` | ✅ PASS |
+| Code spot-check | No regressions | `publicPlants.js`, `plants.js` share handler, `PlantShare.js`, `ShareButton.jsx`, `PublicPlantPage.jsx` all match H-383 review notes | ✅ PASS |
+
+### Action Taken
+
+- **None on the tracker.** T-126, T-127, T-128, T-129 remain `Done`. T-130 remains `Ready`. T-131 remains `Backlog` (blocked on T-130).
+- **None on handoff-log.** H-384 (QA → Deploy, 2026-04-20) already delivered the sign-off for T-130. A second handoff would be duplicative.
+- Original sign-off entry preserved below for reference.
+
+---
+
+## Sprint #28 QA Verification — 2026-04-20 (T-129) — SIGN-OFF
+
+**Agent:** QA Engineer
+**Task:** T-129 — Sprint #28 full regression + plant-sharing feature verification
+**Sprint:** #28
+**Date:** 2026-04-20
+**Environment:** Local (backend http://localhost:3000, dev DB)
+**Result:** ✅ **QA SIGN-OFF — all gates PASS.** T-126, T-127, T-128 cleared to move to Done. T-130 Deploy Engineer is unblocked.
+
+---
+
+### Summary
+
+| Gate | Target | Actual | Result |
+|------|--------|--------|--------|
+| Backend unit tests | ≥ 205 | **209/209** | ✅ PASS |
+| Frontend unit tests | ≥ 281 | **287/287** | ✅ PASS |
+| Backend `npm audit` | 0 moderate+ | **0 vulnerabilities** | ✅ PASS (T-127) |
+| API contract compliance | All endpoints | Verified live | ✅ PASS |
+| SPEC-022 compliance | Share button + public page | Verified | ✅ PASS |
+| Config consistency | backend/.env ↔ vite ↔ docker-compose | Match | ✅ PASS |
+| Security checklist | All applicable items | Pass | ✅ PASS |
+| Product-perspective tests | Live end-to-end | All user journeys work | ✅ PASS |
+
+---
+
+### 1. Unit Test Review
+
+**Test Type: Unit Test**
+
+#### Backend (`cd backend && npm test`)
+
+- **Result:** ✅ **209/209 pass** — 23 suites, 49.6 s
+- **New tests this sprint (T-126, `tests/plantShares.test.js`):** 10 tests (target ≥ 6)
+  - POST /api/v1/plants/:plantId/share: happy path (200), idempotent (same URL on repeat), 403 wrong owner, 401 no auth, 404 missing plant, 400 invalid UUID
+  - GET /api/v1/public/plants/:shareToken: 200 + privacy boundary assertions (no user_id/id/created_at/updated_at/last_done_at/recent_care_actions in response), 404 unknown token, 404 after CASCADE-delete of plant, 200 with all-null fields for bare-minimum plant
+- **Coverage per endpoint:** Happy-path + ≥1 error path for every new endpoint — satisfies QA coverage rule.
+- **Regression:** No existing test modifications; no flakiness observed in this run.
+
+#### Frontend (`cd frontend && npm test`)
+
+- **Result:** ✅ **287/287 pass** — 37 test files, 6.48 s (vitest)
+- **New tests this sprint (T-128):** 11 tests (target ≥ 5)
+  - `__tests__/ShareButton.test.jsx` (5): render + aria-label, click → API call + loading state, clipboard write + "Link copied!" toast, API failure toast, clipboard-unavailable fallback modal
+  - `__tests__/PublicPlantPage.test.jsx` (6): loading skeleton, populated success (h1 + species + chips + AI notes + CTA), photo omitted when null, 404 state, 500/error state + retry button, "No schedule set" chip when all frequencies null
+- **Coverage per component:** Happy-path + ≥1 error path for each new component — satisfies QA coverage rule. All SPEC-022 minimum test cases (items 1–5 required; items 6–9 strongly recommended/recommended) covered.
+- **Regression:** 276 → 287 (+11). No existing tests modified. No vitest failures, no console errors logged.
+
+---
+
+### 2. Integration Testing
+
+**Test Type: Integration Test** — Live end-to-end verification against running backend on http://localhost:3000.
+
+#### T-126 — Plant Sharing API (live integration)
+
+All 20 test scenarios executed against live backend. All results match the published contract and SPEC-022.
+
+| # | Scenario | Expected | Actual | Result |
+|---|----------|----------|--------|--------|
+| 1 | Register user A (full_name + email + password) | 201 + access_token | 201 + access_token | ✅ |
+| 2 | Create plant w/ watering (weeks) + fertilizing (months) | 201 + plant | 201 + plant | ✅ |
+| 3 | POST /plants/:id/share (fresh) | 200 + share_url | 200 + `http://localhost:5173/plants/share/FlNWTLq3...` (43-char base64url) | ✅ |
+| 4 | POST /plants/:id/share (second call — idempotent) | same share_url | same URL returned | ✅ |
+| 5 | GET /public/plants/:token (no auth) | 200 + allowlist fields | 200 with name/species/photo_url/watering_frequency_days=7/fertilizing_frequency_days=30/repotting_frequency_days=null/ai_care_notes | ✅ |
+| 6 | GET /public/plants/:token with spurious `Authorization: Bearer garbage` header | 200 (public endpoint ignores header) | 200 | ✅ |
+| 7 | POST /plants/:id/share WITHOUT auth header | 401 UNAUTHORIZED | 401 `{"error":{"message":"Missing or invalid authorization header.","code":"UNAUTHORIZED"}}` | ✅ |
+| 8 | POST /plants/not-a-uuid/share | 400 VALIDATION_ERROR | 400 `{"error":{"code":"VALIDATION_ERROR"}}` | ✅ |
+| 9 | POST /plants/00000000-0000-4000-8000-000000000000/share (valid UUID, no such plant) | 404 | 404 `{"error":{"code":"PLANT_NOT_FOUND"}}` | ✅ |
+| 10 | Register user B → POST /plants/{A-plant}/share with user B token | 403 FORBIDDEN | 403 `{"error":{"code":"FORBIDDEN"}}` | ✅ |
+| 11 | GET /public/plants/x (1-char token) | 404 (no leak of format) | 404 | ✅ |
+| 12 | GET /public/plants/{128×"x"} (overlong token) | 404 | 404 | ✅ |
+| 13 | GET /public/plants/{URL-encoded SQLi payload} | 404, no DB error | 404 | ✅ |
+| 14 | Privacy audit — public JSON must not include `user_id`, `id`, `created_at`, `updated_at`, `last_done_at`, `email`, `password_hash`, `google_id`, `refresh_token` | none of these fields | confirmed — all 9 fields absent | ✅ |
+| 15 | 5× rapid POST /share (burst stability) | 5× 200 | `200 200 200 200 200` | ✅ |
+| 16 | Plant name with emoji `🌿` + `<script>alert(1)</script>` — round-trip via public endpoint | Preserved raw in JSON (React escapes on render) | preserved; React default-escaping handles render | ✅ |
+| 17 | Plant notes field 4000 chars | 400 VALIDATION_ERROR (max 2000) | 400 returned by `POST /plants` — good; share endpoint never exercised | ✅ |
+| 18 | Plant with zero schedules/type/notes — share + public GET | 200 + all-null fields except `name` | 200 `{"name":"Mystery Plant","species":null,"photo_url":null,"watering_frequency_days":null,"fertilizing_frequency_days":null,"repotting_frequency_days":null,"ai_care_notes":null}` | ✅ |
+| 19 | DELETE plant → GET /public/plants/{prior-token} | 404 (CASCADE) | 404 | ✅ |
+| 20 | Account deletion cascades share rows | 204 + no FK error | 204 | ✅ |
+
+**Frequency normalization verified:** `frequency_unit: "weeks", frequency_value: 1` → `watering_frequency_days: 7`; `frequency_unit: "months", frequency_value: 1` → `fertilizing_frequency_days: 30`. Matches contract.
+
+**Migration status (live):** `npx knex migrate:status` → all 8 migrations applied; `20260419_01_create_plant_shares.js` is Completed.
+
+#### T-128 — Plant Sharing UI (contract compliance + SPEC-022)
+
+Verified through code review of component source + 287/287 vitest runs (below). Also spot-checked API client wiring:
+
+- `frontend/src/utils/api.js`:
+  - `plantShares.create(plantId)` → POST /plants/:id/share via the authenticated `request()` helper (Bearer + auto-refresh). ✅
+  - `plantShares.getPublic(shareToken)` → bare `fetch()` against `${API_BASE}/public/plants/${encodeURIComponent(token)}` — **no Authorization header, no 401-refresh trigger**. Correct per SPEC-022 and H-378. ✅
+- `frontend/src/App.jsx:95` — `<Route path="/plants/share/:shareToken" element={<PublicPlantPage />} />` registered **outside** `<ProtectedRoute>` and outside the authenticated `<AppShell>`. ✅
+- `frontend/src/components/ShareButton.jsx` — loading state (`disabled`, `aria-busy="true"`, `aria-label="Generating share link…"`), success toast "Link copied!", error toast "Failed to generate link. Please try again.", clipboard fallback modal when `navigator.clipboard === undefined` OR `writeText()` rejects. ✅
+- `frontend/src/pages/PublicPlantPage.jsx` — all 4 SPEC-022 states implemented (loading skeleton, success, 404 "This plant link is no longer active" with CTA, error with Try again + CTA); care chips only render when `Number.isFinite(frequency)`; AI notes block hidden when null/empty; photo `alt="Photo of {name}"` constructed from API response; `<h1>` plant name in Playfair Display; dark mode via `--color-*` CSS custom properties. ✅
+
+#### SPEC-022 Compliance Checklist
+
+| Requirement | Implementation | Result |
+|---|---|---|
+| Share button `aria-label="Share plant"` (idle) | `ShareButton.jsx` sets aria-label dynamically | ✅ |
+| Share button `aria-label="Generating share link…"` + `aria-busy="true"` (loading) | Verified in code + test #2 | ✅ |
+| Phosphor `ShareNetwork` icon, 20px | Imported from `@phosphor-icons/react` | ✅ |
+| Clipboard: `navigator.clipboard.writeText(share_url)` → "Link copied!" toast | Tested in vitest #3 | ✅ |
+| Error toast on failure: "Failed to generate link. Please try again." | Tested in vitest #4 | ✅ |
+| Fallback modal when clipboard unavailable or rejects | Tested in vitest #5 | ✅ |
+| Route `/plants/share/:shareToken` public, outside `<ProtectedRoute>` | App.jsx:95 | ✅ |
+| Minimal header (wordmark only) on public page | No nav / no login links | ✅ |
+| Plant name `<h1>` in Playfair Display | CSS verified | ✅ |
+| Species chip w/ Leaf icon | PublicPlantPage.jsx | ✅ |
+| Photo rendered only when `photo_url != null`, alt `"Photo of {name}"` | Tested vitest #3 of PublicPlantPage | ✅ |
+| Care chips only for non-null frequencies; "No schedule set" fallback | Tested vitest #6 of PublicPlantPage | ✅ |
+| AI notes block only when non-null/non-empty | Hidden entirely when notes null | ✅ |
+| "Get started for free" CTA linking to `/` | Rendered on all non-loading states | ✅ |
+| Loading skeleton (not spinner takeover), `aria-busy="true"` | Tested vitest #1 of PublicPlantPage | ✅ |
+| 404 state "This plant link is no longer active" + CTA (no retry) | Tested vitest #4 of PublicPlantPage | ✅ |
+| Error state "Something went wrong" + retry + CTA | Tested vitest #5 of PublicPlantPage | ✅ |
+| Dark mode via `--color-*` CSS custom properties | No hardcoded colors in component CSS | ✅ |
+| Privacy boundary (no private fields rendered) | Component only reads published API fields | ✅ |
+
+---
+
+### 3. Config Consistency Check
+
+**Test Type: Config Consistency**
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Backend PORT matches vite proxy target | PORT match | `backend/.env` PORT=3000 ↔ `vite.config.js` `backendTarget = 'http://localhost:3000'` | ✅ PASS |
+| SSL on backend ↔ vite proxy protocol | If SSL, https:// | backend HTTP (no SSL in local/staging), vite proxy HTTP | ✅ PASS |
+| CORS_ORIGIN includes frontend dev origin | `http://localhost:5173` present | `FRONTEND_URL` in `.env` = `http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` — all allowed per app.js:38 | ✅ PASS |
+| `FRONTEND_URL` base used by share endpoint | first entry of comma-separated list, no trailing slash | `resolveFrontendBaseUrl()` picks `http://localhost:5173` → share URLs match live test output | ✅ PASS |
+| `docker-compose.yml` port/CORS drift | No drift (compose only runs DB) | `infra/docker-compose.yml` only exposes `POSTGRES_PORT:-5432` — no API/CORS values | ✅ PASS |
+
+**No mismatches. No config handoff required.**
+
+---
+
+### 4. Security Verification
+
+**Test Type: Security Scan** — Items from `.workflow/security-checklist.md` that apply to Sprint #28 scope.
+
+#### Authentication & Authorization
+
+| Item | Evidence | Result |
+|------|----------|--------|
+| POST /api/v1/plants/:plantId/share requires auth | `router.use(authenticate)` at plants.js:87; live test #7 returned 401 without header | ✅ |
+| Ownership check on share — no IDOR | plants.js:381 `plant.user_id !== req.user.id → 403`; separates 404 (plant missing) from 403 (wrong owner) — no information leak about ownership of third-party plants. Live test #10 returned 403 for intruder. | ✅ |
+| GET /api/v1/public/plants/:shareToken is public (no auth required — intentional) | No `authenticate` on publicPlants.js router; live test #5 passed without Authorization; live test #6 passed with garbage Bearer (ignored) | ✅ |
+| Auth tokens use HS256 JWT with 15-min access expiry + HttpOnly refresh cookie | Pre-existing; unchanged by Sprint 28 | ✅ |
+| Password hashing uses bcrypt | Pre-existing; unchanged | ✅ |
+| Failed login rate-limited | `authLimiter` on `/api/v1/auth/*` at app.js:73 | ✅ |
+
+#### Input Validation & Injection Prevention
+
+| Item | Evidence | Result |
+|------|----------|--------|
+| `plantId` path param validated as UUID | `validateUUIDParam('plantId')` middleware at plants.js:374; live test #8 returned 400 | ✅ |
+| Share token lookup parameterized | `PlantShare.findByToken` uses `db('plant_shares').where({ share_token })` — Knex parameterizes automatically; live test #13 (SQL-ish payload) returned 404 with no DB error | ✅ |
+| All other share-related DB calls parameterized | `PlantShare.findByPlantId`, `PlantShare.create`, `CareSchedule.findByPlantId`, `Plant.findById` — all use Knex query builder | ✅ |
+| No string concatenation into SQL | Code review: grep for `raw(` in new files — only used for `gen_random_uuid()` default, which is a constant, not user input | ✅ |
+| Plant name / notes stored raw; React default-escapes on render (no XSS risk on public page) | Live test #16 round-tripped `<script>alert(1)</script>` in plant name — JSON preserves literal, React escapes at render time (verified by Manager in H-383 and by rendering path in PublicPlantPage.jsx using `{plant.name}` expressions) | ✅ |
+| Share token entropy ≥ 32 bytes | `crypto.randomBytes(32).toString('base64url')` → 256-bit entropy, 43 chars, URL-safe alphabet only (`A–Z a–z 0–9 - _`) | ✅ |
+
+#### API Security
+
+| Item | Evidence | Result |
+|------|----------|--------|
+| CORS restricted to allowlist | app.js:38–46: `FRONTEND_URL` comma-split → strict match; unknown origins rejected | ✅ |
+| Rate limiting on public-facing endpoints | `globalLimiter` on `/api/` catches the public share GET (per-IP); no abuse risk acknowledged in contract (§ Notes — "No rate limiting required for Sprint #28") | ✅ (within scope) |
+| No stack traces / internal details in error responses | publicPlants.js and plants.js share-handler both `next(err)` to central error middleware; live tests #8, #9, #10, #11, #13 all returned structured `{error:{message,code}}` only | ✅ |
+| Sensitive data not in URL query params | Share token is a 256-bit random URL path segment — acceptable per OWASP as it is the resource identifier (analogous to GitHub Gist secret URLs, Google Docs anyone-with-link tokens); not logged server-side as a secret | ✅ |
+| `helmet()` applied | app.js:35 | ✅ |
+
+#### Data Protection
+
+| Item | Evidence | Result |
+|------|----------|--------|
+| DB credentials / JWT secrets / SMTP keys only in env vars | grep on new files (`ShareButton.jsx`, `ClipboardFallbackModal.jsx`, `PublicPlantPage.jsx`, `PlantShare.js`, `publicPlants.js`) for `password|secret|api_key|private_key` → no matches | ✅ |
+| No hardcoded secrets introduced by Sprint 28 | Confirmed | ✅ |
+| Logs do not contain PII/tokens | publicPlants.js and plants.js share handler do not log share tokens, plant notes, or user emails | ✅ |
+
+#### Infrastructure / Dependencies
+
+| Item | Evidence | Result |
+|------|----------|--------|
+| `cd backend && npm audit` | `found 0 vulnerabilities` (T-127 nodemailer fix verified) | ✅ |
+| `cd frontend && npm audit` | ⚠️ **1 HIGH severity (vite 8.0.0–8.0.4)** — dev-server path traversal / WebSocket file read / fs.deny bypass. Dev-tool only (not production bundle). Pre-existing, not introduced by Sprint 28. See FB-120 — logged for housekeeping, not blocking sign-off. | ⚠️ NON-BLOCKING |
+| HTTPS in production | Blocked on project-owner SSL certs (pre-existing, per Sprint 28 out-of-scope) | N/A |
+
+**Security verdict:** ✅ **PASS.** All Sprint 28 scope requirements met. One non-blocking observation (FB-120) logged for next housekeeping sprint — dev-only vulnerability in vite, does not affect production runtime or users.
+
+---
+
+### 5. T-127 Housekeeping Verification
+
+| Item | Evidence | Result |
+|------|----------|--------|
+| `cd backend && npm audit` → 0 moderate+ vulnerabilities | ran fresh — `found 0 vulnerabilities` | ✅ |
+| All 199+ existing backend tests still pass after dependency bump | 209/209 (current total) | ✅ |
+| `api-contracts.md` OAuth callback documents HttpOnly cookie delivery | Lines 4292–4363: documents `Set-Cookie: refresh_token=…; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`; redirect URL contains only `access_token` and `_oauthAction`; delivery table annotates "T-127: updated from query param to cookie — post-H-370" | ✅ |
+| No other contract changes | Verified no other OAuth section edits | ✅ |
+
+---
+
+### 6. Product-Perspective Observations
+
+See `feedback-log.md` — entries **FB-120** (vite dev-server dependency vulnerability — observation, for future housekeeping), **FB-121** (positive — idempotent share feels great in the end-user flow), **FB-122** (positive — privacy boundary is airtight per live audit), **FB-123** (UX — suggest short-token or "already shared" micro-feedback for future sprint polish).
+
+---
+
+### Test Artifacts
+
+- Integration script: `/tmp/qa_integration_sprint28.sh` (run 2026-04-20)
+- Backend tests: `backend/tests/plantShares.test.js` (10 tests) + 22 other suites (199 pre-existing)
+- Frontend tests: `frontend/src/__tests__/ShareButton.test.jsx` (5) + `frontend/src/__tests__/PublicPlantPage.test.jsx` (6) + 35 other test files (276 pre-existing)
+
+---
+
+### Sign-Off
+
+**QA Engineer → T-129 acceptance criteria:**
+
+- [x] Backend ≥ 205/199 tests pass → **209/209**
+- [x] Frontend ≥ 281/276 tests pass → **287/287**
+- [x] Full security checklist pass (no private data in public endpoint, auth on share creation, entropy ≥ 32 bytes, no IDOR)
+- [x] SPEC-022 compliance verified (share button placement/loading/toast, public page fields, privacy boundary, dark mode, accessibility)
+- [x] T-127 housekeeping verified: zero moderate+ npm vulnerabilities in backend; API contract updated
+- [x] QA sign-off logged in `qa-build-log.md` (this entry)
+
+**T-126, T-127, T-128 → Done. T-129 → Done.** T-130 (Deploy Engineer) unblocked — handoff H-384 logged.
+
+---
+
 ## Sprint #28 Deploy Readiness Update — 2026-04-19 (Run 2)
 
 **Agent:** Deploy Engineer
