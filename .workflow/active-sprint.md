@@ -4,146 +4,159 @@ The operational reference for the current development cycle. Refreshed at the st
 
 ---
 
-## Sprint #28 — 2026-04-13 to 2026-04-19
+## Sprint #29 — 2026-04-20 to 2026-04-26
 
-**Sprint Goal:** Enable plant sharing — allow users to generate a shareable public link for any plant in their inventory, so friends and family can view the plant's care profile without needing an account. Also address two housekeeping items from Sprint #27: fix the `nodemailer` moderate vulnerability and update the OAuth API contract to reflect HttpOnly cookie token delivery.
+**Sprint Goal:** Fix the batch mark-done correctness bug (FB-113 — Major), complete the sharing system with revocation and share status, add Open Graph meta tags to the public plant profile page, and fix the Vite dev-server HIGH severity vulnerability (FB-120).
 
-**Context:** Sprint #27 delivered Google OAuth, completing all planned MVP and post-MVP authentication work. Sprint #28 begins the social/sharing layer — the highest-value post-MVP feature for the "plant killer" persona, who may want to show off a thriving plant or share care instructions with a partner. Housekeeping (T-127) is scoped small and can be done in parallel with the design phase.
+**Context:** Sprint #28 delivered core plant sharing. Before continuing sharing polish, Sprint #29 must address a carry-over Major bug: `CareAction.batchCreate()` does not call `CareSchedule.updateLastDoneAt()`, so batch mark-done via the Care Due Dashboard leaves plants incorrectly shown as overdue on the My Plants page. This bug directly undermines the core value prop for "plant killer" users. Two sharing follow-ups are also due: share revocation (data model already in place) and a share status endpoint (needed for conditional "Copy / Remove" UI). OG meta tags and the Vite housekeeping fix round out the sprint.
 
 ---
 
 ## In Scope
 
-### P2 — Backend: Housekeeping — Nodemailer Vulnerability Fix + API Contract Update (T-127)
+### P1 — Backend: Fix Batch Mark-Done `last_done_at` Divergence (T-139)
 
-- [ ] **T-127** — Backend Engineer: Fix nodemailer vulnerability and update OAuth API contract **(P2)**
-  - **Description:** Two small housekeeping items from Sprint #27 feedback (FB-118, FB-119):
-    1. Run `npm audit fix` in `backend/` to resolve the `nodemailer` SMTP CRLF injection vulnerability (GHSA-vvjj-xcjg-gr5g). Verify all 199/199 backend tests still pass after the dependency update.
-    2. Update `api-contracts.md` — the `GET /api/v1/auth/google/callback` section still documents `refresh_token` in the redirect URL query param. Update it to reflect the actual post-H-370 implementation: `refresh_token` is delivered exclusively via `Set-Cookie: refresh_token` (HttpOnly, Secure, SameSite=Strict), and the redirect URL does not include a `refresh_token` param.
+- [ ] **T-139** — Backend Engineer: Fix `CareAction.batchCreate()` — call `CareSchedule.updateLastDoneAt()` after batch insert **(P1)**
+  - **Description:** The batch mark-done path (`POST /api/v1/care-actions/batch`, used by the Care Due Dashboard) inserts into `care_actions` but does not call `CareSchedule.updateLastDoneAt()`. This leaves `care_schedules.last_done_at` stale, so `GET /api/v1/plants` still computes plants as overdue after a batch mark-done action — even though the Care Due Dashboard correctly shows them as Coming Up (because it reads `MAX(care_actions.performed_at)` directly).
+    - **Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method. After inserting valid care actions, iterate over the inserted records and call `CareSchedule.updateLastDoneAt(schedule_id, performed_at)` for each, mirroring the single-action path in `POST /api/v1/care-actions`. Only update if the action's `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
+    - All existing 209/209 backend tests must continue to pass. Add ≥ 3 new tests: (1) batch mark-done updates `last_done_at` for each affected schedule; (2) batch with `performed_at` older than existing `last_done_at` does NOT regress it; (3) end-to-end: after batch mark-done, `GET /api/v1/plants` no longer shows the plant as overdue.
   - **Acceptance Criteria:**
-    - `npm audit` in `backend/` reports zero moderate or higher vulnerabilities (or explicitly documents any that cannot be fixed without breaking changes)
-    - All 199/199 existing backend tests continue to pass after `npm audit fix`
-    - `api-contracts.md` OAuth callback section updated: redirect URL params are `access_token` and `_oauthAction` only; `refresh_token` delivery documented as HttpOnly cookie
-    - No other contract changes
-  - **Blocked By:** None — start immediately, parallel with T-125.
-
----
-
-### P1 — Design: Plant Sharing UI Spec (T-125)
-
-- [ ] **T-125** — Design Agent: Write SPEC-022 — Plant sharing / public plant profile **(P1)**
-  - **Description:** Specify the end-to-end plant sharing experience. This covers two surfaces:
-    1. **Share button on Plant Detail page:** A "Share" button (or icon button) on the PlantDetailPage that generates (or retrieves) a shareable link for the plant. On click: calls the backend share endpoint, receives the share URL, and copies it to the clipboard with a "Link copied!" toast. The button should show a loading state while the API call is in flight. If the user has already shared this plant, the same share URL should be returned (idempotent).
-    2. **Public plant profile page (`/plants/share/:shareId`):** A read-only, no-auth-required page displaying the plant's name, type, optional photo, care schedules (watering/fertilizing/repotting frequency), and AI care notes (if any). No care history, no overdue/due status (that's private). Page should be clean, readable, and embeddable (good for sharing on social or messaging). Include an "Add your own plants on Plant Guardians" CTA for new-user acquisition.
-    - **Privacy:** Only information the plant owner has explicitly chosen to share should appear (name, type, photo, schedule). Care history (what was watered when), profile info, and account details must NOT appear on the public page.
-    - **Revocation:** The spec should document how a user revokes a share link (e.g., delete the share token; future: per the backend). Revocation UX can be a future sprint but should be considered in the data model.
-    - **Dark mode:** Public page must support dark mode via CSS custom properties, consistent with existing pages.
-    - **Accessibility:** Share button: `aria-label="Share plant"`. Public page: standard landmark roles and alt text.
-  - **Acceptance Criteria:**
-    - SPEC-022 written to `ui-spec.md` and marked Approved
-    - Share button surface: placement, loading state, "Link copied!" toast, error state documented
-    - Public plant profile page: all visible fields enumerated; privacy boundary explicit (what is/is not shown)
-    - Dark mode and accessibility requirements documented
-    - Spec gates T-126 and T-128 — do not start those tasks until SPEC-022 is Approved
+    - `CareAction.batchCreate()` calls `CareSchedule.updateLastDoneAt()` for each successfully inserted action
+    - `performed_at` newer than current `last_done_at` → updates; older → does not update
+    - `GET /api/v1/plants` returns correct status after batch mark-done (no stale overdue)
+    - All 209/209 existing backend tests pass; ≥ 3 new tests
+    - No new migrations required
   - **Blocked By:** None — start immediately.
 
 ---
 
-### P1 — Backend: Plant Sharing API (T-126)
+### P2 — Design: Share Revocation + Status + OG Meta Spec (T-132)
 
-- [ ] **T-126** — Backend Engineer: Implement plant sharing API **(P1)**
-  - **Description:** Add a plant sharing system to the backend:
-    1. **New migration:** Add `plant_shares` table — `id` (PK), `plant_id` (FK → plants, CASCADE DELETE), `user_id` (FK → users, for ownership verification), `share_token` (VARCHAR(64), UNIQUE, indexed), `created_at`. Token should be a random URL-safe string (e.g., 32-byte `crypto.randomBytes` encoded as base64url).
-    2. **`POST /api/v1/plants/:plantId/share`** (auth required): Creates or retrieves a share token for the given plant (idempotent — if a share token already exists for this plant, return the existing one). Verifies the requesting user owns the plant (403 otherwise). Returns `{ share_url: "https://<FRONTEND_URL>/plants/share/<token>" }`. Use `FRONTEND_URL` env var for the base URL.
-    3. **`GET /api/v1/public/plants/:shareToken`** (no auth required): Returns public plant data — `name`, `species` (plant type), `photo_url` (if present), `watering_frequency_days`, `fertilizing_frequency_days` (if set), `repotting_frequency_days` (if set), `ai_care_notes` (if set). Does NOT return `user_id`, `created_at`, care history, or any user-identifiable data. Returns 404 if `shareToken` does not exist.
-    4. Add `FRONTEND_URL` to `.env.example` if not already present (check first).
-    5. **New tests:** ≥ 6 new tests — happy path create share (new plant), idempotent (existing share returns same token), unauthorized plant (403), public endpoint happy path, public endpoint 404 (unknown token), auth required for POST (401 without token). All existing 199/199 backend tests continue to pass.
-    6. Publish API contract for both new endpoints to `api-contracts.md`.
+- [ ] **T-132** — Design Agent: Write SPEC-023 — Share revocation, share status state, and OG meta tags **(P2)**
+  - **Description:** Specify three UI surfaces:
+    1. **Share status state on PlantDetailPage:** On page load, the frontend fetches `GET /api/v1/plants/:plantId/share` to determine whether the plant has an active share. If yes: show a "Copy link" button (copies existing share_url to clipboard with "Link copied!" toast) and a "Remove share link" option (text link or secondary button adjacent to the Copy button). If no: show the original "Share" button per SPEC-022 (creates a new share). Document the loading state while the share status is being fetched (e.g., share action area shows a skeleton/disabled state; does not block the rest of the PlantDetailPage from rendering).
+    2. **Share revocation flow:** Clicking "Remove share link" opens a confirmation modal: "Remove share link? Anyone with the old link will no longer be able to view this plant." Two buttons: "Remove link" (destructive, calls `DELETE /api/v1/plants/:plantId/share`) and "Cancel". On success: toast "Share link removed." On error: toast "Failed to remove link. Please try again." After success, the PlantDetailPage share area transitions back to the "Share" button state.
+    3. **Open Graph meta tags on `PublicPlantPage`:** Document the `<meta>` tags to inject into `<head>` on the public plant profile page: `og:title` = "{plant name} on Plant Guardians", `og:description` = "Learn how to care for {plant name}: watering every {N} days, fertilizing every {M} days." (omit if frequencies null), `og:image` = `photo_url` if present (else fallback to a default Plant Guardians OG image), `og:url` = canonical share URL, `og:type` = "article". Twitter/X card tags: `twitter:card` = "summary_large_image" (or "summary" if no photo), `twitter:title` same as og:title, `twitter:description` same as og:description.
   - **Acceptance Criteria:**
-    - Migration: `plant_shares` table created with correct schema; reversible `down()` implemented
-    - `POST /api/v1/plants/:plantId/share` → 200 + `{ share_url }` for owned plants; 403 for unowned; 401 unauthenticated; idempotent
-    - `GET /api/v1/public/plants/:shareToken` → 200 + public plant data (no private fields); 404 for unknown token; no auth required
-    - All 199/199 existing backend tests pass; ≥ 6 new tests
-    - API contract published
-    - T-125 (SPEC-022 Approved) must complete before this task begins
-  - **Blocked By:** T-125
+    - SPEC-023 written to `ui-spec.md` and marked Approved
+    - Share status state: loading skeleton, "Copy link" + "Remove share link" (when shared), "Share" button (when not shared) — all states documented
+    - Revocation modal: copy, two buttons, success/error toast documented
+    - OG meta tags: all tag names and value construction rules documented; fallback behavior for missing photo / null frequencies explicit
+    - Gates T-133, T-134
+  - **Blocked By:** None — start immediately.
 
 ---
 
-### P1 — Frontend: Plant Sharing UI (T-128)
+### P1 — Backend: Share Status + Revocation Endpoints (T-133)
 
-- [ ] **T-128** — Frontend Engineer: Add plant sharing UI to Plant Detail page and create public plant profile page **(P1)**
-  - **Description:** Per SPEC-022:
-    1. **Share button on PlantDetailPage:** Add a "Share" icon button to the plant detail header. On click: call `POST /api/v1/plants/:plantId/share`, receive the `share_url`, and copy it to the clipboard via `navigator.clipboard.writeText`. Show a "Link copied!" success toast. Handle loading state (button disabled + spinner). Handle error (inline toast error: "Failed to generate link"). If the user's browser does not support `navigator.clipboard`, fall back to selecting the URL in an `<input>` for manual copy.
-    2. **Public plant profile page (`/plants/share/:shareToken`):** New route in `App.jsx`. Fetches `GET /api/v1/public/plants/:shareToken` on mount. Displays: plant name (heading), species, photo (if present), care schedule chips (watering every N days, etc.), AI care notes (if present). Loading skeleton while fetching. 404 state: "This plant link is no longer active" message. Error state: generic error with retry. "Discover Plant Guardians" CTA at the bottom (links to `/`). Dark mode via CSS custom properties. No auth required — no navigation header with login links that could confuse unauthenticated visitors (a minimal header or no header is fine).
-    3. Coordinate with Backend Engineer on the shape of the public plant data response (use published API contract from T-126).
+- [ ] **T-133** — Backend Engineer: Add `GET` and `DELETE` share endpoints **(P1)**
+  - **Description:**
+    1. **`GET /api/v1/plants/:plantId/share`** (auth required): Returns `{ share_url }` if an active share exists for this plant; returns 404 if no share row exists. Verifies the requesting user owns the plant (403 otherwise). Uses `PlantShare.findByPlantId()` (already exists from T-126). Returns same `share_url` format as the POST endpoint (built via `resolveFrontendBaseUrl()`).
+    2. **`DELETE /api/v1/plants/:plantId/share`** (auth required): Deletes the `plant_shares` row for this plant. Verifies ownership (403). Returns 204 on success. Returns 404 if no share exists for this plant. Returns 400 for invalid UUID plant ID. Extend `PlantShare` model with `deleteByPlantId(plantId)`.
+    3. **New tests:** ≥ 6 tests — GET happy path (returns share_url), GET 404 (no share), GET 403 wrong owner, DELETE happy path (204), DELETE 404 (no share), DELETE 403 wrong owner. All existing 209/209 backend tests continue to pass.
+    4. Publish API contracts for both new endpoints to `api-contracts.md`.
   - **Acceptance Criteria:**
-    - "Share" button on PlantDetailPage: loading state, clipboard copy, "Link copied!" toast, error state — all implemented per SPEC-022
-    - `/plants/share/:shareToken` route renders public plant profile: all documented fields, loading skeleton, 404 state, error state, "Discover Plant Guardians" CTA, dark mode
-    - All existing 276/276 frontend tests continue to pass; ≥ 5 new tests (share button render, click → API call, clipboard copy, 404 state, error state)
-    - T-125 (SPEC-022 Approved) must complete before this task begins
-  - **Blocked By:** T-125
+    - `GET /api/v1/plants/:plantId/share` → 200 + `{ share_url }` if share exists; 404 if not; 403 wrong owner; 401 unauthenticated; 400 invalid UUID
+    - `DELETE /api/v1/plants/:plantId/share` → 204 on success; 404 if no share; 403 wrong owner; 401 unauthenticated; 400 invalid UUID
+    - All 209/209 existing backend tests pass; ≥ 6 new tests
+    - API contracts published
+    - Blocked By: T-132
+  - **Blocked By:** T-132
 
 ---
 
-### P2 — QA: Sprint #28 Verification (T-129)
+### P1 — Frontend: Share Status UI + Revocation + OG Meta Tags (T-134)
 
-- [ ] **T-129** — QA Engineer: Verify T-125, T-126, T-127, T-128 and confirm no regressions **(P2)**
-  - **Description:** After T-126 and T-128 are In Review/Done, run the full test suite and perform product-perspective testing:
-    - Backend: all tests pass (≥ 205/199); T-126 new share tests cover happy path, idempotent, 403, 401, public 200, public 404; T-127 nodemailer fix — 0 moderate/high vulnerabilities
-    - Frontend: all tests pass (≥ 281/276); T-128 tests cover share button render, click, clipboard, 404, error states
-    - SPEC-022 compliance: share button placement and behavior, public page fields, privacy boundary
-    - Security checklist: no user-identifiable data in public endpoint response, share token is URL-safe and sufficiently random (≥ 32 bytes entropy), auth enforced on POST endpoint, no IDOR on public GET
-    - API contract for T-126 endpoints verified
-    - T-127: `npm audit` clean; api-contracts.md OAuth section updated
+- [ ] **T-134** — Frontend Engineer: Update PlantDetailPage share area; add revocation modal; add OG meta tags to PublicPlantPage **(P1)**
+  - **Description:** Per SPEC-023:
+    1. **PlantDetailPage share area:** On mount (or when `plantId` changes), call `GET /api/v1/plants/:plantId/share`. While fetching: render the share action area in a loading/disabled state (do not block rest of page). On 200: switch ShareButton to "Copy link" mode (clicking copies the returned `share_url` to clipboard, same clipboard + toast logic as SPEC-022) and render a "Remove share link" text button next to it. On 404: render original "Share" button (unchanged from Sprint 28). On error: log quietly; fall back to original "Share" button (safe degradation).
+    2. **Share revocation modal (`ShareRevokeModal.jsx`):** Triggered by "Remove share link". Confirm text per SPEC-023. On confirm: call `DELETE /api/v1/plants/:plantId/share`; show loading state; on 204 → toast "Share link removed." + close modal + transition share area back to "Share" button; on error → toast "Failed to remove link. Please try again." + keep modal open for retry.
+    3. **OG meta tags on `PublicPlantPage`:** Using `react-helmet-async` (already in `package.json` if present; add if missing), inject `<Helmet>` with `og:*` and `twitter:*` tags per SPEC-023 constructed from the fetched `plant` object. Only render on success state (not loading/404/error states).
+    4. **New tests:** ≥ 6 tests — PlantDetailPage shows "Copy link" + revoke when GET /share returns 200; shows "Share" when GET returns 404; ShareRevokeModal renders with correct text; DELETE success → toast + transition; DELETE error → error toast; PublicPlantPage renders OG meta tags when plant data loaded. All existing 287/287 frontend tests pass.
   - **Acceptance Criteria:**
-    - Backend ≥ 205/199 tests pass; frontend ≥ 281/276 tests pass
-    - Full security checklist pass (especially: no private data in public endpoint, auth on share creation)
-    - SPEC-022 compliance verified
-    - T-127 housekeeping verified: zero moderate+ npm vulnerabilities; API contract updated
+    - PlantDetailPage: loading state, "Copy link" + "Remove share link" (when shared), "Share" (when not shared) — all implemented per SPEC-023
+    - ShareRevokeModal: modal text, confirm/cancel buttons, loading, success toast, error toast
+    - PublicPlantPage: OG + Twitter meta tags rendered in `<head>` on success state
+    - All 287/287 existing frontend tests pass; ≥ 6 new tests
+    - T-132 (SPEC-023 Approved) must complete before this task begins
+  - **Blocked By:** T-132, T-133 (for response shape; use published API contract)
+
+---
+
+### P2 — Frontend Housekeeping: Vite Dev-Server Vulnerability Fix (T-135)
+
+- [ ] **T-135** — Frontend Engineer: Fix Vite dev-server HIGH severity vulnerability (FB-120) **(P2)**
+  - **Description:** Per FB-120: run `npm audit fix` in `frontend/` to patch `vite` (CVE path traversal + WebSocket file read + fs.deny bypass, GHSA-4w7w-66w2-5vf9 / GHSA-v2wj-q39q-566r / GHSA-p9ff-h696-f583). After the upgrade: (1) verify `npm audit` reports 0 high-severity vulnerabilities; (2) verify all 287/287 frontend tests continue to pass (`npm test`); (3) verify `npm run build` succeeds with 0 errors. This is a dev-dependency upgrade only — no production bundle changes expected. Update `package.json` and `package-lock.json`. This task can run in parallel with the T-132 design phase.
+  - **Acceptance Criteria:**
+    - `cd frontend && npm audit` reports 0 high-severity vulnerabilities (or explicitly documents any that cannot be fixed without breaking changes)
+    - All 287/287 frontend tests pass after upgrade
+    - `npm run build` succeeds with 0 errors
+    - No other dependency changes beyond what `npm audit fix` applies
+  - **Blocked By:** None — start immediately, parallel with T-132.
+
+---
+
+### P2 — QA: Sprint #29 Verification (T-136)
+
+- [ ] **T-136** — QA Engineer: Verify T-132, T-133, T-134, T-135 and confirm no regressions **(P2)**
+  - **Description:** After T-133 and T-134 are In Review/Done, run the full test suite and perform product-perspective testing:
+    - Backend: all tests pass (≥ 215/209); T-133 new tests cover GET status happy path + 404, DELETE happy path + 404, plus auth enforcement
+    - Frontend: all tests pass (≥ 293/287); T-134 tests cover share status loading/Copy+Revoke/Share states, revocation modal, OG meta tags
+    - SPEC-023 compliance: share status UI states on PlantDetailPage, revocation modal text + behavior, OG meta tag values
+    - T-135 housekeeping: `npm audit` reports 0 high severity in frontend; 287+ tests pass; build clean
+    - Security checklist: auth enforced on GET + DELETE; ownership check (no IDOR); 204 no-body on DELETE
+    - API contract for T-133 endpoints verified
+  - **Acceptance Criteria:**
+    - Backend ≥ 215/209 tests pass; frontend ≥ 293/287 tests pass
+    - Full security checklist pass (auth + ownership on both new endpoints)
+    - SPEC-023 compliance verified (share status states, revocation flow, OG tags)
+    - T-135 housekeeping verified: 0 high-severity npm vulnerabilities in frontend
     - QA sign-off logged in `qa-build-log.md`
-  - **Blocked By:** T-126, T-127, T-128
+  - **Blocked By:** T-133, T-134, T-135
 
 ---
 
-### P2 — Deploy: Staging Re-Deploy (T-130)
+### P2 — Deploy: Staging Re-Deploy (T-137)
 
-- [ ] **T-130** — Deploy Engineer: Staging re-deploy after QA sign-off **(P2)**
-  - **Description:** After QA sign-off (T-129), run the standard staging deploy checklist: run migrations (`knex migrate:latest` — applies the `plant_shares` table migration), restart backend process, rebuild frontend dist. Verify `/api/health` → 200 and spot-check a few key endpoints.
+- [ ] **T-137** — Deploy Engineer: Staging re-deploy after QA sign-off **(P2)**
+  - **Description:** After QA sign-off (T-136), run the standard staging deploy checklist. No new migrations this sprint (T-133 adds endpoints only — no schema changes). Restart backend process, rebuild frontend dist. Verify `/api/health` → 200 and spot-check new endpoints.
   - **Acceptance Criteria:**
-    - Migration applied: `plant_shares` table present in DB
+    - No new migrations (confirm `knex migrate:latest` returns "Already up to date")
     - Backend process restarted and healthy on port 3000
     - `GET /api/health` → 200
-    - `GET /api/v1/public/plants/nonexistent` → 404 (verifies public route is live)
+    - `GET /api/v1/plants/:plantId/share` (authenticated, shared plant) → 200 + `{ share_url }` (verifies status endpoint is live)
+    - `GET /api/v1/plants/:plantId/share` (authenticated, unshared plant) → 404
     - Staging deploy logged in `qa-build-log.md`
-  - **Blocked By:** T-129
+  - **Blocked By:** T-136
 
 ---
 
-### P2 — Monitor: Post-Deploy Health Check (T-131)
+### P2 — Monitor: Post-Deploy Health Check (T-138)
 
-- [ ] **T-131** — Monitor Agent: Post-deploy health check for Sprint #28 **(P2)**
-  - **Description:** Run the standard post-deploy health check after T-130 deploy. Verify all existing endpoints remain healthy. For new endpoints: verify `POST /api/v1/plants/:plantId/share` (with valid auth) returns 200, and `GET /api/v1/public/plants/nonexistent` returns 404. Log **Deploy Verified: Yes/No** in `qa-build-log.md`.
+- [ ] **T-138** — Monitor Agent: Post-deploy health check for Sprint #29 **(P2)**
+  - **Description:** Run the standard post-deploy health check after T-137 deploy. Verify all existing endpoints remain healthy. For new endpoints: verify `GET /api/v1/plants/:plantId/share` (with valid auth) returns 200 + `{ share_url }` for a shared plant and 404 for an unshared plant; verify `DELETE /api/v1/plants/:plantId/share` (with valid auth) returns 204 and subsequent GET returns 404. Log **Deploy Verified: Yes/No** in `qa-build-log.md`.
   - **Acceptance Criteria:**
     - `GET /api/health` → 200
     - All existing core endpoints → expected status codes (no regressions)
-    - `GET /api/v1/public/plants/nonexistent` → 404
-    - `POST /api/v1/plants/:plantId/share` (authenticated) → 200 + `share_url`
+    - `GET /api/v1/plants/:plantId/share` (shared) → 200 + share_url; (unshared) → 404
+    - `DELETE /api/v1/plants/:plantId/share` → 204; subsequent GET → 404
     - Deploy Verified: Yes logged in `qa-build-log.md`
-    - If backend process is not running, restart before health check (standard infrastructure note)
-  - **Blocked By:** T-130
+    - If backend process is not running, restart before health check
+  - **Blocked By:** T-137
 
 ---
 
 ## Out of Scope
 
-- Share link revocation UI (per-plant "remove share" button) — post-Sprint #28, data model supports it
-- Share analytics (view count, etc.) — future
-- Plant sharing to social platforms (Open Graph meta tags, Twitter card) — future sprint polish
+- Email care reminders / notification delivery — blocked on project owner providing SMTP credentials
+- Push notifications — post-MVP (B-002)
+- Open Graph image generation (dynamic social cards with plant photo) — future sprint polish
+- Share analytics (view count per share token) — future
+- Production deployment execution — blocked on project owner providing SSL certs
 - Express 5 migration — advisory backlog, no urgency
 - Soft-delete / grace period for account deletion — post-MVP
-- Production deployment execution — blocked on project owner providing SSL certs
-- Production email delivery — blocked on project owner providing SMTP credentials
+- Dark mode confetti palette (B-007) — cosmetic, low priority backlog
+- Real Google OAuth credentials for full end-to-end OAuth staging test — blocked on project owner
 
 ---
 
@@ -151,12 +164,12 @@ The operational reference for the current development cycle. Refreshed at the st
 
 | Agent | Focus Area This Sprint | Key Tasks |
 |-------|----------------------|-----------|
-| Design Agent | Plant sharing UI spec | T-125 (P1, start immediately — gates T-126 and T-128) |
-| Backend Engineer | Plant sharing API + housekeeping | T-126 (P1, after T-125), T-127 (P2, start immediately — parallel with T-125) |
-| Frontend Engineer | Share button + public plant page | T-128 (P1, after T-125; coordinate with Backend on response shape) |
-| QA Engineer | Full regression + sharing flow verification | T-129 (P2, after T-126 + T-127 + T-128) |
-| Deploy Engineer | Staging re-deploy with plant_shares migration | T-130 (P2, after T-129) |
-| Monitor Agent | Post-deploy health check | T-131 (P2, after T-130) |
+| Backend Engineer | Batch mark-done fix + share status/revocation endpoints | T-139 (P1, start immediately), T-133 (P1, after T-132) |
+| Design Agent | Share revocation + status + OG meta spec | T-132 (P2, start immediately — gates T-133 and T-134) |
+| Frontend Engineer | Vite housekeeping + share status/revoke UI + OG tags | T-135 (P2, start immediately — parallel with T-132 and T-139), T-134 (P1, after T-132 + T-133) |
+| QA Engineer | Full regression + batch fix + revocation flow verification | T-136 (P2, after T-139 + T-133 + T-134 + T-135) |
+| Deploy Engineer | Staging re-deploy | T-137 (P2, after T-136) |
+| Monitor Agent | Post-deploy health check | T-138 (P2, after T-137) |
 | Manager | Sprint coordination + code review | Ongoing |
 
 ---
@@ -164,53 +177,53 @@ The operational reference for the current development cycle. Refreshed at the st
 ## Dependency Chain
 
 ```
-T-125 (SPEC-022 — Design Agent, START IMMEDIATELY)     T-127 (Housekeeping — Backend, START IMMEDIATELY)
+T-139 (Batch last_done_at fix — Backend, START IMMEDIATELY)
+T-132 (SPEC-023 — Design Agent, START IMMEDIATELY)     T-135 (Vite fix — Frontend, START IMMEDIATELY)
   ↓                                                          ↓
-T-126 (Plant sharing API — Backend Engineer)            (feeds into T-129)
-T-128 (Plant sharing UI — Frontend Engineer, parallel with T-126)
+T-133 (Share status + revocation API — Backend)        (feeds into T-136)
+T-134 (Share status/revoke UI + OG tags — Frontend, parallel with T-133, after T-132)
   ↓
-T-129 (QA — after T-126 + T-127 + T-128)
+T-136 (QA — after T-139 + T-133 + T-134 + T-135)
   ↓
-T-130 (Deploy — after T-129)
+T-137 (Deploy — after T-136)
   ↓
-T-131 (Monitor health check)
+T-138 (Monitor health check)
 ```
 
-**Note:** T-127 (housekeeping) is independent and can be completed in parallel with T-125 (design). Backend Engineer should prioritize T-127 first (it's XS complexity) then begin T-126 once T-125 is approved.
+**Note:** T-139, T-132, and T-135 can all start immediately in parallel. Backend Engineer: prioritize T-139 first (P1, independent), then T-133 after T-132 is approved. Frontend Engineer: prioritize T-135 first (XS), then T-134 after T-132 is approved and T-133's API contract is published.
 
 ---
 
 ## Definition of Done
 
-Sprint #28 is complete when:
+Sprint #29 is complete when:
 
-- [ ] T-125: SPEC-022 written and marked Approved in `ui-spec.md`; covers share button, public page, privacy boundary, dark mode, accessibility
-- [ ] T-126: `POST /api/v1/plants/:plantId/share` and `GET /api/v1/public/plants/:shareToken` implemented; `plant_shares` migration applied; ≥ 6 new tests; 199/199 existing backend tests pass; API contract published
-- [ ] T-127: `npm audit` clean (zero moderate+ vulnerabilities in backend); `api-contracts.md` OAuth callback section updated to reflect HttpOnly cookie delivery; 199/199 backend tests pass
-- [ ] T-128: Share button on PlantDetailPage; `/plants/share/:shareToken` public page; ≥ 5 new tests; 276/276 existing frontend tests pass
-- [ ] T-129: QA sign-off — backend ≥ 205/199, frontend ≥ 281/276; SPEC-022 compliance verified; security checklist pass; T-127 housekeeping verified
-- [ ] T-130: Migration applied to staging; backend and frontend redeployed
-- [ ] T-131: Deploy Verified: Yes from Monitor Agent
+- [ ] T-139: `CareAction.batchCreate()` calls `CareSchedule.updateLastDoneAt()` after batch insert; `GET /api/v1/plants` returns correct status post-batch; ≥ 3 new tests; 209/209 existing backend tests pass
+- [ ] T-132: SPEC-023 written and marked Approved in `ui-spec.md`; covers share status states, revocation modal, OG meta tags
+- [ ] T-133: `GET /api/v1/plants/:plantId/share` and `DELETE /api/v1/plants/:plantId/share` implemented; ≥ 6 new tests; all existing backend tests pass; API contracts published
+- [ ] T-134: PlantDetailPage shows share status (Copy + Revoke when shared; Share when not); ShareRevokeModal implemented; OG meta tags on PublicPlantPage; ≥ 6 new tests; all existing frontend tests pass
+- [ ] T-135: `cd frontend && npm audit` reports 0 high-severity vulnerabilities; all frontend tests pass; `npm run build` succeeds
+- [ ] T-136: QA sign-off — all backend and frontend tests pass; batch fix verified; SPEC-023 compliance; security checklist pass; T-135 housekeeping verified
+- [ ] T-137: Backend restarted, frontend rebuilt; all new endpoints live
+- [ ] T-138: Deploy Verified: Yes from Monitor Agent
 
 ---
 
 ## Success Criteria
 
-- Users can generate a shareable link for any plant they own from the Plant Detail page
-- Anyone with the share link can view the public plant profile without logging in
-- Public page exposes only name, species, photo, schedules, and AI care notes — no user-identifiable data
-- Share token creation is idempotent (clicking "Share" twice returns the same link)
-- `npm audit` reports zero moderate or higher vulnerabilities in backend
-- `api-contracts.md` accurately reflects the post-H-370 OAuth callback token delivery (HttpOnly cookie)
-- Backend ≥ 205 tests; Frontend ≥ 281 tests
+- Batch mark-done on the Care Due Dashboard updates `care_schedules.last_done_at` — My Plants no longer shows plants as overdue after batch-marking them done
+- Users can see at a glance whether their plant is already shared (PlantDetailPage shows "Copy link" + "Remove share link" vs original "Share" button)
+- Users can revoke a share link — after revocation, the old URL returns 404 to anyone who had it
+- Shared plant links render richly in social/messaging apps (OG title, description, image)
+- `npm audit` reports 0 high-severity vulnerabilities in both frontend and backend
 - Deploy Verified: Yes
 
 ---
 
 ## Blockers
 
-- T-126 and T-128 are both blocked on T-125 (SPEC-022) — Design Agent must complete the spec before engineers start
-- T-129 is blocked on T-126, T-127, and T-128 all being complete
+- T-133 and T-134 are both blocked on T-132 (SPEC-023) — Design Agent must complete the spec before engineers start
+- T-136 is blocked on T-139, T-133, T-134, and T-135 all being complete
 - Production deployment remains blocked on project owner providing SSL certificates
 - Production email delivery blocked on project owner providing SMTP credentials
 - **Infrastructure note:** Local staging backend process may terminate between Deploy and Monitor phases — Monitor Agent must restart it if connection refused before running health checks

@@ -4,6 +4,82 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #28 — 2026-04-13 to 2026-04-19
+
+**Sprint Goal:** Enable plant sharing — allow users to generate a shareable public link for any plant in their inventory, so friends and family can view the plant's care profile without needing an account. Also address Sprint #27 housekeeping: fix the `nodemailer` moderate vulnerability and update the OAuth API contract to reflect HttpOnly cookie token delivery.
+
+**Outcome:** ✅ Goal fully met — all seven tasks (T-125 through T-131) completed. Backend: 209/209 tests pass (+10 new plant-share tests). Frontend: 287/287 tests pass (+11 new share button/public page tests). Staging deploy successful. **Deploy Verified: Yes** (Monitor Agent H-387, 2026-04-20). Fifteenth consecutive sprint with zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-125 | Design: SPEC-022 — Plant sharing / public plant profile UX spec — share button placement, loading state, "Link copied!" toast, error state, clipboard fallback; public page fields (name, species, photo, care schedule chips, AI notes), privacy boundary, dark mode, accessibility, "Discover Plant Guardians" CTA. Marked Approved; gated T-126 and T-128. |
+| T-126 | Backend: Plant sharing API — `plant_shares` migration (id PK, plant_id FK CASCADE, user_id FK CASCADE, share_token VARCHAR(64) UNIQUE indexed, created_at); `POST /api/v1/plants/:plantId/share` (auth, idempotent, returns `{ share_url }`); `GET /api/v1/public/plants/:shareToken` (no auth, explicit allowlist of public fields only, 404 on unknown token); 256-bit `crypto.randomBytes` base64url token; 10 new tests (happy path, idempotent, 403 wrong owner, 401 no auth, 404 plant missing, 400 invalid UUID, public 200 + privacy audit, public 404, CASCADE delete, nulls); API contract published. |
+| T-127 | Backend housekeeping: (1) `npm audit fix` in `backend/` — nodemailer SMTP CRLF injection vulnerability resolved; `npm audit` now reports 0 vulnerabilities; (2) `api-contracts.md` OAuth callback section updated: `refresh_token` removed from redirect URL params; documented as `Set-Cookie: refresh_token; HttpOnly; Secure; SameSite=Strict`; all 209/209 backend tests pass. |
+| T-128 | Frontend: `ShareButton.jsx` with loading/error/clipboard-fallback-modal; `PublicPlantPage.jsx` at `/plants/share/:shareToken` outside `<ProtectedRoute>` — all 4 SPEC-022 states (skeleton, success, 404 "no longer active", error + retry); OG-ready minimal header; dark mode via CSS custom properties; "Get started for free" CTA; 11 new tests (5 ShareButton + 6 PublicPlantPage); 287/287 frontend tests pass. |
+| T-129 | QA: Full regression + plant-sharing verification — 209/209 backend, 287/287 frontend; SPEC-022 compliance (20-scenario live integration; all ✅); security checklist (privacy boundary audit — 9 private fields confirmed absent from public endpoint; 256-bit token entropy; no IDOR; parameterized queries; SQL-ish payload safe); T-127 housekeeping re-verified; config consistency ✅; QA sign-off logged. |
+| T-130 | Deploy: Staging re-deploy — all 8 migrations applied (including `20260419_01_create_plant_shares.js`); frontend Vite build (4661 modules, 0 errors); backend healthy on port 3000; `GET /api/health` → 200; Sprint 28 endpoints spot-checked. |
+| T-131 | Monitor: Post-deploy health check — all checks PASS; `GET /api/v1/public/plants/nonexistent` → 404; `POST /api/v1/plants/:plantId/share` (authenticated) → 200 + 43-char base64url share_url; privacy boundary confirmed; one non-blocking rate-limit observation on `/auth/google` (429 from cumulative QA/Deploy/Monitor window exhaustion — not a regression). **Deploy Verified: Yes.** |
+
+---
+
+#### Tasks Carried Over
+
+None. Fifteenth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. **Deploy Verified: Yes** (Monitor Agent H-387, 2026-04-20). All health checks passed. One non-blocking observation: `GET /api/v1/auth/google` returned 429 during Monitor health check due to rate-limit window exhaustion from cumulative requests across QA, Deploy, and Monitor phases — the limiter is functioning correctly, not a regression.
+
+---
+
+#### Key Feedback Themes
+
+- **FB-120** (Minor Bug — Acknowledged): Vite dev-server HIGH severity advisory (GHSA-4w7w-66w2-5vf9, GHSA-v2wj-q39q-566r, GHSA-p9ff-h696-f583) against `vite` 8.0.0–8.0.4. Dev-server-only — does not affect production bundle. Pre-existing, not introduced by Sprint 28. `npm audit fix` available. Tasked for Sprint #29 housekeeping.
+- **FB-121** (Positive): Idempotent share endpoint (5 burst POST calls → same URL, stable 200s, no DB contention) makes the UX forgiving and the implementation correct.
+- **FB-122** (Positive): Privacy boundary audit confirmed airtight — explicit allowlist construction in `publicPlants.js` (builds fresh object, not row passthrough) means future schema additions default to NOT leaking. Recognized as the right defense-in-depth pattern.
+- **FB-123** (Cosmetic UX — Acknowledged): Share button shows identical UX on repeat clicks (correct per SPEC-022). Future polish could differentiate "create" vs "copy existing" — deferred to backlog alongside share revocation UX.
+
+---
+
+#### What Went Well
+
+- Privacy boundary implemented via explicit allowlist (not omit/exclude pattern) — a future schema migration cannot accidentally leak a PII field. Recognized as team standard.
+- Share token uses `crypto.randomBytes(32).toString('base64url')` — 256-bit entropy, 43 chars, URL-safe alphabet. Correct from day one; no security revisit needed.
+- Idempotent share creation implemented cleanly: `findByPlantId` short-circuit before insert; no contention on repeated calls; CASCADE DELETE ensures no orphaned share rows.
+- Public route correctly mounted outside `<ProtectedRoute>` and `<AppShell>` — unauthenticated visitors get a clean minimal page with no confusing auth UI.
+- `plantShares.getPublic()` uses bare `fetch` (no Bearer/401-refresh interceptor) — prevents auth errors for anonymous visitors viewing shared plants.
+- 10 backend + 11 frontend new tests (targets were ≥6 and ≥5 respectively) — full state coverage.
+- Fifteenth consecutive sprint with zero carry-over.
+
+---
+
+#### What To Improve
+
+- `GET /api/v1/auth/google` exhausted the 15-min rate-limit window during the health check phase (cumulative QA + Deploy + Monitor requests). Consider a longer auth rate-limit window for staging, or exclude health-check bot traffic from the count.
+- Sprint 28 introduced no way to check whether a plant is already shared (no `GET /share` status endpoint, no share_url in plant detail response). The frontend ShareButton is stateless — users can't tell if their plant is already shared without clicking. Share revocation (Sprint 29 target) will require a status endpoint to conditionally show the revoke button.
+
+---
+
+#### Technical Debt Noted
+
+- Vite dev-server HIGH severity vulnerability (FB-120) — `npm audit fix` in `frontend/` → tasked Sprint #29 housekeeping
+- No `GET /api/v1/plants/:plantId/share` status endpoint — required for share revocation UX (Sprint #29)
+- Share link revocation UI and `DELETE /share` endpoint deferred to Sprint #29 (data model already supports it via `plant_shares` table)
+- Open Graph meta tags on `PublicPlantPage` — mentioned in Sprint 28 Out of Scope; natural follow-up in Sprint #29
+- Express 5 migration — advisory backlog; no urgency
+- Soft-delete / grace period for account deletion — post-MVP
+- Production deployment blocked on project owner providing SSL certificates
+- Production email delivery blocked on project owner providing SMTP credentials
+- Real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` needed for full end-to-end OAuth staging test
+
+---
+
 ### Sprint #27 — 2026-06-07 to 2026-06-13
 
 **Sprint Goal:** Reduce signup friction for "plant killer" users by adding Google OAuth (Sign in with Google) — so new users can onboard in one tap instead of filling in a registration form.

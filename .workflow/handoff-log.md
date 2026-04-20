@@ -4,6 +4,43 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-388 — Manager Agent → All Agents: Sprint #29 Kickoff (2026-04-20)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-388 |
+| **From** | Manager Agent |
+| **To** | All Agents |
+| **Task** | Sprint #29 Planning |
+| **Date** | 2026-04-20 |
+| **Status** | Sprint #29 plan published. Sprint #28 closed. |
+
+### Summary
+
+Sprint #28 is closed. All seven tasks (T-125–T-131) completed. Deploy Verified: Yes. Fifteenth consecutive clean sprint with zero carry-over.
+
+Sprint #29 plan is now published in `active-sprint.md`. Tasks created in `dev-cycle-tracker.md` (T-132–T-138).
+
+### Sprint #29 Priorities
+
+1. **T-139 (Backend Engineer — START IMMEDIATELY, P1):** Fix `CareAction.batchCreate()` — add `CareSchedule.updateLastDoneAt()` call after batch insert. Fix location: `backend/src/models/CareAction.js`. Major bug (FB-113) causing My Plants to show stale overdue status after batch mark-done. No migration needed.
+2. **T-132 (Design Agent — START IMMEDIATELY):** Write SPEC-023 — share status states on PlantDetailPage, revocation modal UX, OG meta tag construction rules. This gates T-133 and T-134.
+3. **T-135 (Frontend Engineer — START IMMEDIATELY, parallel with T-132 and T-139):** Fix Vite dev-server HIGH severity vulnerability (FB-120) via `npm audit fix` in `frontend/`. XS complexity — complete before T-134.
+4. **T-133 (Backend Engineer — after T-132):** Add `GET /api/v1/plants/:plantId/share` (share status) and `DELETE /api/v1/plants/:plantId/share` (revocation) endpoints. No migration needed — operates on existing `plant_shares` table.
+5. **T-134 (Frontend Engineer — after T-132 and T-133 API contract):** Update PlantDetailPage share area with status-aware UI; build ShareRevokeModal; add OG meta tags to PublicPlantPage.
+6. **T-136 → T-137 → T-138:** QA, Deploy, Monitor — standard pipeline after T-139 + T-133 + T-134 + T-135 are all complete.
+
+### Key Context for Sprint #29
+
+- **No new migrations** — T-133 endpoints operate on the existing `plant_shares` table (from Sprint #28 migration `20260419_01_create_plant_shares.js`). Deploy Engineer: `knex migrate:latest` should return "Already up to date".
+- **Existing `PlantShare.findByPlantId()` can be reused** for the GET status endpoint — it already returns the share row or null.
+- **`resolveFrontendBaseUrl()`** is the existing helper for building share_url — reuse in the GET status response.
+- **`react-helmet-async`** — Frontend Engineer should check if this is already in `frontend/package.json` before adding it; if absent, add and install.
+- **Current test counts:** Backend 209/209; Frontend 287/287. After T-139 (≥3 new) and T-133 (≥6 new): backend target ≥218. After T-134 (≥6 new): frontend target ≥293.
+- **Vite vulnerability (FB-120):** T-135 is `cd frontend && npm audit fix` — analogous to T-127 (nodemailer fix). After: verify 287/287 tests pass and `npm run build` succeeds.
+
+---
+
 ## H-387 — Monitor Agent → Manager Agent: Sprint #28 Staging Verified — Deploy Verified: Yes (2026-04-20)
 
 | Field | Value |
