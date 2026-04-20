@@ -4,6 +4,92 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-389 — Design Agent → Frontend Engineer: SPEC-023 Approved — Share Status, Revocation Modal & OG Meta Tags (2026-04-20)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-389 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Task** | T-132 → T-134 |
+| **Date** | 2026-04-20 |
+| **Status** | Spec complete. Approved. Ready for implementation. |
+
+### Summary
+
+SPEC-023 has been written and marked **Approved** in `ui-spec.md`. This spec gates T-134 (your implementation task). Do not begin T-134 implementation until T-133's API contract is also published by the Backend Engineer.
+
+### What SPEC-023 Covers
+
+**Surface 1 — Share status state on `PlantDetailPage`:**
+- On mount, fetch `GET /api/v1/plants/:plantId/share` to determine whether the plant has an active share.
+- **LOADING state:** Single animated skeleton pill (140px × 36px shimmer). Does NOT block page body from rendering.
+- **SHARED state (200):** "Copy link" secondary button + "Remove share link" ghost text button. "Copy link" uses the `share_url` returned by GET (no new POST). Clipboard logic identical to SPEC-022.
+- **NOT_SHARED state (404):** Render original "Share" icon button from SPEC-022 unchanged.
+- **ERROR state (any non-404):** Safe degradation — render original "Share" button silently (console log only, no toast).
+- SHARED → NOT_SHARED transition (after revocation): fade out Copy/Revoke, fade + slide in Share button. Respect `prefers-reduced-motion`.
+
+**Surface 2 — `ShareRevokeModal.jsx` (new component):**
+- Triggered by "Remove share link" click.
+- Modal copy: heading `"Remove share link?"`, body `"Anyone with the old link will no longer be able to view this plant."`
+- Two buttons: "Cancel" (secondary) and "Remove link" (danger: `#B85C38`).
+- Backdrop click does NOT close the modal.
+- Escape key = Cancel.
+- Initial focus goes to "Cancel" on open. Full focus trap.
+- On DELETE 204: toast `"Share link removed."` (success, 3s) + modal closes + share area transitions to NOT_SHARED.
+- On DELETE error: toast `"Failed to remove link. Please try again."` (error, 5s) + modal stays open for retry.
+- Mobile (<480px): buttons stack full-width, "Remove link" on top.
+
+**Surface 3 — OG meta tags on `PublicPlantPage`:**
+- Use `react-helmet-async` `<Helmet>` — add if not in package.json; wrap App in `<HelmetProvider>` in main.jsx.
+- Render meta tags **only in success state**.
+- `og:title` = `"{plant.name} on Plant Guardians"`
+- `og:description` = built by `buildOgDescription(plant)` — includes watering/fertilizing frequencies if non-null; omits repotting. Fallback: `"Learn how to care for {name} on Plant Guardians."` if both are null.
+- `og:image` = `plant.photo_url` if non-null/non-empty; else `/og-default.png`.
+- `og:url` = `window.location.href`.
+- `og:type` = `"article"`. `og:site_name` = `"Plant Guardians"`.
+- `twitter:card` = `"summary_large_image"` (photo present) or `"summary"` (no photo).
+- `twitter:title`, `twitter:description`, `twitter:image` = same as OG counterparts.
+- Also add non-success `<title>` tags (loading, 404, error) via Helmet.
+- New static asset needed: `frontend/public/og-default.png` — 1200×630px branded fallback.
+
+### New Files to Create
+
+| File | Purpose |
+|---|---|
+| `frontend/src/components/ShareRevokeModal.jsx` | Revocation confirmation modal |
+| `frontend/public/og-default.png` | Fallback OG image (1200×630px) |
+
+### Modified Files
+
+| File | Change |
+|---|---|
+| `frontend/src/pages/PlantDetailPage.jsx` | Share status fetch + conditional state rendering + revocation transition |
+| `frontend/src/pages/PublicPlantPage.jsx` | `<Helmet>` OG meta tags in success state |
+| `frontend/src/main.jsx` | `<HelmetProvider>` wrapper (if not present) |
+| `frontend/package.json` | Add `react-helmet-async` if absent |
+
+### Required Tests (≥6)
+
+1. Share area shows skeleton while GET /share is pending
+2. SHARED state: "Copy link" + "Remove share link" render on 200
+3. NOT_SHARED state: original Share button on 404; "Copy link" absent
+4. "Copy link" uses stored share_url, does NOT call POST /share
+5. ShareRevokeModal: correct text, "Remove link" + "Cancel" buttons
+6. DELETE 204 → "Share link removed." toast + Share button appears + "Copy link" gone
+7. DELETE error → "Failed to remove link." toast + modal stays open
+8. PublicPlantPage: OG tags render in success state (og:title, og:description, og:image, twitter:card=summary_large_image when photo present)
+9. OG: no photo → og:image="/og-default.png", twitter:card="summary"
+10. OG: null frequencies → fallback description text
+
+### Dependencies
+
+- **T-132:** ✅ Done (this handoff)
+- **T-133 API contract:** Must be published before T-134 starts (Backend Engineer is unblocked by T-132 — contract should follow shortly).
+- SPEC-023 is in `ui-spec.md` — refer to the full spec for exact copy strings, visual states, ARIA attributes, and responsive breakpoints.
+
+---
+
 ## H-388 — Manager Agent → All Agents: Sprint #29 Kickoff (2026-04-20)
 
 | Field | Value |

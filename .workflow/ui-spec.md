@@ -6634,3 +6634,421 @@ Revocation UI is out of scope for Sprint #28 but must be accounted for in the da
 | 9 | **Clipboard fallback modal** — mock `navigator.clipboard` as `undefined`, click Share button after successful API call, assert fallback modal opens with share URL in input | Recommended |
 
 ---
+
+### SPEC-023 — Share Status, Revocation Modal & Open Graph Meta Tags
+
+**Status:** Approved
+**Related Tasks:** T-132 (Design), T-133 (Backend API), T-134 (Frontend Implementation)
+**Sprint:** #29
+**Prerequisite:** SPEC-022 (Share Button + Public Plant Profile Page)
+
+---
+
+#### Overview
+
+SPEC-023 extends the sharing feature delivered in Sprint #28 (SPEC-022) with three related UI surfaces:
+
+1. **Share status state on `PlantDetailPage`** — The share action area is now aware of whether the plant already has an active share link. On mount it fetches `GET /api/v1/plants/:plantId/share` and conditionally renders either (a) a "Copy link" + "Remove share link" pair (shared) or (b) the original "Share" button (not shared). A skeleton state covers the fetch period without blocking the rest of the page.
+2. **Share revocation flow** — A destructive-action modal (`ShareRevokeModal`) that confirms intent before calling `DELETE /api/v1/plants/:plantId/share`. After success the share area transitions back to the unshared state.
+3. **Open Graph meta tags on `PublicPlantPage`** — Injects `<meta>` tags into `<head>` so shared plant links render richly in iMessage, WhatsApp, Twitter/X, Slack, and other link-preview clients.
+
+---
+
+#### Design System Alignment
+
+All new elements inherit the Japandi botanical design system defined at the top of this document. No new tokens are introduced. The revocation modal reuses the standard modal scaffold (same as the Delete Account confirmation in SPEC-018). Toast messages reuse the existing `addToast()` utility.
+
+---
+
+### Surface 1: Share Status State on `PlantDetailPage`
+
+#### Location & Layout
+
+The share action area lives in the `PlantDetailPage` header region — same position as the "Share" icon button introduced in SPEC-022 (top-right corner of the plant detail header, aligned with the Edit/Delete action cluster, or below the header on smaller breakpoints). The area is narrow: at most two inline elements side-by-side.
+
+On desktop (≥768px):
+```
+[ Copy link ]  [ Remove share link ]
+```
+On mobile (<768px):
+```
+[ Copy link ]
+[ Remove share link ]   ← stacks below, same left-alignment
+```
+
+The share action area **does not block** the rest of PlantDetailPage from rendering. The page body (plant photo, care schedules, recent history, etc.) renders immediately. Only the share action area itself shows the skeleton/loading state.
+
+---
+
+#### Fetch Lifecycle & State Machine
+
+On mount (and whenever `plantId` changes), the component fires `GET /api/v1/plants/:plantId/share`. The share action area transitions through the following states:
+
+```
+LOADING  →  (200)  →  SHARED
+         →  (404)  →  NOT_SHARED
+         →  (error) → NOT_SHARED  (safe degradation — log to console, show Share button)
+```
+
+| State | Trigger | What renders in the share action area |
+|---|---|---|
+| `LOADING` | Fetch in-flight | Skeleton pill (see below) |
+| `SHARED` | API returns 200 + `{ share_url }` | "Copy link" secondary button + "Remove share link" ghost text button |
+| `NOT_SHARED` | API returns 404 | Original "Share" icon button (per SPEC-022) |
+| `ERROR` | Any non-404 error (network, 5xx, etc.) | Original "Share" icon button (safe degradation; no error toast shown) |
+
+**Loading skeleton spec:**
+- A single rounded pill shape: `width: 140px`, `height: 36px`, `border-radius: 8px`, `background: #E0DDD6`, animated shimmer (left-to-right gradient sweep, 1.4s linear infinite).
+- Does not reserve space for the "Remove share link" link — skeleton is one pill only to avoid layout shift.
+- The `aria-busy="true"` attribute is set on the share action area container; add `aria-label="Loading share status"`.
+- While in `LOADING`, the rest of `PlantDetailPage` is fully interactive.
+
+---
+
+#### SHARED State: "Copy link" Button
+
+**Visual spec:**
+- **Variant:** Secondary button (transparent background, `#5C7A5C` text, 1.5px `#5C7A5C` border, `border-radius: 8px`).
+- **Label:** `"Copy link"` — plain text, no icon (keeps the area compact alongside the second button).
+- **Width:** `min-width: 100px`. Does not stretch full-width on desktop.
+- **Font:** DM Sans, 14px, weight 600.
+- **Accessible label:** `aria-label="Copy plant share link"`.
+- **Padding:** `10px 20px` (standard button padding).
+
+**Click behavior (clipboard logic mirrors SPEC-022):**
+1. Button enters loading state: disabled, text replaced with 16px spinner in `#5C7A5C`. "Remove share link" is also disabled.
+2. Calls `navigator.clipboard.writeText(share_url)` using the `share_url` stored from the initial GET /share response. **No new API call is made.**
+   - **Clipboard available:** Success toast `"Link copied!"` (variant: `success`, 3s auto-dismiss). Button returns to active state.
+   - **Clipboard unavailable** (undefined or throws): Opens `ClipboardFallbackModal` from SPEC-022 with the stored `share_url` pre-filled. Button returns to active state.
+
+**States:**
+
+| State | Visual |
+|---|---|
+| Default | Secondary button, "Copy link" |
+| Hover | Background `rgba(92, 122, 92, 0.08)`, `scale(1.01)` |
+| Active | `scale(0.97)` |
+| Loading (clipboard write in progress) | Disabled, spinner replaces text |
+| Focus | 2px sage green focus ring, `outline-offset: 2px` |
+
+---
+
+#### SHARED State: "Remove share link" Text Button
+
+**Visual spec:**
+- **Variant:** Ghost button (`background: transparent`, `color: #6B6B5F`, no border).
+- **Label:** `"Remove share link"` — plain text.
+- **Font:** DM Sans, 14px, weight 400. Lighter weight than "Copy link" to signal secondary importance.
+- **Hover effect:** `text-decoration: underline; color: #B85C38` (terracotta hue reinforces the destructive nature).
+- **Placement:** Immediately to the right of "Copy link" on desktop (`margin-left: 8px`); stacked below on mobile.
+- **Accessible label:** `aria-label="Remove share link for this plant"`.
+
+**Click behavior:** Opens `ShareRevokeModal` (Surface 2). Does not make any API call directly.
+
+**States:**
+
+| State | Visual |
+|---|---|
+| Default | Ghost, `#6B6B5F`, no underline |
+| Hover | `color: #B85C38`, underline |
+| Active | `opacity: 0.75` |
+| Disabled (while "Copy link" is loading) | `opacity: 0.4`, `cursor: not-allowed`, no hover effect |
+| Focus | 2px sage green focus ring |
+
+---
+
+#### NOT_SHARED / ERROR State
+
+Render the original "Share" icon button exactly as specified in SPEC-022, with no behavioral changes.
+
+**Transition animation (SHARED → NOT_SHARED after revocation):**
+- "Copy link" and "Remove share link" fade out: `opacity: 0`, `transition: opacity 0.2s ease`.
+- "Share" button fades in with a subtle upward slide: `opacity: 0 → 1`, `transform: translateY(-4px) → translateY(0)`, `transition: opacity 0.2s ease, transform 0.2s ease`.
+- **Reduced motion:** When `prefers-reduced-motion: reduce` is active, skip transitions — swap elements immediately.
+- After animation, return focus to the "Share" button.
+
+---
+
+### Surface 2: Share Revocation Modal (`ShareRevokeModal`)
+
+#### Trigger
+
+Opened when the user clicks "Remove share link" on `PlantDetailPage` while in the SHARED state. Implemented as a new `ShareRevokeModal.jsx` component, following the standard destructive confirmation modal pattern established in SPEC-018 (Delete Account).
+
+---
+
+#### Layout & Dimensions
+
+- **Overlay:** Full-viewport backdrop `rgba(44, 44, 44, 0.45)`, `z-index: 1000`.
+- **Backdrop click:** Does **not** close the modal (prevents accidental dismissal of a destructive confirmation).
+- **Card:** `background: #FFFFFF`, `border-radius: 12px`, `padding: 32px`, `max-width: 440px`, centered (vertical + horizontal), `box-shadow: 0 8px 32px rgba(44, 44, 44, 0.18)`.
+- **No × close button** in the top-right corner (user must explicitly choose "Remove link" or "Cancel").
+
+---
+
+#### Modal Content
+
+```
+[Warning icon — Phosphor "Warning", 24px, #B85C38]
+
+Remove share link?
+(DM Sans, 18px, weight 600, #2C2C2C; margin-top: 12px)
+
+Anyone with the old link will no longer be able
+to view this plant.
+(DM Sans, 14px, weight 400, #6B6B5F; margin-top: 8px; max-width: 340px)
+
+                           [ Cancel ]  [ Remove link ]
+(button row; margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px)
+```
+
+**Heading (exact copy):** `"Remove share link?"`
+
+**Body (exact copy):** `"Anyone with the old link will no longer be able to view this plant."`
+
+---
+
+#### Buttons
+
+**"Cancel" button:**
+- Variant: Secondary (`transparent` background, `#5C7A5C` text, `1.5px solid #5C7A5C` border).
+- Click: Close modal immediately; no API call; no PlantDetailPage state change. Focus returns to "Remove share link" text button.
+- `Escape` key also triggers Cancel.
+
+**"Remove link" button:**
+- Variant: Danger (`background: #B85C38`, `color: #FFFFFF`).
+- Default label: `"Remove link"`.
+- Loading label: white 16px spinner; button disabled; `aria-label="Removing share link…"` `aria-busy="true"`.
+- `aria-label` default: `"Confirm: remove share link"`.
+- Click: Triggers Revocation Flow (see below).
+
+**Mobile button layout (<480px):** Stack vertically, full-width. "Remove link" on top, "Cancel" below. (`flex-direction: column-reverse` — the column-reverse ensures "Remove link" appears above "Cancel" in DOM order while being the first tappable button visually.)
+
+---
+
+#### Revocation Flow
+
+```
+User clicks "Remove link"
+  ↓
+Both buttons disabled; "Remove link" shows spinner
+  ↓
+Call DELETE /api/v1/plants/:plantId/share
+  ↓
+  ├─ 204 No Content → SUCCESS
+  │     addToast("Share link removed.", "success")  [3s auto-dismiss]
+  │     Modal unmounts
+  │     PlantDetailPage share area animates to NOT_SHARED state
+  │     Focus: "Share" button receives focus
+  │
+  └─ Any error (network, 4xx, 5xx) → ERROR
+        addToast("Failed to remove link. Please try again.", "error")  [5s auto-dismiss]
+        Modal stays open
+        Both buttons re-enabled; "Remove link" returns to default label
+        User may retry or click Cancel
+```
+
+**"Remove link" button states:**
+
+| State | Visual |
+|---|---|
+| Default | Danger button, "Remove link" |
+| Hover | `background: #9E4E2F`, `scale(1.01)` |
+| Active | `scale(0.97)` |
+| Loading | Disabled, white spinner, Cancel slightly dimmed (`opacity: 0.6`) |
+| Error recovery | Returns to Default state; error only in toast |
+| Focus | 2px sage green focus ring |
+
+---
+
+#### Modal Accessibility
+
+| Element | ARIA / Behavior |
+|---|---|
+| Modal root | `role="dialog"` `aria-modal="true"` `aria-labelledby="revoke-modal-title"` |
+| Heading | `id="revoke-modal-title"` → `"Remove share link?"` |
+| Focus trap | On open, focus moves to **"Cancel"** (safer default). Tab / Shift+Tab cycle within modal only. |
+| Escape key | Triggers Cancel. |
+| Backdrop click | No action. |
+| Screen reader on open | Dialog heading auto-read: `"Remove share link? dialog"`. |
+| "Remove link" loading | `aria-busy="true"`, `aria-label="Removing share link…"` |
+
+---
+
+#### Modal Responsive Behavior
+
+| Breakpoint | Layout |
+|---|---|
+| Desktop (≥768px) | max-width 440px, padding 32px, buttons right-aligned row |
+| Tablet (480–767px) | max-width 90vw, padding 32px, buttons right-aligned row |
+| Mobile (<480px) | max-width 92vw, padding 24px, buttons full-width stacked ("Remove link" top, "Cancel" bottom) |
+
+---
+
+### Surface 3: Open Graph Meta Tags on `PublicPlantPage`
+
+#### Overview
+
+`PublicPlantPage` (SPEC-022) is the social sharing target. Rich link previews (iMessage, WhatsApp, Slack, Twitter/X, LinkedIn, Facebook) require `<meta>` tags in `<head>`. Inject these via `react-helmet-async`'s `<Helmet>` component.
+
+**Rendering rule:** Meta tags are rendered **only in the success state** (plant data loaded). They are absent during loading, 404, and error states to avoid incorrect previews being cached by link scrapers.
+
+---
+
+#### Implementation Notes
+
+- Use `react-helmet-async`. Check `frontend/package.json` for `react-helmet-async` — add if missing (`npm install react-helmet-async`).
+- Wrap `<App>` in `<HelmetProvider>` in `main.jsx` if not already present.
+- The `buildOgDescription()` helper should be a pure function — unit-testable in isolation.
+
+---
+
+#### Tag Definitions
+
+##### `og:title`
+
+**Value:** `"{plant.name} on Plant Guardians"`
+
+**Rule:** Always present in success state. No truncation.
+
+---
+
+##### `og:description`
+
+Built by `buildOgDescription(plant)`:
+
+```js
+function buildOgDescription(plant) {
+  const parts = [];
+  if (plant.watering_frequency_days != null) {
+    parts.push(`watering every ${plant.watering_frequency_days} days`);
+  }
+  if (plant.fertilizing_frequency_days != null) {
+    parts.push(`fertilizing every ${plant.fertilizing_frequency_days} days`);
+  }
+  if (parts.length === 0) {
+    return `Learn how to care for ${plant.name} on Plant Guardians.`;
+  }
+  return `Learn how to care for ${plant.name}: ${parts.join(', ')}.`;
+}
+```
+
+**Null/missing frequency rules:**
+
+| `watering_frequency_days` | `fertilizing_frequency_days` | Result |
+|---|---|---|
+| Non-null | Non-null | "Learn how to care for {name}: watering every N days, fertilizing every M days." |
+| Non-null | Null | "Learn how to care for {name}: watering every N days." |
+| Null | Non-null | "Learn how to care for {name}: fertilizing every M days." |
+| Null | Null | "Learn how to care for {name} on Plant Guardians." |
+| Any | Any | `repotting_frequency_days` is **never** included in OG description. |
+
+---
+
+##### `og:image`
+
+| `photo_url` value | `og:image` value |
+|---|---|
+| Non-null, non-empty string | `plant.photo_url` |
+| `null` | `/og-default.png` |
+| `""` (empty string) | `/og-default.png` |
+
+**Fallback asset:** `frontend/public/og-default.png` — a Plant Guardians branded image, ideally 1200×630px (1.91:1 aspect ratio) for optimal preview quality across platforms. A simple warm botanical illustration with the app wordmark is appropriate.
+
+---
+
+##### `og:url`
+
+**Value:** `window.location.href` (full canonical URL of the current share page, e.g. `https://plantguardians.app/plants/share/<token>`).
+
+Alternatively, if `VITE_APP_URL` env var is available: construct as `` `${import.meta.env.VITE_APP_URL}/plants/share/${shareToken}` ``.
+
+---
+
+##### `og:type`
+
+**Value:** `"article"` — signals a content page to scrapers, unlocking richer previews on Facebook/LinkedIn.
+
+---
+
+##### `og:site_name`
+
+**Value:** `"Plant Guardians"` — always present.
+
+---
+
+##### Twitter / X Card Tags
+
+| Tag | Value | Condition |
+|---|---|---|
+| `twitter:card` | `"summary_large_image"` | `photo_url` is non-null and non-empty |
+| `twitter:card` | `"summary"` | `photo_url` is null or empty |
+| `twitter:title` | Same as `og:title` | Always present |
+| `twitter:description` | Same as `og:description` | Always present |
+| `twitter:image` | Same as `og:image` | Always present |
+
+---
+
+#### Full `<Helmet>` Block
+
+```jsx
+{status === 'success' && plant && (
+  <Helmet>
+    <title>{plant.name} on Plant Guardians</title>
+    <meta property="og:title" content={`${plant.name} on Plant Guardians`} />
+    <meta property="og:description" content={buildOgDescription(plant)} />
+    <meta property="og:image" content={plant.photo_url || '/og-default.png'} />
+    <meta property="og:url" content={window.location.href} />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Plant Guardians" />
+    <meta name="twitter:card" content={plant.photo_url ? 'summary_large_image' : 'summary'} />
+    <meta name="twitter:title" content={`${plant.name} on Plant Guardians`} />
+    <meta name="twitter:description" content={buildOgDescription(plant)} />
+    <meta name="twitter:image" content={plant.photo_url || '/og-default.png'} />
+  </Helmet>
+)}
+```
+
+Non-success `<title>` tags (also via `<Helmet>`):
+
+```jsx
+{status === 'loading' && <Helmet><title>Loading… — Plant Guardians</title></Helmet>}
+{status === 'not_found' && <Helmet><title>Plant not found — Plant Guardians</title></Helmet>}
+{status === 'error' && <Helmet><title>Plant Guardians</title></Helmet>}
+```
+
+---
+
+### Affected Files Summary
+
+| File | Change |
+|---|---|
+| `frontend/src/pages/PlantDetailPage.jsx` | Add share status fetch on mount; render LOADING skeleton, SHARED ("Copy link" + "Remove share link"), or NOT_SHARED (original Share button); handle transition animation on revocation success; manage focus. |
+| `frontend/src/components/ShareRevokeModal.jsx` | **New file.** Revocation confirmation modal. Props: `plantId: string`, `onSuccess: () => void`, `onClose: () => void`. Handles DELETE API call, loading state, toast dispatch. |
+| `frontend/src/pages/PublicPlantPage.jsx` | Add `<Helmet>` block (success + non-success title tags). Add `buildOgDescription()` helper. |
+| `frontend/src/main.jsx` | Wrap app with `<HelmetProvider>` if not already present. |
+| `frontend/public/og-default.png` | **New static asset.** 1200×630px Plant Guardians fallback OG image. |
+| `frontend/package.json` | Add `react-helmet-async` if not already present. |
+
+---
+
+### Test Matrix
+
+| # | Test | Required? |
+|---|---|---|
+| 1 | **Share area shows skeleton while fetching** — render PlantDetailPage, mock GET /share pending, assert skeleton is present and page body renders | ✅ Required |
+| 2 | **SHARED state renders "Copy link" + "Remove share link"** — mock GET /share → 200 + `{ share_url }`, assert both elements in document; original Share icon absent | ✅ Required |
+| 3 | **NOT_SHARED state renders original Share button** — mock GET /share → 404, assert Share icon button present; "Copy link" absent | ✅ Required |
+| 4 | **"Copy link" uses stored share_url, no new API call** — SHARED state, click "Copy link", assert `navigator.clipboard.writeText` called with stored url; assert POST /share was NOT called | ✅ Required |
+| 5 | **ShareRevokeModal: correct text and buttons** — render modal, assert heading "Remove share link?", body "Anyone with the old link…", "Remove link" and "Cancel" buttons present | ✅ Required |
+| 6 | **DELETE 204 → success toast + NOT_SHARED transition** — click "Remove link", mock DELETE → 204, assert "Share link removed." toast; "Copy link" absent; Share button present | ✅ Required |
+| 7 | **DELETE error → error toast, modal stays open** — click "Remove link", mock DELETE → 500, assert "Failed to remove link." toast; modal still in document | ✅ Required |
+| 8 | **Cancel closes modal, no DELETE called** — click "Cancel", assert modal removed; DELETE /share not called | Strongly recommended |
+| 9 | **GET /share 500 → safe degradation to Share button** — mock GET /share → 500, assert original Share button renders; no error toast | Strongly recommended |
+| 10 | **PublicPlantPage OG tags — with photo and schedules** — mock plant with photo_url and watering/fertilizing, assert og:title, og:description (full sentence), og:image = photo_url, twitter:card = "summary_large_image" | ✅ Required |
+| 11 | **PublicPlantPage OG tags — no photo** — mock plant with `photo_url: null`, assert og:image = "/og-default.png"; twitter:card = "summary" | ✅ Required |
+| 12 | **PublicPlantPage OG tags — null frequencies** — mock plant with null watering + fertilizing, assert og:description matches "Learn how to care for…on Plant Guardians." | Strongly recommended |
+| 13 | **OG tags absent in loading state** — render PublicPlantPage with fetch pending, assert og:title meta tag is not in document | Recommended |
+| 14 | **Escape key closes revocation modal** — open modal, fire Escape keydown, assert modal unmounted | Recommended |
+
+---
