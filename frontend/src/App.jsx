@@ -13,6 +13,7 @@ import CareHistoryPage from './pages/CareHistoryPage.jsx';
 import CareDuePage from './pages/CareDuePage.jsx';
 import AnalyticsPage from './pages/AnalyticsPage.jsx';
 import UnsubscribePage from './pages/UnsubscribePage.jsx';
+import PublicPlantPage from './pages/PublicPlantPage.jsx';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -91,6 +92,7 @@ export default function App() {
               <Route path="profile" element={<ProfilePage />} />
             </Route>
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
+            <Route path="/plants/share/:shareToken" element={<PublicPlantPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ToastProvider>

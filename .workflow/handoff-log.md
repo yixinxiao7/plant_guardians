@@ -4,6 +4,263 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-382 — Deploy Engineer → QA Engineer: T-130 Blocked on T-129 — All Technical Gates Pass, Deploy Ready Upon QA Sign-Off (2026-04-19)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-382 |
+| **From** | Deploy Engineer |
+| **To** | QA Engineer |
+| **Sprint** | #28 |
+| **Date** | 2026-04-19 |
+| **Status** | Action Required — QA Engineer must complete T-129 to unblock T-130 |
+
+### Summary
+
+T-130 (Staging re-deploy) is **technically ready to execute** but is blocked on **T-129 QA sign-off**. All implementation tasks are In Review. The pre-deploy technical gate check has been completed and all checks pass. The flakiness concern in the previous gate check (qa-build-log.md) has been resolved.
+
+**Action Required:** QA Engineer must complete T-129 and log sign-off in `qa-build-log.md` and `handoff-log.md`. T-130 will execute immediately upon receiving that sign-off.
+
+---
+
+### T-129 Dependencies — All In Review
+
+| Task | Agent | Status | Evidence |
+|------|-------|--------|----------|
+| T-125 — SPEC-022 Design Spec | Design Agent | Done | H-377 — SPEC-022 Approved in ui-spec.md |
+| T-126 — Plant Sharing API | Backend Engineer | In Review | H-380 (ref in tracker) — plantShares endpoint, migration, 10 new tests |
+| T-127 — Nodemailer fix + OAuth contract | Backend Engineer | In Review | H-381 (ref in tracker) — 0 vulnerabilities, api-contracts.md updated |
+| T-128 — Plant Sharing UI | Frontend Engineer | In Review | H-379 — ShareButton.jsx, PublicPlantPage.jsx, 287/287 tests |
+
+All three T-129 dependencies (T-126, T-127, T-128) are In Review — QA may proceed immediately.
+
+---
+
+### Deploy Technical Gate Summary (Pre-Checked by Deploy Engineer)
+
+| Gate | Status | Notes |
+|------|--------|-------|
+| Backend tests (≥205) | ✅ **209/209 — 2 stable consecutive runs** | Flakiness from prior gate check resolved; CASCADE cleanup works correctly |
+| Frontend tests (≥281) | ✅ **287/287** | 11 new tests (5 ShareButton + 6 PublicPlantPage) |
+| Frontend production build | ✅ **PASS** | 4661 modules, 0 errors (verified in prior gate check) |
+| Migration file present | ✅ PASS | `20260419_01_create_plant_shares.js` — 1 pending on staging DB |
+| T-127 npm audit | ✅ **0 vulnerabilities** | nodemailer@8.0.5+ applied |
+| T-127 api-contracts.md | ✅ PASS | OAuth callback section updated (HttpOnly cookie, no query param) |
+| Backend process | ❌ DOWN | Will be started by Deploy Engineer as part of T-130 |
+| Frontend dist | ⚠️ STALE | Will be rebuilt by Deploy Engineer as part of T-130 |
+
+---
+
+### What QA Engineer (T-129) Must Do
+
+1. **Backend regression:** Run `npm test` in `backend/` — verify ≥205/199 tests pass (expect 209)
+2. **Frontend regression:** Run `npm test` in `frontend/` — verify ≥281/276 tests pass (expect 287)
+3. **T-126 new tests:** Verify `plantShares.test.js` covers: happy path (POST share), idempotent, 403 wrong owner, 401 unauthenticated, 404 unknown plant, 400 invalid UUID, GET public happy path, GET 404 unknown token, GET 404 cascade-deleted plant, GET nulls for unset fields (10 tests ≥ 6 required)
+4. **T-127 npm audit:** Confirm `npm audit` in `backend/` → 0 moderate+ vulnerabilities
+5. **T-127 api-contracts.md:** Verify OAuth callback section documents `refresh_token` via `Set-Cookie` (HttpOnly), NOT in redirect URL query params
+6. **SPEC-022 compliance:** Spot-check Share button placement, loading state, clipboard, 404 state on public page, dark mode, privacy boundary (no user_id in public response)
+7. **Security checklist:** Share token entropy ≥32 bytes (32-byte `crypto.randomBytes` = 256 bits ✅), auth enforced on POST, no IDOR on public GET, no private fields in GET response
+8. **Log QA sign-off** in `qa-build-log.md` and post handoff to Deploy Engineer
+
+---
+
+### After QA Sign-Off — T-130 Execution Plan
+
+Deploy Engineer will execute immediately upon receiving T-129 sign-off:
+
+```bash
+# 1. Apply migration
+cd /Users/yixinxiao/PROJECTS/plant_guardians/backend
+npx knex migrate:latest
+# Expected: 1 migration applied — plant_shares table created
+
+# 2. Start backend
+node src/server.js &
+# Verify: GET /api/health → 200
+
+# 3. Rebuild frontend
+cd /Users/yixinxiao/PROJECTS/plant_guardians/frontend
+npm run build
+# Expected: 0 errors, dist/ updated
+
+# 4. Spot checks
+curl http://localhost:3000/api/health
+curl http://localhost:3000/api/v1/public/plants/nonexistent-token
+# Expected: 200 {"status":"ok"} and 404 respectively
+```
+
+Then log staging deploy in `qa-build-log.md` and hand off to Monitor Agent (T-131).
+
+---
+
+## H-379 — Frontend Engineer → QA Engineer: T-128 Plant Sharing UI Complete — Ready for QA (2026-04-19)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-379 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer |
+| **Sprint** | #28 |
+| **Date** | 2026-04-19 |
+| **Status** | In Review — T-128 awaiting QA verification |
+
+### Summary
+
+T-128 — Plant Sharing UI is complete per SPEC-022 and the T-126 API contract. The Share button on `PlantDetailPage` and the public `/plants/share/:shareToken` page are both implemented and tested. All 287/287 frontend tests pass (previously 276 — 11 new tests were added, exceeding the ≥5 requirement).
+
+### What Was Built
+
+**New files:**
+
+| File | Purpose |
+|---|---|
+| `frontend/src/components/ShareButton.jsx` + `.css` | Phosphor `ShareNetwork` icon button. Calls `POST /api/v1/plants/:plantId/share`, copies `share_url` to clipboard, fires "Link copied!" toast. Loading state (`aria-busy="true"`, `aria-label="Generating share link…"`, disabled). Error state fires "Failed to generate link. Please try again." toast. Falls back to a manual-copy modal when `navigator.clipboard` is unavailable. |
+| `frontend/src/components/ClipboardFallbackModal.jsx` + `.css` | Modal with read-only pre-selected `<input type="url">` of the share URL; includes a `document.execCommand('copy')` legacy fallback with "Copied ✓" transient confirmation. Reuses existing `<Modal>` (focus trap, Escape close, backdrop click). |
+| `frontend/src/pages/PublicPlantPage.jsx` + `.css` | Full public plant profile page. Minimal header (wordmark only — no nav, no login links). Centered single-column layout (680px max). Renders `<h1>` plant name in Playfair Display, species chip, optional photo with `alt="Photo of {name}"`, care schedule chips (water/fertilize/repot), AI care notes block (only when present). "Get started for free" CTA linking to `/`. All 4 states: loading skeleton, success, 404 "no longer active", error w/ retry. Dark mode via existing `--color-*` CSS custom properties. Dynamic `document.title` per state (per SPEC-022). |
+
+**Modified files:**
+
+| File | Change |
+|---|---|
+| `frontend/src/utils/api.js` | Added `plantShares.create(plantId)` (uses authenticated request helper) and `plantShares.getPublic(shareToken)` (bare `fetch()` — bypasses Bearer injection and 401-refresh interceptor per H-365 guidance; public endpoint is unauthenticated). |
+| `frontend/src/pages/PlantDetailPage.jsx` | Imported and rendered `<ShareButton plantId={id}>` in the plant detail header action row, alongside Edit and Delete. |
+| `frontend/src/App.jsx` | Imported `PublicPlantPage` and registered `<Route path="/plants/share/:shareToken" element={<PublicPlantPage />} />` outside `<ProtectedRoute>` — the route is intentionally public. Placed before the catch-all redirect. |
+
+### Tests Added (11 new — exceeds ≥5 requirement)
+
+**`ShareButton.test.jsx` (5 tests):**
+1. Share button renders with correct `aria-label="Share plant"`.
+2. Click triggers `POST /plants/:id/share` and button enters loading state with `aria-busy="true"`, disabled, and `aria-label="Generating share link…"`.
+3. On success: `navigator.clipboard.writeText` is called with the returned `share_url`, and "Link copied!" toast fires.
+4. On API failure: "Failed to generate link. Please try again." error toast fires; button returns to enabled state.
+5. When `navigator.clipboard` is undefined: fallback modal opens with the URL pre-populated in a read-only input; no success toast fires (user hasn't copied yet).
+
+**`PublicPlantPage.test.jsx` (6 tests):**
+1. Loading skeleton renders during fetch (`aria-busy="true"`, `aria-label="Loading plant profile"`).
+2. Success state renders: `<h1>` plant name, species chip, watering + fertilizing chips, AI care notes, `<img>` with `alt="Photo of {name}"`, CTA link to `/`. Repotting chip is NOT rendered when `repotting_frequency_days === null`.
+3. When `photo_url === null`: no `<img>` element is rendered.
+4. 404 response: renders "This plant link is no longer active"; no retry button; CTA link still present.
+5. 500 response: renders "Something went wrong" + "Try again" button; on retry, API is called a second time and success state renders.
+6. When all frequencies are null: a single "No schedule set" muted chip is shown.
+
+### Test Results
+
+- **Frontend:** 287/287 pass (was 276, added 11 new). Full `npm test` run: 37 test files, 287 tests, 0 failures.
+- All existing tests continue to pass — no regressions.
+
+### SPEC-022 Compliance Checklist
+
+- [x] Share button placement on PlantDetailPage (header action row, alongside Edit/Delete)
+- [x] Share button states: default, hover (CSS), active press (CSS `scale(0.93)`), loading, error recovery
+- [x] `aria-label="Share plant"` on button; `aria-label="Generating share link…"` + `aria-busy="true"` in loading state
+- [x] "Link copied!" success toast (via existing `useToast` + `ToastContainer`, `role="status"` `aria-live="polite"`)
+- [x] Error toast: "Failed to generate link. Please try again."
+- [x] Clipboard fallback modal when `navigator.clipboard` unavailable or throws
+- [x] Public page route `/plants/share/:shareToken` — unprotected, no auth required
+- [x] Minimal header (wordmark only — no navigation links)
+- [x] `<h1>` plant name in Playfair Display 32px / 26px mobile
+- [x] Species chip with Leaf icon
+- [x] Photo rendered only when `photo_url` is non-null, `alt="Photo of {plant name}"`
+- [x] Care chips — only rendered for non-null frequencies; "No schedule set" fallback when none
+- [x] AI care notes block with AI attribution microcopy — only rendered when non-null and non-empty
+- [x] "Discover Plant Guardians" CTA — "Get started for free" linking to `/`
+- [x] Loading skeleton with shimmer animation (not spinner takeover)
+- [x] 404 state: "This plant link is no longer active" + CTA; no retry
+- [x] Error state: "Something went wrong" + "Try again" button + CTA
+- [x] Dark mode via `--color-*` CSS custom properties (reuses existing design tokens)
+- [x] Landmark roles: `<header role="banner">`, `<main role="main">`; `<section aria-label="Care Schedule">`, `<section aria-label="AI Care Notes">`, `<section aria-label="Discover Plant Guardians">`
+- [x] Public endpoint called via bare `fetch()` — no Bearer header, no auth-refresh interceptor, won't trigger login redirect for unauthenticated visitors
+- [x] Responsive breakpoints: desktop / tablet / mobile padding and sizing
+
+### Known Limitations / Notes for QA
+
+- The existing Edit/Delete buttons in the plant detail header use a text+icon button style (`variant="secondary"` / `variant="ghost"` with labels), not the icon-only variant described in SPEC-022. The new Share button is icon-only per the spec, so the three buttons coexist as icon-only (Share) + text+icon (Edit, Delete) in the same action row. Converting Edit/Delete to icon-only was out of scope for T-128. Flag for Manager if a visual polish pass is desired in a future sprint.
+- `canvas-confetti` dynamic import and AI advice panel were untouched.
+- Public page does not include Open Graph meta tags (per sprint #28 out-of-scope).
+- `photo_url` is passed directly to `<img src>` as per contract (backend returns full absolute URL).
+
+### Recommended QA Test Plan
+
+1. **Functional — Share button:**
+   - Authenticated user on PlantDetailPage clicks Share → toast "Link copied!" → URL in clipboard is valid and of form `{FRONTEND_URL}/plants/share/<43-char-token>`.
+   - Click Share twice → same URL (idempotent).
+   - Force 403/404 via a plant ID the user doesn't own → "Failed to generate link" toast.
+   - Disable `navigator.clipboard` (dev tools: override) → fallback modal opens with URL pre-selected.
+
+2. **Functional — Public page:**
+   - Visit `/plants/share/<valid-token>` in an incognito window (no auth) → page renders without redirect.
+   - Visit with an invalid / revoked token → "This plant link is no longer active" state.
+   - Simulate 500 → "Something went wrong" + retry works.
+   - Visit a plant with `photo_url: null` → no `<img>`.
+   - Visit a plant with all frequencies null → "No schedule set" chip.
+   - Visit a plant with only `watering_frequency_days` set → only the water chip renders.
+
+3. **Privacy / Security:**
+   - Inspect the public GET response network panel — confirm no `user_id`, `id`, `created_at`, `last_done_at`, or care history fields leak through the UI.
+   - Confirm no authenticated user menu, login links, or user-specific sidebar render on the public page regardless of auth state.
+
+4. **Accessibility:**
+   - Share button reachable via keyboard; announces "Share plant" / "Generating share link…".
+   - Public page `<h1>` present; landmark roles (`banner`, `main`) present; photo has alt text.
+   - 404 and error state headlines live-announce via `role="alert"`.
+   - Color contrast in light + dark mode.
+
+5. **Dark mode:** Toggle dark mode on the public page and verify all sections respect the `--color-*` variables (skeleton shimmer, AI notes block, chips, CTA button).
+
+### Next
+
+Task moved to **In Review** in `dev-cycle-tracker.md`. QA Engineer (T-129) can begin once T-126 backend and T-127 housekeeping are both In Review/Done.
+
+---
+
+## H-378 — Frontend Engineer → Backend Engineer: Sprint 28 API Contract Acknowledged for T-128 (2026-04-19)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-378 |
+| **From** | Frontend Engineer |
+| **To** | Backend Engineer |
+| **Sprint** | #28 |
+| **Date** | 2026-04-19 |
+| **Status** | Acknowledged — proceeding with T-128 implementation |
+
+### Acknowledgment of H-365
+
+The Sprint 28 API contracts published by Backend Engineer in `api-contracts.md` are acknowledged. T-128 will be built against the following endpoints:
+
+**1. `POST /api/v1/plants/:plantId/share`**
+- Bearer auth (reuses existing `api.js` request helper with auto-refresh).
+- No request body.
+- Expected 200 response: `{ data: { share_url: string } }` — `share_url` is the value the Share button writes to the clipboard.
+- Idempotent — repeated clicks return the same URL; UX treats every success identically ("Link copied!" toast).
+- Error mapping in UI:
+  - 401: will be handled by existing auth refresh interceptor; if it bubbles up, render generic error toast.
+  - 403/404/400/500: generic error toast "Failed to generate link. Please try again."
+
+**2. `GET /api/v1/public/plants/:shareToken`**
+- **No auth** — bypasses the `api.js` Bearer injection and auth refresh. Will be called via a bare `fetch()` from `PublicPlantPage.jsx` so that unauthenticated visitors (and visitors on browsers with no stored tokens) do not trigger a refresh attempt.
+- Response shape handled as published: `name` (string), `species` (string | null), `photo_url` (string | null), `watering_frequency_days` (int | null), `fertilizing_frequency_days` (int | null), `repotting_frequency_days` (int | null), `ai_care_notes` (string | null).
+- 404 → renders "This plant link is no longer active" state.
+- Non-404 errors (network, 500) → renders "Something went wrong" state with retry.
+
+### Frontend Behavior Summary
+
+- Share button (`ShareButton.jsx`) wraps the POST call, clipboard write, and toast firing. Clipboard fallback modal (`ClipboardFallbackModal.jsx`) handles non-HTTPS / unsupported clipboard API.
+- `PublicPlantPage.jsx` mounted at `/plants/share/:shareToken` as a non-protected route in `App.jsx`. Does not wrap with `<PrivateRoute>` or `<AppShell>`.
+- `photo_url` is used directly on `<img src>` with `alt="Photo of {name}"`.
+- Frequency fields are rendered as "Water every N days" chips only when non-null.
+- AI care notes section only rendered when `ai_care_notes` is non-null and non-empty.
+
+### T-127 OAuth Contract Update
+
+Noted — T-128 does not touch any OAuth flows, so no implementation changes required on the frontend for the contract update. The existing OAuth flow already delegates refresh token handling to the HttpOnly cookie (post-H-370).
+
+### Next
+
+Proceeding with T-128 implementation now. Will log an H- entry to QA Engineer when T-128 is In Review.
+
+---
+
 ## H-377 — Design Agent → Frontend Engineer: SPEC-022 Approved — Plant Sharing UI Ready for Implementation (2026-04-19)
 
 | Field | Value |

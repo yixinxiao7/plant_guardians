@@ -21,6 +21,7 @@ const careDueRoutes = require('./routes/careDue');
 const accountRoutes = require('./routes/account');
 const notificationPreferencesRoutes = require('./routes/notificationPreferences');
 const unsubscribeRoutes = require('./routes/unsubscribe');
+const publicPlantsRoutes = require('./routes/publicPlants');
 
 const app = express();
 
@@ -92,6 +93,7 @@ app.use('/api/v1/profile', profileRoutes);
 app.use('/api/v1/profile/notification-preferences', notificationPreferencesRoutes);
 app.use('/api/v1/account', accountRoutes);
 app.use('/api/v1/unsubscribe', unsubscribeRoutes);
+app.use('/api/v1/public/plants', publicPlantsRoutes);
 
 // Dev/test only: admin trigger-reminders endpoint (T-101)
 if (process.env.NODE_ENV !== 'production') {

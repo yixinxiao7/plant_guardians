@@ -6,8 +6,9 @@ const upload = require('../middleware/upload');
 const Plant = require('../models/Plant');
 const CareSchedule = require('../models/CareSchedule');
 const CareAction = require('../models/CareAction');
+const PlantShare = require('../models/PlantShare');
 const { enrichSchedules } = require('../utils/careStatus');
-const { NotFoundError, ValidationError } = require('../utils/errors');
+const { NotFoundError, ValidationError, ForbiddenError } = require('../utils/errors');
 
 const VALID_CARE_TYPES = ['watering', 'fertilizing', 'repotting'];
 const VALID_FREQ_UNITS = ['days', 'weeks', 'months'];
@@ -356,5 +357,48 @@ router.post(
     }
   }
 );
+
+/**
+ * Resolve the canonical frontend base URL for share links.
+ * `FRONTEND_URL` may be a comma-separated list (used for CORS); use the first
+ * entry as the user-facing canonical origin. Falls back to localhost dev URL.
+ */
+function resolveFrontendBaseUrl() {
+  const raw = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const first = raw.split(',')[0].trim();
+  return first.replace(/\/+$/, ''); // strip trailing slashes
+}
+
+// POST /api/v1/plants/:plantId/share — T-126
+// Idempotent: if a share already exists for the plant, return its URL.
+router.post('/:plantId/share', validateUUIDParam('plantId'), async (req, res, next) => {
+  try {
+    // Distinguish 404 (plant doesn't exist) from 403 (plant belongs to another user)
+    const plant = await Plant.findById(req.params.plantId);
+    if (!plant) {
+      throw new NotFoundError('Plant', 'PLANT_NOT_FOUND');
+    }
+    if (plant.user_id !== req.user.id) {
+      throw new ForbiddenError('You do not have permission to share this plant.');
+    }
+
+    let share = await PlantShare.findByPlantId(plant.id);
+    if (!share) {
+      const shareToken = PlantShare.generateToken();
+      share = await PlantShare.create({
+        plantId: plant.id,
+        userId: req.user.id,
+        shareToken,
+      });
+    }
+
+    const baseUrl = resolveFrontendBaseUrl();
+    const share_url = `${baseUrl}/plants/share/${share.share_token}`;
+
+    res.status(200).json({ data: { share_url } });
+  } catch (err) {
+    next(err);
+  }
+});
 
 module.exports = router;

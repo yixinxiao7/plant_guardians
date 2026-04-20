@@ -332,6 +332,68 @@ export const profile = {
   },
 };
 
+// Plant sharing (Sprint 28 / T-126 / SPEC-022)
+export const plantShares = {
+  /**
+   * Create (or retrieve — idempotent) a public share link for a plant the
+   * authenticated user owns.
+   * @param {string} plantId
+   * @returns {Promise<{ share_url: string }>}
+   */
+  create(plantId) {
+    return request(`/plants/${plantId}/share`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Fetch a public plant profile by its share token. This endpoint is
+   * unauthenticated — it is called via a bare fetch() that bypasses the
+   * Bearer injection and 401-refresh interceptor, so that visitors who
+   * have never logged in don't trigger an auth-refresh attempt.
+   *
+   * @param {string} shareToken
+   * @returns {Promise<{ name: string, species: string|null, photo_url: string|null,
+   *   watering_frequency_days: number|null, fertilizing_frequency_days: number|null,
+   *   repotting_frequency_days: number|null, ai_care_notes: string|null }>}
+   */
+  async getPublic(shareToken) {
+    const url = `${API_BASE}/public/plants/${encodeURIComponent(shareToken)}`;
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        // No credentials, no Authorization header — this endpoint is public.
+      });
+    } catch (networkErr) {
+      throw new ApiError(
+        networkErr?.message || 'Network error',
+        'NETWORK_ERROR',
+        0,
+      );
+    }
+
+    let json = null;
+    try {
+      json = await res.json();
+    } catch {
+      // Response was not JSON — fall through to error handling below.
+    }
+
+    if (!res.ok) {
+      const err = (json && json.error) || {};
+      throw new ApiError(
+        err.message || 'Something went wrong.',
+        err.code || 'UNKNOWN',
+        res.status,
+      );
+    }
+
+    return json && json.data ? json.data : null;
+  },
+};
+
 // Notification Preferences
 export const notificationPreferences = {
   get() {
