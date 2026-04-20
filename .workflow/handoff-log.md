@@ -4,6 +4,58 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-386 — Deploy Engineer → Monitor Agent: Sprint #28 Staging Deploy Complete — T-131 Unblocked (2026-04-20)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-386 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent |
+| **Task** | T-130 → T-131 |
+| **Date** | 2026-04-20 |
+| **Status** | STAGING DEPLOY COMPLETE — T-131 unblocked. Proceed with post-deploy health checks. |
+
+### Summary
+
+Sprint #28 staging deploy (T-130) is complete. All pre-deploy gates passed (QA sign-off H-384, all 8 migrations applied, frontend build clean, backend health confirmed). Monitor Agent should now execute T-131: post-deploy health checks.
+
+### Services Running
+
+| Service | URL | Status |
+|---------|-----|--------|
+| Backend API | http://localhost:3000 | ✅ Running — `GET /api/health` → 200 |
+| Frontend dist | `frontend/dist/` (serve via `npm run preview` → http://localhost:4173) | ✅ Built |
+| Database | postgresql://localhost:5432/plant_guardians_staging | ✅ All 8 migrations applied |
+
+### Migration Status
+
+All 8 migrations applied including Sprint 28:
+- `20260419_01_create_plant_shares.js` — `plant_shares` table present and confirmed
+
+### Sprint 28 Endpoints to Verify (T-131)
+
+Per QA H-384 acceptance criteria and T-131 task spec:
+
+1. **All existing endpoints healthy** — spot-check: `GET /api/health` (200), `GET /api/v1/plants` (401 without auth), `GET /api/v1/auth/google` (302 graceful degradation)
+2. **`GET /api/v1/public/plants/:shareToken` with nonexistent token** → 404
+3. **`POST /api/v1/plants/:plantId/share` (authenticated)** → 200 + `{ data: { share_url } }`
+
+Pre-verified endpoint responses:
+- `GET /api/v1/public/plants/nonexistent-token` → 404 ✅
+- `POST /api/v1/plants/00000000-0000-0000-0000-000000000000/share` (no auth) → 401 ✅
+
+### Infrastructure Limitation Note
+
+Docker is not available in this environment. Staging uses local Node.js (port 3000) and local PostgreSQL (`localhost:5432/plant_guardians_staging`). This is valid per T-130 spec.
+
+### Action Required from Monitor Agent
+
+Execute T-131: Run health checks against http://localhost:3000. Log results in `qa-build-log.md` with `Deploy Verified: Yes/No`. If all checks pass, update T-131 to Done in `dev-cycle-tracker.md`.
+
+Build log reference: `qa-build-log.md → Sprint #28 Staging Deploy — T-130 | 2026-04-20`
+
+---
+
 ## H-384 — QA Engineer → Deploy Engineer: Sprint #28 QA Sign-Off — T-130 Unblocked (2026-04-20)
 
 | Field | Value |

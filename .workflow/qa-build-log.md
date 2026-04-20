@@ -4,6 +4,77 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint #28 Staging Deploy — T-130 | 2026-04-20
+
+- **Deploy Engineer:** T-130
+- **Sprint:** 28
+- **Date:** 2026-04-20
+- **Git SHA:** (local staging — no new commits; all Sprint 28 code committed per H-383/H-384)
+- **QA Sign-Off Reference:** H-384 (QA Engineer → Deploy Engineer, 2026-04-20)
+- **Environment:** Staging (local — Docker unavailable; using local PostgreSQL + Node processes)
+
+### Pre-Deploy Gate Check
+
+| Gate | Status | Details |
+|------|--------|---------|
+| QA sign-off present in handoff-log.md | ✅ PASS | H-384 — All Sprint #28 acceptance criteria met |
+| All Sprint 28 tasks Done in tracker | ✅ PASS | T-125/T-126/T-127/T-128/T-129 all Done |
+| Docker availability | ⚠️ N/A | Docker not available — using local processes (documented limitation) |
+
+### Dependency Installation
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| `cd backend && npm install` | ✅ PASS | All packages up to date, 0 vulnerabilities |
+| `cd frontend && npm install` | ✅ PASS | Packages installed (1 moderate advisory — pre-existing, dev-only per FB-120) |
+
+### Frontend Build
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Vite production build | ✅ PASS | 4661 modules transformed; `frontend/dist/` output clean — 0 errors, 0 warnings |
+| Output | ✅ PASS | `dist/index.html` + `dist/assets/` (CSS 102 KB, JS 497 KB) generated successfully |
+| Build time | ✅ PASS | 349ms |
+
+### Database Migrations
+
+| Migration | Status | Details |
+|-----------|--------|---------|
+| `20260323_01_create_users.js` | ✅ Already Applied | Batch 1 |
+| `20260323_02_create_refresh_tokens.js` | ✅ Already Applied | Batch 1 |
+| `20260323_03_create_plants.js` | ✅ Already Applied | Batch 1 |
+| `20260323_04_create_care_schedules.js` | ✅ Already Applied | Batch 1 |
+| `20260323_05_create_care_actions.js` | ✅ Already Applied | Batch 1 |
+| `20260405_01_create_notification_preferences.js` | ✅ Already Applied | Batch 2 |
+| `20260408_01_add_google_id_to_users.js` | ✅ Already Applied | Batch 3 |
+| `20260419_01_create_plant_shares.js` | ✅ Already Applied | Sprint 28 — `plant_shares` table present |
+| `knex migrate:latest` result | ✅ PASS | "Already up to date" — no pending migrations |
+
+### Backend Startup & Health Check
+
+| Check | Result | Details |
+|-------|--------|---------|
+| Backend startup | ✅ PASS | Already running on port 3000 (NODE_ENV=development) |
+| `GET /api/health` | ✅ PASS | HTTP 200 — `{"status":"ok","timestamp":"2026-04-20T13:27:13.967Z"}` |
+| `GET /api/v1/public/plants/nonexistent-token` | ✅ PASS | HTTP 404 — Sprint 28 public share endpoint reachable |
+| `POST /api/v1/plants/:plantId/share` (no auth) | ✅ PASS | HTTP 401 — Auth enforcement confirmed |
+
+### Staging Deploy Summary
+
+| Component | Environment | Build Status | Port / URL |
+|-----------|-------------|--------------|------------|
+| Backend API | Staging (local) | ✅ Success | http://localhost:3000 |
+| Frontend (built dist) | Staging (local) | ✅ Success | `frontend/dist/` — serve with `npm run preview` on port 4173 |
+| Database | Staging PostgreSQL | ✅ All 8 migrations applied | postgresql://localhost:5432/plant_guardians_staging |
+
+**Overall Status: ✅ STAGING DEPLOY COMPLETE — T-130 DONE**
+
+### Infrastructure Limitation Note
+
+Docker is not available in this environment. Staging has been deployed using local Node.js processes and the pre-existing local PostgreSQL instance at `localhost:5432/plant_guardians_staging`. This is a valid staging configuration per the T-130 spec ("'staging' means running the built application locally with a real database").
+
+---
+
 ## Sprint #28 QA Re-Verification — 2026-04-20 (post-sign-off spot check)
 
 **Agent:** QA Engineer
