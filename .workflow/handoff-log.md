@@ -4,6 +4,62 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-401 — Deploy Engineer → Monitor Agent: Sprint #29 Staging Deploy Re-Verified — T-138 STILL UNBLOCKED (2026-04-23)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-401 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent (primary — T-138 is unblocked and has been since H-396; please run the post-deploy health check now to close Sprint #29) |
+| **Task** | T-137 re-verification (deploy confirmed healthy) → T-138 unblocked |
+| **Date** | 2026-04-23 |
+| **Status** | ✅ **STAGING HEALTHY.** Backend PID 61445 running on port 3000, `GET /api/health` → 200. Frontend dist rebuilt (vite v8.0.9, 4670 modules, 0 errors). Migrations up to date. T-138 is clear to execute. |
+
+### Summary
+
+The orchestrator re-invoked the Deploy Engineer for Sprint #29. Per the pre-deploy checks:
+
+- **QA sign-off confirmed:** H-400 (Pass 4, 2026-04-23) — 226/226 backend, 312/312 frontend, all green.
+- **All sprint engineering tasks Done:** T-132, T-133, T-134, T-135, T-136, T-137, T-139. Only T-138 (Monitor) outstanding.
+- **No migrations pending:** `knex migrate:latest` → "Already up to date".
+
+The staging environment from H-396 (2026-04-20) is still running and healthy. The Deploy Engineer performed a fresh `npm install` + `npm run build` pass to confirm the build is current. Backend was not restarted — PID 61445 has been stable and continuously verified across 4 QA passes.
+
+### What Is Running
+
+| Component | Status | URL / Detail |
+|-----------|--------|-------------|
+| Backend API | ✅ Running | `http://localhost:3000` — PID 61445, `GET /api/health` → `{"status":"ok","timestamp":"2026-04-24T01:38:30.019Z"}` |
+| Frontend dist | ✅ Rebuilt | `frontend/dist/` — fresh build, current with `main`; served via Vite preview on port 4173 (PID 33774, from prior session) |
+| Database | ✅ Up to date | PostgreSQL (local), all 8 migrations applied, no pending changes |
+| Docker | ⚠️ Not available | Pre-existing limitation — staging uses local process + system PostgreSQL |
+
+### T-138 — Monitor Agent Instructions
+
+Run the standard post-deploy health check for Sprint #29. Verify:
+
+1. **`GET /api/health`** → 200 `{"status":"ok",...}`
+2. **Auth enforcement** — `GET /api/v1/plants` (no auth) → 401
+3. **Share endpoints (T-133):**
+   - `GET /api/v1/plants/:plantId/share` (valid auth, unshared plant) → 404
+   - `POST /api/v1/plants/:plantId/share` (valid auth) → 200 + `{"data":{"share_url":"..."}}`
+   - `GET /api/v1/plants/:plantId/share` (valid auth, shared) → 200
+   - `DELETE /api/v1/plants/:plantId/share` (valid auth) → 204, no body; subsequent GET → 404
+4. **Batch mark-done (T-139):** `POST /api/v1/care-actions/batch` → 200; verify `GET /api/v1/plants` shows plant as `on_track`
+5. **Log `Deploy Verified: Yes/No` in `.workflow/qa-build-log.md`**
+
+**If port 3000 is not responding when you start:** Restart with `cd /Users/yixinxiao/PROJECTS/plant_guardians/backend && npm start`
+
+### Files Changed (by Deploy Engineer this run)
+
+- `.workflow/qa-build-log.md` — added "Sprint #29 Staging Deploy Re-Verification — 2026-04-23" entry at top
+- `.workflow/handoff-log.md` — this entry (H-401)
+- `frontend/dist/` — rebuilt (no committed change)
+
+No tracker fields changed — T-137 is already Done; T-138 remains Backlog awaiting Monitor Agent.
+
+---
+
 ## H-400 — QA Engineer → Monitor Agent + Manager Agent: Sprint #29 QA Pass 4 (Re-Verification) — Still Green; T-138 Remains Only Outstanding Task (2026-04-23)
 
 | Field | Value |
