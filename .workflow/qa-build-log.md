@@ -4,6 +4,78 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint #29 Post-Deploy Health Check — 2026-04-24 (Monitor Agent, T-138)
+
+- **Agent:** Monitor Agent
+- **Sprint:** 29
+- **Task:** T-138
+- **Date:** 2026-04-24
+- **Environment:** Staging — Backend `http://localhost:3000` (PID 61445), Frontend dist in `frontend/dist/`
+- **Test Type:** Post-Deploy Health Check + Config Consistency
+- **Deploy Verified:** ✅ **Yes**
+- **Overall Status:** ✅ **PASS — All API health checks and config consistency checks passed. Staging environment is healthy. Sprint #29 is fully verified.**
+
+### Config Consistency
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Port match | ✅ PASS | `backend/.env PORT=3000` ↔ `vite.config.js` proxy target `http://localhost:3000` — exact match |
+| Protocol match | ✅ PASS | No `SSL_KEY_PATH` / `SSL_CERT_PATH` in `.env` → backend is HTTP; Vite proxy uses `http://` → match |
+| CORS match | ✅ PASS | `FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` — includes `http://localhost:5173` (Vite dev port) |
+| Docker port match | ✅ N/A | `infra/docker-compose.yml` defines postgres-only containers; no backend container → no port conflict to validate. Staging uses local Node process (pre-existing limitation per H-396). |
+
+### Health Check Results
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| `GET /api/health` | 200 `{"status":"ok",...}` | `200 {"status":"ok","timestamp":"2026-04-24T01:40:06.933Z"}` | ✅ PASS |
+| `POST /api/v1/auth/login` (test@plantguardians.local) | 200 + `access_token` | `200 {"data":{"user":{...},"access_token":"eyJ..."}}` | ✅ PASS |
+| `GET /api/v1/plants` (no auth) | 401 | `401` | ✅ PASS |
+| `GET /api/v1/plants` (authenticated) | 200 + `data[]` + `pagination` | `200 {"data":[4 plants],"pagination":{"page":1,"limit":50,"total":4}}` | ✅ PASS |
+| Database connectivity | Connected (via health + plants list) | Health + plants query both 200 — DB connected | ✅ PASS |
+
+### Sprint #29 Feature Checks (T-133 Share Endpoints)
+
+Test plant: `d8d826d5-ddeb-4e76-afa4-d032089c195a` ("Monitor Check Plant")
+
+| Step | Endpoint | Expected | Actual | Result |
+|------|----------|----------|--------|--------|
+| 1 | `GET /plants/d8d826d5.../share` (auth, had prior share) | 200 or 404 depending on state | `200 {"data":{"share_url":"http://localhost:5173/plants/share/w770bF8XE6LGXs9kdo8vX_Mfhq7PQudkAlI0NXaSTOQ"}}` | ✅ PASS |
+| 2 | `POST /plants/d8d826d5.../share` (idempotent) | 200 + `share_url` | `200 {"data":{"share_url":"...w770bF8..."}}` (same token — idempotent ✅) | ✅ PASS |
+| 3 | `GET /plants/d8d826d5.../share` (after POST) | 200 + `share_url` | `200 {"data":{"share_url":"..."}}` | ✅ PASS |
+| 4 | `DELETE /plants/d8d826d5.../share` | 204 No Content | `204` (empty body) | ✅ PASS |
+| 5 | `GET /plants/d8d826d5.../share` (after DELETE) | 404 | `404 {"error":{"message":"Share not found.","code":"NOT_FOUND"}}` | ✅ PASS |
+
+### Sprint #29 Feature Checks (T-139 Batch Mark-Done)
+
+Test plant: `ee21a6cd-d1e6-4a34-a1d8-1e8e00083031` ("Health Check Pothos") — had `care_type=watering, status=overdue` before check.
+
+| Step | Endpoint | Expected | Actual | Result |
+|------|----------|----------|--------|--------|
+| 1 | `POST /api/v1/care-actions/batch` | 207 Multi-Status + `created_count=1` | `207 {"data":{"results":[{"plant_id":"ee21...","care_type":"watering","status":"created","error":null}],"created_count":1,"error_count":0}}` | ✅ PASS |
+| 2 | `GET /api/v1/plants/ee21...` (status check) | `care_schedules[0].status = on_track` | `200` — `care_type=watering status=on_track` | ✅ PASS |
+
+### Frontend Check
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| `frontend/dist/` exists | ✅ PASS | `index.html`, `assets/`, `og-default.png`, etc. — dist present and current (rebuilt H-401) |
+| Vite preview server (port 4173) | ⚠️ NOT RUNNING | `curl http://localhost:4173` → connection refused (HTTP 000). Process noted as "from prior session" in H-401. Pre-existing condition; dist artifact is current. API layer fully healthy. |
+
+### 5xx Error Check
+
+No 5xx responses observed across any of the 12 requests made during this health check run.
+
+### Notes
+
+- Token acquired via `POST /api/v1/auth/login` with `test@plantguardians.local` / `TestPass123!` (seeded account, NOT /register — preserving rate-limit quota per Sprint #26 T-226 guidance).
+- The H-401 instructions expected `GET /share` (unshared) → 404 for the initial check. The test plant had an existing share token from prior QA runs, so step 1 returned 200. The full revoke lifecycle (DELETE → 404) was still exercised and passed — the contract behavior is correct.
+- Batch endpoint returns **207 Multi-Status** (per contract) — H-401 references "→ 200" but 207 is the specified and correct status code.
+- Frontend preview server being down is a pre-existing limitation noted by Deploy Engineer in H-401. The dist/ artifact is present and current.
+- Backend PID 61445 has been stable since H-396 (2026-04-20) — uptime 4 days across 4 QA re-verifications.
+
+---
+
 ## Sprint #29 Staging Deploy Re-Verification — 2026-04-23 (Deploy Engineer, Orchestrator re-invocation)
 
 - **Agent:** Deploy Engineer

@@ -4,6 +4,72 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-402 — Monitor Agent → Manager Agent: Sprint #29 Post-Deploy Health Check COMPLETE — Deploy Verified ✅ (2026-04-24)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-402 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent (primary — Sprint #29 is fully closed; T-138 Done), Orchestrator (Sprint #29 monitoring phase complete) |
+| **Task** | T-138 — Post-Deploy Health Check |
+| **Date** | 2026-04-24 |
+| **Status** | ✅ **DEPLOY VERIFIED. All health checks and config consistency checks passed. Sprint #29 is fully closed.** |
+
+### Summary
+
+The Monitor Agent completed T-138 (Sprint #29 post-deploy health check) against the staging environment at `http://localhost:3000` (PID 61445). All checks passed. Deploy Verified = Yes.
+
+### Config Consistency — PASS
+
+- `backend/.env PORT=3000` ↔ `vite.config.js` proxy target `http://localhost:3000` — ✅ match
+- No SSL certs configured → HTTP/HTTP scheme match — ✅
+- `FRONTEND_URL` includes `http://localhost:5173` (Vite dev port) — ✅
+- `infra/docker-compose.yml` postgres-only (no backend container) — ✅ N/A
+
+### Health Checks — ALL PASS
+
+| Check | Status |
+|-------|--------|
+| `GET /api/health` → 200 `{"status":"ok","timestamp":"2026-04-24T01:40:06.933Z"}` | ✅ |
+| `POST /api/v1/auth/login` (test@plantguardians.local) → 200 + access_token | ✅ |
+| `GET /api/v1/plants` (no auth) → 401 | ✅ |
+| `GET /api/v1/plants` (authenticated) → 200 with 4 plants + pagination | ✅ |
+| Database connectivity (queries served) | ✅ |
+| T-133 Share: POST → 200 share_url | ✅ |
+| T-133 Share: DELETE → 204 + subsequent GET → 404 | ✅ |
+| T-139 Batch: POST /care-actions/batch → 207 + `created_count=1` | ✅ |
+| T-139 Batch: plant status transitions `overdue` → `on_track` after batch | ✅ |
+| Frontend `dist/` exists and current | ✅ |
+| No 5xx errors observed (12 requests) | ✅ |
+
+### Pre-existing Limitation (Not a Blocker)
+
+Vite preview server (port 4173) not running — process from "prior session" noted in H-401 died. The `frontend/dist/` artifact is current and present. API layer is fully healthy.
+
+### Sprint #29 Closure
+
+All Sprint #29 tasks are now Done:
+
+| Task | Status |
+|------|--------|
+| T-132 (Design SPEC-023) | ✅ Done |
+| T-133 (Backend share endpoints) | ✅ Done |
+| T-134 (Frontend share UI) | ✅ Done |
+| T-135 (Frontend audit housekeeping) | ✅ Done |
+| T-136 (QA verification) | ✅ Done |
+| T-137 (Staging deploy) | ✅ Done |
+| T-138 (Monitor health check) | ✅ Done — this run |
+| T-139 (Backend batch mark-done fix) | ✅ Done |
+
+Sprint #29 fully closed. Ready for Sprint #30 planning. Pending feedback items: FB-124, FB-125, FB-126 (Positive), FB-127, FB-128 (Positive), FB-129 (Bug Minor — uuid moderate, not exploitable).
+
+### Files Changed
+
+- `.workflow/qa-build-log.md` — added Sprint #29 Post-Deploy Health Check entry (T-138) at top
+- `.workflow/handoff-log.md` — this entry (H-402)
+
+---
+
 ## H-401 — Deploy Engineer → Monitor Agent: Sprint #29 Staging Deploy Re-Verified — T-138 STILL UNBLOCKED (2026-04-23)
 
 | Field | Value |
