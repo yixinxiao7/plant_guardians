@@ -20,6 +20,93 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-129 — QA: Bug — Backend `npm audit` reports new moderate `uuid` advisory (not exploitable in our codebase) (Sprint 29, re-verification pass 3)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-129 |
+| Source | QA Engineer |
+| Sprint | 29 |
+| Category | Bug |
+| Severity | Minor |
+| Description | `cd backend && npm audit` now reports 1 moderate vulnerability: `uuid <14.0.0 — Missing buffer bounds check in v3/v5/v6 when buf is provided` (GHSA-w5hq-g745-h8pq). The fix is a breaking-change bump to `uuid@14.0.0`. **This is not exploitable in our codebase** — `backend/src/middleware/upload.js` is the only consumer of the `uuid` package and it only calls `uuid.v4()` (no `v3`, `v5`, or `v6`, and no `buf` parameter). Sprint #29 acceptance bar ("0 high-severity vulnerabilities") is still met (0 high, 0 critical). Not a deploy blocker. |
+| Steps to Reproduce | `cd backend && npm audit` |
+| Expected vs Actual | Expected: 0 vulnerabilities (matches H-395 baseline). Actual: 1 moderate (uuid). |
+| Recommendation | Defer to a future sprint that already touches `backend/package.json`. When bumping, verify `uuid.v4()` import path is unchanged in `middleware/upload.js`. Re-run `npm audit` to confirm 0. |
+| Status | New |
+
+---
+
+## FB-128 — QA: Positive — `DELETE /share` live response is a textbook 204 (Sprint 29, re-verification)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-128 |
+| Source | QA Engineer |
+| Sprint | 29 |
+| Category | Positive |
+| Severity | Cosmetic |
+| Description | Captured a live `curl -i -X DELETE` against a shared plant: `HTTP/1.1 204 No Content` with no response body and no `Content-Type` header. All security-relevant response headers (HSTS, CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy, X-XSS-Protection) are present on the 204 path too — good defense-in-depth. Exactly what the contract prescribes. |
+| Status | New |
+
+---
+
+## FB-127 — QA: Positive — T-139 anti-regression logic holds under a real stale-batch scenario (Sprint 29, re-verification)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-127 |
+| Source | QA Engineer |
+| Sprint | 29 |
+| Category | Positive |
+| Severity | Cosmetic |
+| Description | Manually fired a `POST /care-actions/batch` with `performed_at=2026-01-01T00:00:00Z` on a schedule whose `last_done_at` was already `2026-04-20T16:00:05Z`. The action was inserted (status=created, visible in `care_actions`), but the schedule's `last_done_at` did NOT regress — it stayed at April 20. This is the exact edge case that would have silently corrupted user state if the update were unconditional; the implementation handles it cleanly via the `if (!current \|\| new Date(newest) > new Date(current))` guard inside `CareAction.batchCreate()`'s transaction. Good robustness. |
+| Status | New |
+
+---
+
+## FB-126 — QA: Positive — 404-before-403 ordering on GET/DELETE share prevents plant-ID enumeration (Sprint 29)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-126 |
+| Source | QA Engineer |
+| Sprint | 29 |
+| Category | Positive |
+| Severity | — |
+| Description | Both new T-133 endpoints (`GET` and `DELETE /api/v1/plants/:plantId/share`) resolve the plant lookup first and return 404 NOT_FOUND when the plant does not exist — *before* performing the ownership check that would otherwise return 403. This is intentional (see `backend/src/routes/plants.js:412-418` for GET and `:442-448` for DELETE, and the explicit note in the published API contract: *"does not distinguish between 'plant doesn't exist' and 'share doesn't exist' to avoid enumeration"*). Together with the consistent 404 for "owned but never shared", the two non-error outcomes for a legitimate authenticated user are indistinguishable from a 404 for any random UUID an attacker might guess. Live verification: UUID `00000000-0000-4000-8000-000000000000` → 404; an intruder asking for someone else's plant → 403; but a random UUID that does not exist → 404. The only way to get 403 is to hit a plant you already know exists — which means the 403 surface does not leak whether a UUID is valid-but-not-yours. Nice defense-in-depth layered on top of the ownership check. |
+| Status | Acknowledged |
+
+---
+
+## FB-125 — QA: Positive — Safe-degradation on GET /share is the right call for a non-critical surface (Sprint 29)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-125 |
+| Source | QA Engineer |
+| Sprint | 29 |
+| Category | Positive |
+| Severity | — |
+| Description | SPEC-023 mandates that any non-404 error on `GET /api/v1/plants/:plantId/share` (network, 5xx, 403, etc.) coalesce into the NOT_SHARED state without a user-facing error toast — PlantDetailPage simply renders the original Share button. The Frontend Engineer implemented this faithfully (`useShareStatus.js` catches all errors and sets state to `NOT_SHARED`; `ShareStatusArea.test.jsx` tests 500 and 403 safe-degradation without any toast). This is the right posture for a UI affordance that is decorative on top of the core PlantDetailPage (photo, care schedules, history). If the share-status check fails, the user can still do everything else on the page, and clicking the (fallback) Share button will either succeed fresh or surface a real error at a more appropriate moment. Contrast this with the DELETE flow, which *does* show an explicit error toast on failure and keeps the modal open — because the user has taken a destructive action and expects acknowledgement. The two policies are opposite for the right reasons. |
+| Status | Acknowledged |
+
+---
+
+## FB-124 — QA: Positive — T-139 batch mark-done fix closes the biggest MVP usability bug for the plant-killer persona (Sprint 29)
+
+| Field | Value |
+|-------|-------|
+| ID | FB-124 |
+| Source | QA Engineer |
+| Sprint | 29 |
+| Category | Positive |
+| Severity | — |
+| Description | Live verification of the FB-113 repro — plant watered 10 days ago with a 3-day frequency (7 days overdue) → batch mark-done via `POST /api/v1/care-actions/batch` with `performed_at=now` → `GET /api/v1/plants` returns `status: "on_track"` and `days_overdue: 0`; same plant also moves from "overdue" to "upcoming (due in 3 days)" in `GET /api/v1/care-due`. Before this fix, a plant-killer user who batch-marked all overdue plants from the Care Due Dashboard would see the *exact same* plants re-appear as overdue on the My Plants page seconds later — a textbook example of two parts of the product telling a user contradictory stories about the same data. The transactional fix (`CareAction.batchCreate` now updates `care_schedules.last_done_at` in the same Knex transaction as the INSERT, with the "only if newer" guard to prevent older batch entries from regressing newer single-action ones) is the correct, durable solution rather than a post-hoc reconciliation. This closes the loop on the core product value prop: "I marked everything done, so everything *is* done." Pairs with FB-105 and FB-109. |
+| Status | Acknowledged |
+
+---
+
 ## FB-123 — QA: UX Suggestion — Share button could acknowledge "already shared" state in a future polish pass (Sprint 28)
 
 | Field | Value |

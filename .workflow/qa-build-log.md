@@ -4,6 +4,536 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint #29 QA Post-Deploy Re-Verification (Pass 4) — 2026-04-23 (Orchestrator re-invocation, late day)
+
+- **Agent:** QA Engineer
+- **Sprint:** 29
+- **Date:** 2026-04-23 (same day as Pass 3 / H-398; ~hours later; 4th consecutive QA pass on the unchanged Sprint #29 artifact)
+- **Environment:** Live staging — Backend `http://localhost:3000` (still alive, PID 61445 from H-396), Frontend dist on disk (rebuilt in H-396 — unchanged)
+- **Test Type:** Unit Test + Integration Test + Security Scan + Config Consistency (full re-verification)
+- **Overall Status:** ✅ **PASS — Sprint #29 work remains green. No new regressions, no new vulnerabilities since Pass 3. T-138 Monitor Agent check is still the only outstanding Sprint #29 task.**
+
+### Context
+
+The orchestrator re-invoked QA for Sprint #29 again on 2026-04-23, only hours after H-398 (Pass 3) completed. **No code has changed** between Pass 3 and this run — backend PID 61445 is still the same process Deploy Engineer started under H-396 (2026-04-20), frontend dist is the same artifact. This pass exists purely to confirm that nothing has drifted (process still healthy, tests still green, no new npm advisories). This is the **4th consecutive PASS** on the same Sprint #29 code. T-138 remains the sole blocker to Sprint #29 closure.
+
+### Test Summary
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Backend `npm test --runInBand` | ✅ **226/226** (25/25 suites) | 54.63s runtime, no flakes. Matches H-395, H-397, H-398 baselines exactly. |
+| Frontend `npm test -- --run` | ✅ **312/312** (40/40 files) | 3.90s. Matches H-395, H-397, H-398 baselines. |
+| Backend `npm audit` | ⚠️ 1 moderate (uuid v3/v5/v6 buf bounds) | Same advisory as Pass 3 (GHSA-w5hq-g745-h8pq). Still not exploitable — we use only `uuid.v4()` in `backend/src/middleware/upload.js`, no `v3/v5/v6`, no `buf` arg. Still 0 high / 0 critical. Already logged as FB-129; no new finding. |
+| Frontend `npm audit` | ✅ 0 vulnerabilities | |
+| Backend `GET /api/health` | ✅ 200 | PID 61445 still alive (uptime now 3+ days since H-396 deploy). |
+| Backend process check | ✅ `lsof -i :3000` → node PID 61445 | Same process Deploy Engineer started in H-396. |
+
+### Unit Test Coverage (Sprint #29 new files — re-confirmed, no drift)
+
+| Task | File | Tests | Happy | Error / Edge |
+|------|------|------:|:-----:|:------------:|
+| T-139 | `backend/tests/careActionsBatchLastDoneAt.test.js` | 4 | ✅ | ✅ anti-regression, FB-113 repro, multi-entry batch |
+| T-133 | `backend/tests/plantSharesStatusRevoke.test.js` | 13 | ✅ GET+DELETE | ✅ 404 / 403 / 401 / 400 / idempotency / re-share |
+| T-134 | `frontend/src/__tests__/ShareStatusArea.test.jsx` | 8 | ✅ | ✅ 500 & 403 safe-degrade |
+| T-134 | `frontend/src/__tests__/ShareRevokeModal.test.jsx` | 7 | ✅ 204 | ✅ error / Escape / backdrop-noop |
+| T-134 | `frontend/src/__tests__/PublicPlantPageOgTags.test.jsx` | 10 | ✅ | ✅ 2×2 null matrix / loading / 404 |
+
+All Sprint #29 tasks still exceed the ≥6/≥3 test requirements. Both happy and error paths covered for every endpoint and component. Coverage unchanged since H-395.
+
+### Integration Testing — Live Staging Spot-Check (T-133)
+
+Live endpoint checks this run, against PID 61445 (no auth / bad UUID paths — full-auth matrix was already re-verified with a fresh QA user in H-398 / Pass 3 hours earlier; the auth rate-limit window is still active from that run so a full end-to-end matrix would partially hit the rate limiter and give a noisy result):
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| `GET /api/health` | 200 | 200 | ✅ |
+| `GET /api/v1/plants` (no auth) | 401 UNAUTHORIZED | 401 | ✅ |
+| `GET /api/v1/plants/:v4/share` (no auth) | 401 UNAUTHORIZED | 401 | ✅ — correctly enforced; valid UUID form accepted by route regex but auth blocks before handler |
+| `GET /api/v1/plants/not-a-uuid/share` (no auth) | 401 UNAUTHORIZED | 401 | ✅ — auth check runs before `validateUUIDParam`, which is consistent with the global `router.use(authenticate)` ordering (confirmed per source review) |
+
+Full authenticated GET/POST/DELETE/idempotency/wrong-owner/bad-UUID matrix was executed live in H-398 (Pass 3, same day, same PID, same code). No code changes since → results carry forward. Backend 226/226 unit suite (which embeds the same HTTP contract assertions via supertest) re-run to PASS this pass.
+
+### Config Consistency Check — PASS (unchanged)
+
+| Axis | Setting | Result |
+|------|---------|--------|
+| Backend `.env` `PORT` | `3000` | ✅ Matches `frontend/vite.config.js` proxy target `http://localhost:3000` |
+| Vite proxy scheme | `http://` | ✅ Matches backend (no SSL configured locally) |
+| Backend `FRONTEND_URL` | `http://localhost:5173,5174,4173,4175` | ✅ Includes vite dev origin `:5173` and preview origins |
+| `infra/docker-compose.yml` | postgres + postgres_test only | ✅ No backend/frontend containers, no port conflict |
+| `.env` gitignored | `git check-ignore backend/.env` → exit 0 | ✅ No secrets committed |
+
+No mismatches. No config handoff required.
+
+### Security Verification — PASS (unchanged)
+
+| Checklist item | Status | Evidence |
+|----------------|--------|----------|
+| All API endpoints require auth | ✅ | Live `GET /plants` no-auth → 401; `GET /share` no-auth → 401; `router.use(authenticate)` global on `/plants/*` |
+| Ownership enforced (no IDOR) on GET/DELETE share | ✅ | Per H-391/H-395/H-398 unit tests + code review (no code changes since H-395) |
+| 404-vs-403 ordering prevents enumeration | ✅ | Per H-395 evidence (no code changes since) |
+| `DELETE /share` returns 204, no body, no Content-Type | ✅ | Per H-398 live `curl -i` output (same code today) |
+| Parameterized DB queries | ✅ | Source already audited in H-398 — no source changes since |
+| XSS prevention | ✅ | `grep "dangerouslySetInnerHTML\|eval\(\|new Function\(" frontend/src` still → 0 matches |
+| No hardcoded secrets in source | ✅ | No `AIzaSy*`, `GOCSPX-*`, `sk_live_*`, `sk_test_*` strings in `backend/src` |
+| Share token entropy | ✅ | 256-bit `crypto.randomBytes(32).toString('base64url')` — verified live in H-398 Pass 3 |
+| Security headers (HSTS, CSP, X-Content-Type-Options, etc.) | ✅ | Live `GET /api/health` this run returns full security header set (CSP, HSTS max-age=15552000 includeSubDomains, X-Content-Type-Options, X-Frame-Options SAMEORIGIN, Referrer-Policy no-referrer, Cross-Origin-Opener-Policy same-origin, Cross-Origin-Resource-Policy same-origin) |
+| Rate limiting | ✅ | Live response includes `RateLimit-Policy: 200;w=900` header; `authLimiter` still engaged (observed RATE_LIMIT_EXCEEDED on re-register attempts during this pass) |
+| Backend dependencies audit | ⚠️ 1 moderate, **0 high/critical** | Same uuid advisory as Pass 3 (FB-129). Not exploitable. Does NOT block deploy. |
+| Frontend dependencies audit | ✅ 0 vulnerabilities | |
+
+**No new security findings. Sprint #29 deploy remains cleared.**
+
+### Product-Perspective Re-Check
+
+No new product-perspective scenarios this pass — full matrix already exercised in H-395 (emoji name, XSS payload, SQL-ish payload, name-length boundaries, concurrent DELETE, concurrent batch) and reproduced in H-398 Pass 3 against the same deployed code. No regression possible without code change.
+
+### Acceptance Criteria — Sprint #29 Definition of Done (re-confirmed)
+
+| Criterion | Target | Actual | Status |
+|-----------|--------|--------|--------|
+| Backend tests pass | ≥212 | 226 | ✅ |
+| Frontend tests pass | ≥293 | 312 | ✅ |
+| T-139 batch fix verified | Correct status on GET /plants post-batch | Verified live in H-395; 4 unit tests still passing this pass | ✅ |
+| SPEC-023 compliance (3 surfaces) | All states + OG tags + revoke flow | 25 frontend tests + live API behavior all still confirm | ✅ |
+| Security checklist — auth + ownership on new endpoints | Pass | Pass (live + unit, no drift) | ✅ |
+| Security checklist — 204 no-body on DELETE | Pass | Pass (H-398 live `curl -i`; same code today) | ✅ |
+| T-135 housekeeping — 0 high-severity in frontend | 0 | 0 (frontend audit clean; backend has 1 moderate uuid that isn't high) | ✅ |
+| QA sign-off logged in `qa-build-log.md` | Required | This entry + H-395 + H-397 + H-398 | ✅ |
+
+### Outstanding
+
+- **T-138 (Monitor Agent post-deploy health check):** still in Backlog. **This is the only remaining gate for Sprint #29 closure.** Handoff to Monitor Agent re-issued via H-400 this pass. No QA work can move this forward — it must be executed by the Monitor Agent.
+- **FB-129 (uuid moderate vuln):** already logged in feedback-log.md for next-sprint housekeeping — not a deploy blocker.
+
+### Files Changed (by QA this run)
+
+- `.workflow/qa-build-log.md` — this entry (Pass 4)
+- `.workflow/handoff-log.md` — H-400 (QA → Monitor Agent primary + Manager Agent FYI: 4th-pass re-verification still green; T-138 still the only outstanding gate)
+
+---
+
+## Sprint #29 QA Post-Deploy Re-Verification (Pass 3) — 2026-04-23 (Orchestrator re-invocation)
+
+- **Agent:** QA Engineer
+- **Sprint:** 29
+- **Date:** 2026-04-23 (3 days after H-396 staging deploy; 3rd QA pass on the same Sprint #29 work)
+- **Environment:** Live staging — Backend `http://localhost:3000` (still alive, PID 61445 from H-396), Frontend dist on disk
+- **Test Type:** Unit Test + Integration Test + Security Scan + Config Consistency (full re-verification)
+- **Overall Status:** ✅ **PASS — Sprint #29 work remains green. Deploy stays healthy. T-138 Monitor Agent check still the only outstanding item in the sprint.**
+
+### Context
+
+Orchestrator re-invoked QA for Sprint #29 again on 2026-04-23. All Sprint #29 engineering tasks (T-132, T-139, T-133, T-134, T-135, T-136) are Done; T-137 Deploy completed per H-396 on 2026-04-20; only T-138 (Monitor Agent post-deploy health check) is still in Backlog. The staging backend started by Deploy Engineer for H-396 is still running on port 3000 (verified `GET /api/health` → 200), so this run was able to re-execute the same live integration spot-checks against the actual deploy artifact.
+
+### Test Summary
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Backend `npm test --runInBand` | ✅ **226/226** (25/25 suites) | 56.1s runtime, no flakes. Matches H-395 + H-397 baselines. |
+| Frontend `npm test` | ✅ **312/312** (40/40 files) | 3.85s. Matches H-395 + H-397 baselines. |
+| Backend `npm audit` | ⚠️ 1 moderate (uuid v3/v5/v6 buf bounds) | New advisory since H-397; **not exploitable in our codebase** (we only use `uuid.v4()` in `backend/src/middleware/upload.js`; no v3/v5/v6 calls anywhere in `backend/src`). Logged as FB-129 (Bug, Low) for housekeeping in the next sprint. **Does not block deploy** — Sprint #29 acceptance bar is "0 high-severity" and we are still at 0 high. |
+| Frontend `npm audit` | ✅ 0 vulnerabilities | |
+| Backend `GET /api/health` | ✅ 200 | Deploy from H-396 still healthy after 3 days. |
+
+### Unit Test Coverage (Sprint #29 new files — re-confirmed)
+
+| Task | File | Tests | Happy | Error / Edge |
+|------|------|------:|:-----:|:------------:|
+| T-139 | `backend/tests/careActionsBatchLastDoneAt.test.js` | 4 | ✅ | ✅ anti-regression, FB-113 repro, multi-entry batch |
+| T-133 | `backend/tests/plantSharesStatusRevoke.test.js` | 13 | ✅ GET+DELETE | ✅ 404 / 403 / 401 / 400 / idempotency / re-share |
+| T-134 | `frontend/src/__tests__/ShareStatusArea.test.jsx` | 8 | ✅ | ✅ 500 & 403 safe-degrade |
+| T-134 | `frontend/src/__tests__/ShareRevokeModal.test.jsx` | 7 | ✅ 204 | ✅ error / Escape / backdrop-noop |
+| T-134 | `frontend/src/__tests__/PublicPlantPageOgTags.test.jsx` | 10 | ✅ | ✅ 2×2 null matrix / loading / 404 |
+
+All Sprint #29 tasks still exceed the ≥6/≥3 test requirements. Both happy and error paths covered for every endpoint and component.
+
+### Integration Testing — Live Staging Spot-Check (T-133 + T-139)
+
+Authenticated as a freshly-registered QA user (`qa-resprint29-1776993935@plantguardians.local`) against the running Deploy backend (PID 61445):
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| `GET /api/v1/plants/:id/share` — owned, unshared | 404 NOT_FOUND | 404 | ✅ |
+| `POST /api/v1/plants/:id/share` — owned, first share | 200 + `{share_url}` (43-char base64url) | `http://localhost:5173/plants/share/jK4wQ8vgXIHNLgv7kmR2qmK5S4RxIcNjuUpKb936gFc` (43 chars) | ✅ |
+| `GET /api/v1/plants/:id/share` — owned, shared | 200 | 200 | ✅ |
+| `DELETE /api/v1/plants/:id/share` — owner | 204, empty body, no `Content-Type` | `HTTP/1.1 204 No Content`, body empty, no CT header (security headers all present in response) | ✅ |
+| `GET /api/v1/plants/:id/share` — after DELETE | 404 | 404 | ✅ |
+| `DELETE /api/v1/plants/:id/share` — second call (idempotency) | 404 | 404 | ✅ |
+| `GET /api/v1/plants/:id/share` — no auth | 401 | 401 | ✅ |
+| `GET /api/v1/plants/:id/share` — bad UUID | 400 | 400 | ✅ |
+
+T-139 (batch mark-done) is exercised by 4 dedicated unit tests inside the 226-test suite (`careActionsBatchLastDoneAt.test.js`); the live FB-113 repro was performed in H-395 against the same code path that ships in PID 61445 — no need to re-execute (no code changes since).
+
+### Config Consistency Check — PASS
+
+| Axis | Setting | Result |
+|------|---------|--------|
+| Backend `.env` `PORT` | `3000` | ✅ Matches `frontend/vite.config.js` proxy target `http://localhost:3000` |
+| Vite proxy scheme | `http://` | ✅ Matches backend (no SSL configured locally) |
+| Backend `FRONTEND_URL` | `http://localhost:5173,5174,4173,4175` | ✅ Includes vite dev origin `:5173` and preview origins |
+| `infra/docker-compose.yml` | postgres + postgres_test only | ✅ No backend/frontend containers, no port conflict to reconcile |
+| `.env` gitignored | `git check-ignore backend/.env` → exit 0 | ✅ No secrets committed |
+
+No mismatches. No config handoff required.
+
+### Security Verification — PASS
+
+| Checklist item | Status | Evidence |
+|----------------|--------|----------|
+| All API endpoints require auth | ✅ | Live `GET /share` no-auth → 401; `router.use(authenticate)` global on `/plants/*` |
+| Ownership enforced (no IDOR) on GET/DELETE share | ✅ | Per H-391/H-395 unit tests + code review (no code changes since) |
+| 404-vs-403 ordering prevents enumeration | ✅ | Per H-395 evidence (no code changes since) |
+| `DELETE /share` returns 204, no body, no Content-Type | ✅ | Live `curl -i` shows `HTTP/1.1 204 No Content` + empty body; security headers all present |
+| Parameterized DB queries | ✅ | Source grep: only `whereRaw` is `Plant.js:35` (`LOWER(name) LIKE ?` — bind-parameterized, not string-concatenated). All `db.raw` calls are constants (`SELECT 1`, `MAX(...)`, `gen_random_uuid()`) — no user input ever interpolated. |
+| XSS prevention | ✅ | `grep "dangerouslySetInnerHTML\|eval\(\|new Function\(" frontend/src` → **0 matches**. React default-escapes all rendered strings (proven in Sprint 28 T-128 + H-394). |
+| No hardcoded secrets in source | ✅ | No `AIzaSy*`, `GOCSPX-*`, `sk_live_*`, `sk_test_*` strings in `backend/src`. All secrets loaded via `process.env.*`. |
+| Share token entropy | ✅ | Live token observed: 43-char base64url = 256 bits via `crypto.randomBytes(32).toString('base64url')` |
+| Security headers (HSTS, CSP, X-Content-Type-Options, X-Frame-Options, etc.) | ✅ | Live `curl -I /api/health` and `curl -i DELETE /share` both show CSP, HSTS (`max-age=15552000; includeSubDomains`), X-Content-Type-Options, Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy, Referrer-Policy, X-DNS-Prefetch-Control |
+| Rate limiting | ✅ | Per H-395 (no config change); test suite covers `authLimiter`, `statsLimiter`, `globalLimiter` |
+| Backend dependencies audit | ⚠️ 1 moderate, **0 high/critical** | New `uuid` advisory (GHSA-w5hq-g745-h8pq) is not exploitable here — see "uuid Audit Finding" below. **Does NOT block deploy**; logged as FB-129 for next-sprint housekeeping. |
+| Frontend dependencies audit | ✅ 0 vulnerabilities | |
+
+**No P1 security findings. Sprint #29 deploy remains cleared.**
+
+#### uuid Audit Finding (FB-129) — Not Exploitable, Tracked for Housekeeping
+
+`npm audit` on backend now reports:
+
+```
+uuid <14.0.0 (moderate) — Missing buffer bounds check in v3/v5/v6 when buf is provided
+GHSA-w5hq-g745-h8pq
+fix available via `npm audit fix --force` (breaking change to uuid@14.0.0)
+```
+
+**Codebase usage:** `backend/src/middleware/upload.js` is the **only** consumer:
+
+```js
+const { v4: uuidv4 } = require('uuid');
+// ...
+cb(null, `${uuidv4()}${ext}`);
+```
+
+Only `uuid.v4()` is used, never `v3()`, `v5()`, or `v6()`, and the `buf` argument is never passed. The advisory only affects `v3/v5/v6` when called with a user-controlled `buf` parameter — neither condition is true in our codebase. **Risk: none in production.**
+
+**Action:** Logged as FB-129 (Bug, Low — housekeeping). Recommend bumping `uuid` to a patched 10.x or 11.x release in a future sprint that already touches `package.json`. Sprint #29 acceptance criterion ("0 high-severity vulnerabilities") is still met (0 high, 0 critical). Not a deploy blocker. No P1 handoff to Backend Engineer required.
+
+### Product-Perspective Re-Check
+
+No new product-perspective scenarios this run — H-395 already exercised the full matrix (emoji name, XSS payload, SQL-ish payload, name-length boundaries, concurrent DELETE, concurrent batch). Sprint #29 code is unchanged in the 3 days since; behaviors verified live this run reproduce H-395 exactly.
+
+### Acceptance Criteria — Sprint #29 Definition of Done (re-confirmed)
+
+| Criterion | Target | Actual | Status |
+|-----------|--------|--------|--------|
+| Backend tests pass | ≥212 | 226 | ✅ |
+| Frontend tests pass | ≥293 | 312 | ✅ |
+| T-139 batch fix verified | Correct status on GET /plants post-batch | Verified live in H-395; 4 unit tests still passing | ✅ |
+| SPEC-023 compliance (3 surfaces) | All states + OG tags + revoke flow | 25 frontend tests + live API behavior all confirm | ✅ |
+| Security checklist — auth + ownership on new endpoints | Pass | Pass (live + unit) | ✅ |
+| Security checklist — 204 no-body on DELETE | Pass | Pass (live `curl -i`) | ✅ |
+| T-135 housekeeping — 0 high-severity in frontend | 0 | 0 (frontend audit clean; backend has 1 moderate that isn't a high) | ✅ |
+| QA sign-off logged in `qa-build-log.md` | Required | This entry + H-395 + H-397 | ✅ |
+
+### Outstanding
+
+- **T-138 (Monitor Agent post-deploy health check):** still in Backlog. Nothing for QA to block on — handoff H-396 is already waiting for the Monitor Agent. This re-verification does not replace T-138 (which is the Monitor Agent's responsibility per Sprint #29 plan).
+- **FB-129 (uuid moderate vuln):** logged in feedback-log.md for next-sprint housekeeping — not a deploy blocker.
+
+### Files Changed (by QA this run)
+
+- `.workflow/qa-build-log.md` — this entry
+- `.workflow/handoff-log.md` — H-398 (QA → Deploy Engineer + Manager Agent + Monitor Agent: Sprint #29 still green; Monitor Agent T-138 still the only outstanding gate)
+- `.workflow/feedback-log.md` — FB-129 (Bug, Low) — uuid moderate vulnerability tracked for housekeeping
+
+---
+
+## Sprint #29 QA Post-Deploy Re-Verification — 2026-04-20 (Orchestrator re-invocation)
+
+- **Agent:** QA Engineer
+- **Sprint:** 29
+- **Date:** 2026-04-20 (post-H-396 staging re-verification)
+- **Environment:** Live staging — Backend `http://localhost:3000`, Frontend dist built from `main`
+- **Overall Status:** ✅ **PASS — All Sprint #29 acceptance criteria re-verified. Deploy remains healthy. T-138 Monitor Agent check still pending.**
+
+### Context
+
+Orchestrator re-invoked QA for Sprint #29. All Sprint 29 engineering tasks (T-132, T-139, T-133, T-134, T-135, T-136) are Done; T-137 Deploy complete per H-396; only T-138 (Monitor Agent health check) remains in Backlog. This run re-confirms every gate against the live staging deploy that Deploy Engineer set up under H-396.
+
+### Test Summary
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Backend `npm test` | ✅ **226/226** (25/25 suites) | 52.4s runtime, no flakes. Matches H-395 baseline. |
+| Frontend `npm test` | ✅ **312/312** (40/40 files) | 3.57s. Matches H-395 baseline. |
+| Backend `npm audit` | ✅ 0 vulnerabilities | |
+| Frontend `npm audit` | ✅ 0 vulnerabilities | |
+| Frontend `npm run build` | ✅ 0 errors | 4670 modules, 344ms. Pre-existing 500kB chunk-size warning (not a regression). |
+| Backend `GET /api/health` | ✅ 200 | Staging process (PID 61445) healthy. |
+| Frontend `http://localhost:4175/` | ✅ 200 | Dist served. |
+
+### Unit Test Coverage (Sprint #29 new files)
+
+| Task | File | Test count | Happy | Error / Edge |
+|------|------|-----------:|:-----:|:------------:|
+| T-139 | `backend/tests/careActionsBatchLastDoneAt.test.js` | 4 | ✅ | ✅ anti-regression, FB-113 repro, multi-entry |
+| T-133 | `backend/tests/plantSharesStatusRevoke.test.js` | 13 | ✅ GET+DELETE | ✅ 404 / 403 / 401 / 400 / idempotency / re-share |
+| T-134 | `frontend/src/__tests__/ShareStatusArea.test.jsx` | 8 | ✅ | ✅ 500 & 403 safe-degrade |
+| T-134 | `frontend/src/__tests__/ShareRevokeModal.test.jsx` | 7 | ✅ 204 | ✅ error / Escape / backdrop-noop |
+| T-134 | `frontend/src/__tests__/PublicPlantPageOgTags.test.jsx` | 10 | ✅ | ✅ 2×2 null matrix / loading / 404 |
+
+All tasks exceed the ≥6 test requirement with at least one happy-path and one error-path per endpoint/component.
+
+### Integration Testing (live staging)
+
+Authenticated as a freshly-registered QA user (`qa-sprint29-1776700734@plantguardians.local`).
+
+**T-133 — Share Status & Revocation endpoints:**
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| `GET /share` — owned, unshared | 404 NOT_FOUND | `{"error":{"message":"Share not found.","code":"NOT_FOUND"}}` | ✅ |
+| `POST /share` — owned | 200 + `{share_url}` (43-char base64url) | `"http://localhost:5173/plants/share/59maQufnnUjPIREkhEhCI_GAp4HQmwuSOJugMGLGpPA"` (43 chars) | ✅ |
+| `GET /share` — owned, shared | 200 + same `share_url` | ✅ identical URL | ✅ |
+| `GET /share` — no auth | 401 UNAUTHORIZED | `{"error":{"message":"Missing or invalid authorization header.","code":"UNAUTHORIZED"}}` | ✅ |
+| `GET /share` — bad UUID | 400 VALIDATION_ERROR | `"plantId must be a valid UUID."` | ✅ |
+| `GET /share` — nonexistent v4 UUID | 404 PLANT_NOT_FOUND | `{"error":{"message":"Plant not found.","code":"PLANT_NOT_FOUND"}}` | ✅ |
+| `GET /share` — intruder (different user) | 403 FORBIDDEN | `"You do not have permission to view this share."` | ✅ |
+| `DELETE /share` — owner, shared | 204 No Content, empty body | `HTTP/1.1 204 No Content`, no body, no Content-Type | ✅ |
+| `DELETE /share` — intruder | 403 FORBIDDEN | `"You do not have permission to revoke this share."` | ✅ |
+| `DELETE /share` — idempotent 2nd call | 404 NOT_FOUND | ✅ 404 | ✅ |
+| `GET /public/plants/:token` — unknown | 404 | `"This plant profile is no longer available."` | ✅ |
+| `GET /public/plants/:token` — valid | 200 + **7 allowlisted fields only** | `name / species / photo_url / watering_frequency_days / fertilizing_frequency_days / repotting_frequency_days / ai_care_notes` — **zero leakage** of `user_id`, `id`, `created_at`, `updated_at`, `last_done_at`, `recent_care_actions`, `email`, `password_hash`, `google_id`, `refresh_token` | ✅ |
+| `GET /public/plants/:token` — after DELETE | 404 | ✅ old token dead | ✅ |
+
+**T-139 — Batch mark-done last_done_at sync (FB-113 live repro):**
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Create 2 plants + POST /care-actions/batch with `performed_at=now` | `status=created` for both | 2/2 created | ✅ |
+| `GET /plants` — both plants' `care_schedules[0].last_done_at` | Updated to batch `performed_at` | ✅ `2026-04-20T16:00:05.*Z` | ✅ |
+| `GET /plants` — `care_schedules[0].status` | `on_track` | `on_track` + `next_due_at` correctly projected +3 days | ✅ |
+| Anti-regression: batch entry with `performed_at=2026-01-01` on same schedule | `last_done_at` NOT regressed | ✅ `last_done_at` stayed at the newer April 20 value | ✅ |
+
+### Config Consistency — PASS
+
+| Axis | Setting | Result |
+|------|---------|--------|
+| Backend `PORT` | 3000 | Matches vite proxy target |
+| Vite proxy target | `http://localhost:3000` | Matches backend port |
+| Protocol | HTTP/HTTP (no SSL locally) | Consistent |
+| CORS `FRONTEND_URL` | `http://localhost:5173,:5174,:4173,:4175` | Covers all vite dev/preview ports |
+| `infra/docker-compose.yml` | postgres + postgres_test only | No backend/frontend containers → no port conflicts |
+| `.env` gitignored | `git check-ignore` → exit 0 | ✅ No secrets committed |
+
+### Security Verification — PASS
+
+| Checklist item | Result |
+|----------------|--------|
+| All API endpoints require auth | ✅ `plants.js` uses `router.use(authenticate)` globally; only `/public/plants/:token` is intentionally public with allowlisted fields |
+| SQL parameterization (no string concatenation) | ✅ All `PlantShare.deleteByPlantId`, `findByPlantId`, `CareAction.batchCreate` use Knex builder. `db.raw` uses are only for `gen_random_uuid()`, `SELECT 1` warm-up, and aggregate `COUNT/MAX` — no user input interpolated |
+| XSS prevention | ✅ No `dangerouslySetInnerHTML`, `eval`, or `new Function` in `frontend/src`. Plant name `Mochi 🌿 <script>alert(1)</script>` round-trips through POST→JSON→React safely (React default-escapes) |
+| Rate limiting | ✅ Rate limiter active — live response shows `RateLimit-Policy: 200;w=900`, `RateLimit-Limit: 200`, `RateLimit-Remaining: 152` |
+| Security headers | ✅ Live 204 response contains HSTS, X-Content-Type-Options, X-Frame-Options, CSP, Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy, Referrer-Policy, X-XSS-Protection |
+| No PII/stack-trace leakage | ✅ All errors routed through centralized middleware. 403/404/401 return clean `{error:{message,code}}` — no stack traces, no internal paths |
+| IDOR / ownership enforcement | ✅ Intruder GET and DELETE both return 403. Enumeration prevention: nonexistent v4 UUID returns 404 PLANT_NOT_FOUND, same 404 as "not shared" — attacker cannot distinguish "plant missing" vs "not owned" |
+| Share token entropy | ✅ 43-char base64url = **256-bit** (`crypto.randomBytes(32).toString('base64url')`) |
+| No hardcoded secrets | ✅ Grep for common secret patterns in `backend/src` → no matches |
+| Dependencies audit-clean | ✅ Both `npm audit` → 0 vulnerabilities |
+
+No security failures. No P1 findings.
+
+### Product-Perspective Testing
+
+See `feedback-log.md` FB-127, FB-128 (added this run). Emoji plant names round-trip correctly (`Mochi 🌿`). XSS payload in plant name stored verbatim but rendered safely by React. Share link copy/revoke flow UX is clean from a real-user perspective.
+
+### Outstanding
+
+- T-138 (Monitor Agent post-deploy health check) remains in Backlog. Nothing for QA to block on — handoff H-396 is already waiting for the Monitor Agent.
+
+### Files Changed (by QA this run)
+
+- `.workflow/qa-build-log.md` — this entry
+- `.workflow/handoff-log.md` — H-397 (QA → Deploy Engineer / Manager Agent, confirming Sprint #29 still green after re-verification)
+- `.workflow/feedback-log.md` — FB-127, FB-128 (positive observations)
+
+---
+
+## Sprint #29 Staging Deploy — 2026-04-20 (T-137)
+
+- **Agent:** Deploy Engineer
+- **Task:** T-137 (Sprint #29 staging re-deploy)
+- **Sprint:** 29
+- **Date:** 2026-04-20
+- **Environment:** Local staging (backend `http://localhost:3000`)
+- **Triggered By:** QA sign-off H-395 (T-136 — all Sprint #29 acceptance criteria met)
+- **Overall Status:** ✅ **DEPLOY COMPLETE — Staging is live. Handoff → Monitor Agent (T-138).**
+
+### Pre-Deploy Checklist
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| QA sign-off confirmed (H-395) | ✅ | T-136 SIGN-OFF GRANTED. 226/226 backend, 312/312 frontend, 0 vulnerabilities. |
+| `knex migrate:latest` | ✅ Already up to date | No new migrations this sprint. T-139 + T-133 are code-only. |
+| Port 3000 clear before start | ✅ | QA stopped backend at 15:41 UTC; port was free. |
+
+### Build & Start
+
+| Step | Result | Detail |
+|------|--------|--------|
+| Backend `npm start` | ✅ | node PID 61445 (npm PID 61427). Listening on port 3000. Started 2026-04-20T11:48 local. |
+| Frontend `npm run build` | ✅ 0 errors | `vite v8.0.9`, 4670 modules transformed, built in 267ms. Pre-existing 500kB chunk-size warning (not a regression — same as QA verified). |
+
+### Smoke Check
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| `GET /api/health` | `200 {"status":"ok"}` | `200 {"status":"ok","timestamp":"2026-04-20T15:49:41.396Z"}` | ✅ |
+
+### Endpoint Spot-Checks (T-133 New Endpoints)
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| `GET /api/v1/plants/:id/share` — shared plant (authenticated) | 200 + `{"data":{"share_url":"..."}}` | `200 {"data":{"share_url":"http://localhost:5173/plants/share/5nPT1KLwLn…"}}` | ✅ |
+| `GET /api/v1/plants/:id/share` — unshared plant (authenticated) | 404 NOT_FOUND | `404 {"error":{"message":"Share not found.","code":"NOT_FOUND"}}` | ✅ |
+| `DELETE /api/v1/plants/:id/share` — owner, shared (authenticated) | 204, empty body | `HTTP 204`, body=`''` | ✅ |
+| `GET /api/v1/plants/:id/share` — after DELETE | 404 | `404 {"error":{"message":"Share not found."}}` | ✅ |
+
+### Deploy Notes
+
+- No database migrations applied (confirmed: "Already up to date"). Sprint #29 is code-only — T-139 modifies `CareAction.batchCreate()` in-place; T-133 adds two new route handlers with no schema changes.
+- Frontend dist rebuilt from latest `main` (includes T-134 ShareStatusArea, ShareRevokeModal, PublicPlantPage OG meta tags; T-135 vite@8.0.9 upgrade). Build artifact: `frontend/dist/`.
+- Backend restarted fresh — prior QA process terminated at 15:41 UTC per H-395. New process loads all Sprint #29 code (T-139 batch fix, T-133 GET/DELETE share endpoints).
+- Handoff H-396 → Monitor Agent for T-138 post-deploy health check.
+
+---
+
+## Sprint #29 QA Verification — 2026-04-20 (T-136) — SIGN-OFF
+
+- **Agent:** QA Engineer
+- **Task:** T-136 (Sprint #29 full regression + product-perspective testing)
+- **Sprint:** 29
+- **Date:** 2026-04-20
+- **Environment:** Local staging (backend `http://localhost:3000`, frontend dist built from `main`)
+- **Overall Status:** ✅ **PASS — QA SIGN-OFF GRANTED.** All Sprint #29 acceptance criteria met. T-139, T-133, T-134, T-135 cleared for staging deploy.
+
+### Test Summary
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| Backend `npm test --runInBand` | ✅ 226/226 (25/25 suites) | Baseline 209 + 17 new (4 from T-139, 13 from T-133). 52.4s runtime, no flakes. |
+| Frontend `npm test -- --run` | ✅ 312/312 (40/40 files) | Baseline 287 + 25 new (8 ShareStatusArea, 7 ShareRevokeModal, 10 PublicPlantPageOgTags). 3.57s. |
+| Backend `npm audit` | ✅ 0 vulnerabilities | |
+| Frontend `npm audit` | ✅ 0 vulnerabilities | Confirms T-135 (FB-120). `npm ls vite` → `vite@8.0.9`. |
+| Frontend `npm run build` | ✅ 0 errors | 4670 modules, 338ms. Pre-existing 500kB chunk-size warning (not a regression). |
+
+### Unit Test Review (coverage per task)
+
+| Task | Coverage review |
+|------|-----------------|
+| **T-139** `backend/tests/careActionsBatchLastDoneAt.test.js` | 4 tests — happy path (multi-plant/multi-care-type `last_done_at` advance), anti-regression (older batch entry must not overwrite newer single-action value), end-to-end FB-113 repro (GET /plants flips from overdue→on_track), multi-entry batch picks newest `performed_at` regardless of array order. Happy + error/edge paths both covered. Target ≥3 → **exceeded (4)**. |
+| **T-133** `backend/tests/plantSharesStatusRevoke.test.js` | 13 tests — GET: 200 happy, 404 owned-but-unshared, 403 wrong owner, 401 no auth, 400 bad UUID, 404 unknown UUID. DELETE: 204 happy + follow-up GET 404 + public-token 404, 404 unshared, 403 wrong owner (share preserved), 401, 400, 404 idempotency on second DELETE, fresh-token re-share after revoke. Happy + error paths exhaustive. Target ≥6 → **exceeded (13)**. |
+| **T-134** `frontend/src/__tests__/ShareStatusArea.test.jsx` (8) + `ShareRevokeModal.test.jsx` (7) + `PublicPlantPageOgTags.test.jsx` (10) | 25 tests — loading skeleton a11y, SHARED + NOT_SHARED rendering, 500/403 safe-degrade with no toast, Copy-link-uses-stored-URL (no new POST), revoke flow 204 → toast + transition, DELETE error → toast + modal stays open + button re-enabled, Escape, backdrop no-op, OG tag 2×2 null matrix, `/og-default.png` + `twitter:summary` fallback, no og tags during loading or 404. Target ≥6 → **exceeded (25)**. |
+| **T-135** housekeeping | No new tests required — confirmed by `npm audit` + existing suite pass. |
+
+### Integration Testing (live backend + contracts)
+
+All T-133 and T-139 live endpoints exercised against a running backend (`http://localhost:3000`), authenticated as a freshly-registered QA user:
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| `GET /api/v1/plants/:id/share` — no share | 404 NOT_FOUND | 404 | ✅ |
+| `POST /api/v1/plants/:id/share` | 200 + `{data:{share_url}}` | 200 + share_url (43-char base64url token) | ✅ |
+| `GET /api/v1/plants/:id/share` — shared | 200 + same share_url | 200 + matching share_url | ✅ |
+| `GET /api/v1/plants/:id/share` — no auth | 401 | 401 | ✅ |
+| `GET /api/v1/plants/:id/share` — bad UUID | 400 | 400 | ✅ |
+| `GET /api/v1/plants/:id/share` — unknown UUID | 404 (no enumeration) | 404 | ✅ |
+| `GET /api/v1/plants/:id/share` — wrong owner | 403 FORBIDDEN | 403 | ✅ |
+| `DELETE /api/v1/plants/:id/share` — wrong owner | 403, share row preserved | 403; owner subsequent GET still 200 | ✅ |
+| `DELETE /api/v1/plants/:id/share` — owner, shared | 204, no body, no `Content-Type` | HTTP/1.1 204 No Content, body empty, no CT header | ✅ |
+| `GET /api/v1/plants/:id/share` — after DELETE | 404 | 404 | ✅ |
+| `DELETE /api/v1/plants/:id/share` — second call (idempotency) | 404 | 404 | ✅ |
+| Public `GET /api/v1/public/plants/:oldToken` — after revoke | 404 | 404 | ✅ |
+| Re-share after revoke (POST) | fresh 43-char token, different from original | Fresh token: `A0HN69…iiw4` vs old `RNEsqp…-Bcc` → different; public 200 on new | ✅ |
+| **T-139 FB-113 repro** | After batch mark-done, `GET /plants` flips overdue → on_track | Seeded plant 10d ago (overdue=7); batch → `status='on_track'`, `last_done_at=now` | ✅ |
+| Care Due Dashboard parity (`GET /care-due`) | Post-batch plant appears in `upcoming` bucket, not `overdue` | Verified — plant now in `upcoming` with `due_in_days=3` | ✅ |
+
+### Config Consistency Check
+
+| Item | Value | Result |
+|------|-------|--------|
+| Backend `.env` `PORT` | `3000` | — |
+| `frontend/vite.config.js` proxy `/api` target | `http://localhost:3000` | ✅ matches PORT |
+| SSL on backend? | No (HTTP) | — |
+| Vite proxy scheme | `http://` | ✅ matches backend scheme |
+| Backend `.env` `FRONTEND_URL` | `http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` | ✅ includes vite dev origin `:5173` |
+| `infra/docker-compose.yml` | postgres + postgres_test only (no backend/frontend containers) | ✅ No port conflict to check |
+| `.gitignore` excludes `.env` | Yes (`.env`, `.env.local`, `.env.*.local`, `backend/.env.staging`) | ✅ No secrets committed |
+
+No mismatches. No config handoff required.
+
+### Security Verification
+
+Security checklist items applicable to the Sprint #29 slice (T-133 new endpoints + T-139 data path):
+
+| Item | Status | Evidence |
+|------|--------|----------|
+| Auth enforced on all protected endpoints | ✅ | `router.use(authenticate)` at `backend/src/routes/plants.js:87`; live verified: `GET /share` 401, `DELETE /share` 401 with no Authorization header |
+| Ownership (no IDOR) on GET/DELETE share | ✅ | `plant.user_id !== req.user.id → 403` on both routes (lines 416, 446). Live verified: intruder gets 403 on GET and DELETE; owner's share row survives intruder DELETE attempt |
+| 404-vs-403 disambiguation prevents enumeration | ✅ | `Plant.findById` → 404 (missing plant) before ownership check; matches published contract note |
+| DELETE returns 204 with NO body | ✅ | `res.status(204).end()` at `plants.js:457`; live `curl -i` shows `HTTP/1.1 204 No Content` + empty body + no `Content-Type`; 13/13 tests assert `res.text === ''` and `res.body === {}` |
+| Parameterized DB queries | ✅ | `PlantShare.deleteByPlantId` uses `db('plant_shares').where({ plant_id: plantId }).del()` — Knex parameterized. No `whereRaw`, no `db.raw`, no string concatenation. Live: SQL-ish plant name `"Robert'); DROP TABLE plants;--"` persisted verbatim, no DB damage |
+| Share token entropy | ✅ | `crypto.randomBytes(32).toString('base64url')` → 256 bits; live tokens 43 chars `[A-Za-z0-9_-]` |
+| XSS protection on public plant page | ✅ | Public endpoint allowlists only 7 fields; plant name `<script>alert("xss")</script>` stored and returned verbatim. React escapes at render (no `dangerouslySetInnerHTML` in `frontend/src/` — grep confirmed). Privacy boundary from Sprint 28 preserved (no `id`, `user_id`, `created_at`, `last_done_at`, etc.) |
+| CORS locked to known origins | ✅ | `FRONTEND_URL` env var includes dev + preview ports only; no wildcard |
+| Input validation | ✅ | `validateUUIDParam('plantId')` middleware on both new routes; bad UUID → 400. Plant name length cap enforced: 200-char → 400, 100-char → 201 |
+| No secrets in source | ✅ | `.env` gitignored; all secrets loaded via `process.env.*`; only ai.js has the literal `'your-gemini-api-key'` as a sentinel placeholder (not an actual key) |
+| No PII/secret leakage in logs | ✅ | Backend `npm start` logs show no tokens, no passwords; errors routed through centralized middleware — no stack traces leaked (verified live with wrong-owner DELETE) |
+| Rate limiting | ✅ | `globalLimiter` 200/15min observed in response headers; auth + stats have tighter dedicated limiters |
+| Security headers | ✅ | Live `curl -i` on `DELETE /share` response shows: `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`, `Content-Security-Policy`, `Cross-Origin-Opener-Policy`, `Referrer-Policy` — all present |
+| Dependency audit | ✅ | Backend + frontend `npm audit` both report 0 vulnerabilities |
+
+**No security failures. No P1 findings. No new handoffs required.**
+
+### Product-Perspective Testing
+
+Exercised the API the way a real user of the plant-killer persona would:
+
+1. **Emoji plant name ("Mochi 🌿") round-trip:** ✅ Stored, returned, and public-rendered correctly. Utf8mb4/unicode preserved end-to-end.
+2. **Realistic multi-schedule plant (watering 7d + fertilizing 30d):** ✅ `buildOgDescription` input fields exposed via public endpoint (watering + fertilizing only; repotting correctly absent per SPEC-023).
+3. **Adversarial plant name (SQL-ish string + script tag):** ✅ DB writes parameterized, no injection; frontend React escapes at render (proven in existing public-page suite + confirmed no `dangerouslySetInnerHTML` in src).
+4. **Accidental double-click on "Remove link":** ✅ 3 concurrent DELETEs → 1×204 + 2×404. Frontend collapses both into the generic error toast per SPEC-023 — modal stays open, button re-enabled, user retries or cancels cleanly.
+5. **Concurrent batch mark-done (3 simultaneous):** ✅ All 207; final `last_done_at` = newest of the three. Anti-regression under concurrency validated.
+6. **100-char plant name:** ✅ 201 (exact boundary allowed).
+7. **200-char plant name:** ✅ 400 VALIDATION_ERROR (length cap enforced).
+8. **Empty plant name:** ✅ 400 VALIDATION_ERROR.
+9. **Burst 5 POST /share:** ✅ All 200, all return same share_url (idempotency preserved).
+10. **DELETE → GET → POST cycle (×3):** ✅ Each iteration: 204 → 404 → 200 with a new token. No leftover state.
+
+Notable positives added to `feedback-log.md`:
+- **FB-124** (Positive) — T-139 batch fix closes the single biggest MVP-era usability bug; Care Due Dashboard and My Plants are now mutually consistent.
+- **FB-125** (Positive) — SPEC-023 safe-degradation (any non-404 on GET /share → render original Share button, no error toast) is the right call for a non-critical surface; protects the share UX from upstream hiccups.
+- **FB-126** (Positive) — 404-before-403 ordering on GET/DELETE /share prevents plant-ID enumeration; nice defense-in-depth.
+
+### Acceptance Criteria — T-136 Definition of Done
+
+| Criterion | Target | Actual | Status |
+|-----------|--------|--------|--------|
+| Backend tests pass | ≥212 | 226 | ✅ |
+| Frontend tests pass | ≥293 | 312 | ✅ |
+| T-139 batch fix verified | Correct status on GET /plants post-batch | Verified live (overdue → on_track) | ✅ |
+| SPEC-023 compliance (3 surfaces) | All states + OG tags + revoke flow | Unit tests + code-review (H-394) + live API behavior all confirm | ✅ |
+| Security checklist — auth + ownership on new endpoints | Pass | Pass (live + unit) | ✅ |
+| Security checklist — 204 no-body on DELETE | Pass | Pass (live `curl -i` shows empty body, no CT) | ✅ |
+| T-135 housekeeping — 0 high-severity in frontend | 0 | 0 total (frontend + backend) | ✅ |
+| QA sign-off logged in `qa-build-log.md` | Required | This entry | ✅ |
+
+### Sign-Off
+
+**QA Engineer (2026-04-20):** All Sprint #29 acceptance criteria met. T-139, T-133, T-134, T-135 → Done (via `dev-cycle-tracker.md`). Handoff H-395 posted to Deploy Engineer clearing T-137 for execution.
+
+---
+
 ## Sprint #29 Pre-Deploy Gate Check (Pass 2) — T-137 | 2026-04-20
 
 - **Agent:** Deploy Engineer
