@@ -33,7 +33,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | Steps to Reproduce | `cd backend && npm audit` |
 | Expected vs Actual | Expected: 0 vulnerabilities (matches H-395 baseline). Actual: 1 moderate (uuid). |
 | Recommendation | Defer to a future sprint that already touches `backend/package.json`. When bumping, verify `uuid.v4()` import path is unchanged in `middleware/upload.js`. Re-run `npm audit` to confirm 0. |
-| Status | New |
+| Status | Acknowledged — Minor bug (uuid moderate advisory; non-exploitable in our codebase since only `uuid.v4()` is used with no `buf` argument). Scheduled for housekeeping fix in Sprint #30 (T-140). |
 
 ---
 
@@ -47,7 +47,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | Category | Positive |
 | Severity | Cosmetic |
 | Description | Captured a live `curl -i -X DELETE` against a shared plant: `HTTP/1.1 204 No Content` with no response body and no `Content-Type` header. All security-relevant response headers (HSTS, CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy, X-XSS-Protection) are present on the 204 path too — good defense-in-depth. Exactly what the contract prescribes. |
-| Status | New |
+| Status | Acknowledged — Positive feedback. 204 response contract compliance and defense-in-depth security headers are the expected team standard for all DELETE endpoints. |
 
 ---
 
@@ -61,7 +61,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 | Category | Positive |
 | Severity | Cosmetic |
 | Description | Manually fired a `POST /care-actions/batch` with `performed_at=2026-01-01T00:00:00Z` on a schedule whose `last_done_at` was already `2026-04-20T16:00:05Z`. The action was inserted (status=created, visible in `care_actions`), but the schedule's `last_done_at` did NOT regress — it stayed at April 20. This is the exact edge case that would have silently corrupted user state if the update were unconditional; the implementation handles it cleanly via the `if (!current \|\| new Date(newest) > new Date(current))` guard inside `CareAction.batchCreate()`'s transaction. Good robustness. |
-| Status | New |
+| Status | Acknowledged — Positive feedback. The "only-if-newer" guard in `CareAction.batchCreate()` is the correct durable pattern for all timestamp-update logic. Noted as a team standard for any future batch-insert+timestamp-update work. |
 
 ---
 

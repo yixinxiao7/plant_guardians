@@ -4,6 +4,84 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #29 — 2026-04-20 to 2026-04-26
+
+**Sprint Goal:** Fix the batch mark-done `last_done_at` correctness bug (FB-113 carry-over Major), complete the plant sharing system with share status and revocation endpoints, add Open Graph meta tags to the public plant profile page, and patch the Vite dev-server HIGH severity vulnerability.
+
+**Outcome:** ✅ Goal fully met — all eight tasks (T-132 through T-139) completed. Backend: 226/226 tests pass (+17 new tests vs. 209/209 baseline). Frontend: 312/312 tests pass (+25 new tests vs. 287/287 baseline). Staging deploy successful. **Deploy Verified: Yes** (Monitor Agent H-402, 2026-04-24). Sixteenth consecutive sprint with zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-139 | Backend: Fixed `CareAction.batchCreate()` — now calls `CareSchedule.updateLastDoneAt()` inside a single Knex transaction after each batch insert; only updates if `performed_at` is newer than existing `last_done_at` (anti-regression guard). 4 new tests (happy path, anti-regression, FB-113 end-to-end repro, multi-entry batch). Backend suite: 226/226 (was 209). |
+| T-132 | Design: SPEC-023 — Share status state on PlantDetailPage (loading skeleton, "Copy link" + "Remove share link" when shared, "Share" when not), share revocation confirmation modal (copy, two buttons, success/error toasts), OG + Twitter meta tags for PublicPlantPage (all tag names, value construction rules, fallbacks for null photo / null frequencies). Marked Approved; gated T-133 and T-134. |
+| T-133 | Backend: Added `GET /api/v1/plants/:plantId/share` (returns `{ share_url }` if active share exists; 404 if not; 403 wrong owner; 401 unauthenticated; 400 invalid UUID) and `DELETE /api/v1/plants/:plantId/share` (204 on success; 404 no share; 403 wrong owner; 401; 400). 13 new tests covering full HTTP contract matrix including idempotency and re-share-after-revocation. API contracts published. Backend: 226/226. |
+| T-134 | Frontend: `useShareStatus` hook + `ShareStatusArea` component (LOADING skeleton → SHARED "Copy link"+"Remove share link" → NOT_SHARED "Share" button with safe-degradation on any error); `ShareRevokeModal` (SPEC-023 copy, loading/success/error states, focus-trap, Escape/Cancel, no-op backdrop); OG + Twitter meta tags via `react-helmet-async` on `PublicPlantPage` success state only; `og-default.png` fallback. 25 new tests. Frontend: 312/312. `npm run build` clean. |
+| T-135 | Frontend housekeeping: Vite dev-server HIGH severity vulnerability (FB-120 — GHSA-4w7w-66w2-5vf9, GHSA-v2wj-q39q-566r, GHSA-p9ff-h696-f583). `vite@8.0.9` already patched; `npm audit` → 0 vulnerabilities. All 312/312 frontend tests pass; `npm run build` 0 errors. |
+| T-136 | QA: Full regression + batch fix live-verification (FB-113 repro: overdue → batch mark-done → `GET /plants` flips to `on_track`); T-133 live integration matrix (all HTTP contracts); SPEC-023 compliance (share status states, revocation modal, OG tags); security checklist PASS (auth + ownership on GET/DELETE, 404-before-403 ordering, parameterized queries, 204 no-body, 256-bit token entropy, security headers); T-135 housekeeping verified. Full sign-off logged. |
+| T-137 | Deploy: Staging re-deploy — `knex migrate:latest` → "Already up to date" (no schema changes); backend restarted (PID 61445, port 3000); frontend dist rebuilt (vite v8.0.9, 4670 modules, 0 errors); all spot-checks passed. |
+| T-138 | Monitor: Post-deploy health check — all 12 requests passed; T-133 share lifecycle (GET → 200, DELETE → 204, GET after DELETE → 404) ✅; T-139 batch (POST → 207, plant `overdue` → `on_track`) ✅; no 5xx; frontend dist present. **Deploy Verified: Yes.** |
+
+---
+
+#### Tasks Carried Over
+
+None. Sixteenth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. **Deploy Verified: Yes** (Monitor Agent H-402, 2026-04-24). All 12 health check requests passed with expected status codes. Pre-existing limitation: Vite preview server (port 4173) was not running — `frontend/dist/` artifact is current and API layer fully healthy; this is a non-blocking pre-existing condition noted since H-396.
+
+---
+
+#### Key Feedback Themes
+
+- **FB-124** (Positive): T-139 batch mark-done fix closes the biggest MVP usability bug for the "plant killer" persona — `GET /plants` now returns correct `on_track` status after batch mark-done. Recognized as the right durable fix (transactional insert + "only-if-newer" guard) rather than a post-hoc reconciliation.
+- **FB-125** (Positive): Safe-degradation on `GET /share` errors is the correct posture for a non-critical UI surface — falls back to "Share" button silently so the core PlantDetailPage is unaffected.
+- **FB-126** (Positive): 404-before-403 ordering on both share endpoints prevents plant-ID enumeration — a subtle but correct defense-in-depth layering.
+- **FB-127** (Positive): Anti-regression guard in `CareAction.batchCreate()` (`if (!current || new Date(newest) > new Date(current))`) holds under a real stale-batch scenario — cited as team standard for all future batch-insert + timestamp-update work.
+- **FB-128** (Positive): `DELETE /share` returns a textbook 204 — no body, no `Content-Type`, full security headers on the 204 path.
+- **FB-129** (Minor Bug — Acknowledged/Tasked → T-140): `cd backend && npm audit` reports 1 moderate vulnerability: `uuid <14.0.0` (GHSA-w5hq-g745-h8pq — buffer bounds check in `v3/v5/v6` when `buf` provided). **Not exploitable in our codebase** — only `uuid.v4()` with no `buf` arg is used. Sprint #29 "0 high-severity" bar still met. Scheduled for housekeeping fix in Sprint #30 as T-140.
+
+---
+
+#### What Went Well
+
+- Batch mark-done fix implemented as a single Knex transaction (insert + `last_done_at` update atomically) with the "only-if-newer" guard — no double-write race, no regression risk. Recognized as the team standard for all future batch-insert + timestamp-update patterns.
+- 404-before-403 endpoint ordering on share status/revocation endpoints prevents plant-ID enumeration — correct security posture without any additional code complexity.
+- `ShareRevokeModal` uses distinct error handling vs. `ShareStatusArea` (explicit error toast + modal stays open for retry vs. silent safe-degradation) — the two policies are opposite for the right reasons.
+- `buildOgDescription()` exported as a pure helper, enabling comprehensive 2×2 null-matrix + repotting-exclusion test coverage on OG tag construction.
+- OG `<Helmet>` block rendered ONLY in SUCCESS state — link scrapers cannot cache a loading/404/error preview.
+- 25 new frontend tests (target ≥6) across 3 test files with full state coverage including 403/500 safe-degradation, concurrent DELETE, focus management, and accessibility attributes.
+- Sixteenth consecutive sprint with zero carry-over.
+
+---
+
+#### What To Improve
+
+- The Vite preview server on port 4173 was not running at Monitor phase (pre-existing condition); the `dist/` artifact was current but link-click verification required the API layer only. Consider adding a lightweight `vite preview &` step to the staging deploy script so the frontend is always accessible for integration checks.
+- Backend uuid moderate advisory (FB-129) was discovered during QA but was not actionable without a new task. Process improvement: housekeeping dependency audits should be checked at the start of sprint planning so bumps can be bundled with planned `package.json` changes rather than added as a separate task.
+
+---
+
+#### Technical Debt Noted
+
+- `uuid <14.0.0` moderate vulnerability (FB-129) — `npm audit fix` in `backend/` will require a breaking-change bump to `uuid@14.0.0`; verify `uuid.v4()` import path in `middleware/upload.js` is unchanged after bump → tasked Sprint #30 as T-140
+- Express 5 migration — advisory backlog; no urgency
+- Soft-delete / grace period for account deletion — post-MVP
+- Production deployment blocked on project owner providing SSL certificates
+- Production email delivery blocked on project owner providing SMTP credentials
+- Real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` needed for full end-to-end OAuth staging test
+- Share analytics (view count per share token) — future feature
+- Open Graph image generation (dynamic social cards with plant photo) — future sprint polish
+
+---
+
 ### Sprint #28 — 2026-04-13 to 2026-04-19
 
 **Sprint Goal:** Enable plant sharing — allow users to generate a shareable public link for any plant in their inventory, so friends and family can view the plant's care profile without needing an account. Also address Sprint #27 housekeeping: fix the `nodemailer` moderate vulnerability and update the OAuth API contract to reflect HttpOnly cookie token delivery.

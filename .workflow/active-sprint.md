@@ -4,145 +4,148 @@ The operational reference for the current development cycle. Refreshed at the st
 
 ---
 
-## Sprint #29 — 2026-04-20 to 2026-04-26
+## Sprint #30 — 2026-04-27 to 2026-05-03
 
-**Sprint Goal:** Fix the batch mark-done correctness bug (FB-113 — Major), complete the sharing system with revocation and share status, add Open Graph meta tags to the public plant profile page, and fix the Vite dev-server HIGH severity vulnerability (FB-120).
+**Sprint Goal:** Fix the `uuid` moderate vulnerability housekeeping item (FB-129 → T-140) and ship plant list search, sort, and status filter — so "plant killer" users can instantly find plants that need attention without scrolling through their entire inventory.
 
-**Context:** Sprint #28 delivered core plant sharing. Before continuing sharing polish, Sprint #29 must address a carry-over Major bug: `CareAction.batchCreate()` does not call `CareSchedule.updateLastDoneAt()`, so batch mark-done via the Care Due Dashboard leaves plants incorrectly shown as overdue on the My Plants page. This bug directly undermines the core value prop for "plant killer" users. Two sharing follow-ups are also due: share revocation (data model already in place) and a share status endpoint (needed for conditional "Copy / Remove" UI). OG meta tags and the Vite housekeeping fix round out the sprint.
+**Context:** Sprint #29 delivered a complete, polished sharing system and closed the batch mark-done correctness bug. The app's core MVP feature set is now complete. Sprint #30 has two tracks: (1) a minor housekeeping fix (`uuid` bump, T-140, XS) that was identified during Sprint #29 QA; and (2) a meaningful UX improvement — search, sort, and status filter on the plant list — that directly serves the "plant killer" persona who may have a large inventory and needs to quickly triage which plants need action. The filter-by-status capability (show only "overdue", "due today", or "on_track" plants) is the most-requested implicit usability gap now that the core care status logic is solid.
 
 ---
 
 ## In Scope
 
-### P1 — Backend: Fix Batch Mark-Done `last_done_at` Divergence (T-139)
+### P2 — Backend: Fix `uuid` Moderate Vulnerability (T-140)
 
-- [ ] **T-139** — Backend Engineer: Fix `CareAction.batchCreate()` — call `CareSchedule.updateLastDoneAt()` after batch insert **(P1)**
-  - **Description:** The batch mark-done path (`POST /api/v1/care-actions/batch`, used by the Care Due Dashboard) inserts into `care_actions` but does not call `CareSchedule.updateLastDoneAt()`. This leaves `care_schedules.last_done_at` stale, so `GET /api/v1/plants` still computes plants as overdue after a batch mark-done action — even though the Care Due Dashboard correctly shows them as Coming Up (because it reads `MAX(care_actions.performed_at)` directly).
-    - **Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method. After inserting valid care actions, iterate over the inserted records and call `CareSchedule.updateLastDoneAt(schedule_id, performed_at)` for each, mirroring the single-action path in `POST /api/v1/care-actions`. Only update if the action's `performed_at` is more recent than the schedule's current `last_done_at` to avoid regressing a later action with an earlier batch entry.
-    - All existing 209/209 backend tests must continue to pass. Add ≥ 3 new tests: (1) batch mark-done updates `last_done_at` for each affected schedule; (2) batch with `performed_at` older than existing `last_done_at` does NOT regress it; (3) end-to-end: after batch mark-done, `GET /api/v1/plants` no longer shows the plant as overdue.
+- [ ] **T-140** — Backend Engineer: Bump `uuid` to `>=14.0.0` in `backend/package.json` to resolve GHSA-w5hq-g745-h8pq **(P2)**
+  - **Description:** Per FB-129: `cd backend && npm audit` reports 1 moderate vulnerability — `uuid <14.0.0` (missing buffer bounds check in `v3/v5/v6` when `buf` is provided, GHSA-w5hq-g745-h8pq). The only consumer is `backend/src/middleware/upload.js` which calls only `uuid.v4()` with no `buf` argument — not exploitable in our codebase, but the advisory should be cleared.
+    - Run `npm install uuid@latest` (or `npm audit fix --force`) in `backend/`. Verify the installed version is `>=14.0.0`.
+    - Verify `backend/src/middleware/upload.js` — confirm the `uuid.v4()` import and call pattern is still valid after the major-version bump. `uuid@14` changed the import path from named import `{ v4 as uuidv4 }` to default or namespace import — check the `uuid@14` changelog and update `upload.js` import if required.
+    - After any import update, run `npm test` — all 226/226 existing backend tests must pass.
+    - Run `npm audit` — must report 0 moderate and 0 high/critical vulnerabilities.
+    - No new migrations. No API changes.
   - **Acceptance Criteria:**
-    - `CareAction.batchCreate()` calls `CareSchedule.updateLastDoneAt()` for each successfully inserted action
-    - `performed_at` newer than current `last_done_at` → updates; older → does not update
-    - `GET /api/v1/plants` returns correct status after batch mark-done (no stale overdue)
-    - All 209/209 existing backend tests pass; ≥ 3 new tests
-    - No new migrations required
+    - `cd backend && npm audit` reports 0 vulnerabilities (0 moderate, 0 high, 0 critical)
+    - `uuid` package version `>=14.0.0` installed and reflected in `package-lock.json`
+    - `backend/src/middleware/upload.js` import updated if required by uuid@14 API change
+    - All 226/226 existing backend tests pass after bump
+    - No other dependency changes
   - **Blocked By:** None — start immediately.
 
 ---
 
-### P2 — Design: Share Revocation + Status + OG Meta Spec (T-132)
+### P2 — Design: Plant List Search, Sort, and Filter UX Spec (T-141)
 
-- [ ] **T-132** — Design Agent: Write SPEC-023 — Share revocation, share status state, and OG meta tags **(P2)**
-  - **Description:** Specify three UI surfaces:
-    1. **Share status state on PlantDetailPage:** On page load, the frontend fetches `GET /api/v1/plants/:plantId/share` to determine whether the plant has an active share. If yes: show a "Copy link" button (copies existing share_url to clipboard with "Link copied!" toast) and a "Remove share link" option (text link or secondary button adjacent to the Copy button). If no: show the original "Share" button per SPEC-022 (creates a new share). Document the loading state while the share status is being fetched (e.g., share action area shows a skeleton/disabled state; does not block the rest of the PlantDetailPage from rendering).
-    2. **Share revocation flow:** Clicking "Remove share link" opens a confirmation modal: "Remove share link? Anyone with the old link will no longer be able to view this plant." Two buttons: "Remove link" (destructive, calls `DELETE /api/v1/plants/:plantId/share`) and "Cancel". On success: toast "Share link removed." On error: toast "Failed to remove link. Please try again." After success, the PlantDetailPage share area transitions back to the "Share" button state.
-    3. **Open Graph meta tags on `PublicPlantPage`:** Document the `<meta>` tags to inject into `<head>` on the public plant profile page: `og:title` = "{plant name} on Plant Guardians", `og:description` = "Learn how to care for {plant name}: watering every {N} days, fertilizing every {M} days." (omit if frequencies null), `og:image` = `photo_url` if present (else fallback to a default Plant Guardians OG image), `og:url` = canonical share URL, `og:type` = "article". Twitter/X card tags: `twitter:card` = "summary_large_image" (or "summary" if no photo), `twitter:title` same as og:title, `twitter:description` same as og:description.
+- [ ] **T-141** — Design Agent: Write SPEC-024 — Plant list search, sort, and status filter **(P2)**
+  - **Description:** Specify the search, sort, and filter affordances on the My Plants page (`/`):
+    1. **Search bar:** A text input (placeholder "Search plants…") above the plant grid. As the user types, the plant list filters to show only plants whose `name` or `species` contains the search string (case-insensitive). Debounced at ~300 ms to avoid excessive API calls. Show a "No plants match your search." empty state when 0 results. Clear button (×) appears when input is non-empty. The search bar is always visible (not hidden behind a filter button).
+    2. **Status filter:** A segmented control or tab-style toggle with four options: "All" (default), "Overdue", "Due today", and "On track". Selecting a filter scopes the list to plants matching that care status. Filter persists while the user navigates within the session (restored on back-navigation from PlantDetailPage). "All" always shows the full count badge; other tabs show the count of matching plants.
+    3. **Sort dropdown:** A compact dropdown (default "Name A–Z") with options: "Name A–Z", "Name Z–A", "Most overdue first" (plants with largest `days_overdue` at top), "Next due soonest" (plants with smallest `next_due_days` at top). Default sort is "Name A–Z".
+    4. **Combined state:** Search, filter, and sort can all be active simultaneously (e.g., search "fern" + filter "Overdue" + sort "Most overdue first"). Combined empty state: "No overdue plants match your search." (combines filter label + search term). Reset link: "Clear filters" appears when any non-default selection is active and resets all three to defaults.
+    5. **Loading and skeleton states:** While initial plant list is loading, show the search bar and filter controls in a disabled/skeleton state so the layout doesn't shift when data arrives.
+    6. **Accessibility:** Search input has `aria-label="Search plants"`; filter toggle uses `role="group"` with `aria-label="Filter by status"`; sort dropdown has `aria-label="Sort plants"`; live region (`aria-live="polite"`) announces count changes.
   - **Acceptance Criteria:**
-    - SPEC-023 written to `ui-spec.md` and marked Approved
-    - Share status state: loading skeleton, "Copy link" + "Remove share link" (when shared), "Share" button (when not shared) — all states documented
-    - Revocation modal: copy, two buttons, success/error toast documented
-    - OG meta tags: all tag names and value construction rules documented; fallback behavior for missing photo / null frequencies explicit
-    - Gates T-133, T-134
+    - SPEC-024 written to `ui-spec.md` and marked Approved
+    - All 6 surfaces documented: search bar, status filter tabs, sort dropdown, combined state, empty states, loading/skeleton
+    - Accessibility requirements explicit (ARIA roles, live region, keyboard navigation)
+    - Gates T-142 and T-143
   - **Blocked By:** None — start immediately.
 
 ---
 
-### P1 — Backend: Share Status + Revocation Endpoints (T-133)
+### P1 — Backend: Plant List Search, Sort, and Filter Query Params (T-142)
 
-- [ ] **T-133** — Backend Engineer: Add `GET` and `DELETE` share endpoints **(P1)**
-  - **Description:**
-    1. **`GET /api/v1/plants/:plantId/share`** (auth required): Returns `{ share_url }` if an active share exists for this plant; returns 404 if no share row exists. Verifies the requesting user owns the plant (403 otherwise). Uses `PlantShare.findByPlantId()` (already exists from T-126). Returns same `share_url` format as the POST endpoint (built via `resolveFrontendBaseUrl()`).
-    2. **`DELETE /api/v1/plants/:plantId/share`** (auth required): Deletes the `plant_shares` row for this plant. Verifies ownership (403). Returns 204 on success. Returns 404 if no share exists for this plant. Returns 400 for invalid UUID plant ID. Extend `PlantShare` model with `deleteByPlantId(plantId)`.
-    3. **New tests:** ≥ 6 tests — GET happy path (returns share_url), GET 404 (no share), GET 403 wrong owner, DELETE happy path (204), DELETE 404 (no share), DELETE 403 wrong owner. All existing 209/209 backend tests continue to pass.
-    4. Publish API contracts for both new endpoints to `api-contracts.md`.
+- [ ] **T-142** — Backend Engineer: Extend `GET /api/v1/plants` with `search`, `status`, and `sort` query params **(P1)**
+  - **Description:** Extend the existing `GET /api/v1/plants` endpoint to accept three optional query parameters:
+    1. **`search` (string, optional):** Case-insensitive substring match against `name` OR `species`. Use `ILIKE '%<term>%'` (PostgreSQL) via Knex's `.whereRaw()` or `.where(db.raw(...))`. Sanitize input — strip leading/trailing whitespace; if empty string after trim, treat as no filter. Maximum 200 characters (return 400 if exceeded with `INVALID_SEARCH_TERM` code).
+    2. **`status` (enum, optional):** One of `"overdue"`, `"due_today"`, `"on_track"`. Filter the plants returned by their computed care status. The status is already computed per-plant in the existing `GET /api/v1/plants` response (`status` field on each care schedule). Filter plants where ANY of their care schedules matches the requested status. If `"overdue"` is requested, return plants that have at least one overdue schedule; `"due_today"` — at least one due-today schedule; `"on_track"` — all schedules on track (no overdue or due-today). Return 400 for invalid `status` values with `INVALID_STATUS_FILTER` code.
+    3. **`sort` (enum, optional, default `"name_asc"`):** One of `"name_asc"`, `"name_desc"`, `"most_overdue"`, `"next_due_soonest"`. `"name_asc"` / `"name_desc"` order by `plants.name` ASC/DESC. `"most_overdue"` orders by the maximum `days_overdue` across schedules DESC (plants with the most overdue days first; 0 for on-track plants). `"next_due_soonest"` orders by the minimum `next_due_days` across schedules ASC (plants due soonest first). Return 400 for invalid sort values with `INVALID_SORT_OPTION` code.
+    4. **Pagination:** All existing pagination params (`page`, `limit`) continue to work and apply AFTER search/filter/sort. The `pagination.total` in the response reflects the filtered count (not the total plant count).
+    5. **No schema changes required** — all filtering and sorting happens in the query layer.
+    6. **Tests:** ≥ 8 new tests: search happy path (name match), search happy path (species match), search case-insensitive, search no match → empty array, status filter overdue, status filter on_track, sort name_desc, sort most_overdue; plus input validation tests (search too long → 400, invalid status → 400, invalid sort → 400). All 226/226 existing backend tests pass.
+    7. **Publish updated API contract** to `api-contracts.md` documenting all three new query params, their validation rules, error codes, and example responses.
   - **Acceptance Criteria:**
-    - `GET /api/v1/plants/:plantId/share` → 200 + `{ share_url }` if share exists; 404 if not; 403 wrong owner; 401 unauthenticated; 400 invalid UUID
-    - `DELETE /api/v1/plants/:plantId/share` → 204 on success; 404 if no share; 403 wrong owner; 401 unauthenticated; 400 invalid UUID
-    - All 209/209 existing backend tests pass; ≥ 6 new tests
-    - API contracts published
-    - Blocked By: T-132
-  - **Blocked By:** T-132
+    - `GET /api/v1/plants?search=<term>` filters by name/species case-insensitively
+    - `GET /api/v1/plants?status=overdue|due_today|on_track` filters by care status
+    - `GET /api/v1/plants?sort=name_asc|name_desc|most_overdue|next_due_soonest` sorts correctly
+    - All three params combinable simultaneously; pagination `total` reflects filtered count
+    - Input validation: 400 for search > 200 chars, unknown status values, unknown sort values
+    - All 226/226 existing backend tests pass; ≥ 8 new tests added
+    - API contract published
+  - **Blocked By:** T-141
 
 ---
 
-### P1 — Frontend: Share Status UI + Revocation + OG Meta Tags (T-134)
+### P1 — Frontend: Plant List Search, Sort, and Filter UI (T-143)
 
-- [ ] **T-134** — Frontend Engineer: Update PlantDetailPage share area; add revocation modal; add OG meta tags to PublicPlantPage **(P1)**
-  - **Description:** Per SPEC-023:
-    1. **PlantDetailPage share area:** On mount (or when `plantId` changes), call `GET /api/v1/plants/:plantId/share`. While fetching: render the share action area in a loading/disabled state (do not block rest of page). On 200: switch ShareButton to "Copy link" mode (clicking copies the returned `share_url` to clipboard, same clipboard + toast logic as SPEC-022) and render a "Remove share link" text button next to it. On 404: render original "Share" button (unchanged from Sprint 28). On error: log quietly; fall back to original "Share" button (safe degradation).
-    2. **Share revocation modal (`ShareRevokeModal.jsx`):** Triggered by "Remove share link". Confirm text per SPEC-023. On confirm: call `DELETE /api/v1/plants/:plantId/share`; show loading state; on 204 → toast "Share link removed." + close modal + transition share area back to "Share" button; on error → toast "Failed to remove link. Please try again." + keep modal open for retry.
-    3. **OG meta tags on `PublicPlantPage`:** Using `react-helmet-async` (already in `package.json` if present; add if missing), inject `<Helmet>` with `og:*` and `twitter:*` tags per SPEC-023 constructed from the fetched `plant` object. Only render on success state (not loading/404/error states).
-    4. **New tests:** ≥ 6 tests — PlantDetailPage shows "Copy link" + revoke when GET /share returns 200; shows "Share" when GET returns 404; ShareRevokeModal renders with correct text; DELETE success → toast + transition; DELETE error → error toast; PublicPlantPage renders OG meta tags when plant data loaded. All existing 287/287 frontend tests pass.
+- [ ] **T-143** — Frontend Engineer: Add search bar, status filter tabs, and sort dropdown to MyPlantsPage **(P1)**
+  - **Description:** Per SPEC-024:
+    1. **Search bar:** Controlled text input with debounce (~300 ms, use `setTimeout`/`clearTimeout` in a `useEffect`). "Search plants…" placeholder. Clear button (×) visible when non-empty. Passes `search` query param to the existing `plants.getAll()` API call (extend the function signature to accept `{ search, status, sort }` options).
+    2. **Status filter tabs:** Segmented control with "All" / "Overdue" / "Due today" / "On track" options. Each tab shows a count badge (fetched from the same API response). Selecting a tab passes `status` query param. Persist selection in component state (restored on re-mount within session via `useRef` or React context — do not persist to `localStorage`).
+    3. **Sort dropdown:** `<select>` or custom dropdown with options "Name A–Z" (`name_asc`), "Name Z–A" (`name_desc`), "Most overdue first" (`most_overdue`), "Next due soonest" (`next_due_soonest`). Default `name_asc`. Passes `sort` query param.
+    4. **Combined state handling:** When search + filter + sort all active, construct the query with all three params. Empty state message: "No [filter label] plants match your search." with a "Clear filters" link that resets all three to defaults. If no filter active but search returns empty: "No plants match your search." "Clear filters" shows when search is non-empty OR status is not "All" OR sort is not "name_asc".
+    5. **Loading state:** While fetching (on initial load or when any param changes), show the search bar + filter controls in their current state (not skeleton) and show the existing plant grid skeleton. Do not reset the controls on refetch.
+    6. **Extend `plants.getAll(options)`** in `frontend/src/utils/api.js` to accept `{ search, status, sort, page, limit }` and build the query string accordingly. Strip empty/undefined params.
+    7. **Tests:** ≥ 8 new tests: search input renders + debounce fires API call; clear button resets search; status tab change triggers re-fetch; sort dropdown change triggers re-fetch; combined params all pass to API; empty state renders for no results; "Clear filters" resets all; accessibility (aria-label on search input, aria-label on filter group, live region update). All 312/312 existing frontend tests pass.
   - **Acceptance Criteria:**
-    - PlantDetailPage: loading state, "Copy link" + "Remove share link" (when shared), "Share" (when not shared) — all implemented per SPEC-023
-    - ShareRevokeModal: modal text, confirm/cancel buttons, loading, success toast, error toast
-    - PublicPlantPage: OG + Twitter meta tags rendered in `<head>` on success state
-    - All 287/287 existing frontend tests pass; ≥ 6 new tests
-    - T-132 (SPEC-023 Approved) must complete before this task begins
-  - **Blocked By:** T-132, T-133 (for response shape; use published API contract)
+    - Search input debounced at ~300 ms; clears with × button
+    - Status filter tabs change API call with correct `status` param
+    - Sort dropdown changes API call with correct `sort` param
+    - All three combinable; "Clear filters" resets to defaults
+    - Empty state message reflects active filter + search
+    - All 312/312 existing frontend tests pass; ≥ 8 new tests
+    - T-141 (SPEC-024 Approved) and T-142 API contract must be complete before this task begins
+  - **Blocked By:** T-141, T-142 (for API contract and response shape)
 
 ---
 
-### P2 — Frontend Housekeeping: Vite Dev-Server Vulnerability Fix (T-135)
+### P2 — QA: Sprint #30 Verification (T-144)
 
-- [ ] **T-135** — Frontend Engineer: Fix Vite dev-server HIGH severity vulnerability (FB-120) **(P2)**
-  - **Description:** Per FB-120: run `npm audit fix` in `frontend/` to patch `vite` (CVE path traversal + WebSocket file read + fs.deny bypass, GHSA-4w7w-66w2-5vf9 / GHSA-v2wj-q39q-566r / GHSA-p9ff-h696-f583). After the upgrade: (1) verify `npm audit` reports 0 high-severity vulnerabilities; (2) verify all 287/287 frontend tests continue to pass (`npm test`); (3) verify `npm run build` succeeds with 0 errors. This is a dev-dependency upgrade only — no production bundle changes expected. Update `package.json` and `package-lock.json`. This task can run in parallel with the T-132 design phase.
+- [ ] **T-144** — QA Engineer: Verify T-140, T-142, T-143 and confirm no regressions **(P2)**
+  - **Description:** After T-142 and T-143 are In Review/Done, run the full test suite and perform product-perspective testing:
+    - Backend: all tests pass (≥ 234/226 baseline); T-142 new tests cover search/filter/sort happy paths, combined params, and input validation (400 cases)
+    - Frontend: all tests pass (≥ 320/312 baseline); T-143 tests cover debounce, clear, tab change, sort change, combined params, empty states, accessibility
+    - T-140 housekeeping: `npm audit` in `backend/` reports 0 vulnerabilities (0 moderate, 0 high); uuid@14 import verified in `upload.js`; 226/226 tests pass
+    - SPEC-024 compliance: search bar, status filter tabs, sort dropdown, combined state, empty states, loading/skeleton per spec
+    - Security checklist: no new endpoints that bypass auth; existing `GET /api/v1/plants` auth still enforced; search param sanitization (no SQL injection via ILIKE); no PII leaked via search
+    - API contract for T-142 verified against implementation
   - **Acceptance Criteria:**
-    - `cd frontend && npm audit` reports 0 high-severity vulnerabilities (or explicitly documents any that cannot be fixed without breaking changes)
-    - All 287/287 frontend tests pass after upgrade
-    - `npm run build` succeeds with 0 errors
-    - No other dependency changes beyond what `npm audit fix` applies
-  - **Blocked By:** None — start immediately, parallel with T-132.
-
----
-
-### P2 — QA: Sprint #29 Verification (T-136)
-
-- [ ] **T-136** — QA Engineer: Verify T-132, T-133, T-134, T-135 and confirm no regressions **(P2)**
-  - **Description:** After T-133 and T-134 are In Review/Done, run the full test suite and perform product-perspective testing:
-    - Backend: all tests pass (≥ 215/209); T-133 new tests cover GET status happy path + 404, DELETE happy path + 404, plus auth enforcement
-    - Frontend: all tests pass (≥ 293/287); T-134 tests cover share status loading/Copy+Revoke/Share states, revocation modal, OG meta tags
-    - SPEC-023 compliance: share status UI states on PlantDetailPage, revocation modal text + behavior, OG meta tag values
-    - T-135 housekeeping: `npm audit` reports 0 high severity in frontend; 287+ tests pass; build clean
-    - Security checklist: auth enforced on GET + DELETE; ownership check (no IDOR); 204 no-body on DELETE
-    - API contract for T-133 endpoints verified
-  - **Acceptance Criteria:**
-    - Backend ≥ 215/209 tests pass; frontend ≥ 293/287 tests pass
-    - Full security checklist pass (auth + ownership on both new endpoints)
-    - SPEC-023 compliance verified (share status states, revocation flow, OG tags)
-    - T-135 housekeeping verified: 0 high-severity npm vulnerabilities in frontend
+    - Backend ≥ 234/226 tests pass; frontend ≥ 320/312 tests pass
+    - T-140: `npm audit` → 0 vulnerabilities; uuid@14 import correct; tests still pass
+    - Full SPEC-024 compliance verified
+    - Security checklist pass (auth enforced, search sanitized, no PII leak)
     - QA sign-off logged in `qa-build-log.md`
-  - **Blocked By:** T-133, T-134, T-135
+  - **Blocked By:** T-140, T-142, T-143
 
 ---
 
-### P2 — Deploy: Staging Re-Deploy (T-137)
+### P2 — Deploy: Staging Re-Deploy (T-145)
 
-- [ ] **T-137** — Deploy Engineer: Staging re-deploy after QA sign-off **(P2)**
-  - **Description:** After QA sign-off (T-136), run the standard staging deploy checklist. No new migrations this sprint (T-133 adds endpoints only — no schema changes). Restart backend process, rebuild frontend dist. Verify `/api/health` → 200 and spot-check new endpoints.
+- [ ] **T-145** — Deploy Engineer: Staging re-deploy after QA sign-off **(P2)**
+  - **Description:** After QA sign-off (T-144), run the standard staging deploy checklist. No new migrations this sprint (T-142 adds query params only — no schema changes; T-140 is a dependency bump only). Restart backend process to pick up updated `uuid` dependency. Rebuild frontend dist. Verify `/api/health` → 200 and spot-check new endpoint params.
   - **Acceptance Criteria:**
     - No new migrations (confirm `knex migrate:latest` returns "Already up to date")
-    - Backend process restarted and healthy on port 3000
+    - Backend process restarted and healthy on port 3000 (picks up uuid@14 bump)
     - `GET /api/health` → 200
-    - `GET /api/v1/plants/:plantId/share` (authenticated, shared plant) → 200 + `{ share_url }` (verifies status endpoint is live)
-    - `GET /api/v1/plants/:plantId/share` (authenticated, unshared plant) → 404
+    - `GET /api/v1/plants?search=<term>` (authenticated) → 200 + filtered results (verifies search is live)
+    - `GET /api/v1/plants?status=overdue` (authenticated) → 200 + filtered results
     - Staging deploy logged in `qa-build-log.md`
-  - **Blocked By:** T-136
+  - **Blocked By:** T-144
 
 ---
 
-### P2 — Monitor: Post-Deploy Health Check (T-138)
+### P2 — Monitor: Post-Deploy Health Check (T-146)
 
-- [ ] **T-138** — Monitor Agent: Post-deploy health check for Sprint #29 **(P2)**
-  - **Description:** Run the standard post-deploy health check after T-137 deploy. Verify all existing endpoints remain healthy. For new endpoints: verify `GET /api/v1/plants/:plantId/share` (with valid auth) returns 200 + `{ share_url }` for a shared plant and 404 for an unshared plant; verify `DELETE /api/v1/plants/:plantId/share` (with valid auth) returns 204 and subsequent GET returns 404. Log **Deploy Verified: Yes/No** in `qa-build-log.md`.
+- [ ] **T-146** — Monitor Agent: Post-deploy health check for Sprint #30 **(P2)**
+  - **Description:** Run the standard post-deploy health check after T-145 deploy. Verify all existing endpoints remain healthy. For new functionality: verify `GET /api/v1/plants?search=<term>` (authenticated) returns 200 + filtered results; verify `GET /api/v1/plants?status=overdue` returns 200 + matching plants; verify `GET /api/v1/plants?sort=most_overdue` returns 200 + results. Verify T-140: `cd backend && npm audit` → 0 vulnerabilities. Log **Deploy Verified: Yes/No** in `qa-build-log.md`.
   - **Acceptance Criteria:**
     - `GET /api/health` → 200
     - All existing core endpoints → expected status codes (no regressions)
-    - `GET /api/v1/plants/:plantId/share` (shared) → 200 + share_url; (unshared) → 404
-    - `DELETE /api/v1/plants/:plantId/share` → 204; subsequent GET → 404
+    - `GET /api/v1/plants?search=<term>` (authenticated) → 200 + filtered array
+    - `GET /api/v1/plants?status=overdue` (authenticated) → 200 + matching plants
+    - `cd backend && npm audit` → 0 vulnerabilities (T-140 verified)
     - Deploy Verified: Yes logged in `qa-build-log.md`
     - If backend process is not running, restart before health check
-  - **Blocked By:** T-137
+  - **Blocked By:** T-145
 
 ---
 
@@ -150,13 +153,15 @@ The operational reference for the current development cycle. Refreshed at the st
 
 - Email care reminders / notification delivery — blocked on project owner providing SMTP credentials
 - Push notifications — post-MVP (B-002)
-- Open Graph image generation (dynamic social cards with plant photo) — future sprint polish
 - Share analytics (view count per share token) — future
+- Open Graph image generation (dynamic social cards) — future sprint polish
 - Production deployment execution — blocked on project owner providing SSL certs
 - Express 5 migration — advisory backlog, no urgency
 - Soft-delete / grace period for account deletion — post-MVP
 - Dark mode confetti palette (B-007) — cosmetic, low priority backlog
 - Real Google OAuth credentials for full end-to-end OAuth staging test — blocked on project owner
+- Plant care history calendar view / visualization charts — future sprint (post search/filter foundation)
+- Care schedule bulk edit (change all watering frequencies at once) — backlog
 
 ---
 
@@ -164,12 +169,12 @@ The operational reference for the current development cycle. Refreshed at the st
 
 | Agent | Focus Area This Sprint | Key Tasks |
 |-------|----------------------|-----------|
-| Backend Engineer | Batch mark-done fix + share status/revocation endpoints | T-139 (P1, start immediately), T-133 (P1, after T-132) |
-| Design Agent | Share revocation + status + OG meta spec | T-132 (P2, start immediately — gates T-133 and T-134) |
-| Frontend Engineer | Vite housekeeping + share status/revoke UI + OG tags | T-135 (P2, start immediately — parallel with T-132 and T-139), T-134 (P1, after T-132 + T-133) |
-| QA Engineer | Full regression + batch fix + revocation flow verification | T-136 (P2, after T-139 + T-133 + T-134 + T-135) |
-| Deploy Engineer | Staging re-deploy | T-137 (P2, after T-136) |
-| Monitor Agent | Post-deploy health check | T-138 (P2, after T-137) |
+| Backend Engineer | uuid fix + search/filter/sort endpoint | T-140 (P2, start immediately), T-142 (P1, after T-141) |
+| Design Agent | Search, sort, filter UX spec | T-141 (P2, start immediately — gates T-142 and T-143) |
+| Frontend Engineer | Search/filter/sort UI | T-143 (P1, after T-141 + T-142 API contract) |
+| QA Engineer | Full regression + new feature verification | T-144 (P2, after T-140 + T-142 + T-143) |
+| Deploy Engineer | Staging re-deploy | T-145 (P2, after T-144) |
+| Monitor Agent | Post-deploy health check | T-146 (P2, after T-145) |
 | Manager | Sprint coordination + code review | Ongoing |
 
 ---
@@ -177,53 +182,53 @@ The operational reference for the current development cycle. Refreshed at the st
 ## Dependency Chain
 
 ```
-T-139 (Batch last_done_at fix — Backend, START IMMEDIATELY)
-T-132 (SPEC-023 — Design Agent, START IMMEDIATELY)     T-135 (Vite fix — Frontend, START IMMEDIATELY)
-  ↓                                                          ↓
-T-133 (Share status + revocation API — Backend)        (feeds into T-136)
-T-134 (Share status/revoke UI + OG tags — Frontend, parallel with T-133, after T-132)
+T-140 (uuid fix — Backend, START IMMEDIATELY, independent)
+T-141 (SPEC-024 — Design Agent, START IMMEDIATELY)
   ↓
-T-136 (QA — after T-139 + T-133 + T-134 + T-135)
+T-142 (Search/filter/sort API — Backend, after T-141)
+T-143 (Search/filter/sort UI — Frontend, after T-141 + T-142 API contract)
   ↓
-T-137 (Deploy — after T-136)
+T-144 (QA — after T-140 + T-142 + T-143)
   ↓
-T-138 (Monitor health check)
+T-145 (Deploy — after T-144)
+  ↓
+T-146 (Monitor health check)
 ```
 
-**Note:** T-139, T-132, and T-135 can all start immediately in parallel. Backend Engineer: prioritize T-139 first (P1, independent), then T-133 after T-132 is approved. Frontend Engineer: prioritize T-135 first (XS), then T-134 after T-132 is approved and T-133's API contract is published.
+**Note:** T-140 and T-141 can start immediately in parallel. Backend Engineer: prioritize T-140 first (XS, independent), then T-142 after T-141 is approved. Frontend Engineer: begin T-143 after T-141 is approved AND T-142's API contract is published.
 
 ---
 
 ## Definition of Done
 
-Sprint #29 is complete when:
+Sprint #30 is complete when:
 
-- [ ] T-139: `CareAction.batchCreate()` calls `CareSchedule.updateLastDoneAt()` after batch insert; `GET /api/v1/plants` returns correct status post-batch; ≥ 3 new tests; 209/209 existing backend tests pass
-- [ ] T-132: SPEC-023 written and marked Approved in `ui-spec.md`; covers share status states, revocation modal, OG meta tags
-- [ ] T-133: `GET /api/v1/plants/:plantId/share` and `DELETE /api/v1/plants/:plantId/share` implemented; ≥ 6 new tests; all existing backend tests pass; API contracts published
-- [ ] T-134: PlantDetailPage shows share status (Copy + Revoke when shared; Share when not); ShareRevokeModal implemented; OG meta tags on PublicPlantPage; ≥ 6 new tests; all existing frontend tests pass
-- [ ] T-135: `cd frontend && npm audit` reports 0 high-severity vulnerabilities; all frontend tests pass; `npm run build` succeeds
-- [ ] T-136: QA sign-off — all backend and frontend tests pass; batch fix verified; SPEC-023 compliance; security checklist pass; T-135 housekeeping verified
-- [ ] T-137: Backend restarted, frontend rebuilt; all new endpoints live
-- [ ] T-138: Deploy Verified: Yes from Monitor Agent
+- [ ] T-140: `cd backend && npm audit` → 0 vulnerabilities; `uuid@>=14.0.0` installed; `upload.js` import updated if required; all 226/226 existing tests pass
+- [ ] T-141: SPEC-024 written and marked Approved in `ui-spec.md`; covers search bar, status filter tabs, sort dropdown, combined state, empty states, loading/skeleton, accessibility
+- [ ] T-142: `GET /api/v1/plants` accepts `search`, `status`, `sort` params; ≥ 8 new tests; all 226/226 existing tests pass; API contract published
+- [ ] T-143: Search bar (debounced), status filter tabs, sort dropdown on MyPlantsPage; combined state and empty state messages; all 312/312 existing frontend tests pass; ≥ 8 new tests
+- [ ] T-144: QA sign-off — all backend and frontend tests pass; T-140 housekeeping verified; SPEC-024 compliance; security checklist pass
+- [ ] T-145: Backend restarted, frontend rebuilt; search/filter params live on staging
+- [ ] T-146: Deploy Verified: Yes from Monitor Agent
 
 ---
 
 ## Success Criteria
 
-- Batch mark-done on the Care Due Dashboard updates `care_schedules.last_done_at` — My Plants no longer shows plants as overdue after batch-marking them done
-- Users can see at a glance whether their plant is already shared (PlantDetailPage shows "Copy link" + "Remove share link" vs original "Share" button)
-- Users can revoke a share link — after revocation, the old URL returns 404 to anyone who had it
-- Shared plant links render richly in social/messaging apps (OG title, description, image)
-- `npm audit` reports 0 high-severity vulnerabilities in both frontend and backend
+- `cd backend && npm audit` reports 0 vulnerabilities (T-140 housekeeping closes FB-129)
+- Users can search their plant inventory by name or species in real time (debounced)
+- Users can filter their plant list to "Overdue", "Due today", or "On track" plants with a single tap
+- Users can sort plants by name (A–Z / Z–A), most overdue, or next due soonest
+- Search, filter, and sort all work in combination; combined empty state message is clear
+- All existing backend and frontend tests continue to pass (no regressions)
 - Deploy Verified: Yes
 
 ---
 
 ## Blockers
 
-- T-133 and T-134 are both blocked on T-132 (SPEC-023) — Design Agent must complete the spec before engineers start
-- T-136 is blocked on T-139, T-133, T-134, and T-135 all being complete
+- T-142 and T-143 are both blocked on T-141 (SPEC-024) — Design Agent must complete the spec before engineers start
+- T-144 is blocked on T-140, T-142, and T-143 all being complete
 - Production deployment remains blocked on project owner providing SSL certificates
 - Production email delivery blocked on project owner providing SMTP credentials
 - **Infrastructure note:** Local staging backend process may terminate between Deploy and Monitor phases — Monitor Agent must restart it if connection refused before running health checks

@@ -4,6 +4,49 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-403 — Manager Agent → All Agents: Sprint #30 Plan Published — Sprint #29 Closed (2026-04-25)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-403 |
+| **From** | Manager Agent |
+| **To** | All Agents — Backend Engineer, Design Agent, Frontend Engineer, QA Engineer, Deploy Engineer, Monitor Agent |
+| **Task** | Sprint #30 kickoff |
+| **Date** | 2026-04-25 |
+| **Status** | ✅ **Sprint #29 closed. Sprint #30 plan published. Backlog tasks T-140 through T-146 created.** |
+
+### Sprint #29 Closure Confirmation
+
+All Sprint #29 tasks are Done. Deploy Verified: Yes (H-402). Sixteenth consecutive sprint with zero carry-over. Sprint #29 summary written to `sprint-log.md`.
+
+**Feedback triage complete:** No 'New' entries remain in `feedback-log.md`. FB-129 (uuid moderate vulnerability) was already Acknowledged in Sprint #29 and is now tasked as T-140 in Sprint #30.
+
+### Sprint #30 Priorities
+
+**Sprint Goal:** Fix the `uuid` moderate vulnerability (FB-129 → T-140) and ship plant list search, sort, and status filter so "plant killer" users can instantly find plants that need attention.
+
+**Immediate starts (no blockers):**
+- **Backend Engineer → T-140 (P2, XS):** Bump `uuid` to `>=14.0.0`; update `upload.js` import if needed; verify `npm audit` → 0; all 226/226 tests pass.
+- **Design Agent → T-141 (P2, S):** Write SPEC-024 — plant list search bar (debounced), status filter tabs (All/Overdue/Due today/On track), sort dropdown (Name A–Z, Z–A, Most overdue, Next due soonest), combined state, empty states, accessibility. Gates T-142 and T-143.
+
+**After T-141 approved:**
+- **Backend Engineer → T-142 (P1, M):** Extend `GET /api/v1/plants` with `search` (ILIKE name/species, max 200 chars, 400 validation), `status` (enum filter), `sort` (enum ordering) query params; ≥8 new tests; 226/226 existing pass; API contract published.
+- **Frontend Engineer → T-143 (P1, M):** Search bar + status filter tabs + sort dropdown on MyPlantsPage; extend `plants.getAll()` with params; combined empty state + "Clear filters"; ≥8 new tests; 312/312 pass. **Wait for T-142 API contract before starting.**
+
+**After T-140 + T-142 + T-143:**
+- **QA → T-144 (P2, M):** Full regression + T-140 housekeeping verification + SPEC-024 compliance + security checklist.
+- **Deploy → T-145 (P2, S):** Restart backend (uuid@14 bump), rebuild frontend, spot-check new query params.
+- **Monitor → T-146 (P2, S):** Post-deploy health check; verify search/filter/sort params live; `npm audit` 0 vulns.
+
+### Key Standards Established in Sprint #29 (Carry Forward)
+
+- **"Only-if-newer" guard pattern:** All batch-insert + timestamp-update operations must use `if (!current || new Date(newest) > new Date(current))` to prevent regression. See `CareAction.batchCreate()` as the reference implementation.
+- **404-before-403 ordering:** Resource-lookup endpoints must return 404 when the resource doesn't exist (regardless of who's asking) before performing the ownership 403 check. Prevents resource enumeration.
+- **Safe-degradation for non-critical UI surfaces:** Non-critical status fetches (like share status) should degrade silently to a neutral state on any non-404 error, without an error toast. Destructive confirmation flows (like revoke) should show explicit error toasts because the user has taken deliberate action.
+- **OG `<Helmet>` only in success state:** Never render OG tags during loading/404/error states to prevent scrapers caching incorrect previews.
+
+---
+
 ## H-402 — Monitor Agent → Manager Agent: Sprint #29 Post-Deploy Health Check COMPLETE — Deploy Verified ✅ (2026-04-24)
 
 | Field | Value |
