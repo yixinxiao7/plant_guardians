@@ -4,6 +4,289 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-413 — Manager Agent → QA Engineer: Sprint #30 Code Review Phase Complete — All Three Implementation Tasks Pass (2026-04-25)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-413 |
+| **From** | Manager Agent |
+| **To** | QA Engineer (T-144) |
+| **Tasks** | T-140, T-142, T-143 |
+| **Date** | 2026-04-25 |
+| **Status** | CODE REVIEW PASSED — all three Sprint 30 implementation tasks moved In Review → Integration Check. T-144 is now unblocked. |
+
+### Re-Verification of Code Review Phase
+
+This invocation found **zero tasks in 'In Review' status**. All three Sprint 30 implementation tasks (T-140, T-142, T-143) were already moved to **Integration Check** in a prior code review pass with detailed CODE REVIEW PASSED notes in `dev-cycle-tracker.md`. This handoff formally closes the code-review phase and signals QA to proceed.
+
+### Code Review Summary by Task
+
+| Task | Owner | Verdict | Headline Finding |
+|------|-------|---------|------------------|
+| **T-140** (uuid@14 dep bump) | Backend Engineer | ✅ PASS | `npm audit` → 0 vulns; `package.json` shows `uuid@^14.0.0`; `upload.js` switched to Node built-in `node:crypto.randomUUID()` (cryptographically equivalent — uuid@14 v4 itself delegates to crypto.randomUUID); inline rationale comment is clear. Pragmatic workaround for ESM-only uuid@14 incompatibility with Jest 29 CJS, satisfies all ACs without violating "no other dep changes". |
+| **T-142** (Backend search/sort/filter) | Backend Engineer | ✅ PASS | (a) Security — auth enforced via `router.use(authenticate)`; all queries parameterized via Knex `?` placeholders (no SQL injection); search capped at 200 chars; sort/status validated against hardcoded allow-list; cross-user isolation tested. (b) Convention adherence — Knex query builder; response shape `{ data, pagination, status_counts }`; error envelope `{ error: { message, code } }`. (c) API contract match — request params + response shape + all 4 error codes match `api-contracts.md §"T-142 — GET /api/v1/plants (Updated — Sprint 30)"` exactly. (d) Tests — 15 new (5 happy + 4 error + 4 edge + 2 cross-user/pagination); 241/241 backend total. |
+| **T-143** (Frontend search/sort/filter UI) | Frontend Engineer | ✅ PASS | (a) SPEC-024 compliance — search bar `role="search"` wrapper, 300ms debounce (vanilla setTimeout), clear button only when non-empty; status filter `role="radiogroup"` + `role="radio"` with `aria-checked` + arrow-key cycle + count badges; sort dropdown custom listbox with `aria-haspopup`/`aria-expanded`/Escape-closes; live region `aria-live="polite"` `aria-atomic="true"`. (b) Security — no hardcoded secrets; React JSX escaping protects search-term echo; reuses authenticated `request()`; no `innerHTML`. (c) API integration — query string built correctly; empty/whitespace search stripped; `utcOffset` always sent; consumes new response shape correctly. (d) Tests — 48 new (well above ≥8 bar) across 5 new files; 360/360 frontend total. (e) Backwards-compat — old `PlantSearchFilter.jsx` untouched; 13 prior tests still green. |
+
+### Security Checklist (Sprint 30 Surface)
+
+| Check | Result |
+|-------|--------|
+| Auth enforced on `GET /api/v1/plants` (existing `router.use(authenticate)`) | ✅ |
+| SQL injection — search term passed via Knex `?` parameter binding (no concat) | ✅ |
+| Search input length capped (200 chars → 400 INVALID_SEARCH_TERM) | ✅ |
+| Sort + status validated against hardcoded allow-list (no enum injection) | ✅ |
+| Cross-user data isolation — `WHERE user_id = ?` enforced + tested | ✅ |
+| Error responses use centralized `next(err)` middleware — no stack-trace leak | ✅ |
+| No hardcoded secrets in any new file (backend or frontend) | ✅ |
+| XSS — React default escaping covers all rendered strings (search echo in live region included) | ✅ |
+| Frontend `npm audit` → 0 vulnerabilities (T-135 baseline maintained) | ✅ |
+| Backend `npm audit` → 0 vulnerabilities (T-140 closes FB-129) | ✅ |
+
+### Test Suite Status (Pre-QA Baseline)
+
+| Surface | Result | Delta |
+|---------|--------|-------|
+| Backend | **241/241 passing** | +15 from T-142 (`tests/plantsSearchSortFilter.test.js`) |
+| Frontend | **360/360 passing** | +48 from T-143 (5 new test files) |
+| Backend `npm audit` | 0 vulnerabilities | T-140 cleared FB-129 |
+| Frontend `npm audit` | 0 vulnerabilities | maintained from Sprint 29 T-135 |
+| Frontend `npm run build` | clean | maintained |
+
+### Status Transitions Confirmed
+
+| Task | Before | After | When |
+|------|--------|-------|------|
+| T-140 | In Review | Integration Check | Prior code review pass (2026-04-25) |
+| T-142 | In Review | Integration Check | Prior code review pass (2026-04-25) |
+| T-143 | In Review | Integration Check | Prior code review pass (2026-04-25) |
+
+No status changes were required in this Manager invocation — all three were already correctly placed. This handoff formally records the code-review-phase closeout that the dev-cycle-tracker notes referenced as "(handoff to QA via H-413)".
+
+### What QA Engineer Should Do Next (T-144)
+
+1. **Full regression** — backend ≥234/226 (current 241/241), frontend ≥320/312 (current 360/360).
+2. **T-140 housekeeping** — confirm `cd backend && npm audit` → 0 vulnerabilities; confirm `upload.js` upload flow still produces unique filenames (T-140 swapped uuid@v4 for `crypto.randomUUID()`).
+3. **T-142 live integration** — exercise all params individually + combined: `?search=`, `?status=overdue|due_today|on_track`, `?sort=name_asc|name_desc|most_overdue|next_due_soonest`. Verify pagination total reflects filtered count. Verify `status_counts` always present and scoped to `search` only (independent of active `status` filter). Verify all 4 error codes (`INVALID_SEARCH_TERM`, `INVALID_STATUS_FILTER`, `INVALID_SORT_OPTION`, plus the standard `VALIDATION_ERROR` for malformed pagination params) → 400.
+4. **T-143 SPEC-024 compliance** — verify all six surfaces (search bar, status filter tabs, sort dropdown, combined active state, empty states 5a–5d, loading/skeleton); arrow-key + Escape keyboard nav on filter tabs and sort dropdown; live region announces result counts; "Clear filters" link appears when any control is non-default and resets all three.
+5. **Security checklist** — auth enforced on `GET /plants`, search sanitization (200-char cap, no SQL injection vectors), no PII leak in any error response.
+6. **QA sign-off** — log result in `qa-build-log.md` and update `T-144` status in `dev-cycle-tracker.md`. On pass, T-145 (Deploy) is unblocked.
+
+### Notes & Observations
+
+- **No tasks were sent back to In Progress** — all three implementation tasks passed cleanly on first review.
+- **Backend Engineer's H-410 / H-411 implementation handoffs are referenced in tracker notes but not present in this log** — non-blocking gap (the tracker notes themselves contain the implementation summary). Flagging for awareness; not requesting backfill.
+- T-141 (Design Agent / SPEC-024) was completed via H-404 prior to T-142/T-143 implementation. The spec-gate dependency has been satisfied.
+- Sprint 30 is on track for normal closeout once T-144 → T-145 → T-146 chain completes.
+
+### Handoff Chain
+
+H-413 → QA Engineer (T-144). Downstream: T-144 PASS → Deploy Engineer (T-145) → Monitor Agent (T-146) → Manager Agent (sprint closeout).
+
+---
+
+## H-409 — Frontend Engineer: T-143 In Review — Handoff to QA (2026-04-25)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-409 |
+| **From** | Frontend Engineer |
+| **To** | QA Engineer (T-144) |
+| **Task** | T-143 (Plant list search, sort, and filter UI per SPEC-024) |
+| **Date** | 2026-04-25 |
+| **Status** | In Review — implementation complete, all 360/360 frontend tests pass, build succeeds |
+
+### Summary
+
+Plant list search, sort, and status filter UI shipped per SPEC-024 (Approved). All six surfaces (search bar, status filter tabs, sort dropdown, combined active state, empty states 5a–5d, loading/skeleton state) implemented. ARIA, keyboard navigation, and live-region announcements per SPEC §7 are in place.
+
+### What Changed
+
+| File | Change |
+|------|--------|
+| `frontend/src/utils/api.js` | Added `_buildPlantsQuery()` helper. Extended `plants.list(params)` to accept `sort`. Added `plants.getAll(options)` alias accepting `{ search, status, sort, page, limit }`. Strips empty/whitespace `search`. Always includes `utcOffset`. |
+| `frontend/src/hooks/usePlants.js` | Surfaces `statusCounts` from API response. Preserves last-known counts across in-flight refetches per SPEC §2. |
+| `frontend/src/components/PlantSearchBar.jsx` (+ CSS) | **NEW.** 44px height, 1.5px border, debounced 300 ms (vanilla `setTimeout`/`clearTimeout`), 200-char cap, clear (✕) button, Escape-to-clear, disabled state, `aria-label="Search plants"`, wrapping `role="search"`. |
+| `frontend/src/components/PlantStatusFilter.jsx` (+ CSS) | **NEW.** `role="radiogroup"` + four `role="radio"` pill tabs. Count badges from `status_counts`. Brand-sage Active "All" + status-tinted other tabs. Arrow-key navigation (Left/Right/Home/End). "—" count placeholder when counts not yet loaded (initial load). |
+| `frontend/src/components/PlantSortDropdown.jsx` (+ CSS) | **NEW.** Custom button + listbox pattern (not a `<select>`). Trigger has `aria-haspopup="listbox"`, `aria-expanded`. Options have `role="option"` and `aria-selected`. Escape closes without selecting; Enter/Space selects; arrow keys cycle. Non-default sort gets sage border + text. |
+| `frontend/src/pages/InventoryPage.jsx` | Wires all three controls. "Clear filters" link appears when any control is non-default and resets all three. SPEC §5a/5b/5c/5d empty states. Live region `aria-live="polite"` + `aria-atomic="true"` (`data-testid="inv-live-region"`) announces formatted result counts per SPEC §7. |
+| `frontend/src/pages/InventoryPage.css` | Added `.inv-controls`, `.inv-filter-row`, `.inv-clear-link`, `.inv-fetch-error`, `.inv-filtered-empty` rules. |
+
+### What's Untouched (Backwards-compat)
+
+- `frontend/src/components/PlantSearchFilter.jsx` (the Sprint 18 combined component) is **left in place** so its 13 existing tests stay green. `InventoryPage` only imports `SkeletonGrid` from it. The combined component is now effectively orphaned and can be removed in a future cleanup sprint.
+- `plants.list(params)` is preserved (still used by `usePlants` and any other callers). `plants.getAll()` is an additive alias.
+
+### Test Coverage
+
+- **Total: 360/360 frontend tests pass** (baseline 312 + 48 new).
+- **Build: succeeds** — `npm run build` → 510 ms, 113.22 kB CSS, 526 kB JS.
+- New test files (48 new tests):
+
+| File | Tests | Highlights |
+|------|-------|----------|
+| `PlantSearchBar.test.jsx` | 10 | renders aria-label, debounce fires after exactly 300 ms, debounce timer resets, ✕ visible only with value, ✕ clears + refocuses, Escape clears, disabled hides ✕, external value sync, 200-char cap |
+| `PlantStatusFilter.test.jsx` | 9 | radiogroup label, count badges, aria-checked active, click + idempotent click, arrow keys cycle, "—" placeholder, disabled tabs, no-op onChange when disabled |
+| `PlantSortDropdown.test.jsx` | 8 | trigger label, listbox opens, onChange + close, idempotent same option, aria-selected, Escape closes, disabled, non-default visual |
+| `api.test.js` | 6 new | getAll alias, search/status/sort forwarded, empty search stripped, omitted params absent, search trimmed, utcOffset always present |
+| `InventoryPage.test.jsx` | 15 (4 base + 11 new) | controls present + disabled during initial load, fetch defaults, search→fetch (debounced), status tab→fetch, sort→fetch, combined search+status+sort, Clear filters hidden by default, Clear filters resets all three, §5d empty inventory, §5a search empty, §5b filter-only empty, §5c combined empty, live region attrs + announcement |
+
+### How to Manually Verify
+
+1. `cd frontend && npm test` → 360/360 pass.
+2. `cd frontend && npm run build` → succeeds.
+3. Start backend (`cd backend && npm start`), seed plants, log in to UI.
+4. Visit `/` (My Plants).
+5. **Search:** Type "fern" — after 300 ms the grid filters. Click ✕ to clear instantly.
+6. **Filter:** Click "Overdue" tab — grid filters; tab badge shows the overdue count.
+7. **Sort:** Open Sort dropdown — pick "Most overdue first" — grid re-orders. Trigger turns sage to indicate non-default.
+8. **Combined:** Search "fern" + Overdue tab + Most overdue first — all three params hit the API simultaneously (visible in DevTools Network).
+9. **Empty states:** Search "xyzzy" → "No plants match your search."; click Overdue with zero overdue → "No overdue plants."; combined → "No overdue plants match your search."
+10. **Clear filters:** Visible whenever any control is non-default. One click resets to defaults and refetches.
+11. **A11y:** Tab through search → ✕ → tabs (arrow keys cycle) → sort trigger (Enter opens) → options (arrow keys + Enter selects). Screen reader announces counts via the `inv-live-region`.
+
+### Known Limitations / Notes for QA
+
+- **No external debounce library** — uses vanilla `setTimeout`/`clearTimeout` per SPEC §1.
+- **Session persistence** of filter is in-memory React state only (no `localStorage`) per SPEC §2 / T-143 description. Reloading the page resets to defaults — this is intentional.
+- The Sprint 18 `PlantSearchFilter` component still exists in `frontend/src/components/` but is no longer rendered by `InventoryPage`. Removal is out of scope for this sprint to avoid breaking the 13 baseline tests.
+- ESLint reports 1685 errors across the repo (pre-existing baseline). My new files contribute the same kind of advisory `react-hooks/set-state-in-effect` and `react-refresh/only-export-components` lints that already exist throughout the codebase. Build is unaffected.
+
+### What QA Should Test for T-144
+
+1. Frontend test count ≥ 320/312 baseline (we deliver 360/360 — well above the bar).
+2. Manual SPEC-024 walkthrough — six surfaces, three control combinations, four empty-state variants.
+3. Accessibility: `aria-label="Search plants"`, `role="radiogroup"` + `aria-label="Filter by status"`, `aria-haspopup="listbox"` on sort trigger, `aria-live="polite"` results region.
+4. Network panel: confirm `GET /api/v1/plants` is called with `search`, `status`, `sort`, `utcOffset` params combinable.
+5. Confirm no PII or auth tokens leak via search query string (only the typed term + status/sort enums + tz offset are forwarded).
+6. Combined regression: existing plant card actions (delete modal, mark-done, etc.) still work above the new controls.
+
+### No Blockers
+
+Build green, all 360 tests pass. Ready for QA verification.
+
+---
+
+## H-408 — Frontend Engineer: T-142 API Contract Acknowledged (2026-04-25)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-408 |
+| **From** | Frontend Engineer |
+| **To** | Backend Engineer / Manager |
+| **Task** | T-143 (Plant list search/sort/filter UI) |
+| **Date** | 2026-04-25 |
+| **Status** | Acknowledged — beginning T-143 implementation |
+
+### Summary
+
+Frontend Engineer has read and acknowledged the **T-142 API contract** for `GET /api/v1/plants` (Sprint 30 update) as published in `api-contracts.md` (lines 4831–5023), and **SPEC-024** in `ui-spec.md` (lines 7056–7582, Approved).
+
+### Contract Points Acknowledged
+
+| Item | Value | Frontend Implementation Note |
+|------|-------|------------------------------|
+| Endpoint | `GET /api/v1/plants` | Already wired via `plants.list()` in `utils/api.js`; will be extended to also accept `sort` and exposed as `plants.getAll(options)` |
+| New `sort` query param | `name_asc` (default) \| `name_desc` \| `most_overdue` \| `next_due_soonest` | Wired into `PlantSortDropdown` per SPEC-024 §3 |
+| Existing `search` param | Now matches `name OR species` (case-insensitive ILIKE), max 200 chars after trim | Wired into `PlantSearchBar` (debounced 300 ms) per SPEC-024 §1 |
+| Existing `status` param | `overdue \| due_today \| on_track` | Wired into `PlantStatusFilter` per SPEC-024 §2 |
+| `utcOffset` param | Continued use; default UTC | Frontend already passes `new Date().getTimezoneOffset() * -1` |
+| New response field | `status_counts: { all, overdue, due_today, on_track }` | Surfaced via `usePlants` hook → consumed by `PlantStatusFilter` count badges. Per SPEC-024 §2 ("during loading, keep last-known counts visible"), the hook will preserve previous counts through in-flight refetches. |
+| New error code | `INVALID_SEARCH_TERM` (search > 200 chars) | Frontend caps input length client-side and surfaces `ApiError.message` as a fetch-error banner on rare 400. |
+| New error code | `INVALID_STATUS_FILTER` | Filter UI restricts selection to the four valid values; treated as defensive. |
+| New error code | `INVALID_SORT_OPTION` | Dropdown restricts selection to four valid values; treated as defensive. |
+| Combined filter behavior | All three params combinable; pagination total reflects filtered count | InventoryPage builds query with all three simultaneously. |
+
+### What I'm Building (T-143)
+
+1. `frontend/src/utils/api.js` — extend `plants.list()` to accept `sort` and add `plants.getAll(options)` alias accepting `{ search, status, sort, page, limit }`. Strip empty/undefined params.
+2. `frontend/src/components/PlantSearchBar.jsx` (+ CSS) — debounced search input with clear button and disabled state.
+3. `frontend/src/components/PlantStatusFilter.jsx` (+ CSS) — radiogroup with four pill tabs, count badges from `status_counts`, arrow-key navigation.
+4. `frontend/src/components/PlantSortDropdown.jsx` (+ CSS) — custom button + listbox dropdown with four sort options.
+5. `frontend/src/pages/InventoryPage.jsx` — wire all three controls, "Clear filters" link, SPEC-compliant empty states (5a/5b/5c/5d), live region per SPEC-024 §7.
+6. `frontend/src/hooks/usePlants.js` — surface `statusCounts` and preserve last-known counts during refetch.
+7. ≥ 8 new tests across new components + `InventoryPage`.
+
+### Backwards-compat Notes
+
+- `plants.list()` is preserved (still callable everywhere it is currently used). `plants.getAll()` is an additive alias accepting the same options. No existing callers are broken.
+- The pre-existing `frontend/src/components/PlantSearchFilter.jsx` (Sprint 18 combined search + filter) is **left untouched** in this sprint to keep its 13 existing tests green. `InventoryPage` will stop importing the combined component but still pulls `SkeletonGrid` from it. The combined component can be deprecated/removed in a future sprint.
+
+### No Blockers
+
+T-141 (SPEC-024) is Approved (H-404). T-142 contract is published (H-405/H-406). Implementation can proceed.
+
+---
+
+## H-407 — Deploy Engineer: T-145 BLOCKED — Awaiting T-144 QA Sign-Off (2026-04-25)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-407 |
+| **From** | Deploy Engineer |
+| **To** | Manager Agent / QA Engineer |
+| **Task** | T-145 (Staging re-deploy — Sprint #30) |
+| **Date** | 2026-04-25 |
+| **Status** | ⛔ **BLOCKED — Cannot deploy. T-144 QA sign-off not yet posted.** |
+
+### Summary
+
+Deploy Engineer conducted a pre-deploy gate check for Sprint #30 (T-145). **T-145 cannot proceed.** No QA sign-off for Sprint #30 exists in either `handoff-log.md` or `qa-build-log.md`.
+
+### Gate Check Results
+
+| Gate | Required | Status |
+|------|----------|--------|
+| T-144 QA sign-off in `handoff-log.md` | ✅ Required | ❌ **MISSING — Primary blocker** |
+| T-144 QA sign-off in `qa-build-log.md` | ✅ Required | ❌ **MISSING** |
+| T-140 (uuid bump) — implementation complete | Required for T-144 | ❌ Still in **Backlog** |
+| T-142 (search/filter/sort API) — implementation complete | Required for T-144 | ❌ Still in **Backlog** |
+| T-143 (search/filter/sort UI) — implementation complete | Required for T-144 | ❌ Still in **Backlog** |
+| No new migrations (confirmed query-layer only) | ✅ | ✅ technical-context.md shows no Sprint #30 schema changes |
+
+### Full Dependency Chain
+
+```
+T-140 (uuid fix — Backend, Backlog) ──┐
+T-142 (search/filter/sort API — Backend, Backlog) ──┤
+T-143 (search/filter/sort UI — Frontend, Backlog) ──┤
+                                                      ↓
+                                              T-144 (QA verification — Backlog)
+                                                      ↓
+                                              T-145 (Deploy — BLOCKED here)
+                                                      ↓
+                                              T-146 (Monitor — also blocked)
+```
+
+### Context
+
+- API contracts for T-142 were published by Backend Engineer (H-405, H-406, 2026-04-25) — contracts are documented but the endpoint implementation is **pending**.
+- SPEC-024 is Approved (H-404, Design Agent, 2026-04-25) — gates T-142 and T-143.
+- T-140, T-142, and T-143 are all marked **Backlog** in `dev-cycle-tracker.md` — none are Done.
+- T-144 (QA) cannot start until T-140 + T-142 + T-143 are all complete.
+- T-145 (this task) cannot start until T-144 posts a QA sign-off in `handoff-log.md`.
+
+### What Needs to Happen Before T-145 Unblocks
+
+1. **Backend Engineer:** Complete T-140 (uuid bump, 0-vulnerability `npm audit`, upload.js import fix, 226/226 tests pass) → mark Done
+2. **Backend Engineer:** Complete T-142 (search/filter/sort endpoint, ≥8 new tests, API contract verified) → mark Done
+3. **Frontend Engineer:** Complete T-143 (search/sort/filter UI on MyPlantsPage, ≥8 new tests, 312/312 pass) → mark Done
+4. **QA Engineer:** Complete T-144 (full regression + SPEC-024 compliance + security checklist) → post sign-off handoff to Deploy Engineer in `handoff-log.md` + log in `qa-build-log.md`
+5. **Deploy Engineer (me):** T-145 will execute immediately upon receipt of T-144 sign-off — no additional confirmation needed.
+
+### T-145 Deploy Plan (ready to execute on QA sign-off)
+
+When T-144 QA sign-off is posted, T-145 will:
+1. Confirm `knex migrate:latest` → "Already up to date" (no schema changes this sprint)
+2. Kill existing backend process and restart (`cd backend && node src/server.js &`) to pick up uuid@14 dep bump
+3. Rebuild frontend dist (`cd frontend && npm run build`) with Sprint #30 search/filter/sort UI
+4. Verify `GET /api/health` → 200
+5. Spot-check `GET /api/v1/plants?search=<term>` (authenticated) → 200 + filtered results
+6. Spot-check `GET /api/v1/plants?status=overdue` (authenticated) → 200 + filtered results
+7. Log staging deploy entry in `qa-build-log.md`
+8. Post handoff H-408 to Monitor Agent for post-deploy health check (T-146)
+
+---
+
 ## H-406 — Backend Engineer → QA Engineer: Sprint #30 API Contracts Ready for Testing Reference (2026-04-25)
 
 | Field | Value |

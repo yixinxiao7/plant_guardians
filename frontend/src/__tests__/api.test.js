@@ -159,4 +159,97 @@ describe('api.js — cookie-based auth', () => {
       expect(opts.credentials).toBe('include');
     });
   });
+
+  // Sprint 30 / T-143: extended plant query params (search, status, sort).
+  describe('plants.list & plants.getAll — search/status/sort', () => {
+    function urlOf(call) {
+      return call[0];
+    }
+
+    it('plants.getAll exists and is an alias of plants.list (same endpoint)', async () => {
+      setAccessToken('tok');
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [], pagination: { page: 1, limit: 50, total: 0 }, status_counts: { all: 0, overdue: 0, due_today: 0, on_track: 0 } }),
+      });
+      await plants.getAll();
+      const [url] = mockFetch.mock.calls[0];
+      expect(url).toContain('/plants?');
+    });
+
+    it('forwards search, status, and sort query params when provided', async () => {
+      setAccessToken('tok');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [], pagination: { page: 1, limit: 50, total: 0 } }),
+      });
+
+      await plants.getAll({
+        search: 'fern',
+        status: 'overdue',
+        sort: 'most_overdue',
+      });
+
+      const url = urlOf(mockFetch.mock.calls[0]);
+      expect(url).toMatch(/[?&]search=fern(&|$)/);
+      expect(url).toMatch(/[?&]status=overdue(&|$)/);
+      expect(url).toMatch(/[?&]sort=most_overdue(&|$)/);
+    });
+
+    it('strips empty/whitespace-only search', async () => {
+      setAccessToken('tok');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [], pagination: { page: 1, limit: 50, total: 0 } }),
+      });
+
+      await plants.getAll({ search: '   ' });
+      const url = urlOf(mockFetch.mock.calls[0]);
+      expect(url).not.toMatch(/[?&]search=/);
+    });
+
+    it('omits sort/status when not provided (relying on backend defaults)', async () => {
+      setAccessToken('tok');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [], pagination: { page: 1, limit: 50, total: 0 } }),
+      });
+
+      await plants.getAll({ search: 'rose' });
+      const url = urlOf(mockFetch.mock.calls[0]);
+      expect(url).toMatch(/[?&]search=rose(&|$)/);
+      expect(url).not.toMatch(/[?&]status=/);
+      expect(url).not.toMatch(/[?&]sort=/);
+    });
+
+    it('trims search before encoding', async () => {
+      setAccessToken('tok');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      });
+
+      await plants.getAll({ search: '  fern  ' });
+      const url = urlOf(mockFetch.mock.calls[0]);
+      expect(url).toMatch(/[?&]search=fern(&|$)/);
+    });
+
+    it('always includes utcOffset for backend timezone-aware status computation', async () => {
+      setAccessToken('tok');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      });
+
+      await plants.getAll({ status: 'due_today' });
+      const url = urlOf(mockFetch.mock.calls[0]);
+      expect(url).toMatch(/[?&]utcOffset=/);
+    });
+  });
 });

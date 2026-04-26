@@ -156,16 +156,51 @@ export const auth = {
 };
 
 // Plant endpoints
+//
+// `list(params)` is the canonical fetch for paginated/filtered plant data.
+// Sprint 30 (T-142/T-143) adds the `sort` query parameter and exposes the
+// extended call as `plants.getAll(options)` per SPEC-024 §9. Both names
+// are kept so older call sites (`plants.list`) continue to work.
+//
+// Accepted options (all optional):
+//   { page, limit, search, status, sort }
+//
+// Empty/undefined params are stripped from the query string. `utcOffset` is
+// always included because the backend status computation is timezone-aware.
+function _buildPlantsQuery({ page, limit, search, status, sort } = {}) {
+  const query = new URLSearchParams();
+  query.set('page', String(page || 1));
+  query.set('limit', String(limit || 50));
+
+  // Trim search; treat empty/whitespace as omitted (matches backend semantics).
+  if (search != null) {
+    const trimmed = String(search).trim();
+    if (trimmed !== '') {
+      query.set('search', trimmed);
+    }
+  }
+  if (status) query.set('status', status);
+  if (sort) query.set('sort', sort);
+
+  const utcOffset = new Date().getTimezoneOffset() * -1;
+  query.set('utcOffset', String(utcOffset));
+  return query;
+}
+
 export const plants = {
   list(params = {}) {
-    const query = new URLSearchParams();
-    query.set('page', String(params.page || 1));
-    query.set('limit', String(params.limit || 50));
-    if (params.search) query.set('search', params.search);
-    if (params.status) query.set('status', params.status);
-    const utcOffset = new Date().getTimezoneOffset() * -1;
-    query.set('utcOffset', String(utcOffset));
+    const query = _buildPlantsQuery(params);
     return request(`/plants?${query.toString()}`, { _returnFull: true });
+  },
+  /**
+   * SPEC-024 / T-143: extended plant listing call. Accepts the same options
+   * as `list()` but is the preferred name going forward. Returns the full
+   * response envelope ({ data, pagination, status_counts }).
+   *
+   * @param {{page?:number, limit?:number, search?:string, status?:string, sort?:string}} options
+   */
+  getAll(options = {}) {
+    return this.list(options);
   },
   get(id) {
     return request(`/plants/${id}`);

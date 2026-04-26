@@ -13,6 +13,7 @@ const { NotFoundError, ValidationError, ForbiddenError } = require('../utils/err
 const VALID_CARE_TYPES = ['watering', 'fertilizing', 'repotting'];
 const VALID_FREQ_UNITS = ['days', 'weeks', 'months'];
 const VALID_STATUSES = ['overdue', 'due_today', 'on_track'];
+const VALID_SORTS = ['name_asc', 'name_desc', 'most_overdue', 'next_due_soonest']; // T-142, Sprint 30
 
 /**
  * Validate care_schedules array from request body.
@@ -100,31 +101,94 @@ function plantAggregateStatus(enrichedSchedules) {
   return 'on_track';
 }
 
+/**
+ * Build a ValidationError that emits a specific error `code` (T-142, Sprint 30).
+ * The base ValidationError class hard-codes `code = 'VALIDATION_ERROR'`, so we
+ * override `.code` after construction.
+ */
+function specificValidationError(message, code) {
+  const err = new ValidationError(message);
+  err.code = code;
+  return err;
+}
+
+/**
+ * Compute the maximum days_overdue across an enriched schedule array.
+ * Returns 0 for plants with zero schedules or all-on-track schedules.
+ * Used for `sort=most_overdue` ordering.
+ */
+function maxDaysOverdue(enrichedSchedules) {
+  let max = 0;
+  for (const s of enrichedSchedules) {
+    if (typeof s.days_overdue === 'number' && s.days_overdue > max) {
+      max = s.days_overdue;
+    }
+  }
+  return max;
+}
+
+/**
+ * Compute the minimum next_due_at (as ms) across an enriched schedule array.
+ * Returns Number.POSITIVE_INFINITY for plants with zero schedules so they sort
+ * last under `next_due_soonest`. Used for `sort=next_due_soonest` ordering.
+ */
+function minNextDueMs(enrichedSchedules) {
+  if (enrichedSchedules.length === 0) return Number.POSITIVE_INFINITY;
+  let min = Number.POSITIVE_INFINITY;
+  for (const s of enrichedSchedules) {
+    if (s.next_due_at) {
+      const t = new Date(s.next_due_at).getTime();
+      if (Number.isFinite(t) && t < min) min = t;
+    }
+  }
+  return min;
+}
+
 // GET /api/v1/plants
+// Supports `search`, `status`, `sort`, `utcOffset`, `page`, `limit` query params.
+// See .workflow/api-contracts.md (Sprint 30 / T-142) for full contract.
 router.get('/', async (req, res, next) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
 
-    // Validate search param (T-083)
+    // Validate search param (T-083, extended in T-142)
     let search = undefined;
     if (req.query.search !== undefined) {
       search = String(req.query.search).trim();
       if (search.length > 200) {
-        throw new ValidationError('search must be at most 200 characters.');
+        throw specificValidationError(
+          'search must be at most 200 characters.',
+          'INVALID_SEARCH_TERM'
+        );
       }
       if (search.length === 0) {
         search = undefined; // empty search treated as no filter
       }
     }
 
-    // Validate status param (T-083)
+    // Validate status param (T-083, error code updated in T-142)
     let statusFilter = undefined;
     if (req.query.status !== undefined) {
       if (!VALID_STATUSES.includes(req.query.status)) {
-        throw new ValidationError(`status must be one of: ${VALID_STATUSES.join(', ')}.`);
+        throw specificValidationError(
+          `status must be one of: ${VALID_STATUSES.join(', ')}.`,
+          'INVALID_STATUS_FILTER'
+        );
       }
       statusFilter = req.query.status;
+    }
+
+    // Validate sort param (T-142)
+    let sort = 'name_asc';
+    if (req.query.sort !== undefined) {
+      if (!VALID_SORTS.includes(req.query.sort)) {
+        throw specificValidationError(
+          `sort must be one of: ${VALID_SORTS.join(', ')}.`,
+          'INVALID_SORT_OPTION'
+        );
+      }
+      sort = req.query.sort;
     }
 
     // Validate utcOffset param (T-083)
@@ -137,18 +201,19 @@ router.get('/', async (req, res, next) => {
       utcOffsetMinutes = parsed;
     }
 
-    // When status filter is active, we must compute status for all matching plants
-    // before paginating, because status is derived in the application layer.
-    const needsAppLevelFiltering = !!statusFilter;
+    // T-142: We always fetch the full search-scoped result set so we can compute
+    // `status_counts` (which is scoped to `search` only — independent of the
+    // active `status` filter) and so we can apply app-level sort/filter
+    // consistently. Pagination is then applied in the application layer.
+    const dbSort = sort === 'name_asc' || sort === 'name_desc' ? sort : null;
 
-    const { plants: rawPlants, total: rawTotal } = await Plant.findByUserId(req.user.id, {
-      page: needsAppLevelFiltering ? 1 : page,
-      limit: needsAppLevelFiltering ? undefined : limit,
+    const { plants: rawPlants } = await Plant.findByUserId(req.user.id, {
       search,
-      noPagination: needsAppLevelFiltering,
+      noPagination: true,
+      dbSort,
     });
 
-    // Batch load schedules
+    // Batch load schedules for all matching plants
     const plantIds = rawPlants.map((p) => p.id);
     const allSchedules = await CareSchedule.findByPlantIds(plantIds);
 
@@ -160,7 +225,7 @@ router.get('/', async (req, res, next) => {
     }
 
     // Build full plant objects with enriched schedules
-    let data = rawPlants.map((plant) => {
+    const enrichedPlants = rawPlants.map((plant) => {
       const schedules = scheduleMap[plant.id] || [];
       const enriched = enrichSchedules(schedules.map((s) => ({
         id: s.id,
@@ -183,23 +248,57 @@ router.get('/', async (req, res, next) => {
       };
     });
 
-    // Apply status filter if provided (T-083)
-    let total = rawTotal;
+    // T-142: Compute status_counts BEFORE applying the status filter so the
+    // tab badges always reflect the search-scoped totals (per SPEC-024).
+    const status_counts = { all: 0, overdue: 0, due_today: 0, on_track: 0 };
+    for (const plant of enrichedPlants) {
+      status_counts.all += 1;
+      const agg = plantAggregateStatus(plant.care_schedules);
+      if (agg === 'overdue') status_counts.overdue += 1;
+      else if (agg === 'due_today') status_counts.due_today += 1;
+      else if (agg === 'on_track') status_counts.on_track += 1;
+      // null (no schedules) contributes only to `all`
+    }
+
+    // Apply status filter if provided (T-083; semantics unchanged)
+    let filtered = enrichedPlants;
     if (statusFilter) {
-      data = data.filter((plant) => {
+      filtered = filtered.filter((plant) => {
         const aggStatus = plantAggregateStatus(plant.care_schedules);
         return aggStatus === statusFilter;
       });
-      total = data.length;
-
-      // Apply pagination to the filtered set
-      const offset = (page - 1) * limit;
-      data = data.slice(offset, offset + limit);
     }
+
+    // T-142: Apply sort. `name_asc` / `name_desc` were already applied at the
+    // DB layer; `most_overdue` and `next_due_soonest` require app-level sort
+    // because they depend on computed `days_overdue` / `next_due_at` values.
+    if (sort === 'most_overdue') {
+      filtered.sort((a, b) => {
+        const da = maxDaysOverdue(a.care_schedules);
+        const db_ = maxDaysOverdue(b.care_schedules);
+        if (db_ !== da) return db_ - da; // DESC
+        return a.name.toLowerCase().localeCompare(b.name.toLowerCase()); // tiebreak
+      });
+    } else if (sort === 'next_due_soonest') {
+      filtered.sort((a, b) => {
+        const ma = minNextDueMs(a.care_schedules);
+        const mb = minNextDueMs(b.care_schedules);
+        if (ma !== mb) return ma - mb; // ASC (earliest first; +Infinity → last)
+        return a.name.toLowerCase().localeCompare(b.name.toLowerCase()); // tiebreak
+      });
+    }
+    // else: name_asc / name_desc were applied via Plant.findByUserId(dbSort)
+
+    const total = filtered.length;
+
+    // Paginate the filtered + sorted set
+    const offset = (page - 1) * limit;
+    const data = filtered.slice(offset, offset + limit);
 
     res.status(200).json({
       data,
       pagination: { page, limit, total },
+      status_counts,
     });
   } catch (err) {
     next(err);

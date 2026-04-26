@@ -1,0 +1,106 @@
+/* SPEC-024 §3 — Plant sort dropdown */
+
+.psd-container {
+  position: relative;
+  display: inline-block;
+}
+
+.psd-trigger {
+  height: 34px;
+  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-input);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.psd-trigger:hover:not(:disabled) {
+  background: var(--color-bg);
+}
+
+.psd-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.psd-trigger--non-default {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.psd-trigger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.psd-caret {
+  color: var(--color-text-secondary);
+  margin-left: 2px;
+}
+
+.psd-listbox {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+  margin: 0;
+  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
+  box-shadow: 0 4px 16px rgba(44, 44, 44, 0.12);
+  list-style: none;
+  z-index: 50;
+  animation: psd-fade-in 0.15s ease;
+  outline: none;
+}
+
+@keyframes psd-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.psd-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  padding: 10px 16px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.psd-option:hover,
+.psd-option--focused {
+  background: var(--color-bg);
+}
+
+.psd-option--selected {
+  background: var(--color-surface-alt);
+  font-weight: 600;
+}
+
+.psd-option-check {
+  color: var(--color-accent);
+  margin-left: 12px;
+}
