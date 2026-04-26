@@ -4,6 +4,51 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 
 ---
 
+## FB-132 — Status counts stay coherent under search (Sprint 30 / T-142)
+
+- **From:** QA Engineer
+- **Date:** 2026-04-25
+- **Sprint:** 30
+- **Category:** Positive
+- **Severity:** —
+- **Status:** New
+
+`GET /api/v1/plants?search=Check` returns `status_counts: {all:3, overdue:0, due_today:0, on_track:1}` — the tab badge counts are scoped to the search term but **independent** of the active status filter. This means the user can search "Check" and see at a glance that 0 of those 3 plants are overdue without having to click the Overdue tab to find out. This is exactly what SPEC-024 §2 promises and it works as designed. Big UX win for inventory management.
+
+---
+
+## FB-131 — LIKE wildcard not escaped in search term (Sprint 30 / T-142)
+
+- **From:** QA Engineer
+- **Date:** 2026-04-25
+- **Sprint:** 30
+- **Category:** UX Issue
+- **Severity:** Minor
+- **Status:** New
+
+When a user types a literal `%` (or `_`) into the search bar, those characters are passed through as Postgres `LIKE` metacharacters. `?search=%25` (URL-encoded `%`) currently returns ALL plants instead of plants whose names literally contain `%`. Reproduction: `curl -H "Authorization: Bearer <token>" "http://localhost:3000/api/v1/plants?search=%25"` → returns the user's full inventory.
+
+**Not a security issue** — the search is still parameterized (the `%` is a value, not SQL syntax — verified by SQL injection probe `'; DROP TABLE plants; --` returning 0 results with the table intact). It's purely a search-correctness quirk. Real-world impact is low because users rarely include `%` or `_` in plant names, but a future fix should escape these characters in `Plant.findByUserId` (e.g. `term.replace(/[\\%_]/g, '\\$&')` and add `ESCAPE '\\'` to the LIKE clause).
+
+Suggested fix: ~2-line change in `backend/src/models/Plant.js` line ~38.
+
+---
+
+## FB-130 — Search by species/common name (Sprint 30 / T-142)
+
+- **From:** QA Engineer
+- **Date:** 2026-04-25
+- **Sprint:** 30
+- **Category:** Positive
+- **Severity:** —
+- **Status:** New
+
+The Sprint 30 search-by-species extension delivered a meaningful UX improvement. Live verification: `?search=fern` returns both "Test Fern" (matched by name) **and** "Monitor Check Plant" (matched by `type=Fern` — species). Sprint 18's name-only search would have missed the second plant entirely.
+
+This matters for the target persona ("plant killer" novices): users often only know the common name of the species ("fern", "monstera", "pothos") and have given their plant a personal nickname ("Mochi", "Buddy"). Searching the species name now finds nicknamed plants. Per SPEC-024 §1 / Sprint 30 contract — works as designed.
+
+---
+
 ## Log Fields
 
 | Field | Description |

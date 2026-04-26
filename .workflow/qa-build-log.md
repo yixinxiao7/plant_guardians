@@ -4,6 +4,224 @@ Tracks test runs, build results, and post-deploy health checks per sprint. Maint
 
 ---
 
+## Sprint #30 QA Re-Invocation — 2026-04-25 — NO-OP
+
+- **Agent:** QA Engineer
+- **Sprint:** 30
+- **Test Type:** N/A (re-invocation no-op; see handoff H-417)
+- **Result:** No action taken — Sprint #30 QA verification was already completed and signed off on 2026-04-25 (H-414, T-144).
+
+**Why no-op:** Searched `dev-cycle-tracker.md` for Sprint #30 tasks in `Integration Check`, `In Review`, or `Blocked` — **0 matches**. T-140, T-142, T-143, T-144, and T-145 are all `Done`. The only remaining open Sprint #30 task is T-146 (Monitor post-deploy health check), which is owned by the Monitor Agent.
+
+**Authoritative QA sign-off for Sprint #30:** see the entry titled `Sprint #30 QA Verification — 2026-04-25 (T-144) — SIGN-OFF` further down in this log, plus the H-414 handoff. Headline numbers from that pass:
+
+| Metric | Result |
+|--------|--------|
+| Backend unit tests | **241/241 pass** (target ≥234) |
+| Frontend unit tests | **360/360 pass** (target ≥320) |
+| Backend `npm audit` | **0 vulnerabilities** |
+| Frontend `npm audit` | **0 vulnerabilities** |
+| T-140 (uuid@14 housekeeping) | Verified — uuid@14.0.0 in package.json; upload.js uses `node:crypto.randomUUID()`; uniqueness sanity 10000/10000 |
+| T-142 (search/sort/filter API) | Live integration matrix PASS — all 4 sort options; species search; combined params; pagination over filtered count; all 4 error codes (`INVALID_SEARCH_TERM`, `INVALID_STATUS_FILTER`, `INVALID_SORT_OPTION`, `VALIDATION_ERROR`); SQL-injection probe safe; cross-user isolation; 401 on no-auth/bad-token |
+| T-143 (search/sort/filter UI) | SPEC-024 source-level compliance verified — live region, `role=radiogroup`, `aria-haspopup=listbox`, debounce-trim-strip, statusCounts hook |
+| Security checklist | PASS — auth, parameterized SQL, 200-char search cap, 0 hardcoded secrets, no `innerHTML`, security headers all present |
+| Config consistency | PASS — PORT 3000 ↔ Vite proxy ↔ docker-compose; HTTP↔HTTP; CORS includes `:5173` |
+| Product-perspective | FB-130 (Positive — species search), FB-131 (UX Issue Minor — LIKE wildcard not escaped, out of scope), FB-132 (Positive — search-scoped status_counts) |
+
+**No new test runs were executed for this re-invocation** — re-running would duplicate the H-414 work, produce the same results, and risk a transient false negative that would needlessly block T-146.
+
+**Files written:** this log entry, plus the H-417 handoff in `.workflow/handoff-log.md`. No changes to `dev-cycle-tracker.md` (no status transitions warranted).
+
+**Next step:** Monitor Agent runs T-146 (post-deploy health check) — backend PID 42432 (port 3000), frontend PID 42506 (port 4173).
+
+---
+
+## Sprint #30 Staging Deploy — 2026-04-25 (T-145)
+
+- **Agent:** Deploy Engineer
+- **Sprint:** 30
+- **Task:** T-145
+- **Date:** 2026-04-25
+- **Test Type:** Deploy
+- **Environment:** Staging (local)
+- **Build Status:** ✅ Success
+
+### Pre-Deploy Gate Checks
+
+| Check | Result |
+|-------|--------|
+| QA sign-off present (H-414) | ✅ |
+| `knex migrate:latest` → "Already up to date" | ✅ No migrations (T-142 is query-layer only; T-140 is dep bump only) |
+| Backend `npm audit` → 0 vulnerabilities | ✅ `found 0 vulnerabilities` |
+| `uuid@14.0.0` installed in `node_modules/uuid` | ✅ Confirmed |
+
+### Build
+
+| Step | Result |
+|------|--------|
+| Backend `npm install` (node_modules already current) | ✅ uuid@14.0.0 in place |
+| Backend process started — PID 42432 | ✅ Port 3000 |
+| Frontend `npm run build` | ✅ 0 errors — 4676 modules — 597ms |
+| Frontend preview started — PID 42506 | ✅ Port 4173 |
+
+### Spot-Check Results (Authenticated as `test@plantguardians.local`)
+
+| Check | HTTP | Result |
+|-------|------|--------|
+| `GET /api/health` | 200 | `{"status":"ok"}` ✅ |
+| `GET /api/v1/plants?utcOffset=0` (default) | 200 | 4 plants; `status_counts` keys: all/overdue/due_today/on_track ✅ |
+| `GET /api/v1/plants?search=fern&utcOffset=0` | 200 | 2 plants: "Test Fern" + "Monitor Check Plant" (species match) ✅ |
+| `GET /api/v1/plants?status=overdue&utcOffset=0` | 200 | 0 plants (test data has no overdue) ✅ |
+| `GET /api/v1/plants?status=on_track&utcOffset=0` | 200 | 1 plant: "Health Check Pothos" ✅ |
+| `GET /api/v1/plants?sort=most_overdue&utcOffset=0` | 200 | 4 plants returned, sorted ✅ |
+| `GET /api/v1/plants?search=<201-char>&utcOffset=0` | 400 | `INVALID_SEARCH_TERM` ✅ |
+| `GET http://localhost:4173/` (frontend SPA) | 200 | Frontend serving Sprint #30 build ✅ |
+
+### Services Running Post-Deploy
+
+| Service | PID | URL | Status |
+|---------|-----|-----|--------|
+| Backend (Node/Express) | 42432 | http://localhost:3000 | ✅ Healthy |
+| Frontend (Vite preview) | 42506 | http://localhost:4173 | ✅ Healthy |
+| PostgreSQL | via system | port 5432 | ✅ (backend connected — login successful) |
+
+### Notes
+
+- No database migrations were run (T-142 is query-layer only, T-140 is dependency-only).
+- Backend restarted fresh to pick up `uuid@14.0.0` (T-140). Pool warm-up confirmed: backend responded to health check within 4 seconds.
+- Frontend rebuilt with Sprint #30 changes: search bar (PlantSearchBar), status filter tabs (PlantStatusFilter), sort dropdown (PlantSortDropdown) all bundled.
+- `search=fern` correctly returns 2 plants (name match + species match) — SPEC-024 compliance verified live.
+- Chunk size warning is pre-existing and non-blocking.
+- T-145 complete. Monitor Agent handoff: H-415.
+
+---
+
+## Sprint #30 QA Verification — 2026-04-25 (T-144) — SIGN-OFF
+
+- **Agent:** QA Engineer
+- **Sprint:** 30
+- **Task:** T-144
+- **Date:** 2026-04-25
+- **Tasks under verification:** T-140 (uuid housekeeping), T-142 (Backend search/sort/filter), T-143 (Frontend search/sort/filter UI)
+- **Test Types:** Unit Test, Integration Test, Config Consistency, Security Scan, Product-Perspective
+- **Overall Status:** ✅ **PASS — All Sprint #30 work verified. Deploy unblocked.**
+
+### Test Type: Unit Test
+
+| Surface | Command | Result | Acceptance Bar | Notes |
+|---------|---------|--------|----------------|-------|
+| Backend | `cd backend && npm test` | ✅ **241/241 passing** (26 suites) | ≥234 (T-144 spec) / ≥226 baseline | +15 from T-142 (`tests/plantsSearchSortFilter.test.js`); existing `plantsSearchFilter.test.js` updated for new error codes; runtime ~78s |
+| Frontend | `cd frontend && npm test` | ✅ **360/360 passing** (43 files) | ≥320 (T-144 spec) / ≥312 baseline | +48 from T-143 across 5 new test files (PlantSearchBar, PlantStatusFilter, PlantSortDropdown, api.test.js, InventoryPage); runtime ~5s |
+
+**Coverage spot-check (happy + error path per endpoint/component):** Verified `plantsSearchSortFilter.test.js` covers 5 happy-path scenarios (search, status, sort, combined, pagination over filtered) + 4 error-path codes (`INVALID_SEARCH_TERM`, `INVALID_STATUS_FILTER`, `INVALID_SORT_OPTION`, `VALIDATION_ERROR`) + 4 edge-cases (NULL type, no schedules, cross-user isolation, empty result). Frontend new components each have a happy + error/edge variant (debounce reset, clear, idempotent click, escape, disabled, etc.). **Coverage: PASS.**
+
+### Test Type: Integration Test (Live API against running backend, PID `brddeq4q4`)
+
+Backend started fresh for QA Pass (`cd backend && npm start` → port 3000, `GET /api/health` → 200). Auth: logged in as `test@plantguardians.local` / `TestPass123!` → bearer token (236 chars).
+
+#### T-142 — `GET /api/v1/plants` search/status/sort matrix
+
+| Scenario | Request | Result | Verdict |
+|----------|---------|--------|---------|
+| Default (no params) | `GET /plants` | 200 — 4 plants, `pagination.total=4`, `status_counts={all:4, overdue:0, due_today:0, on_track:1}` | ✅ |
+| Search by name (lowercase) | `?search=fern` | 200 — 2 plants: "Test Fern" (name match) **+ "Monitor Check Plant" (type=Fern, species match)** | ✅ Sprint 30 search-by-species verified |
+| Search case-insensitive | `?search=CHECK` | 200 — 3 plants (all containing "check" in name) | ✅ |
+| Search empty string | `?search=` | 200 — 4 plants (treated as omitted, no error) | ✅ |
+| Search whitespace-only | `?search=%20%20%20` | 200 — 4 plants (trimmed → empty → omitted) | ✅ |
+| Search exactly 200 chars | `?search=<200x>` | 200 — 0 plants, no validation error | ✅ |
+| Status `overdue` | `?status=overdue` | 200 — 0 plants (test data has no overdue) | ✅ |
+| Status `on_track` | `?status=on_track` | 200 — 1 plant ("Health Check Pothos") | ✅ |
+| Status `due_today` | `?status=due_today` | 200 — 0 plants | ✅ |
+| Sort `name_asc` | `?sort=name_asc` | 200 — alphabetical ASC | ✅ |
+| Sort `name_desc` | `?sort=name_desc` | 200 — alphabetical DESC | ✅ |
+| Sort `most_overdue` | `?sort=most_overdue` | 200 — descending by max days_overdue with name tiebreak | ✅ |
+| Sort `next_due_soonest` | `?sort=next_due_soonest` | 200 — ascending by min next_due_at | ✅ |
+| Combined search+status+sort | `?search=fern&status=on_track&sort=most_overdue` | 200 — `total=0`, `status_counts.all=2` (search-scoped) | ✅ |
+| `status_counts` independence | `?status=overdue` vs `?status=on_track` | Both return identical `{all:4, overdue:0, due_today:0, on_track:1}` regardless of active status filter | ✅ Spec compliance |
+| `status_counts` search scoping | `?search=Check` → `{all:3,...,on_track:1}` | Counts scoped to search term only, not affected by status filter | ✅ |
+| Pagination over filtered | `?search=Check&page=1&limit=2` → 2 plants, total=3; `page=2&limit=2` → 1 plant | `pagination.total` reflects **filtered** count, not total inventory | ✅ |
+
+#### Error code matrix (Sprint 30 specific codes)
+
+| Scenario | HTTP | Code | Verdict |
+|----------|------|------|---------|
+| `?search=<201-char string>` | 400 | `INVALID_SEARCH_TERM` | ✅ |
+| `?status=healthy` | 400 | `INVALID_STATUS_FILTER` | ✅ |
+| `?sort=alphabetical` | 400 | `INVALID_SORT_OPTION` | ✅ |
+| `?utcOffset=9999` (still generic per contract) | 400 | `VALIDATION_ERROR` | ✅ |
+| No `Authorization` header | 401 | `UNAUTHORIZED` | ✅ |
+| Bad bearer token | 401 | `UNAUTHORIZED` | ✅ |
+
+#### T-140 — uuid@14 housekeeping
+
+| Check | Result |
+|-------|--------|
+| `package.json` shows `uuid@^14.0.0` | ✅ |
+| `src/middleware/upload.js` uses `node:crypto.randomUUID()` (not `require('uuid')`) | ✅ |
+| Inline rationale comment present (T-140 ESM workaround) | ✅ |
+| No other `require('uuid')` / `from 'uuid'` in `src/` or `tests/` (only knex migrations call `gen_random_uuid()` which is Postgres-side) | ✅ |
+| `crypto.randomUUID()` uniqueness sanity (10000 iter) | ✅ 10000/10000 unique |
+
+### Test Type: Config Consistency
+
+| Check | Result | Detail |
+|-------|--------|--------|
+| `backend/.env` `PORT=3000` matches `frontend/vite.config.js` `target: http://localhost:3000` | ✅ | both 3000 |
+| Scheme match (HTTP/HTTP) — no SSL flag set on backend | ✅ | proxy uses `http://`, backend has no HTTPS config |
+| `FRONTEND_URL` (CORS) includes `http://localhost:5173` | ✅ | `http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` |
+| `infra/docker-compose.yml` exposes only postgres (5432, 5433) — no app port collision | ✅ | postgres + postgres_test only |
+
+### Test Type: Security Scan
+
+| Item (per `.workflow/security-checklist.md`) | Result | Evidence |
+|----------------------------------------------|--------|----------|
+| All API endpoints require appropriate authentication | ✅ | `router.use(authenticate)` in `routes/plants.js` line 88; live test: no token → 401, bad token → 401 |
+| Auth tokens have appropriate expiration and refresh mechanisms | ✅ | JWT `iat`/`exp` present in token (15-min access; refresh logic untouched this sprint) |
+| Password hashing uses bcrypt | ✅ | unchanged from prior sprints |
+| All user inputs validated on server side | ✅ | search/status/sort all validated in `routes/plants.js`; Knex max(100) on limit |
+| SQL queries use parameterized statements | ✅ | `whereRaw('(LOWER(name) LIKE ? OR LOWER(COALESCE(type, \'\')) LIKE ?)', [term, term])` — both bindings via `?` placeholders. Live test: `?search='; DROP TABLE plants; --` returned 200 with 0 results, plants table intact afterward |
+| File uploads validated (T-140 swap) | ✅ | `upload.js` mime-type allow-list + 5MB cap; `randomUUID()` collision-resistant filename |
+| HTML output sanitized to prevent XSS | ✅ | No `dangerouslySetInnerHTML` or `innerHTML=` anywhere in `frontend/src/` (grep clean); React JSX escaping covers search-term echo in live region |
+| CORS configured to expected origins only | ✅ | `FRONTEND_URL` env var allow-list, no `*` |
+| Rate limiting on public endpoints | ✅ | global + auth-specific limiters (rateLimit.test.js still passing) — response shows `RateLimit-Policy: 200;w=900` |
+| API responses do not leak stack traces | ✅ | live `GET /plants/00000000-...` returned `{"error":{"message":"id must be a valid UUID.","code":"VALIDATION_ERROR"}}` — no stack |
+| Sensitive data not in URL params | ✅ | search term is the only PII surface (user-controlled); no tokens/passwords in querystrings |
+| Security headers present | ✅ | live response includes HSTS, CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, COOP, CORP |
+| Database credentials in env vars only | ✅ | `DATABASE_URL` in `.env`; no creds in source (grep clean for hardcoded secrets) |
+| Backend `npm audit` | ✅ **0 vulnerabilities** | T-140 closed FB-129 (uuid moderate) |
+| Frontend `npm audit` | ✅ **0 vulnerabilities** | maintained from Sprint 29 T-135 |
+| Cross-user data isolation | ✅ | Live test: User2 created plant "Cross-User Test Plant Mochi"; User1 `?search=Mochi` → 0 results; User2 same query → 1 result |
+
+**Security Result: PASS — 0 high/critical findings, 0 P1 items.**
+
+### Test Type: Product-Perspective
+
+Tested as a real "plant killer" novice user — see `.workflow/feedback-log.md` (FB-130 through FB-132).
+
+| Observation | Category | Severity | Notes |
+|-------------|----------|----------|-------|
+| Search now matches species/common name (e.g. "fern" finds "Monitor Check Plant" with type=Fern) | **Positive** | — | Big UX win for users who only know the species name; SPEC-024 §1 / Sprint 30 contract delivered as promised |
+| `status_counts` are search-scoped, so tab badges stay coherent when search is narrow | **Positive** | — | Click "Overdue (0)" tab while searching "Check" — tab clearly says zero, prevents user from chasing empty results |
+| LIKE wildcard (`%` / `_`) in user input is not escaped — searching `%` matches every plant | UX Issue | Minor | Not a security issue (still parameterized, no injection) but a search-term entered as `%` returns all 4 plants instead of 0. Edge case; unlikely real-user impact. Worth a future quick fix in `Plant.findByUserId` to escape LIKE metacharacters. |
+| Emoji search (`🌿`) returns 0 cleanly | **Positive** | — | No backend crash, no validation error |
+| 200-char boundary search returns 200; 201-char returns 400 with code | **Positive** | — | Sharp, well-documented boundary |
+| Pagination `total` reflects filtered count (search=Check, total=3 across pages) | **Positive** | — | Matches contract; UI counts will be correct |
+
+### Status Transitions
+
+| Task | Before | After |
+|------|--------|-------|
+| T-140 | Integration Check | **Done** |
+| T-142 | Integration Check | **Done** |
+| T-143 | Integration Check | **Done** |
+| T-144 | Backlog | **Done** (this entry) |
+
+### Sign-Off
+
+QA sign-off granted. Sprint #30 implementation work (T-140, T-142, T-143) is verified. T-145 (Deploy Engineer) is unblocked. Handoff H-414 logged.
+
+---
+
 ## Sprint #29 Post-Deploy Health Check — 2026-04-24 (Monitor Agent, T-138)
 
 - **Agent:** Monitor Agent
