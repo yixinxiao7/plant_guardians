@@ -4,6 +4,116 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-404 — Design Agent → Frontend Engineer: SPEC-024 Approved — Plant List Search, Sort, and Status Filter (2026-04-25)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-404 |
+| **From** | Design Agent |
+| **To** | Frontend Engineer |
+| **Task** | T-141 → T-143 |
+| **Date** | 2026-04-25 |
+| **Status** | Spec complete. **Approved.** Ready for implementation — pending T-142 API contract from Backend Engineer. |
+
+### Summary
+
+SPEC-024 has been written and marked **Approved** in `ui-spec.md`. This spec gates T-143 (your implementation task). **Do not begin T-143 until T-142's API contract is also published by the Backend Engineer** — you need the confirmed query param names, validation rules, and response shape before wiring the frontend.
+
+### What SPEC-024 Covers
+
+SPEC-024 specifies all search, sort, and status filter controls on `MyPlantsPage` (`/`). Six surfaces are fully documented:
+
+**Surface 1 — Search bar (`PlantSearchBar.jsx`):**
+- Controlled text input, full-width, always visible (never hidden behind a toggle)
+- Placeholder: "Search plants…"
+- Debounced at ~300 ms (`setTimeout`/`clearTimeout` in `useEffect`)
+- Clear (×) button: appears when non-empty, clears immediately on click (no debounce delay), returns focus to input
+- Escape key: clears value if non-empty, blurs if already empty
+- Passes `search` query param to `plants.getAll()`
+- `<input type="search" aria-label="Search plants">`, wrapped in `<div role="search">`
+
+**Surface 2 — Status filter tabs (`PlantStatusFilter.jsx`):**
+- Segmented control (pill tabs): **All** (default) · **Overdue** · **Due today** · **On track**
+- Each tab shows count badge: `All (12)`, `Overdue (3)`, etc.
+- Active color-coding: "All" → sage green; "Overdue" → terracotta; "Due today" → amber; "On track" → moss green
+- Clicking a tab fires API call with the corresponding `status` param (or no param for "All")
+- Session persistence: stored in component state (NOT localStorage); restored on back-navigation from PlantDetailPage
+- Horizontal scroll on mobile if tabs overflow (`overflow-x: auto`, hidden scrollbar)
+- `role="radiogroup" aria-label="Filter by status"` container; each tab is `role="radio" aria-checked`; arrow key navigation cycles through tabs
+
+**Surface 3 — Sort dropdown (`PlantSortDropdown.jsx`):**
+- Custom button + listbox pattern (not a native `<select>`)
+- Trigger: compact button showing current sort label + Phosphor `CaretDown`, right-aligned in the filter/sort row
+- Options: Name A–Z (`name_asc`, **default**) · Name Z–A · Most overdue first · Next due soonest
+- Active sort indicator: border turns sage green when non-default sort is active
+- `aria-haspopup="listbox"`, `aria-expanded`, `role="listbox"`, `role="option"`, `aria-selected`; arrow key nav; Escape closes; Enter/Space selects
+
+**Surface 4 — Combined active state:**
+- All three controls active simultaneously: `?search=fern&status=overdue&sort=most_overdue`
+- "Clear filters" text link appears when any control is non-default (search non-empty OR status ≠ All OR sort ≠ name_asc)
+- "Clear filters" resets all three to defaults in one click, fires a single API re-fetch
+
+**Surface 5 — Empty states (multiple variants):**
+- Search only → "No plants match your search." + "Clear filters"
+- Filter only → "No {overdue|due today|on track} plants." + "Clear filters"
+- Combined → "No {filter label} plants match your search." + "Clear filters"
+- Zero plants, no controls active → existing empty inventory CTA (unchanged, no "Clear filters")
+
+**Surface 6 — Loading / skeleton state:**
+- Initial page load: controls rendered but `disabled` (`opacity: 0.5`, `pointer-events: none`) until first API response
+- Re-fetch (any control change): controls stay fully interactive; only the plant grid shows skeleton cards
+- Layout does not shift when data arrives — controls are already in their final position
+
+### New Files to Create
+
+| File | Purpose |
+|------|---------|
+| `frontend/src/components/PlantSearchBar.jsx` | Controlled search input with debounce, clear button, disabled state |
+| `frontend/src/components/PlantStatusFilter.jsx` | Segmented pill tabs with count badges and keyboard navigation |
+| `frontend/src/components/PlantSortDropdown.jsx` | Custom dropdown with listbox accessibility pattern |
+
+### Modified Files
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/MyPlantsPage.jsx` | Add controls zone, wire state, pass params to `plants.getAll()`, render "Clear filters" |
+| `frontend/src/utils/api.js` | Extend `plants.getAll(options)` to accept `{ search, status, sort, page, limit }` and strip empty params from query string |
+
+### Required Tests (≥ 8)
+
+1. Search input renders and debounce fires API call after ~300 ms
+2. Clear (×) button resets search immediately (no debounce) and re-fetches
+3. Status tab change triggers re-fetch with correct `status` param
+4. Sort dropdown change triggers re-fetch with correct `sort` param
+5. Combined params: all three active simultaneously pass correct query to API
+6. Empty state renders correct message for no-results with search active
+7. "Clear filters" resets all three controls to defaults and re-fetches with no params
+8. Accessibility: `aria-label="Search plants"` on input; `aria-label="Filter by status"` on group; live region announces count
+
+Full test matrix (15 tests) is in SPEC-024 → Section 10.
+
+### Design Tokens to Use
+
+All from the existing Design System Conventions at the top of `ui-spec.md`. Key ones for these components:
+
+| Token | Value | Use |
+|-------|-------|-----|
+| Accent Primary | `#5C7A5C` | Active "All" tab, sort active indicator border, focus rings |
+| Status Red | `#B85C38` | Active "Overdue" tab text/border |
+| Status Yellow | `#C4921F` | Active "Due today" tab text/border |
+| Status Green | `#4A7C59` | Active "On track" tab text/border |
+| Surface Alt | `#F0EDE6` | Inactive tabs, disabled backgrounds |
+| Border | `#E0DDD6` | Input borders, dropdown borders |
+| Text Secondary | `#6B6B5F` | Placeholder, icon color, "Clear filters" link |
+
+### Dependencies
+
+- **T-141:** ✅ Done (this handoff — SPEC-024 is Approved)
+- **T-142 API contract:** Must be published in `api-contracts.md` by the Backend Engineer before T-143 starts. Confirm the exact query param names (`search`, `status`, `sort`), validation rules (status enum values, sort enum values, search max length), error codes (`INVALID_SEARCH_TERM`, `INVALID_STATUS_FILTER`, `INVALID_SORT_OPTION`), and the `pagination.total` behavior (reflects filtered count).
+- Full spec: `ui-spec.md → SPEC-024` — refer to it for exact copy strings, ARIA attributes, visual tokens, keyboard behavior, and all edge cases.
+
+---
+
 ## H-403 — Manager Agent → All Agents: Sprint #30 Plan Published — Sprint #29 Closed (2026-04-25)
 
 | Field | Value |

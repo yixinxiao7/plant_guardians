@@ -7052,3 +7052,531 @@ Non-success `<title>` tags (also via `<Helmet>`):
 | 14 | **Escape key closes revocation modal** — open modal, fire Escape keydown, assert modal unmounted | Recommended |
 
 ---
+
+### SPEC-024 — Plant List Search, Sort, and Status Filter
+
+**Status:** Approved
+**Related Tasks:** T-141 (spec task) → gates T-142 (backend) and T-143 (frontend implementation)
+**Sprint:** #30
+
+---
+
+#### Description
+
+SPEC-024 specifies the search, sort, and status filter controls on `MyPlantsPage` (`/`). These controls allow users — especially "plant killer" novices with large inventories — to instantly surface plants that need attention without scrolling. All three controls are always visible above the plant grid and work in combination.
+
+This spec covers six surfaces:
+1. Search bar
+2. Status filter tabs (segmented control)
+3. Sort dropdown
+4. Combined active state (all three active simultaneously)
+5. Empty states (multiple variants)
+6. Loading / skeleton state (controls during initial data fetch)
+
+---
+
+#### Layout Context
+
+The controls insert between the page heading row and the plant grid on `MyPlantsPage`. No existing elements are removed; the controls are a new zone added above the grid.
+
+**Desktop layout (≥768px):**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  My Plants                             [+ Add Plant]            │  ← existing heading row
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ 🔍  Search plants…                                     × │   │  ← search bar (full width)
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  [ All (12) ]  [ Overdue (3) ]  [ Due today (2) ]  [ On track (7) ]          Sort ▾  │  ← filter row
+├─────────────────────────────────────────────────────────────────┤
+│  [plant grid / list]                                            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Mobile layout (<768px):**
+
+```
+┌────────────────────────────────────────┐
+│  My Plants            [+ Add Plant]    │  ← heading row
+├────────────────────────────────────────┤
+│  ┌──────────────────────────────────┐  │
+│  │ 🔍  Search plants…           ×  │  │  ← search bar (full width)
+│  └──────────────────────────────────┘  │
+│                                        │
+│  [All][Overdue][Due today][On track]   │  ← tabs scroll horizontally if they overflow
+│                              [Sort ▾] │  ← sort right-aligned on same row
+├────────────────────────────────────────┤
+│  [plant grid]                          │
+└────────────────────────────────────────┘
+```
+
+**Controls zone dimensions:**
+- Outer padding: `16px 0` (vertical), aligned with the page's existing content padding
+- Search bar: full-width of the content column, `height: 44px`
+- Filter/sort row: `margin-top: 12px`, `display: flex`, `align-items: center`, `justify-content: space-between`
+- Filter tabs: left-aligned, `gap: 4px` between tabs
+- Sort dropdown: right-aligned within the row
+
+---
+
+#### 1. Search Bar
+
+**Component:** `<PlantSearchBar />`
+**File:** `frontend/src/components/PlantSearchBar.jsx`
+
+##### Visual Spec
+
+| Property | Value |
+|----------|-------|
+| Height | 44px |
+| Width | 100% of content column |
+| Background | `#FFFFFF` |
+| Border | 1.5px solid `#E0DDD6` |
+| Border Radius | 8px |
+| Border (focus) | 2px solid `#5C7A5C` |
+| Font | `'DM Sans'`, 14px, weight 400 |
+| Placeholder text | "Search plants…" |
+| Placeholder color | `#B0ADA5` |
+| Text color | `#2C2C2C` |
+| Left padding | 40px (accounts for search icon) |
+| Right padding | 36px (accounts for clear button) |
+| Search icon | Phosphor `MagnifyingGlass` (outlined), 18px, `#B0ADA5`, absolute positioned at left center, `left: 12px` |
+| Transition | `border-color 0.2s ease`, `box-shadow 0.2s ease` |
+| Shadow (focus) | `0 0 0 3px rgba(92, 122, 92, 0.15)` |
+
+##### Behavior
+
+- **Always visible** — the search bar is never hidden behind a toggle or collapsed
+- **Debounced input:** Input is captured via controlled React state. A `useEffect` watches the value and fires the API call after ~300 ms (implemented with `setTimeout`/`clearTimeout` — no third-party debounce library). The debounce timer resets on each keystroke.
+- **Immediate clear:** Clicking the × button or pressing `Escape` while the input is focused clears the value immediately and fires an API call synchronously (no debounce delay on clear).
+- **Search scope:** Matches `name` OR `species` fields, case-insensitive, substring match (via backend `ILIKE '%<term>%'`).
+
+##### Clear Button (×)
+
+- **Visibility:** Only rendered when the input value is non-empty (not just whitespace)
+- **Element:** `<button>` (keyboard focusable), `aria-label="Clear search"`
+- **Visual:** Phosphor `X` icon, 16px, `#6B6B5F`. No border. Circular hover background: 28px diameter, `#F0EDE6`, `border-radius: 50%`.
+- **Position:** Absolute, right edge of the input, `right: 10px`, vertically centered
+- **On click:** Clears input value, immediately triggers API re-fetch with no `search` param, returns focus to the search input
+
+##### States
+
+| State | Visual |
+|-------|--------|
+| Empty (default) | Placeholder text visible, no clear button |
+| Has value | User text visible, clear (×) button visible |
+| Focused | Sage green border + focus ring shadow |
+| Disabled (loading) | `opacity: 0.5`, `pointer-events: none`, `background: #F0EDE6` |
+
+##### Accessibility
+
+- `<input type="search" aria-label="Search plants" id="plant-search-input">`
+- Clear button: `<button aria-label="Clear search">`
+- Pressing `Escape` while the input is focused clears the value (if non-empty) or blurs the input (if already empty)
+- Do not use `role="search"` on the input itself; wrap the entire search bar in `<div role="search" aria-label="Plant search">` if a landmark is desired
+
+---
+
+#### 2. Status Filter Tabs
+
+**Component:** `<PlantStatusFilter />`
+**File:** `frontend/src/components/PlantStatusFilter.jsx`
+
+##### Concept
+
+A segmented control styled as pill-shaped toggle tabs. Four options: **All**, **Overdue**, **Due today**, **On track**. Default selection: **All**. Each tab shows the count of matching plants as a badge.
+
+##### Visual Spec
+
+**Container:**
+- `display: flex`, `gap: 4px`, `align-items: center`
+- No border, no background — tabs float against the page background
+
+**Individual tab:**
+
+| Property | Value |
+|----------|-------|
+| Height | 34px |
+| Padding | `6px 14px` |
+| Border Radius | 24px (pill shape) |
+| Font | `'DM Sans'`, 13px, weight 500 |
+| Transition | `background 0.15s ease`, `color 0.15s ease` |
+
+**Tab variants:**
+
+| Tab Variant | Background | Text Color | Border |
+|-------------|-----------|------------|--------|
+| Inactive | `#F0EDE6` | `#6B6B5F` | none |
+| Inactive (hover) | `#E0DDD6` | `#2C2C2C` | none |
+| Active — "All" | `#5C7A5C` | `#FFFFFF` | none |
+| Active — "Overdue" | `#FAEAE4` | `#B85C38` | 1.5px solid `#B85C38` |
+| Active — "Due today" | `#FDF4E3` | `#C4921F` | 1.5px solid `#C4921F` |
+| Active — "On track" | `#E8F4EC` | `#4A7C59` | 1.5px solid `#4A7C59` |
+| Focus | Any + `box-shadow: 0 0 0 2px #5C7A5C` | — | — |
+| Disabled (loading) | `#F0EDE6` | `#B0ADA5` | none |
+
+Note: "All" active uses the primary sage green because it represents the brand default state, not a care status. The other three tabs use status-matching colors when active to reinforce their meaning.
+
+##### Count Badges
+
+Each tab label is formatted as: `{Label} ({count})`
+
+Examples: `All (12)`, `Overdue (3)`, `Due today (2)`, `On track (7)`
+
+- Count is always the number of plants matching that status in the current search context.
+- "All" count = total plants matching the current search (or total plants if search is empty).
+- Other tab counts = plants matching that status AND the current search.
+- When any filter changes, counts update after the API returns.
+- During loading, keep the last-known counts visible (do not zero them out mid-flight).
+- If count is 0, still show the tab with `({0})` — never hide a tab.
+
+##### Behavior
+
+- Only one tab is active at a time (single-select).
+- Clicking an already-active tab does nothing (idempotent).
+- Selecting a tab fires an API call with the corresponding `status` query param:
+  - "All" → no `status` param
+  - "Overdue" → `status=overdue`
+  - "Due today" → `status=due_today`
+  - "On track" → `status=on_track`
+- **Session persistence:** Active tab selection is stored in component-level React state (or a lightweight context). On back-navigation from `PlantDetailPage`, the previously selected tab is restored. Do NOT persist to `localStorage`.
+
+##### Accessibility
+
+```html
+<div role="group" aria-label="Filter by status">
+  <button role="radio" aria-checked="true"  aria-label="All plants, 12 results">All (12)</button>
+  <button role="radio" aria-checked="false" aria-label="Overdue plants, 3 results">Overdue (3)</button>
+  <button role="radio" aria-checked="false" aria-label="Due today plants, 2 results">Due today (2)</button>
+  <button role="radio" aria-checked="false" aria-label="On track plants, 7 results">On track (7)</button>
+</div>
+```
+
+Alternatively use `<div role="radiogroup" aria-label="Filter by status">` wrapping `<button role="radio">` children. Arrow key navigation between tabs (left/right arrow keys cycle through options). `Tab` key moves focus out of the group to the next focusable element.
+
+##### Mobile Overflow
+
+On narrow screens where all four tabs cannot fit in one row: the tab row scrolls horizontally (`overflow-x: auto`, `scrollbar-width: none` — hide the scrollbar visually). All four tabs remain present; no tabs are collapsed or hidden.
+
+---
+
+#### 3. Sort Dropdown
+
+**Component:** `<PlantSortDropdown />`
+**File:** `frontend/src/components/PlantSortDropdown.jsx`
+
+##### Visual Spec
+
+A compact trigger button that opens a dropdown menu. This is NOT a native `<select>` — use a custom button + popover pattern for full style control while maintaining keyboard accessibility.
+
+**Trigger button:**
+
+| Property | Value |
+|----------|-------|
+| Height | 34px |
+| Padding | `6px 12px` |
+| Background | `#FFFFFF` |
+| Border | 1.5px solid `#E0DDD6` |
+| Border Radius | 8px |
+| Font | `'DM Sans'`, 13px, weight 500, `#2C2C2C` |
+| Chevron icon | Phosphor `CaretDown`, 14px, `#6B6B5F`, `margin-left: 6px` |
+| Hover | `background: #F7F4EF`, border stays, no shadow |
+| Focus | `box-shadow: 0 0 0 2px #5C7A5C` |
+| Active sort ≠ default | border color changes to `#5C7A5C`, text color `#5C7A5C` (visual indicator that a non-default sort is active) |
+| Disabled (loading) | `opacity: 0.5`, `pointer-events: none` |
+
+**Trigger label format:** Shows the currently active sort option label, e.g. `"Name A–Z ▾"`.
+
+**Dropdown panel:**
+
+| Property | Value |
+|----------|-------|
+| Background | `#FFFFFF` |
+| Border | 1px solid `#E0DDD6` |
+| Border Radius | 8px |
+| Shadow | `0 4px 16px rgba(44, 44, 44, 0.12)` |
+| Width | 200px minimum, or match trigger width if wider |
+| Position | Absolute, aligned to right edge of trigger, below trigger |
+| `z-index` | Above plant grid, below modal overlay |
+| Open animation | Fade in + slide down 4px, `0.15s ease` |
+| Close animation | Fade out, `0.1s ease` |
+
+**Option items:**
+
+| Property | Value |
+|----------|-------|
+| Height | 40px |
+| Padding | `10px 16px` |
+| Font | `'DM Sans'`, 14px, weight 400, `#2C2C2C` |
+| Hover | `background: #F7F4EF` |
+| Active/selected | `background: #F0EDE6`, `font-weight: 600`, sage green checkmark (Phosphor `Check`, 14px, `#5C7A5C`) on the right |
+| Separator between option groups | None needed (4 options, single group) |
+
+##### Options
+
+| Display Label | `sort` param value | Description |
+|--------------|-------------------|-------------|
+| Name A–Z *(default)* | `name_asc` | Alphabetical ascending |
+| Name Z–A | `name_desc` | Alphabetical descending |
+| Most overdue first | `most_overdue` | Largest `days_overdue` at top |
+| Next due soonest | `next_due_soonest` | Smallest `next_due_days` at top |
+
+Default: **Name A–Z** (`name_asc`). The default is the "no sort change" baseline — if the user has not interacted with the dropdown, `name_asc` is assumed and the `sort` param may be omitted from API calls (the backend default).
+
+##### Behavior
+
+- Clicking the trigger opens the dropdown; clicking it again closes it.
+- Clicking an option: selects it, closes the dropdown, fires an API call with the new `sort` param.
+- Clicking outside the dropdown or pressing `Escape` closes it without changing selection.
+- Selecting the already-active option closes the dropdown idempotently.
+
+##### Accessibility
+
+```html
+<div class="sort-dropdown">
+  <button
+    aria-haspopup="listbox"
+    aria-expanded="false"
+    aria-label="Sort plants"
+    id="sort-trigger"
+  >
+    Name A–Z <CaretDown />
+  </button>
+  <ul
+    role="listbox"
+    aria-labelledby="sort-trigger"
+    hidden
+  >
+    <li role="option" aria-selected="true">Name A–Z</li>
+    <li role="option" aria-selected="false">Name Z–A</li>
+    <li role="option" aria-selected="false">Most overdue first</li>
+    <li role="option" aria-selected="false">Next due soonest</li>
+  </ul>
+</div>
+```
+
+- `aria-expanded` toggles `true`/`false` with dropdown open/close state.
+- Arrow keys (↑↓) navigate between options when dropdown is open.
+- `Enter` or `Space` selects the focused option.
+- `Escape` closes without selecting.
+- Focus returns to trigger button after selection or close.
+
+---
+
+#### 4. Combined Active State
+
+When search + filter + sort are all active simultaneously, all three are passed as query params to `GET /api/v1/plants`:
+
+```
+GET /api/v1/plants?search=fern&status=overdue&sort=most_overdue
+```
+
+No special UI changes are needed beyond what is described per-control above. All three controls show their current values independently.
+
+##### "Clear Filters" Link
+
+A **"Clear filters"** link appears below the filter/sort row whenever any non-default selection is active:
+
+| Condition | Show "Clear filters"? |
+|-----------|----------------------|
+| `search` is non-empty | Yes |
+| `status` is not "All" | Yes |
+| `sort` is not `name_asc` | Yes |
+| All three are default | No |
+
+**Visual:**
+- Text link, no underline by default, underline on hover
+- Font: `'DM Sans'`, 13px, weight 400
+- Color: `#6B6B5F`
+- Hover color: `#2C2C2C`
+- Positioned: inline below the filter/sort row, left-aligned, `margin-top: 8px`
+- Example: `Clear filters`
+
+**Behavior:**
+- One click resets all three controls: clears search input, sets status tab to "All", sets sort to "Name A–Z"
+- Fires a single API call with no `search`, no `status`, no `sort` params (or `sort=name_asc` — both are equivalent)
+- Does NOT navigate the user away from the page
+
+---
+
+#### 5. Empty States
+
+Empty states appear in the plant grid area when the API returns 0 plants. The search/filter controls remain fully interactive above (NOT replaced by the empty state).
+
+##### 5a. No plants match search only (search active, filter = All)
+
+```
+[MagnifyingGlass icon, 40px, #B0ADA5]
+No plants match your search.
+[Clear filters]
+```
+
+- Heading: `'DM Sans'`, 16px, weight 500, `#2C2C2C`
+- "Clear filters" link: same styling as section 4 above
+
+##### 5b. No plants match filter only (filter active, search empty)
+
+```
+[Funnel icon, 40px, #B0ADA5]
+No {filter label} plants.
+[Clear filters]
+```
+
+Where `{filter label}` maps to:
+- `status=overdue` → "overdue"
+- `status=due_today` → "due today"
+- `status=on_track` → "on track"
+
+Examples:
+- "No overdue plants."
+- "No due today plants."
+- "No on track plants."
+
+##### 5c. No plants match combined search + filter
+
+```
+[MagnifyingGlass icon, 40px, #B0ADA5]
+No {filter label} plants match your search.
+[Clear filters]
+```
+
+Examples:
+- "No overdue plants match your search."
+- "No due today plants match your search."
+- "No on track plants match your search."
+
+##### 5d. User has zero plants (no search, no filter — the user's entire plant inventory is empty)
+
+This is the existing "empty inventory" state from the My Plants page (`MyPlantsPage`). Do NOT show "Clear filters" in this case because no filters are active. The existing empty inventory call-to-action ("Add your first plant") should remain unchanged.
+
+**Logic:** Show the existing empty inventory CTA if and only if: search is empty AND status is "All" AND API returns 0 plants. Show one of the filter-related empty states (5a–5c) if any control is non-default.
+
+##### Empty State Layout
+
+- Container: centered horizontally in the grid area, `padding: 64px 24px`
+- Icon: 40px, `#B0ADA5`, `margin-bottom: 16px`
+- Message text: `margin-bottom: 12px`
+- "Clear filters" link: same as section 4
+
+---
+
+#### 6. Loading / Skeleton State
+
+While the initial plant list is fetching (or while any control change triggers a re-fetch), the controls and grid respond differently:
+
+##### On Initial Page Load (first fetch)
+
+- Search bar: rendered but `disabled` (`pointer-events: none`, `opacity: 0.5`, background `#F0EDE6`)
+- Status filter tabs: rendered but all tabs `disabled` (same opacity/pointer-events treatment)
+- Sort dropdown: rendered but `disabled` trigger button
+- Plant grid: shows the existing skeleton grid (shimmer card placeholders) — no change from current skeleton behavior
+- **The layout does NOT shift** when data arrives. Controls are already in their final position.
+
+##### On Re-Fetch (any control change triggers API call)
+
+When the user changes search/filter/sort and a new fetch is in flight:
+
+- **Controls:** Remain fully interactive at full opacity. Do NOT disable the controls during re-fetch — the user should be able to change their mind mid-flight.
+- **Plant grid:** Show the existing skeleton loader while new results arrive (replace current cards with skeleton). Duration is typically <300ms on local; skeleton prevents flicker.
+- Do NOT reset control values during loading — the controls always reflect what the user last selected, not what the last completed API response corresponds to.
+
+##### Skeleton Appearance for Disabled Controls
+
+During **initial page load only**, the three controls show a subtle disabled visual:
+
+| Control | Disabled Appearance |
+|---------|-------------------|
+| Search bar | `background: #F0EDE6`, no text, no placeholder visible (or placeholder in `#B0ADA5` at reduced opacity) |
+| Filter tabs | All four tabs at `opacity: 0.4`, `pointer-events: none`, no counts shown (counts are "—" or blank) |
+| Sort dropdown | Trigger button at `opacity: 0.4`, `pointer-events: none` |
+
+This prevents the user from interacting with the controls before any data has loaded. Once the first response arrives, full interactivity is restored immediately (no animation).
+
+---
+
+#### 7. Accessibility Summary
+
+| Element | ARIA / Behavior |
+|---------|----------------|
+| Search input | `<input type="search" aria-label="Search plants">` |
+| Clear button | `<button aria-label="Clear search">` |
+| Search container | `<div role="search" aria-label="Plant search">` (optional landmark) |
+| Filter tab group | `<div role="radiogroup" aria-label="Filter by status">` |
+| Individual filter tabs | `<button role="radio" aria-checked="true|false" aria-label="{Label} plants, {N} results">` |
+| Sort dropdown trigger | `<button aria-haspopup="listbox" aria-expanded="true|false" aria-label="Sort plants">` |
+| Sort option list | `<ul role="listbox" aria-label="Sort options">` |
+| Sort options | `<li role="option" aria-selected="true|false">` |
+| Results live region | `<div aria-live="polite" aria-atomic="true" class="sr-only">` — announces count when results change |
+
+##### Live Region Announcements
+
+A visually hidden `<div aria-live="polite" aria-atomic="true">` element (screen-reader only, `position: absolute; width: 1px; height: 1px; overflow: hidden`) updates its text content after every API response to announce the result count:
+
+| Scenario | Announcement text |
+|----------|------------------|
+| Results present, no filter | "Showing {N} plants." |
+| Results present, search active | "Showing {N} plants matching "{search term}"." |
+| Results present, filter active | "Showing {N} {filter label} plants." |
+| Results present, combined | "Showing {N} {filter label} plants matching "{search term}"." |
+| No results | "No plants found." |
+| Loading | (no announcement while loading — wait for results) |
+
+##### Keyboard Navigation
+
+| Key | Context | Behavior |
+|-----|---------|---------|
+| `Tab` | Anywhere | Cycles through: search input → clear button (if visible) → filter tabs → sort trigger → sort options (when open) → plant cards |
+| `Escape` | Search input focused | Clears value if non-empty; blurs input if already empty |
+| `Escape` | Sort dropdown open | Closes dropdown, returns focus to trigger |
+| `←` / `→` | Filter tab group focused | Moves focus between tabs; activates the focused tab (immediate, no extra `Enter` required) |
+| `↑` / `↓` | Sort dropdown open | Navigates between options |
+| `Enter` / `Space` | Sort option focused | Selects option, closes dropdown |
+
+---
+
+#### 8. Responsive Behavior
+
+| Breakpoint | Behavior |
+|------------|---------|
+| **Desktop** ≥1024px | Search bar full-width. Filter tabs and sort on same row, side-by-side. "Clear filters" on row below. |
+| **Tablet** 768px–1023px | Same as desktop. Filter tabs may wrap to next row if they overflow; sort dropdown stays right-aligned on its row. |
+| **Mobile** <768px | Search bar full-width. Filter tabs + sort dropdown on the same row. Filter tabs scroll horizontally if needed (`overflow-x: auto`). Sort dropdown right-aligned. "Clear filters" on its own row below. |
+| **Mobile** <480px | Same as mobile. Filter tab font size drops to 12px. Sort dropdown label may abbreviate (e.g. "Name A–Z" stays as-is — do not abbreviate). |
+
+---
+
+#### 9. Affected Files
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/MyPlantsPage.jsx` | Add controls zone between heading row and plant grid. Wire search, filter, sort state. Pass params to `plants.getAll()`. Render "Clear filters" link. |
+| `frontend/src/components/PlantSearchBar.jsx` | **New file.** Controlled search input with debounce, clear button, disabled state. |
+| `frontend/src/components/PlantStatusFilter.jsx` | **New file.** Segmented control tabs (All / Overdue / Due today / On track) with count badges and keyboard navigation. |
+| `frontend/src/components/PlantSortDropdown.jsx` | **New file.** Custom dropdown trigger + listbox pattern. |
+| `frontend/src/utils/api.js` | Extend `plants.getAll(options)` to accept `{ search, status, sort, page, limit }` and build query string. Strip undefined/empty params. |
+
+---
+
+#### 10. Test Matrix
+
+| # | Test | Required? |
+|---|------|-----------|
+| 1 | **Search input renders and debounce fires** — type "fern", wait 300ms, assert `plants.getAll` called with `{ search: "fern" }` | ✅ Required |
+| 2 | **Clear (×) button resets search immediately** — type "rose", assert × visible; click ×, assert input empty and `plants.getAll` called with no search param; no debounce delay | ✅ Required |
+| 3 | **Status tab change triggers re-fetch** — click "Overdue" tab, assert `plants.getAll` called with `{ status: "overdue" }` | ✅ Required |
+| 4 | **Sort dropdown change triggers re-fetch** — open dropdown, select "Most overdue first", assert `plants.getAll` called with `{ sort: "most_overdue" }` | ✅ Required |
+| 5 | **Combined params all pass to API** — set search "cactus", select "Due today" tab, select "Next due soonest" sort; assert `plants.getAll` called with `{ search: "cactus", status: "due_today", sort: "next_due_soonest" }` | ✅ Required |
+| 6 | **Empty state renders for no-results search** — mock `plants.getAll` returns empty array with search "xyz" active; assert "No plants match your search." text and "Clear filters" link | ✅ Required |
+| 7 | **Empty state renders for no-results filter** — mock returns empty array with status "overdue"; assert "No overdue plants." and "Clear filters" link | ✅ Required |
+| 8 | **"Clear filters" resets all three controls** — set search, filter, sort to non-defaults; click "Clear filters"; assert search empty, filter = "All", sort = "name_asc"; assert `plants.getAll` called with defaults | ✅ Required |
+| 9 | **Accessibility — aria-label on search input** — assert `input[aria-label="Search plants"]` in document | ✅ Required |
+| 10 | **Accessibility — aria-label on filter group** — assert element with `aria-label="Filter by status"` and `role="radiogroup"` in document | ✅ Required |
+| 11 | **Accessibility — live region announces result count** — after API returns 5 plants, assert live region text contains "5" | ✅ Required |
+| 12 | **"Clear filters" hidden when all defaults active** — render page with no search/filter/sort set; assert "Clear filters" not in document | Strongly recommended |
+| 13 | **Escape clears search input** — focus search input, type "orchid", press Escape; assert input value is empty | Strongly recommended |
+| 14 | **Keyboard: arrow keys cycle filter tabs** — focus "All" tab, press →, assert "Overdue" tab is focused and checked | Recommended |
+| 15 | **Sort dropdown: Escape closes without selecting** — open dropdown, press Escape; assert dropdown closed and previously active sort unchanged | Recommended |
+
+---
