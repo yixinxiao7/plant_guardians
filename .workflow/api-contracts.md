@@ -4802,3 +4802,237 @@ No response body. The `Content-Type` header is not set. The share row has been d
 ---
 
 *Sprint 29 contracts written by Backend Engineer — 2026-04-20. T-139: behavioral clarification for POST /api/v1/care-actions/batch (last_done_at sync fix — no shape changes). T-133: two new endpoints — GET /api/v1/plants/:plantId/share (share status check) and DELETE /api/v1/plants/:plantId/share (share revocation). No new migrations. SPEC-023 (Approved) governs frontend rendering logic for both endpoints.*
+
+---
+
+## Sprint 30 Contracts — 2026-04-25
+
+---
+
+### Summary
+
+Sprint 30 introduces **one endpoint update** (T-142) and **one dependency-only change** (T-140). No new endpoints. No schema migrations.
+
+| Task | Type | API Impact |
+|------|------|-----------|
+| T-140 | Dependency bump — `uuid` to `>=14.0.0` | **None.** Import syntax update in `upload.js` only; no endpoint surface change. |
+| T-142 | Extend `GET /api/v1/plants` with `sort` param, extend `search` to match species, add `status_counts` to response | **Updated endpoint.** See below. |
+
+---
+
+### T-140 — No API Changes (uuid Dependency Bump)
+
+**Task:** T-140 — Bump `uuid` to `>=14.0.0` to resolve GHSA-w5hq-g745-h8pq.
+
+**Contract impact:** None. This is a dependency version bump only. `backend/src/middleware/upload.js` calls `uuid.v4()` with no `buf` argument — the vulnerable code path is not exercised. The only change is to the `uuid` package version and, if required by the `uuid@14` API, the import syntax in `upload.js`. No endpoints, request shapes, response shapes, or error codes change.
+
+---
+
+### T-142 — GET /api/v1/plants (Updated — Sprint 30)
+
+**Contract status:** UPDATED. Sprint 18 added `search`, `status`, and `utcOffset` query parameters. Sprint 30 makes four amendments:
+
+1. **`search` extended** — now performs case-insensitive substring match against `name` **OR** `species` (`plants.type`). Sprint 18 matched `name` only.
+2. **`sort` query parameter added (new)** — controls result ordering. Default: `name_asc`. Options: `name_asc`, `name_desc`, `most_overdue`, `next_due_soonest`.
+3. **Validation error codes updated** — `search` errors now return `INVALID_SEARCH_TERM`; `status` errors return `INVALID_STATUS_FILTER`; `sort` errors return `INVALID_SORT_OPTION`. (Sprint 18 used the generic `VALIDATION_ERROR` for all three.)
+4. **`status_counts` field added to response** — supplies per-status plant counts scoped to the current `search` term (independent of the active `status` filter). Required for the SPEC-024 status filter tab count badges.
+
+All other aspects of the endpoint — auth requirements, `page`/`limit`/`utcOffset` validation, status computation algorithm (Sprint 25 T-116 canonical algorithm), response shape for `data[]` and `pagination` — are **unchanged** from Sprint 18.
+
+---
+
+#### GET /api/v1/plants *(Updated — Sprint 30)*
+
+**Auth:** Bearer token (required)
+
+**Description:** Returns all plants belonging to the authenticated user, with pagination, optional search, status filter, and sort. Sprint 30 additions: `sort` query parameter; `search` now matches `name OR species`; response includes `status_counts` for all four status tabs; validation errors return specific error codes.
+
+**Query Parameters:**
+
+| Param | Type | Default | Required | Description |
+|-------|------|---------|----------|-------------|
+| `page` | integer | `1` | no | Page number for pagination |
+| `limit` | integer | `50` | no | Records per page (max 100) |
+| `search` | string | — | no | Case-insensitive substring match against `name` OR `species` (`plants.type`). Trimmed of leading/trailing whitespace before matching. Max 200 characters after trim. If trimmed value is empty, treated as no search filter (not an error). **Sprint 30 change:** now also matches `plants.type` (species/common name), not just `plants.name`. |
+| `status` | string (enum) | — | no | Filter by computed care status. Must be one of: `overdue`, `due_today`, `on_track` (case-sensitive). See status computation logic below. Omit to return plants of all statuses. |
+| `sort` | string (enum) | `name_asc` | no | Controls result ordering. Must be one of: `name_asc`, `name_desc`, `most_overdue`, `next_due_soonest` (case-sensitive). See sort logic below. **Sprint 30: new parameter.** |
+| `utcOffset` | integer | `0` (UTC) | no | The caller's UTC offset in minutes for timezone-aware status computation. Range: `[-840, 840]`. Same semantics as `GET /api/v1/care-due`. Unchanged from Sprint 18. |
+
+**Validation Rules:**
+
+| Param | Rule | Error Code |
+|-------|------|-----------|
+| `page` | Optional. Positive integer. Defaults to `1`. | `VALIDATION_ERROR` |
+| `limit` | Optional. Positive integer, max `100`. Defaults to `50`. | `VALIDATION_ERROR` |
+| `search` | Optional. String. Max **200** characters after trim. Empty string after trim → treated as omitted (no error). Exceeding 200 chars → 400. | `INVALID_SEARCH_TERM` |
+| `status` | Optional. If provided, must be exactly one of `overdue`, `due_today`, `on_track`. | `INVALID_STATUS_FILTER` |
+| `sort` | Optional. If provided, must be exactly one of `name_asc`, `name_desc`, `most_overdue`, `next_due_soonest`. Defaults to `name_asc` if omitted. | `INVALID_SORT_OPTION` |
+| `utcOffset` | Optional. Integer in range `[-840, 840]`. | `VALIDATION_ERROR` |
+
+**Status Computation Logic (unchanged from Sprint 18 / Sprint 25 T-116 canonical algorithm):**
+
+- Uses `utcOffset` to determine "local today" when provided; defaults to UTC if omitted.
+- `overdue`: a plant matches if **at least one** of its care schedules has `next_due_at` before the start of local today.
+- `due_today`: a plant matches if **at least one** of its care schedules has `next_due_at` within local today.
+- `on_track`: a plant matches if **all** of its care schedules have `next_due_at` after the end of local today.
+- Plants with zero care schedules are excluded from all `status` filter results.
+
+**Sort Logic:**
+
+| `sort` Value | SQL Order | Notes |
+|-------------|-----------|-------|
+| `name_asc` (default) | `ORDER BY plants.name ASC` | Case-insensitive A–Z |
+| `name_desc` | `ORDER BY plants.name DESC` | Case-insensitive Z–A |
+| `most_overdue` | `ORDER BY MAX(days_overdue) DESC, plants.name ASC` | Plants with the most overdue days first. `days_overdue = 0` for on-track schedules. Plants with no schedules sort last (treated as `days_overdue = 0`). |
+| `next_due_soonest` | `ORDER BY MIN(next_due_at) ASC, plants.name ASC` | Plants with the soonest upcoming care due first (overdue plants will have the earliest `next_due_at` values). Plants with no schedules sort last. |
+
+`days_overdue` and `next_due_at` are computed from existing `care_schedules` data using the same timezone logic as status computation. No schema changes required.
+
+**Combined Filter + Sort Behaviour:**
+
+- `search`, `status`, and `sort` are fully combinable (all three can be active simultaneously).
+- Evaluation order: apply `search` filter → apply `status` filter → apply `sort` → apply `page`/`limit` pagination.
+- `pagination.total` reflects the **filtered** count (matching `search` + `status`), not the user's total plant count.
+- `status_counts` always reflects counts scoped to the current `search` term **only** — independent of the active `status` filter. This ensures tab count badges remain correct regardless of which status tab is selected.
+
+**Success Response — 200 OK:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "name": "string",
+      "type": "string | null",
+      "notes": "string | null",
+      "photo_url": "string | null",
+      "created_at": "ISO8601",
+      "updated_at": "ISO8601",
+      "care_schedules": [
+        {
+          "id": "uuid",
+          "care_type": "watering | fertilizing | repotting",
+          "frequency_value": 7,
+          "frequency_unit": "days | weeks | months",
+          "last_done_at": "ISO8601 | null",
+          "next_due_at": "ISO8601",
+          "status": "on_track | due_today | overdue",
+          "days_overdue": 0
+        }
+      ]
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 50,
+    "total": 3
+  },
+  "status_counts": {
+    "all": 12,
+    "overdue": 3,
+    "due_today": 2,
+    "on_track": 7
+  }
+}
+```
+
+**`status_counts` Semantics:**
+
+| Field | Meaning |
+|-------|---------|
+| `all` | Count of all plants matching the current `search` term (or all plants if no search). Always ≥ 0. |
+| `overdue` | Count of plants matching `search` that have at least one overdue schedule. |
+| `due_today` | Count of plants matching `search` that have at least one due-today schedule. |
+| `on_track` | Count of plants matching `search` that have all schedules on track. |
+
+- `status_counts` is always present in the response, even when `status` filter or `sort` are active.
+- Plants with no care schedules contribute to `all` but not to `overdue`, `due_today`, or `on_track` (unchanged from status computation logic).
+- Empty result: `status_counts` fields all return `0` when no plants match the search.
+- Frontend should display last-known counts during in-flight refetches (per SPEC-024 — do not zero out mid-flight).
+
+**Error Responses:**
+
+| HTTP | Code | Scenario |
+|------|------|---------|
+| 400 | `INVALID_SEARCH_TERM` | `search` exceeds 200 characters after trim |
+| 400 | `INVALID_STATUS_FILTER` | `status` is not one of `overdue`, `due_today`, `on_track` |
+| 400 | `INVALID_SORT_OPTION` | `sort` is not one of `name_asc`, `name_desc`, `most_overdue`, `next_due_soonest` |
+| 400 | `VALIDATION_ERROR` | `utcOffset` is not an integer in range `[-840, 840]` (unchanged from Sprint 18) |
+| 401 | `UNAUTHORIZED` | Missing or invalid access token |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+**Example Requests:**
+
+```bash
+# Default — sort A-Z, no filters (no search, no status)
+GET /api/v1/plants
+Authorization: Bearer <token>
+
+# Sort by most overdue first
+GET /api/v1/plants?sort=most_overdue
+Authorization: Bearer <token>
+
+# Sort by next due soonest
+GET /api/v1/plants?sort=next_due_soonest
+Authorization: Bearer <token>
+
+# Search by name (case-insensitive)
+GET /api/v1/plants?search=fern
+Authorization: Bearer <token>
+
+# Search now also matches species/type
+GET /api/v1/plants?search=monstera
+Authorization: Bearer <token>
+
+# Filter by status only
+GET /api/v1/plants?status=overdue
+Authorization: Bearer <token>
+
+# Combined: search + status filter + sort (all three active)
+GET /api/v1/plants?search=fern&status=overdue&sort=most_overdue
+Authorization: Bearer <token>
+
+# With timezone offset
+GET /api/v1/plants?status=due_today&utcOffset=-300
+Authorization: Bearer <token>
+
+# Paginated result with filters
+GET /api/v1/plants?search=fern&status=on_track&sort=name_desc&page=2&limit=20
+Authorization: Bearer <token>
+
+# 400 INVALID_SORT_OPTION — unrecognized sort value
+GET /api/v1/plants?sort=alphabetical
+Authorization: Bearer <token>
+
+# 400 INVALID_STATUS_FILTER — unrecognized status value
+GET /api/v1/plants?status=healthy
+Authorization: Bearer <token>
+
+# 400 INVALID_SEARCH_TERM — search exceeds 200 chars
+GET /api/v1/plants?search=<201-character-string>
+Authorization: Bearer <token>
+```
+
+**Backward Compatibility Notes:**
+
+- `status_counts` is a **new top-level field** in the response. Existing consumers that ignore unknown fields are unaffected.
+- Error codes for `search` validation changed from `VALIDATION_ERROR` (Sprint 18) to `INVALID_SEARCH_TERM`. Frontend must update error handling if it checks `error.code` for this case.
+- Error codes for `status` validation changed from `VALIDATION_ERROR` (Sprint 18) to `INVALID_STATUS_FILTER`. Same caveat.
+- Calling `GET /api/v1/plants` without any of the new parameters returns the same unfiltered, `name_asc`-sorted, paginated results as before — **no breaking change for consumers not using these params**.
+
+---
+
+#### Schema Changes — Sprint #30 (T-142)
+
+**None.** No new tables, columns, or indexes required.
+
+- `GET /api/v1/plants` (T-142): all filtering, sorting, and count computation happen in the query layer against existing columns (`plants.name`, `plants.type`, `care_schedules.next_due_at`, `care_schedules.last_done_at`).
+- `status_counts` are computed via Knex subqueries or conditional COUNT aggregations — no DDL changes.
+- No Knex migrations needed this sprint (T-142 query-only; T-140 dependency-only).
+
+**No Manager approval required for schema changes this sprint — there are none.**
+
+---
+
+*Sprint 30 contracts written by Backend Engineer — 2026-04-25. T-140: dependency-only bump (`uuid` to ≥14.0.0) — zero API surface changes. T-142: GET /api/v1/plants updated — `search` extended to match `name OR species/type`, new `sort` param (`name_asc` | `name_desc` | `most_overdue` | `next_due_soonest`), specific validation error codes, new `status_counts` in response. SPEC-024 (Approved) governs frontend rendering. No schema changes. All prior sprint contracts remain authoritative for their respective endpoints.*

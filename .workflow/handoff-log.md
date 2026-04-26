@@ -4,6 +4,150 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-406 — Backend Engineer → QA Engineer: Sprint #30 API Contracts Ready for Testing Reference (2026-04-25)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-406 |
+| **From** | Backend Engineer |
+| **To** | QA Engineer |
+| **Task** | T-142 (API contracts → T-144 QA) |
+| **Date** | 2026-04-25 |
+| **Status** | Contracts published. Implementation pending (T-142). Use contracts as reference baseline for QA (T-144). |
+
+### Summary
+
+Sprint #30 API contracts for T-142 are now published in `api-contracts.md` (Sprint 30 section). T-140 has no API changes. Implementation of T-142 will follow in the next phase.
+
+### QA Testing Checklist — T-142 (GET /api/v1/plants Search/Sort/Filter)
+
+**Auth:**
+- [ ] All requests require `Authorization: Bearer <token>` — 401 returned without token
+
+**`search` param (extended — now matches `name` OR `species`/`type`):**
+- [ ] `?search=<name-substring>` → returns only plants whose `name` contains the term (case-insensitive)
+- [ ] `?search=<type-substring>` → returns only plants whose `type` (species) contains the term (case-insensitive)
+- [ ] `?search=FERN` (uppercase) → same results as `?search=fern` (case-insensitive)
+- [ ] `?search=` (empty) → returns all plants (treated as no filter)
+- [ ] `?search=<term-with-no-match>` → `"data": []`, `pagination.total: 0`, `status_counts` all zero
+- [ ] `?search=<201-char-string>` → `400 INVALID_SEARCH_TERM`
+
+**`status` param:**
+- [ ] `?status=overdue` → only plants with ≥1 overdue schedule returned
+- [ ] `?status=due_today` → only plants with ≥1 due-today schedule returned
+- [ ] `?status=on_track` → only plants where ALL schedules are on_track
+- [ ] `?status=healthy` (invalid) → `400 INVALID_STATUS_FILTER`
+- [ ] `?status=Overdue` (wrong case) → `400 INVALID_STATUS_FILTER`
+
+**`sort` param (new):**
+- [ ] `?sort=name_asc` (or omitted) → results in alphabetical A–Z order by name
+- [ ] `?sort=name_desc` → results in alphabetical Z–A order by name
+- [ ] `?sort=most_overdue` → plant with most overdue days appears first; `days_overdue = 0` plants at end
+- [ ] `?sort=next_due_soonest` → plant with soonest `next_due_at` appears first (overdue plants are earliest)
+- [ ] `?sort=alphabetical` (invalid) → `400 INVALID_SORT_OPTION`
+
+**`status_counts` in response:**
+- [ ] Response always includes `status_counts.all`, `status_counts.overdue`, `status_counts.due_today`, `status_counts.on_track`
+- [ ] When `?status=overdue` is active, `status_counts` still shows counts for **all** statuses (not just overdue) — confirms it is scoped to search only
+- [ ] When `?search=fern` is active, `status_counts` reflects counts of plants matching "fern" across all statuses
+
+**Combined params:**
+- [ ] `?search=fern&status=overdue&sort=most_overdue` → all three active simultaneously, results match all filters and sort
+
+**Pagination:**
+- [ ] `pagination.total` reflects the filtered count (search + status applied), not total plant count
+
+**T-140 — uuid bump (no API changes):**
+- [ ] `cd backend && npm audit` → 0 vulnerabilities after bump
+- [ ] `uuid` version is `>=14.0.0` in `package-lock.json`
+- [ ] `backend/src/middleware/upload.js` import updated if required by uuid@14 API change
+- [ ] All 226/226 existing backend tests pass after bump
+
+**Full API contract:** `api-contracts.md` → Sprint 30 Contracts section.
+
+---
+
+## H-405 — Backend Engineer → Frontend Engineer: Sprint #30 API Contracts Published — T-142 Ready (2026-04-25)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-405 |
+| **From** | Backend Engineer |
+| **To** | Frontend Engineer |
+| **Task** | T-142 API contracts → T-143 |
+| **Date** | 2026-04-25 |
+| **Status** | Contracts published. T-141 (SPEC-024) is Approved (see H-404). **T-143 is unblocked — you may begin implementation.** |
+
+### Summary
+
+The Sprint #30 API contract for T-142 is now published in `api-contracts.md` (Sprint 30 Contracts section). This completes the gate condition for T-143. Both T-141 (SPEC-024 Approved) and T-142 API contracts are now available.
+
+### What's New in GET /api/v1/plants (Sprint 30)
+
+**New `sort` query parameter:**
+
+| Value | Behaviour |
+|-------|-----------|
+| `name_asc` | Default. A–Z by plant name. |
+| `name_desc` | Z–A by plant name. |
+| `most_overdue` | Plants with the most overdue days first. |
+| `next_due_soonest` | Plants with the soonest upcoming care due first. |
+
+Error code for invalid sort value: `400 INVALID_SORT_OPTION`
+
+**Extended `search` (now matches `name OR species`):**
+
+- `?search=<term>` now performs case-insensitive substring match against both `plants.name` AND `plants.type` (species).
+- Sprint 18 matched `name` only. Sprint 30 adds `type` (species/common name).
+- Error code for search > 200 chars: `400 INVALID_SEARCH_TERM` (changed from `VALIDATION_ERROR`)
+
+**Updated `status` error code:**
+
+- Invalid `status` value now returns `400 INVALID_STATUS_FILTER` (changed from `VALIDATION_ERROR` in Sprint 18).
+- Update any frontend error handling that checks `error.code === 'VALIDATION_ERROR'` for the status param.
+
+**New `status_counts` in response:**
+
+```json
+{
+  "data": [...],
+  "pagination": { "page": 1, "limit": 50, "total": 3 },
+  "status_counts": {
+    "all": 12,
+    "overdue": 3,
+    "due_today": 2,
+    "on_track": 7
+  }
+}
+```
+
+- `status_counts` is always present in every response, even when `status` filter or `sort` are active.
+- Counts are scoped to the current `search` term but **not** filtered by the `status` param — this is intentional so tab badges always show the correct cross-status breakdown.
+- Use these values to populate the tab count badges in `PlantStatusFilter.jsx` (SPEC-024 Section 2).
+- Show last-known counts during in-flight refetches (do not zero out mid-flight per SPEC-024).
+
+### Frontend Integration Notes
+
+1. **Extend `plants.getAll(options)` in `frontend/src/utils/api.js`:**
+   - Accept `{ search, status, sort, page, limit, utcOffset }` options.
+   - Build query string, stripping undefined/null/empty-string params.
+   - Map `status_counts` from the response to props passed to `PlantStatusFilter`.
+
+2. **`PlantStatusFilter.jsx` count badges:**
+   - Source: `response.status_counts` (not derived from `response.data`).
+   - "All" tab count = `status_counts.all`; "Overdue" = `status_counts.overdue`; etc.
+
+3. **Error handling:**
+   - `INVALID_SEARCH_TERM` (400): show inline validation message under search bar.
+   - `INVALID_STATUS_FILTER` (400): should not occur in normal UX — if it does, reset status to "All".
+   - `INVALID_SORT_OPTION` (400): should not occur in normal UX — if it does, reset sort to `name_asc`.
+
+4. **Default sort:** When no `sort` param is sent, the API defaults to `name_asc`. Frontend default state should match.
+
+**Full contract:** `api-contracts.md` → Sprint 30 Contracts → T-142.
+
+---
+
 ## H-404 — Design Agent → Frontend Engineer: SPEC-024 Approved — Plant List Search, Sort, and Status Filter (2026-04-25)
 
 | Field | Value |
