@@ -2747,3 +2747,86 @@ One observation (non-blocking): `GET /api/v1/auth/google` returned 429 instead o
 
 ---
 
+## Sprint #30 Post-Deploy Health Check — 2026-04-26 (T-146)
+
+**Test Type:** Post-Deploy Health Check + Config Consistency Validation
+**Environment:** Staging
+**Timestamp:** 2026-04-26T01:36:00Z
+**Token:** Acquired via `POST /api/v1/auth/login` with `test@plantguardians.local` / `TestPass123!` (NOT /auth/register)
+**Backend:** `node src/server.js` (PID 42449, port 3000, `/Users/yixinxiao/PROJECTS/plant_guardians/backend`)
+**Frontend:** Vite preview (PID 33774, port 4173)
+
+---
+
+### Config Consistency Validation
+
+| Check | Expected | Actual | Result |
+|-------|----------|--------|--------|
+| Backend PORT | `3000` (from `backend/.env`) | `PORT=3000` | ✅ PASS |
+| Vite proxy target port | Must match backend PORT (3000) | `http://localhost:3000` (`vite.config.js`) | ✅ PASS |
+| Protocol (SSL) | No `SSL_KEY_PATH`/`SSL_CERT_PATH` in `.env` → HTTP. Vite must use `http://` | No SSL vars set; Vite target is `http://localhost:3000` | ✅ PASS |
+| CORS origin | `FRONTEND_URL` must include `http://localhost:5173` and/or `http://localhost:4173` | `FRONTEND_URL=http://localhost:5173,http://localhost:5174,http://localhost:4173,http://localhost:4175` | ✅ PASS |
+| Docker port mapping | docker-compose.yml manages postgres only (no backend service container) | No backend container defined — N/A | ✅ PASS (N/A) |
+
+**Config Consistency: PASS** — All config values are mutually consistent across `backend/.env`, `frontend/vite.config.js`, and `infra/docker-compose.yml`.
+
+---
+
+### Health Checks
+
+| Check | Endpoint / Command | Expected | Actual | Result |
+|-------|--------------------|----------|--------|--------|
+| App responds | `GET /api/health` | HTTP 200 | `200 {"status":"ok","timestamp":"2026-04-26T01:36:12.085Z"}` | ✅ PASS |
+| Auth login | `POST /api/v1/auth/login` (test@plantguardians.local) | HTTP 200 + access_token | `200 {"data":{"user":{...},"access_token":"eyJ..."}}` | ✅ PASS |
+| Auth enforcement | `GET /api/v1/plants` (no token) | HTTP 401 `UNAUTHORIZED` | `401 {"error":{"message":"Missing or invalid authorization header.","code":"UNAUTHORIZED"}}` | ✅ PASS |
+| Database connected | Inferred from successful `/api/health` and authenticated plant queries | No 5xx errors | 200s on all plant queries | ✅ PASS |
+| Frontend dist exists | `frontend/dist/` | `index.html` present | `index.html`, `assets/`, `icons.svg`, `favicon.svg`, `og-default.png` present | ✅ PASS |
+| Frontend accessible | `GET http://localhost:4173` | HTTP 200 | `200` | ✅ PASS |
+
+---
+
+### Sprint #30 Feature Verification (T-142 + T-140)
+
+#### T-140 — uuid@14 Dependency Bump
+
+| Check | Command | Expected | Actual | Result |
+|-------|---------|----------|--------|--------|
+| npm audit 0 vulnerabilities | `cd backend && npm audit` | `found 0 vulnerabilities` | `found 0 vulnerabilities` | ✅ PASS |
+
+#### T-142 — GET /api/v1/plants (Search / Sort / Filter extension)
+
+| Check | Endpoint | Expected | Actual | Result |
+|-------|----------|----------|--------|--------|
+| Basic list (no params) | `GET /api/v1/plants` | 200, `data[]`, `pagination`, `status_counts` present | 200, 4 plants, `status_counts: {"all":4,"overdue":0,"due_today":0,"on_track":1}` | ✅ PASS |
+| Search by name AND species (`?search=fern`) | `GET /api/v1/plants?search=fern&utcOffset=0` | 200, matches "Test Fern" (name) AND "Monitor Check Plant" (type=Fern) | 200, 2 plants: "Monitor Check Plant" (type=Fern) + "Test Fern" (name) | ✅ PASS |
+| `status_counts` scoped to search | Same as above | `status_counts.all=2` (scoped to fern search, not total) | `status_counts: {"all":2,"overdue":0,"due_today":0,"on_track":0}` | ✅ PASS |
+| Filter by status=overdue | `GET /api/v1/plants?status=overdue&utcOffset=0` | 200, filtered results | `200, data:[], pagination.total:0, status_counts.all:4` (all-count unaffected by status filter) | ✅ PASS |
+| Sort: `name_asc` (default) | `GET /api/v1/plants` | A-Z order | "Health Check Pothos" → "Health Check Rose" → "Monitor Check Plant" → "Test Fern" | ✅ PASS |
+| Sort: `name_desc` | `GET /api/v1/plants?sort=name_desc` | Z-A order | "Test Fern" → "Monitor Check Plant" → "Health Check Rose" → "Health Check Pothos" | ✅ PASS |
+| Sort: `most_overdue` | `GET /api/v1/plants?sort=most_overdue&utcOffset=0` | 200, scheduled plants first, no-schedule plants after | "Health Check Pothos" (watering schedule) first; remaining 3 (no schedules) follow A-Z tiebreak | ✅ PASS |
+| Sort: `next_due_soonest` | `GET /api/v1/plants?sort=next_due_soonest&utcOffset=0` | 200, soonest next_due_at first, no-schedule plants last | "Health Check Pothos" (next_due_at 2026-05-01) first; no-schedule plants after | ✅ PASS |
+| Combined: search + status + sort | `GET /api/v1/plants?search=fern&status=overdue&sort=most_overdue&utcOffset=0` | 200, `status_counts` scoped to search only | `200, data:[], status_counts.all:2` (scoped to fern search, independent of status=overdue filter) | ✅ PASS |
+| Validation: invalid sort | `GET /api/v1/plants?sort=alphabetical` | 400 `INVALID_SORT_OPTION` | `400 {"error":{"message":"sort must be one of: name_asc, name_desc, most_overdue, next_due_soonest.","code":"INVALID_SORT_OPTION"}}` | ✅ PASS |
+| Validation: invalid status | `GET /api/v1/plants?status=healthy` | 400 `INVALID_STATUS_FILTER` | `400 {"error":{"message":"status must be one of: overdue, due_today, on_track.","code":"INVALID_STATUS_FILTER"}}` | ✅ PASS |
+| Validation: search > 200 chars | `GET /api/v1/plants?search=<201-char>` | 400 `INVALID_SEARCH_TERM` | `400 {"error":{"message":"search must be at most 200 characters.","code":"INVALID_SEARCH_TERM"}}` | ✅ PASS |
+
+---
+
+### Result Summary
+
+| Category | Result |
+|----------|--------|
+| Config Consistency | ✅ PASS |
+| Infrastructure (health, DB, frontend) | ✅ PASS |
+| Auth enforcement | ✅ PASS |
+| T-140 (npm audit 0 vulns) | ✅ PASS |
+| T-142 (search name+species, sort ×4, status filter, status_counts, validation error codes) | ✅ PASS |
+| No 5xx errors observed | ✅ PASS |
+
+**Overall Result: PASS**
+**Deploy Verified: Yes**
+
+All Sprint #30 deliverables verified live on staging. Handoff → Manager Agent for Sprint #30 closeout.
+
+---
+

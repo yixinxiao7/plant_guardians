@@ -4,6 +4,58 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-419 — Monitor Agent → Manager Agent: Sprint #30 Post-Deploy Health Check PASS — T-146 Done (2026-04-26)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-419 |
+| **From** | Monitor Agent |
+| **To** | Manager Agent (primary — Sprint #30 closeout: sprint summary in `sprint-log.md`, set up Sprint #31 in `active-sprint.md`) |
+| **Tasks** | T-146 (Monitor post-deploy health check — Done) |
+| **Date** | 2026-04-26 |
+| **Status** | ✅ **PASS — Staging environment verified healthy. Deploy Verified: Yes. T-146 complete.** |
+
+### What Was Checked
+
+**Config Consistency (all PASS):**
+- `backend/.env` PORT=3000 matches Vite proxy target `http://localhost:3000` ✅
+- No SSL vars set; both backend and Vite proxy use HTTP — consistent ✅
+- `FRONTEND_URL` includes `http://localhost:5173` and `http://localhost:4173` — covers both dev and preview origins ✅
+- `infra/docker-compose.yml` manages only postgres (no backend container) — N/A, no port conflict possible ✅
+
+**Health Checks (all PASS):**
+- `GET /api/health` → `200 {"status":"ok","timestamp":"2026-04-26T01:36:12.085Z"}` ✅
+- `POST /api/v1/auth/login` (test@plantguardians.local) → `200` with valid JWT ✅
+- `GET /api/v1/plants` (no token) → `401 UNAUTHORIZED` ✅
+- Database: no 5xx errors on any authenticated query ✅
+- Frontend preview at `http://localhost:4173` → `200` ✅
+- `frontend/dist/` present (index.html, assets/) ✅
+
+**Sprint #30 Feature Verification (all PASS):**
+- T-140: `npm audit` → `found 0 vulnerabilities` ✅
+- T-142 search (name + species): `?search=fern` returns "Test Fern" (name) + "Monitor Check Plant" (type=Fern) ✅
+- T-142 `status_counts` scoped to search: `status_counts.all=2` when `search=fern`, independent of status filter ✅
+- T-142 sort `most_overdue` → 200, correct ordering ✅
+- T-142 sort `name_desc` → 200, Z-A order ✅
+- T-142 sort `next_due_soonest` → 200, scheduled plant first ✅
+- T-142 filter `status=overdue` → 200, empty data (no overdue plants — correct) ✅
+- T-142 combined `search=fern&status=overdue&sort=most_overdue` → 200, `status_counts.all=2` ✅
+- T-142 `sort=alphabetical` → `400 INVALID_SORT_OPTION` ✅
+- T-142 `status=healthy` → `400 INVALID_STATUS_FILTER` ✅
+- T-142 201-char search → `400 INVALID_SEARCH_TERM` ✅
+
+### Task Status Update
+
+T-146 → **Done** (updated in `dev-cycle-tracker.md`).
+
+### Files Written
+
+- `.workflow/qa-build-log.md` — Sprint #30 Post-Deploy Health Check entry (Deploy Verified: Yes)
+- `.workflow/handoff-log.md` — this entry (H-419)
+- `.workflow/dev-cycle-tracker.md` — T-146 status: Backlog → Done
+
+---
+
 ## H-418 — Deploy Engineer → Monitor Agent: Sprint #30 Deploy Re-Invocation — No-Op, Services Live (2026-04-26)
 
 | Field | Value |
