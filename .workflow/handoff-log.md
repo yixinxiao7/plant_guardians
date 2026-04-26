@@ -4,6 +4,74 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-418 — Deploy Engineer → Monitor Agent: Sprint #30 Deploy Re-Invocation — No-Op, Services Live (2026-04-26)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-418 |
+| **From** | Deploy Engineer |
+| **To** | Monitor Agent (primary — T-146 is the only remaining open Sprint #30 task), Orchestrator (FYI — deploy phase already complete) |
+| **Tasks** | None (deploy-phase no-op) |
+| **Date** | 2026-04-26 |
+| **Status** | NO-OP — T-145 (Staging re-deploy) was already completed and signed off in H-415. Services confirmed still running. No action required from Deploy Engineer. |
+
+### What I Found
+
+The orchestrator re-invoked the Deploy Engineer for Sprint #30. Checked `dev-cycle-tracker.md` for Sprint #30 task statuses:
+
+| Task | Status | Disposition |
+|------|--------|-------------|
+| T-140 (Backend uuid@14 bump) | **Done** | QA-verified H-414 |
+| T-141 (Design SPEC-024) | Backlog | Satisfied out-of-band; not blocking |
+| T-142 (Backend search/sort/filter API) | **Done** | QA-verified H-414 |
+| T-143 (Frontend search/sort/filter UI) | **Done** | QA-verified H-414 |
+| T-144 (QA verification) | **Done** | Sign-off H-414 |
+| T-145 (Staging re-deploy) | **Done** | **Deployed H-415 (2026-04-25). No re-deploy needed.** |
+| T-146 (Monitor post-deploy health check) | **Backlog** | **The only remaining open Sprint #30 task — owned by Monitor Agent** |
+
+### Service Liveness Verification
+
+Verified both staging services are still running:
+
+| Service | Port | PID (lsof) | Check | Result |
+|---------|------|-----------|-------|--------|
+| Backend (Node/Express) | 3000 | 42449 | `GET /api/health` | ✅ `{"status":"ok","timestamp":"2026-04-26T01:34:12.232Z"}` |
+| Frontend (Vite preview) | 4173 | 42526 | `GET /` HTTP status | ✅ 200 |
+
+No restarts were required. The deployment from H-415 remains live.
+
+### What Monitor Agent Should Do (T-146)
+
+Services are confirmed running. Proceed directly with health checks — no restart needed:
+
+1. **Authenticate** as `test@plantguardians.local` / `TestPass123!` → obtain Bearer token
+2. **Standard health checks** — all existing endpoints return expected status codes
+3. **Sprint #30 new functionality:**
+   - `GET /api/v1/plants?search=<term>&utcOffset=0` (authenticated) → 200 + filtered results
+   - `GET /api/v1/plants?status=overdue&utcOffset=0` (authenticated) → 200 + matching plants
+   - `GET /api/v1/plants?sort=most_overdue&utcOffset=0` (authenticated) → 200 + sorted results
+4. **Verify T-140:** `cd backend && npm audit` → 0 vulnerabilities
+5. **Log Deploy Verified: Yes/No** in `qa-build-log.md`
+
+### Notes
+
+- No migrations were run this sprint. Monitor Agent does NOT need to check for pending migrations.
+- FB-131 (LIKE metacharacter escaping) is logged as Minor and is out of scope for Sprint #30 — do not block on it.
+- Downstream: T-146 PASS → Manager Agent (Sprint #30 closeout, sprint summary in `sprint-log.md`, set up Sprint #31 in `active-sprint.md`).
+
+### Files Read
+
+- `.workflow/dev-cycle-tracker.md` (Sprint #30 task statuses)
+- `.workflow/handoff-log.md` (H-414, H-415, H-416, H-417 chain integrity)
+- `.workflow/qa-build-log.md` (prior deploy entry confirmed)
+
+### Files Written
+
+- `.workflow/qa-build-log.md` — added re-invocation no-op note with service liveness table
+- `.workflow/handoff-log.md` — this entry (H-418)
+
+---
+
 ## H-417 — QA Engineer → Monitor Agent: Sprint #30 QA Re-Invocation — No-Op (2026-04-25)
 
 | Field | Value |
