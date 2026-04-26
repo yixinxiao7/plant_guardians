@@ -4,148 +4,165 @@ The operational reference for the current development cycle. Refreshed at the st
 
 ---
 
-## Sprint #30 — 2026-04-27 to 2026-05-03
+## Sprint #31 — 2026-04-28 to 2026-05-04
 
-**Sprint Goal:** Fix the `uuid` moderate vulnerability housekeeping item (FB-129 → T-140) and ship plant list search, sort, and status filter — so "plant killer" users can instantly find plants that need attention without scrolling through their entire inventory.
+**Sprint Goal:** Fix the LIKE wildcard escape bug in plant search (T-147) and ship a per-plant care history chart on the Plant Detail page — giving "plant killer" users a visual feedback loop to see their care consistency over time and know if they're improving.
 
-**Context:** Sprint #29 delivered a complete, polished sharing system and closed the batch mark-done correctness bug. The app's core MVP feature set is now complete. Sprint #30 has two tracks: (1) a minor housekeeping fix (`uuid` bump, T-140, XS) that was identified during Sprint #29 QA; and (2) a meaningful UX improvement — search, sort, and status filter on the plant list — that directly serves the "plant killer" persona who may have a large inventory and needs to quickly triage which plants need action. The filter-by-status capability (show only "overdue", "due today", or "on_track" plants) is the most-requested implicit usability gap now that the core care status logic is solid.
+**Context:** Sprint #30 delivered plant list search, sort, and filter plus the uuid advisory fix. The app's core plant list UX is now polished. Sprint #31 has two tracks: (1) a minor housekeeping fix (LIKE wildcard escape, T-147, XS) identified during Sprint #30 QA product-perspective testing (FB-131); and (2) a meaningful new feature — a per-plant care history chart — that closes the feedback loop for the "plant killer" persona. Users can now quickly find plants needing attention (Sprint #30); in Sprint #31 they will be able to see whether their care habits are improving over time. The chart will appear on the Plant Detail page's existing History tab alongside the existing care action timeline, showing weekly/monthly care counts per care type for the past 12 weeks or 6 months.
 
 ---
 
 ## In Scope
 
-### P2 — Backend: Fix `uuid` Moderate Vulnerability (T-140)
+### P3 — Backend: Fix LIKE Wildcard Escape in Plant Search (T-147)
 
-- [ ] **T-140** — Backend Engineer: Bump `uuid` to `>=14.0.0` in `backend/package.json` to resolve GHSA-w5hq-g745-h8pq **(P2)**
-  - **Description:** Per FB-129: `cd backend && npm audit` reports 1 moderate vulnerability — `uuid <14.0.0` (missing buffer bounds check in `v3/v5/v6` when `buf` is provided, GHSA-w5hq-g745-h8pq). The only consumer is `backend/src/middleware/upload.js` which calls only `uuid.v4()` with no `buf` argument — not exploitable in our codebase, but the advisory should be cleared.
-    - Run `npm install uuid@latest` (or `npm audit fix --force`) in `backend/`. Verify the installed version is `>=14.0.0`.
-    - Verify `backend/src/middleware/upload.js` — confirm the `uuid.v4()` import and call pattern is still valid after the major-version bump. `uuid@14` changed the import path from named import `{ v4 as uuidv4 }` to default or namespace import — check the `uuid@14` changelog and update `upload.js` import if required.
-    - After any import update, run `npm test` — all 226/226 existing backend tests must pass.
-    - Run `npm audit` — must report 0 moderate and 0 high/critical vulnerabilities.
-    - No new migrations. No API changes.
+- [ ] **T-147** — Backend Engineer: Fix LIKE wildcard metacharacters not escaped in `Plant.findByUserId` search **(P3)**
+  - **Description:** Per FB-131: when a user searches for `%` or `_`, those characters are passed as Postgres LIKE metacharacters, causing `%` to return all plants instead of plants whose name/species literally contains `%`. The search is parameterized (no SQL injection), but the result is incorrect. Fix:
+    - In `backend/src/models/Plant.js` (~line 38), escape `%`, `_`, and `\` before the ILIKE clause: e.g. `term = term.replace(/[\\%_]/g, '\\$&');`
+    - Add `ESCAPE '\\'` to the LIKE clause in the `whereRaw` call
+    - Add ≥ 1 new test: `?search=%` → 0 results; `?search=_` → 0 results; normal search (`?search=fern`) still returns expected results
+    - All 241/241 existing backend tests continue to pass
+    - No API contract change (behavior correction only)
   - **Acceptance Criteria:**
-    - `cd backend && npm audit` reports 0 vulnerabilities (0 moderate, 0 high, 0 critical)
-    - `uuid` package version `>=14.0.0` installed and reflected in `package-lock.json`
-    - `backend/src/middleware/upload.js` import updated if required by uuid@14 API change
-    - All 226/226 existing backend tests pass after bump
-    - No other dependency changes
+    - `?search=%` → 200, 0 results (literal `%` not treated as wildcard)
+    - `?search=_` → 200, 0 results (literal `_` not treated as wildcard)
+    - `?search=fern` still returns correct results (normal searches unaffected)
+    - All 241/241 existing backend tests pass; ≥ 1 new wildcard test added
   - **Blocked By:** None — start immediately.
 
 ---
 
-### P2 — Design: Plant List Search, Sort, and Filter UX Spec (T-141)
+### P2 — Design: Plant Care History Chart UX Spec (T-148)
 
-- [ ] **T-141** — Design Agent: Write SPEC-024 — Plant list search, sort, and status filter **(P2)**
-  - **Description:** Specify the search, sort, and filter affordances on the My Plants page (`/`):
-    1. **Search bar:** A text input (placeholder "Search plants…") above the plant grid. As the user types, the plant list filters to show only plants whose `name` or `species` contains the search string (case-insensitive). Debounced at ~300 ms to avoid excessive API calls. Show a "No plants match your search." empty state when 0 results. Clear button (×) appears when input is non-empty. The search bar is always visible (not hidden behind a filter button).
-    2. **Status filter:** A segmented control or tab-style toggle with four options: "All" (default), "Overdue", "Due today", and "On track". Selecting a filter scopes the list to plants matching that care status. Filter persists while the user navigates within the session (restored on back-navigation from PlantDetailPage). "All" always shows the full count badge; other tabs show the count of matching plants.
-    3. **Sort dropdown:** A compact dropdown (default "Name A–Z") with options: "Name A–Z", "Name Z–A", "Most overdue first" (plants with largest `days_overdue` at top), "Next due soonest" (plants with smallest `next_due_days` at top). Default sort is "Name A–Z".
-    4. **Combined state:** Search, filter, and sort can all be active simultaneously (e.g., search "fern" + filter "Overdue" + sort "Most overdue first"). Combined empty state: "No overdue plants match your search." (combines filter label + search term). Reset link: "Clear filters" appears when any non-default selection is active and resets all three to defaults.
-    5. **Loading and skeleton states:** While initial plant list is loading, show the search bar and filter controls in a disabled/skeleton state so the layout doesn't shift when data arrives.
-    6. **Accessibility:** Search input has `aria-label="Search plants"`; filter toggle uses `role="group"` with `aria-label="Filter by status"`; sort dropdown has `aria-label="Sort plants"`; live region (`aria-live="polite"`) announces count changes.
+- [ ] **T-148** — Design Agent: Write SPEC-025 — Per-plant care history chart **(P2)**
+  - **Description:** Specify a care history chart displayed on the Plant Detail page's History tab, below the existing care action timeline. The chart provides a weekly/monthly visual summary of care events per care type:
+    1. **Chart layout:** A grouped bar chart with time periods on the x-axis and care event count on the y-axis. Each bar group represents one time period; bars are color-coded per care type (watering: blue, fertilizing: green, repotting: terracotta) consistent with existing CARE_CONFIG colors. X-axis labels: abbreviated ISO week dates for 12w view; abbreviated month names for 6m view.
+    2. **On-time percentage badges:** Above the chart, a summary badge per active care type showing the percentage of care events performed on or before the scheduled due date (e.g., "Watering: 80% on time"). Null/unavailable = "—". Badge uses the same green/yellow/red status color system as care schedule status.
+    3. **Time range toggle:** A segmented control ("12 weeks" / "6 months") that switches the chart data. Default: "12 weeks". "6 months" shows monthly bar groups.
+    4. **Empty state:** If the plant has no care events in the selected range, show a simple message: "No care history yet. Mark your first care done to start tracking your habits."
+    5. **Loading skeleton:** A rectangular placeholder while chart data loads (consistent with existing skeleton patterns in the app).
+    6. **Accessibility:** Chart container has `role="img"` with `aria-label` describing the data (e.g., "Care history for [Plant Name] over the past 12 weeks"). Each bar has `title` or `aria-describedby` showing exact count. Time range toggle uses `role="group"` with `aria-label="Chart time range"`.
+    7. **Placement:** Below the existing `<CareHistorySection>` on the History tab. The existing care action list is not removed — the chart is additive.
+    8. **Responsive:** On narrow screens, the chart scrolls horizontally rather than compressing bars.
   - **Acceptance Criteria:**
-    - SPEC-024 written to `ui-spec.md` and marked Approved
-    - All 6 surfaces documented: search bar, status filter tabs, sort dropdown, combined state, empty states, loading/skeleton
-    - Accessibility requirements explicit (ARIA roles, live region, keyboard navigation)
-    - Gates T-142 and T-143
+    - SPEC-025 written to `ui-spec.md` and marked Approved
+    - All 8 surfaces documented: chart layout, on-time badge, time range toggle, empty state, loading skeleton, accessibility, placement, responsive
+    - Gates T-149 and T-150
   - **Blocked By:** None — start immediately.
 
 ---
 
-### P1 — Backend: Plant List Search, Sort, and Filter Query Params (T-142)
+### P2 — Backend: Care History Chart Data Endpoint (T-149)
 
-- [ ] **T-142** — Backend Engineer: Extend `GET /api/v1/plants` with `search`, `status`, and `sort` query params **(P1)**
-  - **Description:** Extend the existing `GET /api/v1/plants` endpoint to accept three optional query parameters:
-    1. **`search` (string, optional):** Case-insensitive substring match against `name` OR `species`. Use `ILIKE '%<term>%'` (PostgreSQL) via Knex's `.whereRaw()` or `.where(db.raw(...))`. Sanitize input — strip leading/trailing whitespace; if empty string after trim, treat as no filter. Maximum 200 characters (return 400 if exceeded with `INVALID_SEARCH_TERM` code).
-    2. **`status` (enum, optional):** One of `"overdue"`, `"due_today"`, `"on_track"`. Filter the plants returned by their computed care status. The status is already computed per-plant in the existing `GET /api/v1/plants` response (`status` field on each care schedule). Filter plants where ANY of their care schedules matches the requested status. If `"overdue"` is requested, return plants that have at least one overdue schedule; `"due_today"` — at least one due-today schedule; `"on_track"` — all schedules on track (no overdue or due-today). Return 400 for invalid `status` values with `INVALID_STATUS_FILTER` code.
-    3. **`sort` (enum, optional, default `"name_asc"`):** One of `"name_asc"`, `"name_desc"`, `"most_overdue"`, `"next_due_soonest"`. `"name_asc"` / `"name_desc"` order by `plants.name` ASC/DESC. `"most_overdue"` orders by the maximum `days_overdue` across schedules DESC (plants with the most overdue days first; 0 for on-track plants). `"next_due_soonest"` orders by the minimum `next_due_days` across schedules ASC (plants due soonest first). Return 400 for invalid sort values with `INVALID_SORT_OPTION` code.
-    4. **Pagination:** All existing pagination params (`page`, `limit`) continue to work and apply AFTER search/filter/sort. The `pagination.total` in the response reflects the filtered count (not the total plant count).
-    5. **No schema changes required** — all filtering and sorting happens in the query layer.
-    6. **Tests:** ≥ 8 new tests: search happy path (name match), search happy path (species match), search case-insensitive, search no match → empty array, status filter overdue, status filter on_track, sort name_desc, sort most_overdue; plus input validation tests (search too long → 400, invalid status → 400, invalid sort → 400). All 226/226 existing backend tests pass.
-    7. **Publish updated API contract** to `api-contracts.md` documenting all three new query params, their validation rules, error codes, and example responses.
+- [ ] **T-149** — Backend Engineer: Implement `GET /api/v1/plants/:id/care-history/chart` **(P2)**
+  - **Description:** New authenticated endpoint returning aggregated care event data for chart display:
+    1. **Query param:** `range` (enum, optional, default `"12w"`): `"12w"` (past 12 weeks, Monday-anchored) or `"6m"` (past 6 calendar months). Return 400 `INVALID_RANGE` for unknown values.
+    2. **Response shape for `12w`:**
+       ```json
+       {
+         "data": {
+           "range": "12w",
+           "periods": [
+             { "period_start": "2026-02-09", "watering": 2, "fertilizing": 0, "repotting": 0 },
+             ...
+           ],
+           "on_time_pct": {
+             "watering": 80,
+             "fertilizing": null,
+             "repotting": null
+           }
+         }
+       }
+       ```
+       `periods` always contains exactly 12 entries (12w) or 6 entries (6m), even if some have all-zero counts. `on_time_pct` is null when the plant has no schedule for that care type or 0 events in the range; otherwise `round((on_time_count / total_count) * 100)`. "On time" = `performed_at <= next_due_at` for that action (use existing `computeNextDueAt` from `backend/src/utils/careStatus.js` for consistency).
+    3. **Auth:** 401 unauthenticated, 403 plant not owned by caller, 404 plant not found, 400 invalid UUID or invalid range. Standard `{ error: { message, code } }` shape.
+    4. **Tests:** ≥ 6 new tests: happy path 12w with data, happy path 6m, empty range (all zeros), on_time_pct calculation, 401 unauthenticated, 403 wrong owner, 400 invalid range. All 241/241+ existing tests pass.
+    5. **Publish API contract** to `api-contracts.md`.
+    6. **No schema changes** — query-only against existing `care_actions` and `care_schedules` tables.
   - **Acceptance Criteria:**
-    - `GET /api/v1/plants?search=<term>` filters by name/species case-insensitively
-    - `GET /api/v1/plants?status=overdue|due_today|on_track` filters by care status
-    - `GET /api/v1/plants?sort=name_asc|name_desc|most_overdue|next_due_soonest` sorts correctly
-    - All three params combinable simultaneously; pagination `total` reflects filtered count
-    - Input validation: 400 for search > 200 chars, unknown status values, unknown sort values
-    - All 226/226 existing backend tests pass; ≥ 8 new tests added
+    - `GET /api/v1/plants/:id/care-history/chart?range=12w` → 200 + 12-period array + on_time_pct
+    - `GET /api/v1/plants/:id/care-history/chart?range=6m` → 200 + 6-period array + on_time_pct
+    - Empty periods always present (all-zero counts for weeks with no events)
+    - Auth enforced: 401/403/404/400 per contract
+    - Invalid range → 400 `INVALID_RANGE`
+    - ≥ 6 new tests; all existing backend tests pass
     - API contract published
-  - **Blocked By:** T-141
+  - **Blocked By:** T-148
 
 ---
 
-### P1 — Frontend: Plant List Search, Sort, and Filter UI (T-143)
+### P2 — Frontend: Care History Chart on Plant Detail (T-150)
 
-- [ ] **T-143** — Frontend Engineer: Add search bar, status filter tabs, and sort dropdown to MyPlantsPage **(P1)**
-  - **Description:** Per SPEC-024:
-    1. **Search bar:** Controlled text input with debounce (~300 ms, use `setTimeout`/`clearTimeout` in a `useEffect`). "Search plants…" placeholder. Clear button (×) visible when non-empty. Passes `search` query param to the existing `plants.getAll()` API call (extend the function signature to accept `{ search, status, sort }` options).
-    2. **Status filter tabs:** Segmented control with "All" / "Overdue" / "Due today" / "On track" options. Each tab shows a count badge (fetched from the same API response). Selecting a tab passes `status` query param. Persist selection in component state (restored on re-mount within session via `useRef` or React context — do not persist to `localStorage`).
-    3. **Sort dropdown:** `<select>` or custom dropdown with options "Name A–Z" (`name_asc`), "Name Z–A" (`name_desc`), "Most overdue first" (`most_overdue`), "Next due soonest" (`next_due_soonest`). Default `name_asc`. Passes `sort` query param.
-    4. **Combined state handling:** When search + filter + sort all active, construct the query with all three params. Empty state message: "No [filter label] plants match your search." with a "Clear filters" link that resets all three to defaults. If no filter active but search returns empty: "No plants match your search." "Clear filters" shows when search is non-empty OR status is not "All" OR sort is not "name_asc".
-    5. **Loading state:** While fetching (on initial load or when any param changes), show the search bar + filter controls in their current state (not skeleton) and show the existing plant grid skeleton. Do not reset the controls on refetch.
-    6. **Extend `plants.getAll(options)`** in `frontend/src/utils/api.js` to accept `{ search, status, sort, page, limit }` and build the query string accordingly. Strip empty/undefined params.
-    7. **Tests:** ≥ 8 new tests: search input renders + debounce fires API call; clear button resets search; status tab change triggers re-fetch; sort dropdown change triggers re-fetch; combined params all pass to API; empty state renders for no results; "Clear filters" resets all; accessibility (aria-label on search input, aria-label on filter group, live region update). All 312/312 existing frontend tests pass.
+- [ ] **T-150** — Frontend Engineer: Add CareHistoryChart component to Plant Detail History tab **(P2)**
+  - **Description:** Per SPEC-025:
+    1. **CareHistoryChart.jsx:** Renders a grouped bar chart using pure CSS (no third-party charting library — use CSS flexbox/grid + `height` percentages for bars). Bars color-coded per CARE_CONFIG colors. X-axis labels per `period_start`. Y-axis implied by relative bar heights (normalize to tallest bar in view).
+    2. **useCareHistoryChart.js hook:** Fetches `GET /api/v1/plants/:id/care-history/chart?range=<range>` via `careHistory.getChart(plantId, range)` added to `api.js`. Manages loading/error/data state. Re-fetches on range change.
+    3. **On-time percentage badges:** One small badge pill per care type that has a non-null `on_time_pct`. Show "—" for null values.
+    4. **Time range toggle:** `role="group"` + `aria-label="Chart time range"`, two options "12 weeks" / "6 months". Default `12w`. Passes selected range to hook.
+    5. **Empty state:** Render empty-state message when all periods have zero counts across all care types.
+    6. **Loading skeleton:** Rectangular `aria-busy="true"` placeholder during fetch.
+    7. **Placement:** Render `<CareHistoryChart plantId={plant.id} />` below `<CareHistorySection>` inside the History tab panel in `PlantDetailPage.jsx`.
+    8. **Extend `careHistory` in `api.js`:** Add `getChart(plantId, range)` → `GET /api/v1/plants/:id/care-history/chart?range=<range>`.
+    9. **Tests:** ≥ 8 new tests: chart renders bars with correct relative heights; on-time badges render correct percentages; null on_time_pct renders "—"; time range toggle fires re-fetch with correct param; empty state renders when all zeros; loading skeleton shows while fetching; error state does not crash page; chart container has `role="img"` with `aria-label`. All 360/360 existing frontend tests pass.
   - **Acceptance Criteria:**
-    - Search input debounced at ~300 ms; clears with × button
-    - Status filter tabs change API call with correct `status` param
-    - Sort dropdown changes API call with correct `sort` param
-    - All three combinable; "Clear filters" resets to defaults
-    - Empty state message reflects active filter + search
-    - All 312/312 existing frontend tests pass; ≥ 8 new tests
-    - T-141 (SPEC-024 Approved) and T-142 API contract must be complete before this task begins
-  - **Blocked By:** T-141, T-142 (for API contract and response shape)
+    - CareHistoryChart renders weekly/monthly grouped bars with per-care-type color coding
+    - On-time percentage badges rendered per active care type; null renders "—"
+    - Time range toggle switches between `12w` and `6m` data
+    - Empty state when all periods are zero; loading skeleton during fetch
+    - Chart is accessible (`role="img"`, `aria-label`, time range `role="group"`)
+    - All 360/360 existing frontend tests pass; ≥ 8 new tests
+    - T-148 (SPEC-025 Approved) and T-149 API contract must be complete before this task begins
+  - **Blocked By:** T-148, T-149
 
 ---
 
-### P2 — QA: Sprint #30 Verification (T-144)
+### P2 — QA: Sprint #31 Verification (T-151)
 
-- [ ] **T-144** — QA Engineer: Verify T-140, T-142, T-143 and confirm no regressions **(P2)**
-  - **Description:** After T-142 and T-143 are In Review/Done, run the full test suite and perform product-perspective testing:
-    - Backend: all tests pass (≥ 234/226 baseline); T-142 new tests cover search/filter/sort happy paths, combined params, and input validation (400 cases)
-    - Frontend: all tests pass (≥ 320/312 baseline); T-143 tests cover debounce, clear, tab change, sort change, combined params, empty states, accessibility
-    - T-140 housekeeping: `npm audit` in `backend/` reports 0 vulnerabilities (0 moderate, 0 high); uuid@14 import verified in `upload.js`; 226/226 tests pass
-    - SPEC-024 compliance: search bar, status filter tabs, sort dropdown, combined state, empty states, loading/skeleton per spec
-    - Security checklist: no new endpoints that bypass auth; existing `GET /api/v1/plants` auth still enforced; search param sanitization (no SQL injection via ILIKE); no PII leaked via search
-    - API contract for T-142 verified against implementation
+- [ ] **T-151** — QA Engineer: Verify T-147, T-149, T-150 and confirm no regressions **(P2)**
+  - **Description:** After T-147, T-149, and T-150 are In Review/Done, run the full test suite and perform product-perspective testing:
+    - Backend: all tests pass (≥ 242+ from T-147 fix + T-149 new tests)
+    - Frontend: all tests pass (≥ 368+ from T-150 new tests)
+    - T-147 wildcard fix: `?search=%` → 0 results; `?search=_` → 0 results; `?search=fern` still returns expected plants
+    - T-149 live integration: `?range=12w` → 200 + 12 periods; `?range=6m` → 200 + 6 periods; empty plant → all-zero periods; `?range=unknown` → 400 `INVALID_RANGE`; auth enforcement (401, 403)
+    - SPEC-025 compliance: chart renders bars, on-time badges, time range toggle, empty state, loading skeleton, placement on History tab, accessibility attributes
+    - Security checklist: T-149 auth enforced; no new unprotected routes; chart data respects plant ownership; no PII leak; no SQL injection in chart query
+    - API contract for T-149 verified against implementation
   - **Acceptance Criteria:**
-    - Backend ≥ 234/226 tests pass; frontend ≥ 320/312 tests pass
-    - T-140: `npm audit` → 0 vulnerabilities; uuid@14 import correct; tests still pass
-    - Full SPEC-024 compliance verified
-    - Security checklist pass (auth enforced, search sanitized, no PII leak)
+    - Backend ≥ 242+ tests pass; frontend ≥ 368+ tests pass
+    - T-147: wildcard inputs return 0 results; normal searches unaffected
+    - Full SPEC-025 compliance verified
+    - Security checklist PASS
     - QA sign-off logged in `qa-build-log.md`
-  - **Blocked By:** T-140, T-142, T-143
+  - **Blocked By:** T-147, T-149, T-150
 
 ---
 
-### P2 — Deploy: Staging Re-Deploy (T-145)
+### P2 — Deploy: Staging Re-Deploy (T-152)
 
-- [ ] **T-145** — Deploy Engineer: Staging re-deploy after QA sign-off **(P2)**
-  - **Description:** After QA sign-off (T-144), run the standard staging deploy checklist. No new migrations this sprint (T-142 adds query params only — no schema changes; T-140 is a dependency bump only). Restart backend process to pick up updated `uuid` dependency. Rebuild frontend dist. Verify `/api/health` → 200 and spot-check new endpoint params.
+- [ ] **T-152** — Deploy Engineer: Staging re-deploy after QA sign-off **(P2)**
+  - **Description:** After QA sign-off (T-151), run the standard staging deploy checklist. No new migrations this sprint (T-147 is a query fix, T-149 adds a new route only — no schema changes). Restart backend. Rebuild frontend dist. Verify `/api/health` → 200 and spot-check the new chart endpoint.
   - **Acceptance Criteria:**
-    - No new migrations (confirm `knex migrate:latest` returns "Already up to date")
-    - Backend process restarted and healthy on port 3000 (picks up uuid@14 bump)
+    - No new migrations (`knex migrate:latest` → "Already up to date")
+    - Backend process restarted and healthy on port 3000
     - `GET /api/health` → 200
-    - `GET /api/v1/plants?search=<term>` (authenticated) → 200 + filtered results (verifies search is live)
-    - `GET /api/v1/plants?status=overdue` (authenticated) → 200 + filtered results
+    - `GET /api/v1/plants/:id/care-history/chart?range=12w` (authenticated) → 200 + data
     - Staging deploy logged in `qa-build-log.md`
-  - **Blocked By:** T-144
+  - **Blocked By:** T-151
 
 ---
 
-### P2 — Monitor: Post-Deploy Health Check (T-146)
+### P2 — Monitor: Post-Deploy Health Check (T-153)
 
-- [ ] **T-146** — Monitor Agent: Post-deploy health check for Sprint #30 **(P2)**
-  - **Description:** Run the standard post-deploy health check after T-145 deploy. Verify all existing endpoints remain healthy. For new functionality: verify `GET /api/v1/plants?search=<term>` (authenticated) returns 200 + filtered results; verify `GET /api/v1/plants?status=overdue` returns 200 + matching plants; verify `GET /api/v1/plants?sort=most_overdue` returns 200 + results. Verify T-140: `cd backend && npm audit` → 0 vulnerabilities. Log **Deploy Verified: Yes/No** in `qa-build-log.md`.
+- [ ] **T-153** — Monitor Agent: Post-deploy health check for Sprint #31 **(P2)**
+  - **Description:** Run the standard post-deploy health check after T-152. Verify all existing endpoints remain healthy. For new functionality: verify `GET /api/v1/plants/:id/care-history/chart?range=12w` (authenticated) → 200 + 12-period data; verify T-147: `GET /api/v1/plants?search=%25` (URL-encoded `%`, authenticated) → 200, 0 results. Log **Deploy Verified: Yes/No** in `qa-build-log.md`.
   - **Acceptance Criteria:**
     - `GET /api/health` → 200
     - All existing core endpoints → expected status codes (no regressions)
-    - `GET /api/v1/plants?search=<term>` (authenticated) → 200 + filtered array
-    - `GET /api/v1/plants?status=overdue` (authenticated) → 200 + matching plants
-    - `cd backend && npm audit` → 0 vulnerabilities (T-140 verified)
+    - `GET /api/v1/plants/:id/care-history/chart?range=12w` (authenticated) → 200 + data
+    - `GET /api/v1/plants?search=%25` (authenticated) → 200, 0 results (T-147 verified live)
     - Deploy Verified: Yes logged in `qa-build-log.md`
     - If backend process is not running, restart before health check
-  - **Blocked By:** T-145
+  - **Blocked By:** T-152
 
 ---
 
@@ -160,8 +177,9 @@ The operational reference for the current development cycle. Refreshed at the st
 - Soft-delete / grace period for account deletion — post-MVP
 - Dark mode confetti palette (B-007) — cosmetic, low priority backlog
 - Real Google OAuth credentials for full end-to-end OAuth staging test — blocked on project owner
-- Plant care history calendar view / visualization charts — future sprint (post search/filter foundation)
-- Care schedule bulk edit (change all watering frequencies at once) — backlog
+- Care schedule bulk edit — backlog
+- Share button "already shared" state polish (FB-123) — already addressed by Sprint #29 ShareStatusArea; backlog for further polish if needed
+- Plant care calendar heatmap view — future sprint (requires more design work than a simple bar chart)
 
 ---
 
@@ -169,12 +187,12 @@ The operational reference for the current development cycle. Refreshed at the st
 
 | Agent | Focus Area This Sprint | Key Tasks |
 |-------|----------------------|-----------|
-| Backend Engineer | uuid fix + search/filter/sort endpoint | T-140 (P2, start immediately), T-142 (P1, after T-141) |
-| Design Agent | Search, sort, filter UX spec | T-141 (P2, start immediately — gates T-142 and T-143) |
-| Frontend Engineer | Search/filter/sort UI | T-143 (P1, after T-141 + T-142 API contract) |
-| QA Engineer | Full regression + new feature verification | T-144 (P2, after T-140 + T-142 + T-143) |
-| Deploy Engineer | Staging re-deploy | T-145 (P2, after T-144) |
-| Monitor Agent | Post-deploy health check | T-146 (P2, after T-145) |
+| Backend Engineer | Wildcard fix + chart API endpoint | T-147 (P3, start immediately), T-149 (P2, after T-148) |
+| Design Agent | Care history chart UX spec | T-148 (P2, start immediately — gates T-149 and T-150) |
+| Frontend Engineer | Care history chart component | T-150 (P2, after T-148 + T-149 API contract) |
+| QA Engineer | Full regression + new feature verification | T-151 (P2, after T-147 + T-149 + T-150) |
+| Deploy Engineer | Staging re-deploy | T-152 (P2, after T-151) |
+| Monitor Agent | Post-deploy health check | T-153 (P2, after T-152) |
 | Manager | Sprint coordination + code review | Ongoing |
 
 ---
@@ -182,44 +200,44 @@ The operational reference for the current development cycle. Refreshed at the st
 ## Dependency Chain
 
 ```
-T-140 (uuid fix — Backend, START IMMEDIATELY, independent)
-T-141 (SPEC-024 — Design Agent, START IMMEDIATELY)
+T-147 (LIKE wildcard fix — Backend, START IMMEDIATELY, independent)
+T-148 (SPEC-025 — Design Agent, START IMMEDIATELY)
   ↓
-T-142 (Search/filter/sort API — Backend, after T-141)
-T-143 (Search/filter/sort UI — Frontend, after T-141 + T-142 API contract)
+T-149 (Chart API — Backend, after T-148)
+T-150 (Chart UI — Frontend, after T-148 + T-149 API contract)
   ↓
-T-144 (QA — after T-140 + T-142 + T-143)
+T-151 (QA — after T-147 + T-149 + T-150)
   ↓
-T-145 (Deploy — after T-144)
+T-152 (Deploy — after T-151)
   ↓
-T-146 (Monitor health check)
+T-153 (Monitor health check)
 ```
 
-**Note:** T-140 and T-141 can start immediately in parallel. Backend Engineer: prioritize T-140 first (XS, independent), then T-142 after T-141 is approved. Frontend Engineer: begin T-143 after T-141 is approved AND T-142's API contract is published.
+**Note:** T-147 and T-148 can start immediately in parallel. Backend Engineer: prioritize T-147 first (XS, independent), then T-149 after T-148 is approved. Frontend Engineer: begin T-150 after T-148 is approved AND T-149's API contract is published.
 
 ---
 
 ## Definition of Done
 
-Sprint #30 is complete when:
+Sprint #31 is complete when:
 
-- [ ] T-140: `cd backend && npm audit` → 0 vulnerabilities; `uuid@>=14.0.0` installed; `upload.js` import updated if required; all 226/226 existing tests pass
-- [ ] T-141: SPEC-024 written and marked Approved in `ui-spec.md`; covers search bar, status filter tabs, sort dropdown, combined state, empty states, loading/skeleton, accessibility
-- [ ] T-142: `GET /api/v1/plants` accepts `search`, `status`, `sort` params; ≥ 8 new tests; all 226/226 existing tests pass; API contract published
-- [ ] T-143: Search bar (debounced), status filter tabs, sort dropdown on MyPlantsPage; combined state and empty state messages; all 312/312 existing frontend tests pass; ≥ 8 new tests
-- [ ] T-144: QA sign-off — all backend and frontend tests pass; T-140 housekeeping verified; SPEC-024 compliance; security checklist pass
-- [ ] T-145: Backend restarted, frontend rebuilt; search/filter params live on staging
-- [ ] T-146: Deploy Verified: Yes from Monitor Agent
+- [ ] T-147: `?search=%` → 0 results; `?search=_` → 0 results; normal searches unaffected; ≥ 1 new test; all 241/241+ existing backend tests pass
+- [ ] T-148: SPEC-025 written and marked Approved in `ui-spec.md`; all 8 surfaces documented; gates T-149 and T-150
+- [ ] T-149: `GET /api/v1/plants/:id/care-history/chart` returns 12-period (`12w`) and 6-period (`6m`) arrays with on_time_pct; empty periods always present; auth enforced; ≥ 6 new tests; all existing backend tests pass; API contract published
+- [ ] T-150: CareHistoryChart component renders grouped bars, on-time badges, time range toggle, empty/loading states on Plant Detail History tab; all 360/360 existing frontend tests pass; ≥ 8 new tests
+- [ ] T-151: QA sign-off — all backend and frontend tests pass; T-147 wildcard fix verified live; SPEC-025 compliance; security checklist PASS
+- [ ] T-152: Backend restarted, frontend rebuilt; chart endpoint live on staging
+- [ ] T-153: Deploy Verified: Yes from Monitor Agent
 
 ---
 
 ## Success Criteria
 
-- `cd backend && npm audit` reports 0 vulnerabilities (T-140 housekeeping closes FB-129)
-- Users can search their plant inventory by name or species in real time (debounced)
-- Users can filter their plant list to "Overdue", "Due today", or "On track" plants with a single tap
-- Users can sort plants by name (A–Z / Z–A), most overdue, or next due soonest
-- Search, filter, and sort all work in combination; combined empty state message is clear
+- `?search=%` and `?search=_` return 0 results (LIKE wildcard metacharacters correctly escaped)
+- Users can view a weekly/monthly grouped bar chart of their care activity on the Plant Detail History tab
+- On-time percentage badges show per-care-type care consistency (% of care done on or before due date)
+- Time range toggle switches between 12-week and 6-month views
+- Empty state shown when no care history exists for the selected range
 - All existing backend and frontend tests continue to pass (no regressions)
 - Deploy Verified: Yes
 
@@ -227,8 +245,8 @@ Sprint #30 is complete when:
 
 ## Blockers
 
-- T-142 and T-143 are both blocked on T-141 (SPEC-024) — Design Agent must complete the spec before engineers start
-- T-144 is blocked on T-140, T-142, and T-143 all being complete
+- T-149 and T-150 are both blocked on T-148 (SPEC-025) — Design Agent must complete the spec before engineers start
+- T-151 is blocked on T-147, T-149, and T-150 all being complete
 - Production deployment remains blocked on project owner providing SSL certificates
 - Production email delivery blocked on project owner providing SMTP credentials
 - **Infrastructure note:** Local staging backend process may terminate between Deploy and Monitor phases — Monitor Agent must restart it if connection refused before running health checks

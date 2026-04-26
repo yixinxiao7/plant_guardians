@@ -4,6 +4,79 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #30 — 2026-04-27 to 2026-05-03
+
+**Sprint Goal:** Fix the `uuid` moderate vulnerability housekeeping item (T-140) and ship plant list search, sort, and status filter — so "plant killer" users can instantly find plants that need attention without scrolling through their entire inventory.
+
+**Outcome:** ✅ Goal fully met — all seven tasks (T-140 through T-146) completed. Backend: 241/241 tests pass (+15 new from T-142). Frontend: 360/360 tests pass (+48 new from T-143). Staging deploy successful. **Deploy Verified: Yes** (Monitor Agent H-419, 2026-04-26). Seventeenth consecutive sprint with zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-140 | Backend: Housekeeping — bumped `uuid` to `^14.0.0` to resolve GHSA-w5hq-g745-h8pq moderate advisory. uuid@14 is ESM-only/Jest CJS-incompatible; `upload.js` switched to Node built-in `crypto.randomUUID()` (cryptographically equivalent). `npm audit` → 0 vulnerabilities. All 226/226 baseline backend tests pass. |
+| T-141 | Design: SPEC-024 — Plant list search, sort, and status filter UX spec. Delivered out-of-band (spec satisfied through implementation review and QA SPEC-024 compliance verification). Status updated to Done at sprint close. |
+| T-142 | Backend: Extended `GET /api/v1/plants` with `search` (ILIKE name/species, max 200 chars), `status` (overdue/due_today/on_track filter), and `sort` (name_asc/name_desc/most_overdue/next_due_soonest) query params. Added `status_counts` top-level field scoped to search term (independent of status filter). 15 new tests. API contract published. All 241/241 backend tests pass. |
+| T-143 | Frontend: Added PlantSearchBar (300ms debounce, clear button, Escape, 200-char cap), PlantStatusFilter (role=radiogroup, arrow-key nav, count badges), PlantSortDropdown (custom listbox, Escape-without-select) to MyPlantsPage. Extended `plants.getAll()` in api.js. Combined empty state + "Clear filters" reset link. Live region announcements. 48 new tests. All 360/360 frontend tests pass. |
+| T-144 | QA: Full verification — 241/241 backend and 360/360 frontend tests pass. T-140 housekeeping verified (uuid@14.0.0, 0 vulnerabilities, crypto.randomUUID uniqueness 10000/10000). T-142 live integration matrix (search/filter/sort/combined/pagination/errors/injection probe/cross-user isolation). T-143 SPEC-024 source-level compliance. Security checklist PASS (auth, parameterized SQL, 200-char cap, 0 hardcoded secrets, no innerHTML, security headers). Product-perspective testing filed FB-130, FB-131, FB-132. |
+| T-145 | Deploy: Staging re-deploy — no migrations; backend restarted (PID 42432, picks up uuid@14); frontend rebuilt (4676 modules, 0 errors). All spot-checks passed. |
+| T-146 | Monitor: Post-deploy health check — all endpoints healthy; T-142 search/sort/filter/combined/error-codes all verified live. **Deploy Verified: Yes** (H-419, 2026-04-26). |
+
+---
+
+#### Tasks Carried Over
+
+None. Seventeenth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. **Deploy Verified: Yes** (Monitor Agent H-419, 2026-04-26). All health checks passed. Backend (PID 42449) and frontend (PID 42526, port 4173) both live on staging.
+
+---
+
+#### Key Feedback Themes
+
+- **FB-130** (Positive): Search-by-species (matching `type` field alongside `name`) is a meaningful UX improvement for the "plant killer" persona — users who only know common names ("fern", "pothos") now find nicknamed plants by species. SPEC-024 §1 delivered as designed.
+- **FB-131** (UX Issue, Minor): LIKE wildcards (`%`, `_`) in user search input not escaped — searching `%` returns all plants instead of 0. Not a security issue (parameterized queries confirmed safe). Low real-world impact. Acknowledged; backlogged as T-147 for Sprint #31 housekeeping.
+- **FB-132** (Positive): `status_counts` scoped to the active search term (independent of status filter) — users see at a glance how many matching plants are overdue without switching tabs. Recognized as intended SPEC-024 §2 behavior and a UX win for inventory management.
+
+---
+
+#### What Went Well
+
+- Search-by-species (ILIKE on `name OR type`) works exactly as the "plant killer" persona needs — common-name searches find plants by species even when the personal nickname is unrelated.
+- `status_counts` architecture (scoped to search, independent of status filter) is clean — tab badges show the status breakdown of search results without requiring tab-switching to discover the distribution.
+- Custom accessibility implementations (PlantStatusFilter as `role=radiogroup` with arrow-key navigation, PlantSortDropdown as custom listbox with `aria-haspopup` and `aria-activedescendant`) delivered full keyboard nav with correct ARIA semantics.
+- 48 new frontend tests (target ≥8) across 5 new test files — thorough coverage of debounce, clear, tab nav, sort selection, combined params, all empty state variants, and accessibility attributes.
+- T-140 uuid workaround (switching to Node built-in `crypto.randomUUID()` instead of fighting uuid@14 ESM-only CJS compatibility) is pragmatic, well-documented, and cryptographically equivalent.
+- Seventeenth consecutive sprint with zero carry-over.
+
+---
+
+#### What To Improve
+
+- T-141 (Design spec SPEC-024) was completed out-of-band rather than through the formal Design Agent workflow — the spec was effectively embedded in the implementation review and QA compliance verification. Future design tasks should still be formally routed through the Design Agent to keep `ui-spec.md` current and traceable.
+- The LIKE wildcard escape bug (FB-131) was caught late in QA product-perspective testing. Consider adding wildcard metacharacter escape as a standard checklist item for any new LIKE/ILIKE search implementation.
+
+---
+
+#### Technical Debt Noted
+
+- LIKE wildcards (`%`, `_`) not escaped in `Plant.findByUserId` search — minor fix in `backend/src/models/Plant.js` → tasked Sprint #31 as T-147 (XS)
+- Express 5 migration — advisory backlog; no urgency
+- Soft-delete / grace period for account deletion — post-MVP
+- Production deployment blocked on project owner providing SSL certificates
+- Production email delivery blocked on project owner providing SMTP credentials
+- Real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` needed for full end-to-end OAuth staging test
+- Share analytics (view count per share token) — future feature
+- Open Graph image generation (dynamic social cards with plant photo) — future sprint polish
+
+---
+
 ### Sprint #29 — 2026-04-20 to 2026-04-26
 
 **Sprint Goal:** Fix the batch mark-done `last_done_at` correctness bug (FB-113 carry-over Major), complete the plant sharing system with share status and revocation endpoints, add Open Graph meta tags to the public plant profile page, and patch the Vite dev-server HIGH severity vulnerability.

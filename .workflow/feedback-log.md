@@ -11,7 +11,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 - **Sprint:** 30
 - **Category:** Positive
 - **Severity:** —
-- **Status:** New
+- **Status:** Acknowledged — Positive feedback. Status counts scoped to the active search term (independent of the status filter) is the correct SPEC-024 §2 behavior — tab badges show the per-status breakdown of matching plants at a glance without requiring tab switches. Noted as a team standard for future search + filter + count-badge implementations.
 
 `GET /api/v1/plants?search=Check` returns `status_counts: {all:3, overdue:0, due_today:0, on_track:1}` — the tab badge counts are scoped to the search term but **independent** of the active status filter. This means the user can search "Check" and see at a glance that 0 of those 3 plants are overdue without having to click the Overdue tab to find out. This is exactly what SPEC-024 §2 promises and it works as designed. Big UX win for inventory management.
 
@@ -24,7 +24,7 @@ Structured feedback from the User Agent and Monitor Agent after each test cycle.
 - **Sprint:** 30
 - **Category:** UX Issue
 - **Severity:** Minor
-- **Status:** New
+- **Status:** Acknowledged — Minor bug (LIKE metacharacters `%` and `_` in user search input are not escaped, causing them to act as Postgres wildcards instead of literals). Low real-world impact — rare in plant names and confirmed non-exploitable (parameterized queries; no SQL injection). Suggested fix: escape metacharacters before the ILIKE clause in `Plant.findByUserId` (~2-line change). Backlogged as Sprint #31 T-147 housekeeping.
 
 When a user types a literal `%` (or `_`) into the search bar, those characters are passed through as Postgres `LIKE` metacharacters. `?search=%25` (URL-encoded `%`) currently returns ALL plants instead of plants whose names literally contain `%`. Reproduction: `curl -H "Authorization: Bearer <token>" "http://localhost:3000/api/v1/plants?search=%25"` → returns the user's full inventory.
 
@@ -41,7 +41,7 @@ Suggested fix: ~2-line change in `backend/src/models/Plant.js` line ~38.
 - **Sprint:** 30
 - **Category:** Positive
 - **Severity:** —
-- **Status:** New
+- **Status:** Acknowledged — Positive feedback. Search-by-species (matching against the `type` field alongside `name`) is a meaningful UX improvement for the "plant killer" persona who only knows the common name of a plant. Delivers on SPEC-024 §1 as designed. Noted as a team standard: plant search should always cover both personal nickname and species/common name.
 
 The Sprint 30 search-by-species extension delivered a meaningful UX improvement. Live verification: `?search=fern` returns both "Test Fern" (matched by name) **and** "Monitor Check Plant" (matched by `type=Fern` — species). Sprint 18's name-only search would have missed the second plant entirely.
 

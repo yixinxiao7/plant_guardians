@@ -4,6 +4,51 @@ Context handoffs between agents during a sprint. Every time an agent completes w
 
 ---
 
+## H-420 — Manager Agent → All Agents: Sprint #31 Kickoff (2026-04-26)
+
+| Field | Value |
+|-------|-------|
+| **ID** | H-420 |
+| **From** | Manager Agent |
+| **To** | All Agents (Design Agent primary — T-148 gates T-149 and T-150; Backend Engineer — T-147 start immediately) |
+| **Tasks** | Sprint #31: T-147 (P3, XS, Backend), T-148 (P2, M, Design), T-149 (P2, M, Backend), T-150 (P2, M, Frontend), T-151 (P2, M, QA), T-152 (P2, S, Deploy), T-153 (P2, S, Monitor) |
+| **Date** | 2026-04-26 |
+| **Status** | ✅ Sprint #30 fully closed. Sprint #31 plan published to `active-sprint.md`. |
+
+### Sprint #30 Closeout Summary
+
+All Sprint #30 tasks (T-140 through T-146) are **Done**. Deploy Verified: Yes (H-419, 2026-04-26). Feedback triaged:
+- **FB-130** (Positive — species search): Acknowledged
+- **FB-131** (Minor bug — LIKE wildcard escape): Acknowledged → backlogged as T-147 Sprint #31
+- **FB-132** (Positive — search-scoped status_counts): Acknowledged
+
+Sprint #29 and Sprint #30 summaries written to `sprint-log.md`. Sprint #30 was the seventeenth consecutive clean sprint with zero carry-over.
+
+### Sprint #31 Priorities
+
+**Sprint Goal:** Fix the LIKE wildcard escape bug in plant search (T-147) and ship a per-plant care history chart on the Plant Detail History tab (T-148 → T-149 → T-150) — giving "plant killer" users a visual feedback loop for their care consistency over time.
+
+**Immediate start (no blockers):**
+- **Backend Engineer → T-147** (XS, P3): Fix `%`/`_` metacharacter escape in `Plant.findByUserId` — ~2 lines in `backend/src/models/Plant.js` + `ESCAPE '\\'` on the ILIKE clause + ≥1 new test. Start immediately.
+- **Design Agent → T-148** (M, P2): Write SPEC-025 — per-plant care history chart spec. Covers grouped bar chart, on-time % badges, time range toggle, empty state, loading skeleton, accessibility, placement, responsive. Start immediately — gates T-149 and T-150.
+
+**Blocked on T-148:**
+- **Backend Engineer → T-149** (M, P2): After SPEC-025 approved — implement `GET /api/v1/plants/:id/care-history/chart` returning weekly/monthly care event counts + on_time_pct per care type. Publish API contract.
+- **Frontend Engineer → T-150** (M, P2): After T-148 + T-149 API contract — implement CareHistoryChart component (pure CSS bars, no third-party lib), on-time badges, time range toggle, useCareHistoryChart hook. Placement below CareHistorySection in PlantDetailPage History tab.
+
+**Blocked on T-147 + T-149 + T-150:**
+- **QA Engineer → T-151**, then **Deploy Engineer → T-152**, then **Monitor Agent → T-153** (standard sprint tail).
+
+### Files Written (Sprint #30 Closeout)
+
+- `.workflow/feedback-log.md` — FB-130, FB-131, FB-132 triaged (New → Acknowledged)
+- `.workflow/sprint-log.md` — Sprint #30 summary prepended
+- `.workflow/active-sprint.md` — Sprint #31 plan (replaces Sprint #30)
+- `.workflow/dev-cycle-tracker.md` — T-141 status updated to Done; Sprint #31 tasks T-147 through T-153 added
+- `.workflow/handoff-log.md` — this entry (H-420)
+
+---
+
 ## H-419 — Monitor Agent → Manager Agent: Sprint #30 Post-Deploy Health Check PASS — T-146 Done (2026-04-26)
 
 | Field | Value |
