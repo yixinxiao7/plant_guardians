@@ -1,10 +1,12 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plant, Info, X } from '@phosphor-icons/react';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useToast } from '../hooks/useToast.jsx';
 import Input from '../components/Input.jsx';
 import Button from '../components/Button.jsx';
+import GoogleOAuthButton from '../components/GoogleOAuthButton.jsx';
+import OAuthErrorBanner from '../components/OAuthErrorBanner.jsx';
 import {
   validateEmail,
   validatePassword,
@@ -24,6 +26,7 @@ export default function LoginPage() {
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
 
   const { login, register } = useAuth();
   const { addToast } = useToast();
@@ -32,6 +35,22 @@ export default function LoginPage() {
   const [showDeletedBanner, setShowDeletedBanner] = useState(
     () => searchParams.get('deleted') === 'true'
   );
+
+  // Read OAuth error from URL params and clean the URL
+  const [oauthError, setOauthError] = useState(() => {
+    const error = searchParams.get('error');
+    return error || null;
+  });
+
+  useEffect(() => {
+    // Clean error param from URL on mount so banner doesn't persist on refresh
+    const error = new URLSearchParams(window.location.search).get('error');
+    if (error) {
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('error');
+      window.history.replaceState({}, '', cleanUrl.toString());
+    }
+  }, []);
 
   const isSignup = activeTab === 'signup';
 
@@ -112,25 +131,34 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleOAuth = useCallback(() => {
+    setOauthLoading(true);
+    setOauthError(null);
+    // Full-page navigation to the backend Google OAuth endpoint
+    window.location.href = '/api/v1/auth/google';
+  }, []);
+
   const switchTab = (tab) => {
     setActiveTab(tab);
     setErrors({});
     setFormError('');
   };
 
+  const anyLoading = loading || oauthLoading;
+
   return (
     <div className="login-page">
       <div className="login-brand-panel">
         <div className="login-brand-content">
-          <Plant size={48} weight="fill" color="#fff" />
+          <Plant size={48} weight="fill" color="currentColor" />
           <h1 className="login-brand-title">Plant Guardians</h1>
           <p className="login-brand-tagline">Every plant deserves a guardian.</p>
-          {/* Decorative leaf SVG */}
-          <svg className="login-brand-leaf" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M100 20C100 20 140 60 140 120C140 160 120 180 100 180C80 180 60 160 60 120C60 60 100 20 100 20Z" stroke="rgba(255,255,255,0.15)" strokeWidth="2" fill="none"/>
-            <path d="M100 40V160" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5"/>
-            <path d="M100 60C110 70 130 80 130 100" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" fill="none"/>
-            <path d="M100 80C90 90 70 100 70 120" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" fill="none"/>
+          {/* Decorative leaf SVG — strokes inherit currentColor at low opacity */}
+          <svg className="login-brand-leaf" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M100 20C100 20 140 60 140 120C140 160 120 180 100 180C80 180 60 160 60 120C60 60 100 20 100 20Z" stroke="currentColor" strokeOpacity="0.15" strokeWidth="2" fill="none"/>
+            <path d="M100 40V160" stroke="currentColor" strokeOpacity="0.1" strokeWidth="1.5"/>
+            <path d="M100 60C110 70 130 80 130 100" stroke="currentColor" strokeOpacity="0.08" strokeWidth="1.5" fill="none"/>
+            <path d="M100 80C90 90 70 100 70 120" stroke="currentColor" strokeOpacity="0.08" strokeWidth="1.5" fill="none"/>
           </svg>
         </div>
       </div>
@@ -156,7 +184,7 @@ export default function LoginPage() {
 
           {/* Mobile logo */}
           <div className="login-mobile-logo">
-            <Plant size={32} weight="fill" color="#5C7A5C" />
+            <Plant size={32} weight="fill" color="var(--color-accent)" />
             <span>Plant Guardians</span>
           </div>
 
@@ -180,6 +208,23 @@ export default function LoginPage() {
             </button>
           </div>
 
+          {/* Google OAuth button */}
+          <GoogleOAuthButton
+            onClick={handleGoogleOAuth}
+            loading={oauthLoading}
+            disabled={loading}
+          />
+
+          {/* OAuth error banner — only shown when ?error= was present */}
+          {oauthError && <OAuthErrorBanner errorCode={oauthError} />}
+
+          {/* "or" divider */}
+          <div className="oauth-divider">
+            <div aria-hidden="true"><hr className="oauth-divider-line" /></div>
+            <span className="oauth-divider-text">or</span>
+            <div aria-hidden="true"><hr className="oauth-divider-line" /></div>
+          </div>
+
           <form onSubmit={handleSubmit} noValidate className="login-form">
             {formError && (
               <div className="login-form-error" role="alert">
@@ -196,7 +241,7 @@ export default function LoginPage() {
                 onBlur={() => validateOnBlur('fullName')}
                 error={errors.fullName}
                 placeholder="Your full name"
-                disabled={loading}
+                disabled={anyLoading}
                 autoComplete="name"
               />
             )}
@@ -210,7 +255,7 @@ export default function LoginPage() {
               onBlur={() => validateOnBlur('email')}
               error={errors.email}
               placeholder="you@example.com"
-              disabled={loading}
+              disabled={anyLoading}
               autoComplete="email"
             />
 
@@ -223,7 +268,7 @@ export default function LoginPage() {
               onBlur={() => validateOnBlur('password')}
               error={errors.password}
               placeholder="Min. 8 characters"
-              disabled={loading}
+              disabled={anyLoading}
               autoComplete={isSignup ? 'new-password' : 'current-password'}
             />
 
@@ -237,7 +282,7 @@ export default function LoginPage() {
                 onBlur={() => validateOnBlur('confirmPassword')}
                 error={errors.confirmPassword}
                 placeholder="Re-enter password"
-                disabled={loading}
+                disabled={anyLoading}
                 autoComplete="new-password"
               />
             )}
@@ -247,6 +292,7 @@ export default function LoginPage() {
               variant="primary"
               fullWidth
               loading={loading}
+              disabled={oauthLoading}
               className="login-submit"
             >
               {isSignup ? 'Create Account' : 'Log In'}

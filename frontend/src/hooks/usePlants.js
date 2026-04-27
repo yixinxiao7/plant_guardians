@@ -4,6 +4,9 @@ import { plants as plantsApi, careActions as careActionsApi } from '../utils/api
 export function usePlants() {
   const [plants, setPlants] = useState([]);
   const [pagination, setPagination] = useState(null);
+  // Sprint 30 / T-143: backend now returns `status_counts` for tab badges.
+  // SPEC-024 §2 requires we KEEP last-known counts during in-flight refetches.
+  const [statusCounts, setStatusCounts] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const abortRef = useRef(null);
@@ -13,11 +16,16 @@ export function usePlants() {
     setError(null);
     try {
       const result = await plantsApi.list(params);
-      // result is the full response { data: [...], pagination: {...} }
+      // result is the full response { data: [...], pagination: {...}, status_counts?: {...} }
       const items = Array.isArray(result) ? result : (result.data || result);
       const pag = result.pagination || null;
       setPlants(Array.isArray(items) ? items : []);
       setPagination(pag);
+      if (result && result.status_counts) {
+        setStatusCounts(result.status_counts);
+      }
+      // Note: if `status_counts` is absent in the response, we deliberately
+      // keep the last-known value (per SPEC-024 §2).
       return result;
     } catch (err) {
       setError(err.message || 'Failed to load plants.');
@@ -32,7 +40,16 @@ export function usePlants() {
     setPlants(prev => prev.filter(p => p.id !== id));
   }, []);
 
-  return { plants, pagination, loading, error, fetchPlants, deletePlant, setPlants };
+  return {
+    plants,
+    pagination,
+    statusCounts,
+    loading,
+    error,
+    fetchPlants,
+    deletePlant,
+    setPlants,
+  };
 }
 
 export function usePlantDetail() {

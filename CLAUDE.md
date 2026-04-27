@@ -128,20 +128,28 @@ See `orchestrator/config.sh` for settings:
 ## Design Context
 
 ### Users
-[Describe your target users here — who they are, what they need, and how the app should make them feel]
+Self-described "plant-killers" — adults who want houseplants but lack the instincts and habits to keep them alive. They are not gardeners and don't want to become gardeners; they want a forgiving system that nags them at the right moment and tells them what to do without jargon. Most encounters happen in passing: a quick glance to see "what's wrong / what's due," a tap to mark a plant watered, an occasional photo upload to ask the AI "what is this and how do I not kill it?" The app should make them feel **capable**, **reassured**, and **a little proud** every time they finish a task — never lectured, never overwhelmed.
+
+A secondary, quieter user is the experienced plant owner who wants a clean inventory and history. The interface should not condescend to them; the hand-holding (AI advice, big status cues) should be available but never in the way.
 
 ### Brand Personality
-[Describe the brand personality — tone, character, and impression the product should convey]
+Three words: **calm, nurturing, encouraging.**
+
+Voice is plain and warm — the tone of a knowledgeable friend, not a coach or a system alert. Status messages and microcopy should be specific and human ("Watering is 3 days overdue" beats "Action required"). Successful actions deserve a small moment of joy (the confetti dependency, satisfying check animations) — celebration is part of the product, not decoration. Errors and overdue states are honest but never punitive: red means "this needs you," not "you failed."
 
 ### Aesthetic Direction
-- **Style:** [Visual style direction]
-- **Theme:** [Light/dark mode, color palette]
-- **Typography:** [Font choices and rationale]
-- **References:** [Apps or brands to draw inspiration from]
-- **Anti-references:** [What to avoid]
-- **Decoration:** [Guidelines on visual ornamentation]
+- **Style:** Japandi botanical — Japanese restraint meets Scandinavian warmth. Generous whitespace, soft natural surfaces, organic curves over hard geometry. Minimal but not cold; lived-in but not cluttered.
+- **Theme:** Light and dark both first-class (manual toggle + system preference, see `frontend/src/styles/design-tokens.css`). Warm cream background (`#F7F4EF`) in light, deep warm-brown (`#1A1815`) in dark — never pure white or pure black.
+- **Palette:** Sage green accent (`#5C7A5C`) as the primary; warm clay (`#A67C5B`) as the secondary. Status uses muted, earthy versions of green/yellow/red — never neon or saturated. Backgrounds and surfaces lean beige/oatmeal, not gray.
+- **Typography:** **Playfair Display** (serif, 600) for headings and display moments — gives the product a calm, editorial gravity. **DM Sans** (400/500/600) for body, UI, and data — keeps interfaces legible and modern. Pair, don't compete: Playfair for the page title, DM Sans for everything else.
+- **References:** [easyplant.com](https://easyplant.com) — warm, minimal, photography-forward, generous spacing. Also in the spirit of Notion calm, Linear's restraint, and small Japanese stationery shops.
+- **Anti-references:** Avoid the "tech app" look — saturated gradients, glassy neon, dark-mode-as-default cyberpunk, gamified RPG-style UI, dense dashboards, generic Material/iOS chrome. No emoji-heavy copy. No mascots.
+- **Decoration:** Restrained. Soft shadows (`--shadow-card`), 12px card radii, 24px pill radii, occasional botanical iconography (Phosphor icons, leaf/water/sun glyphs). No skeuomorphism, no heavy borders, no patterned backgrounds. Motion is gentle and spring-eased (`--transition-spring`); celebratory animations (confetti, check) are saved for genuine wins.
 
 ### Design Principles
-1. [Principle 1]
-2. [Principle 2]
-3. [Principle 3]
+1. **Painfully obvious beats clever.** A novice should always know, at a glance, which plant needs attention and what the next action is. Status colors, dates, and CTAs should leave nothing to interpretation.
+2. **Warm minimalism.** Fewer elements, more breathing room, soft natural color. If it doesn't help the user care for a plant, it doesn't earn its space on the page.
+3. **Celebrate the small win.** Watering a plant is the core loop — make finishing it feel disproportionately good (confetti, check animation, streak nudges) without being childish.
+4. **Hand-hold the novice; get out of the expert's way.** AI advice, defaults, and explanations are offered, never forced. Power features (bulk actions, filters, history) are present but secondary to the daily glance.
+5. **Honest, never punitive.** Overdue plants are flagged clearly but framed as "needs you now," not "you messed up." The product is on the user's team.
+6. **Light and dark are equals.** Every component must look intentional in both themes — no afterthought dark mode. Use design tokens (`design-tokens.css`), never hardcoded colors.

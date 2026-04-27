@@ -1,0 +1,18 @@
+.oauth-error-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  background: #FAEAE4;
+  border: 1px solid #E8C4B8;
+  border-radius: 8px;
+  margin: 16px 0 0 0;
+}
+
+.oauth-error-banner-text {
+  font-size: 13px;
+  font-weight: 400;
+  color: #B85C38;
+  line-height: 1.5;
+}

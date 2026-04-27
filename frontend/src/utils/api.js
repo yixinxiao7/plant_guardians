@@ -156,16 +156,51 @@ export const auth = {
 };
 
 // Plant endpoints
+//
+// `list(params)` is the canonical fetch for paginated/filtered plant data.
+// Sprint 30 (T-142/T-143) adds the `sort` query parameter and exposes the
+// extended call as `plants.getAll(options)` per SPEC-024 §9. Both names
+// are kept so older call sites (`plants.list`) continue to work.
+//
+// Accepted options (all optional):
+//   { page, limit, search, status, sort }
+//
+// Empty/undefined params are stripped from the query string. `utcOffset` is
+// always included because the backend status computation is timezone-aware.
+function _buildPlantsQuery({ page, limit, search, status, sort } = {}) {
+  const query = new URLSearchParams();
+  query.set('page', String(page || 1));
+  query.set('limit', String(limit || 50));
+
+  // Trim search; treat empty/whitespace as omitted (matches backend semantics).
+  if (search != null) {
+    const trimmed = String(search).trim();
+    if (trimmed !== '') {
+      query.set('search', trimmed);
+    }
+  }
+  if (status) query.set('status', status);
+  if (sort) query.set('sort', sort);
+
+  const utcOffset = new Date().getTimezoneOffset() * -1;
+  query.set('utcOffset', String(utcOffset));
+  return query;
+}
+
 export const plants = {
   list(params = {}) {
-    const query = new URLSearchParams();
-    query.set('page', String(params.page || 1));
-    query.set('limit', String(params.limit || 50));
-    if (params.search) query.set('search', params.search);
-    if (params.status) query.set('status', params.status);
-    const utcOffset = new Date().getTimezoneOffset() * -1;
-    query.set('utcOffset', String(utcOffset));
+    const query = _buildPlantsQuery(params);
     return request(`/plants?${query.toString()}`, { _returnFull: true });
+  },
+  /**
+   * SPEC-024 / T-143: extended plant listing call. Accepts the same options
+   * as `list()` but is the preferred name going forward. Returns the full
+   * response envelope ({ data, pagination, status_counts }).
+   *
+   * @param {{page?:number, limit?:number, search?:string, status?:string, sort?:string}} options
+   */
+  getAll(options = {}) {
+    return this.list(options);
   },
   get(id) {
     return request(`/plants/${id}`);
@@ -329,6 +364,145 @@ export const profile = {
       // Response may not have a JSON body
     }
     throw new ApiError(err.message || 'Something went wrong.', err.code || 'UNKNOWN', res.status);
+  },
+};
+
+// Plant sharing (Sprint 28 / T-126 / SPEC-022 — extended Sprint 29 / T-133 / SPEC-023)
+export const plantShares = {
+  /**
+   * Create (or retrieve — idempotent) a public share link for a plant the
+   * authenticated user owns.
+   * @param {string} plantId
+   * @returns {Promise<{ share_url: string }>}
+   */
+  create(plantId) {
+    return request(`/plants/${plantId}/share`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * GET /api/v1/plants/:plantId/share — check whether an active share link
+   * exists for a plant the authenticated user owns. Used by
+   * `PlantDetailPage` on mount (Sprint 29 / SPEC-023 Surface 1).
+   *
+   * @param {string} plantId
+   * @returns {Promise<{ share_url: string }>} on 200
+   * @throws {ApiError} 404 when no share row exists; 403 wrong owner; etc.
+   */
+  getStatus(plantId) {
+    return request(`/plants/${plantId}/share`);
+  },
+
+  /**
+   * DELETE /api/v1/plants/:plantId/share — revoke an active share link.
+   * Returns `null` on a 204 No Content; throws an ApiError for any other
+   * response. Called by `ShareRevokeModal` (Sprint 29 / SPEC-023 Surface 2).
+   *
+   * This endpoint returns **no body**, so `request()` cannot be reused
+   * (it eagerly parses JSON). We use a thin bespoke fetch, piggybacking on
+   * the same Bearer + refresh flow as `profile.delete`.
+   *
+   * @param {string} plantId
+   * @returns {Promise<null>}
+   */
+  async revoke(plantId) {
+    const url = `${API_BASE}/plants/${plantId}/share`;
+    const headers = {};
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
+    let res = await fetch(url, {
+      method: 'DELETE',
+      headers,
+      credentials: 'include',
+    });
+
+    // Auto-refresh on 401 — mirrors `request()`.
+    if (res.status === 401) {
+      try {
+        await refreshAccessToken();
+        headers['Authorization'] = `Bearer ${accessToken}`;
+        res = await fetch(url, {
+          method: 'DELETE',
+          headers,
+          credentials: 'include',
+        });
+      } catch {
+        if (onAuthFailure) onAuthFailure();
+        throw new ApiError(
+          'Session expired. Please log in again.',
+          'UNAUTHORIZED',
+          401,
+        );
+      }
+    }
+
+    if (res.status === 204) {
+      return null;
+    }
+
+    // Non-204: try to read a JSON error body; fall back to a generic message.
+    let err = {};
+    try {
+      const json = await res.json();
+      err = json.error || {};
+    } catch {
+      // response may not have a JSON body
+    }
+    throw new ApiError(
+      err.message || 'Something went wrong.',
+      err.code || 'UNKNOWN',
+      res.status,
+    );
+  },
+
+  /**
+   * Fetch a public plant profile by its share token. This endpoint is
+   * unauthenticated — it is called via a bare fetch() that bypasses the
+   * Bearer injection and 401-refresh interceptor, so that visitors who
+   * have never logged in don't trigger an auth-refresh attempt.
+   *
+   * @param {string} shareToken
+   * @returns {Promise<{ name: string, species: string|null, photo_url: string|null,
+   *   watering_frequency_days: number|null, fertilizing_frequency_days: number|null,
+   *   repotting_frequency_days: number|null, ai_care_notes: string|null }>}
+   */
+  async getPublic(shareToken) {
+    const url = `${API_BASE}/public/plants/${encodeURIComponent(shareToken)}`;
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        // No credentials, no Authorization header — this endpoint is public.
+      });
+    } catch (networkErr) {
+      throw new ApiError(
+        networkErr?.message || 'Network error',
+        'NETWORK_ERROR',
+        0,
+      );
+    }
+
+    let json = null;
+    try {
+      json = await res.json();
+    } catch {
+      // Response was not JSON — fall through to error handling below.
+    }
+
+    if (!res.ok) {
+      const err = (json && json.error) || {};
+      throw new ApiError(
+        err.message || 'Something went wrong.',
+        err.code || 'UNKNOWN',
+        res.status,
+      );
+    }
+
+    return json && json.data ? json.data : null;
   },
 };
 

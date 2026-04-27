@@ -22,7 +22,7 @@ export default function PlantFrequencyTable({ plants = [] }) {
             </thead>
             <tbody>
               {plants.map((plant, i) => {
-                const barWidth = `${(plant.count / maxCount) * 100}%`;
+                const ratio = Math.max(0, Math.min(1, plant.count / maxCount));
                 return (
                   <tr key={plant.plant_id} className={i < plants.length - 1 ? 'plant-freq-row-bordered' : ''}>
                     <td className="plant-freq-td plant-freq-name">
@@ -40,7 +40,7 @@ export default function PlantFrequencyTable({ plants = [] }) {
                     <td className="plant-freq-td plant-freq-actions">
                       <span className="plant-freq-count">{plant.count}</span>
                       <div className="plant-freq-bar-track" aria-hidden="true">
-                        <div className="plant-freq-bar-fill" style={{ width: barWidth }} />
+                        <div className="plant-freq-bar-fill" style={{ transform: `scaleX(${ratio})` }} />
                       </div>
                     </td>
                   </tr>

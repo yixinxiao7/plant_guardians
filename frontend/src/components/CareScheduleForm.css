@@ -73,18 +73,18 @@
 
 .care-frequency-input {
   width: 80px;
-  height: 40px;
+  height: 44px;
   border: 1.5px solid var(--color-border);
   border-radius: 8px;
   padding: 0 12px;
-  font-size: 14px;
+  font-size: 16px; /* 16px prevents iOS zoom-on-focus */
   text-align: center;
 }
 
 .care-frequency-input:focus {
   outline: none;
   border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 3px rgba(92, 122, 92, 0.15);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
 .care-frequency-input.input-error {
@@ -92,11 +92,11 @@
 }
 
 .care-frequency-select {
-  height: 40px;
+  height: 44px;
   border: 1.5px solid var(--color-border);
   border-radius: 8px;
   padding: 0 12px;
-  font-size: 14px;
+  font-size: 16px;
   background: var(--color-surface);
   color: var(--color-text-primary);
   cursor: pointer;
@@ -105,7 +105,7 @@
 .care-frequency-select:focus {
   outline: none;
   border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 3px rgba(92, 122, 92, 0.15);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
 .care-date-row {
@@ -120,18 +120,18 @@
 }
 
 .care-date-input {
-  height: 40px;
+  height: 44px;
   border: 1.5px solid var(--color-border);
   border-radius: 8px;
   padding: 0 12px;
-  font-size: 14px;
+  font-size: 16px;
   max-width: 200px;
 }
 
 .care-date-input:focus {
   outline: none;
   border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 3px rgba(92, 122, 92, 0.15);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
 .care-error {

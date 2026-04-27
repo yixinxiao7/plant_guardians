@@ -1,0 +1,87 @@
+/* SPEC-024 §1 — Plant search bar */
+
+.psb-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.psb-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-disabled);
+  pointer-events: none;
+}
+
+.psb-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 36px 0 40px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-input);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.psb-input::placeholder {
+  color: var(--color-text-disabled);
+}
+
+.psb-input:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px rgba(92, 122, 92, 0.15);
+}
+
+/* Hide the native search-cancel button — we render our own ✕. */
+.psb-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.psb-clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-circle);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.psb-clear:hover {
+  background: var(--color-surface-alt);
+}
+
+.psb-clear:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+/* Disabled / initial-load skeleton state — SPEC §6 */
+.psb-container--disabled .psb-input {
+  background: var(--color-surface-alt);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.psb-container--disabled .psb-icon {
+  opacity: 0.4;
+}

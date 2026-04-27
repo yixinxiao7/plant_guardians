@@ -89,7 +89,7 @@ Write clean, production-quality configurations. Follow security best practices. 
         agents_to_run+=("backend-engineer|60|${MODEL_HEAVY:-sonnet}|${backend_prompt}")
     fi
     if [[ "$frontend_tasks" -gt 0 ]]; then
-        agents_to_run+=("frontend-engineer|75|${MODEL_HEAVY:-sonnet}|${frontend_prompt}")
+        agents_to_run+=("frontend-engineer|95|${MODEL_HEAVY:-sonnet}|${frontend_prompt}")
     fi
     if [[ "$deploy_tasks" -gt 0 ]]; then
         agents_to_run+=("deploy-engineer|50|${MODEL_LIGHT:-sonnet}|${deploy_prompt}")

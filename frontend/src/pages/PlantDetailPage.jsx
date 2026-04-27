@@ -9,6 +9,7 @@ import Button from '../components/Button.jsx';
 import Modal from '../components/Modal.jsx';
 import CareHistorySection from '../components/CareHistorySection.jsx';
 import CareNoteInput from '../components/CareNoteInput.jsx';
+import ShareStatusArea from '../components/ShareStatusArea.jsx';
 import { formatDate, formatRelativeTime, formatDueDate } from '../utils/formatDate.js';
 import './PlantDetailPage.css';
 
@@ -194,7 +195,7 @@ export default function PlantDetailPage() {
       <div className="detail-header">
         <div className="detail-photo-container">
           {plant.photo_url ? (
-            <img src={plant.photo_url} alt={plant.name} className="detail-photo" />
+            <img src={plant.photo_url} alt={plant.name} className="detail-photo" decoding="async" width="240" height="240" />
           ) : (
             <div className="detail-photo-placeholder">
               <Leaf size={64} color="#B8CEB8" />
@@ -212,6 +213,7 @@ export default function PlantDetailPage() {
             </div>
           )}
           <div className="detail-actions">
+            <ShareStatusArea plantId={id} />
             <Button variant="secondary" onClick={() => navigate(`/plants/${id}/edit`)}>
               <PencilSimple size={16} /> Edit
             </Button>

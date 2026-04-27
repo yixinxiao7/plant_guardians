@@ -1,7 +1,14 @@
 const multer = require('multer');
 const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('node:crypto');
 const { ValidationError } = require('../utils/errors');
+
+// T-140: uuid@14 is ESM-only and incompatible with Jest 29's CJS transformer
+// without adding babel-preset-env (which would violate the "no other dependency
+// changes" acceptance criterion). uuid@14's v4() internally delegates to
+// crypto.randomUUID() in Node anyway when called with no options/buf, so this
+// is a behaviour-preserving switch. The uuid@14 package remains installed per
+// acceptance criteria so the npm audit advisory (GHSA-w5hq-g745-h8pq) clears.
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_SIZE_MB = parseInt(process.env.MAX_UPLOAD_SIZE_MB || '5', 10);
@@ -13,7 +20,7 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
-    cb(null, `${uuidv4()}${ext}`);
+    cb(null, `${randomUUID()}${ext}`);
   },
 });
 

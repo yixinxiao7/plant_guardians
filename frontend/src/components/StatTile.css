@@ -1,9 +1,10 @@
+/* Stats are secondary surfaces — they describe data about plants, not the plant
+   itself. No border or shadow, just a tinted bg, so they don't compete with
+   the actual primary cards (PlantCard) for visual weight. */
 .stat-tile {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-card);
   padding: 24px;
-  box-shadow: var(--card-shadow);
 }
 
 .stat-tile-label {

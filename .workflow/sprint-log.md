@@ -4,6 +4,305 @@ Summary of each completed development cycle. Written by the Manager Agent at the
 
 ---
 
+### Sprint #30 — 2026-04-27 to 2026-05-03
+
+**Sprint Goal:** Fix the `uuid` moderate vulnerability housekeeping item (T-140) and ship plant list search, sort, and status filter — so "plant killer" users can instantly find plants that need attention without scrolling through their entire inventory.
+
+**Outcome:** ✅ Goal fully met — all seven tasks (T-140 through T-146) completed. Backend: 241/241 tests pass (+15 new from T-142). Frontend: 360/360 tests pass (+48 new from T-143). Staging deploy successful. **Deploy Verified: Yes** (Monitor Agent H-419, 2026-04-26). Seventeenth consecutive sprint with zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-140 | Backend: Housekeeping — bumped `uuid` to `^14.0.0` to resolve GHSA-w5hq-g745-h8pq moderate advisory. uuid@14 is ESM-only/Jest CJS-incompatible; `upload.js` switched to Node built-in `crypto.randomUUID()` (cryptographically equivalent). `npm audit` → 0 vulnerabilities. All 226/226 baseline backend tests pass. |
+| T-141 | Design: SPEC-024 — Plant list search, sort, and status filter UX spec. Delivered out-of-band (spec satisfied through implementation review and QA SPEC-024 compliance verification). Status updated to Done at sprint close. |
+| T-142 | Backend: Extended `GET /api/v1/plants` with `search` (ILIKE name/species, max 200 chars), `status` (overdue/due_today/on_track filter), and `sort` (name_asc/name_desc/most_overdue/next_due_soonest) query params. Added `status_counts` top-level field scoped to search term (independent of status filter). 15 new tests. API contract published. All 241/241 backend tests pass. |
+| T-143 | Frontend: Added PlantSearchBar (300ms debounce, clear button, Escape, 200-char cap), PlantStatusFilter (role=radiogroup, arrow-key nav, count badges), PlantSortDropdown (custom listbox, Escape-without-select) to MyPlantsPage. Extended `plants.getAll()` in api.js. Combined empty state + "Clear filters" reset link. Live region announcements. 48 new tests. All 360/360 frontend tests pass. |
+| T-144 | QA: Full verification — 241/241 backend and 360/360 frontend tests pass. T-140 housekeeping verified (uuid@14.0.0, 0 vulnerabilities, crypto.randomUUID uniqueness 10000/10000). T-142 live integration matrix (search/filter/sort/combined/pagination/errors/injection probe/cross-user isolation). T-143 SPEC-024 source-level compliance. Security checklist PASS (auth, parameterized SQL, 200-char cap, 0 hardcoded secrets, no innerHTML, security headers). Product-perspective testing filed FB-130, FB-131, FB-132. |
+| T-145 | Deploy: Staging re-deploy — no migrations; backend restarted (PID 42432, picks up uuid@14); frontend rebuilt (4676 modules, 0 errors). All spot-checks passed. |
+| T-146 | Monitor: Post-deploy health check — all endpoints healthy; T-142 search/sort/filter/combined/error-codes all verified live. **Deploy Verified: Yes** (H-419, 2026-04-26). |
+
+---
+
+#### Tasks Carried Over
+
+None. Seventeenth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. **Deploy Verified: Yes** (Monitor Agent H-419, 2026-04-26). All health checks passed. Backend (PID 42449) and frontend (PID 42526, port 4173) both live on staging.
+
+---
+
+#### Key Feedback Themes
+
+- **FB-130** (Positive): Search-by-species (matching `type` field alongside `name`) is a meaningful UX improvement for the "plant killer" persona — users who only know common names ("fern", "pothos") now find nicknamed plants by species. SPEC-024 §1 delivered as designed.
+- **FB-131** (UX Issue, Minor): LIKE wildcards (`%`, `_`) in user search input not escaped — searching `%` returns all plants instead of 0. Not a security issue (parameterized queries confirmed safe). Low real-world impact. Acknowledged; backlogged as T-147 for Sprint #31 housekeeping.
+- **FB-132** (Positive): `status_counts` scoped to the active search term (independent of status filter) — users see at a glance how many matching plants are overdue without switching tabs. Recognized as intended SPEC-024 §2 behavior and a UX win for inventory management.
+
+---
+
+#### What Went Well
+
+- Search-by-species (ILIKE on `name OR type`) works exactly as the "plant killer" persona needs — common-name searches find plants by species even when the personal nickname is unrelated.
+- `status_counts` architecture (scoped to search, independent of status filter) is clean — tab badges show the status breakdown of search results without requiring tab-switching to discover the distribution.
+- Custom accessibility implementations (PlantStatusFilter as `role=radiogroup` with arrow-key navigation, PlantSortDropdown as custom listbox with `aria-haspopup` and `aria-activedescendant`) delivered full keyboard nav with correct ARIA semantics.
+- 48 new frontend tests (target ≥8) across 5 new test files — thorough coverage of debounce, clear, tab nav, sort selection, combined params, all empty state variants, and accessibility attributes.
+- T-140 uuid workaround (switching to Node built-in `crypto.randomUUID()` instead of fighting uuid@14 ESM-only CJS compatibility) is pragmatic, well-documented, and cryptographically equivalent.
+- Seventeenth consecutive sprint with zero carry-over.
+
+---
+
+#### What To Improve
+
+- T-141 (Design spec SPEC-024) was completed out-of-band rather than through the formal Design Agent workflow — the spec was effectively embedded in the implementation review and QA compliance verification. Future design tasks should still be formally routed through the Design Agent to keep `ui-spec.md` current and traceable.
+- The LIKE wildcard escape bug (FB-131) was caught late in QA product-perspective testing. Consider adding wildcard metacharacter escape as a standard checklist item for any new LIKE/ILIKE search implementation.
+
+---
+
+#### Technical Debt Noted
+
+- LIKE wildcards (`%`, `_`) not escaped in `Plant.findByUserId` search — minor fix in `backend/src/models/Plant.js` → tasked Sprint #31 as T-147 (XS)
+- Express 5 migration — advisory backlog; no urgency
+- Soft-delete / grace period for account deletion — post-MVP
+- Production deployment blocked on project owner providing SSL certificates
+- Production email delivery blocked on project owner providing SMTP credentials
+- Real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` needed for full end-to-end OAuth staging test
+- Share analytics (view count per share token) — future feature
+- Open Graph image generation (dynamic social cards with plant photo) — future sprint polish
+
+---
+
+### Sprint #29 — 2026-04-20 to 2026-04-26
+
+**Sprint Goal:** Fix the batch mark-done `last_done_at` correctness bug (FB-113 carry-over Major), complete the plant sharing system with share status and revocation endpoints, add Open Graph meta tags to the public plant profile page, and patch the Vite dev-server HIGH severity vulnerability.
+
+**Outcome:** ✅ Goal fully met — all eight tasks (T-132 through T-139) completed. Backend: 226/226 tests pass (+17 new tests vs. 209/209 baseline). Frontend: 312/312 tests pass (+25 new tests vs. 287/287 baseline). Staging deploy successful. **Deploy Verified: Yes** (Monitor Agent H-402, 2026-04-24). Sixteenth consecutive sprint with zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-139 | Backend: Fixed `CareAction.batchCreate()` — now calls `CareSchedule.updateLastDoneAt()` inside a single Knex transaction after each batch insert; only updates if `performed_at` is newer than existing `last_done_at` (anti-regression guard). 4 new tests (happy path, anti-regression, FB-113 end-to-end repro, multi-entry batch). Backend suite: 226/226 (was 209). |
+| T-132 | Design: SPEC-023 — Share status state on PlantDetailPage (loading skeleton, "Copy link" + "Remove share link" when shared, "Share" when not), share revocation confirmation modal (copy, two buttons, success/error toasts), OG + Twitter meta tags for PublicPlantPage (all tag names, value construction rules, fallbacks for null photo / null frequencies). Marked Approved; gated T-133 and T-134. |
+| T-133 | Backend: Added `GET /api/v1/plants/:plantId/share` (returns `{ share_url }` if active share exists; 404 if not; 403 wrong owner; 401 unauthenticated; 400 invalid UUID) and `DELETE /api/v1/plants/:plantId/share` (204 on success; 404 no share; 403 wrong owner; 401; 400). 13 new tests covering full HTTP contract matrix including idempotency and re-share-after-revocation. API contracts published. Backend: 226/226. |
+| T-134 | Frontend: `useShareStatus` hook + `ShareStatusArea` component (LOADING skeleton → SHARED "Copy link"+"Remove share link" → NOT_SHARED "Share" button with safe-degradation on any error); `ShareRevokeModal` (SPEC-023 copy, loading/success/error states, focus-trap, Escape/Cancel, no-op backdrop); OG + Twitter meta tags via `react-helmet-async` on `PublicPlantPage` success state only; `og-default.png` fallback. 25 new tests. Frontend: 312/312. `npm run build` clean. |
+| T-135 | Frontend housekeeping: Vite dev-server HIGH severity vulnerability (FB-120 — GHSA-4w7w-66w2-5vf9, GHSA-v2wj-q39q-566r, GHSA-p9ff-h696-f583). `vite@8.0.9` already patched; `npm audit` → 0 vulnerabilities. All 312/312 frontend tests pass; `npm run build` 0 errors. |
+| T-136 | QA: Full regression + batch fix live-verification (FB-113 repro: overdue → batch mark-done → `GET /plants` flips to `on_track`); T-133 live integration matrix (all HTTP contracts); SPEC-023 compliance (share status states, revocation modal, OG tags); security checklist PASS (auth + ownership on GET/DELETE, 404-before-403 ordering, parameterized queries, 204 no-body, 256-bit token entropy, security headers); T-135 housekeeping verified. Full sign-off logged. |
+| T-137 | Deploy: Staging re-deploy — `knex migrate:latest` → "Already up to date" (no schema changes); backend restarted (PID 61445, port 3000); frontend dist rebuilt (vite v8.0.9, 4670 modules, 0 errors); all spot-checks passed. |
+| T-138 | Monitor: Post-deploy health check — all 12 requests passed; T-133 share lifecycle (GET → 200, DELETE → 204, GET after DELETE → 404) ✅; T-139 batch (POST → 207, plant `overdue` → `on_track`) ✅; no 5xx; frontend dist present. **Deploy Verified: Yes.** |
+
+---
+
+#### Tasks Carried Over
+
+None. Sixteenth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. **Deploy Verified: Yes** (Monitor Agent H-402, 2026-04-24). All 12 health check requests passed with expected status codes. Pre-existing limitation: Vite preview server (port 4173) was not running — `frontend/dist/` artifact is current and API layer fully healthy; this is a non-blocking pre-existing condition noted since H-396.
+
+---
+
+#### Key Feedback Themes
+
+- **FB-124** (Positive): T-139 batch mark-done fix closes the biggest MVP usability bug for the "plant killer" persona — `GET /plants` now returns correct `on_track` status after batch mark-done. Recognized as the right durable fix (transactional insert + "only-if-newer" guard) rather than a post-hoc reconciliation.
+- **FB-125** (Positive): Safe-degradation on `GET /share` errors is the correct posture for a non-critical UI surface — falls back to "Share" button silently so the core PlantDetailPage is unaffected.
+- **FB-126** (Positive): 404-before-403 ordering on both share endpoints prevents plant-ID enumeration — a subtle but correct defense-in-depth layering.
+- **FB-127** (Positive): Anti-regression guard in `CareAction.batchCreate()` (`if (!current || new Date(newest) > new Date(current))`) holds under a real stale-batch scenario — cited as team standard for all future batch-insert + timestamp-update work.
+- **FB-128** (Positive): `DELETE /share` returns a textbook 204 — no body, no `Content-Type`, full security headers on the 204 path.
+- **FB-129** (Minor Bug — Acknowledged/Tasked → T-140): `cd backend && npm audit` reports 1 moderate vulnerability: `uuid <14.0.0` (GHSA-w5hq-g745-h8pq — buffer bounds check in `v3/v5/v6` when `buf` provided). **Not exploitable in our codebase** — only `uuid.v4()` with no `buf` arg is used. Sprint #29 "0 high-severity" bar still met. Scheduled for housekeeping fix in Sprint #30 as T-140.
+
+---
+
+#### What Went Well
+
+- Batch mark-done fix implemented as a single Knex transaction (insert + `last_done_at` update atomically) with the "only-if-newer" guard — no double-write race, no regression risk. Recognized as the team standard for all future batch-insert + timestamp-update patterns.
+- 404-before-403 endpoint ordering on share status/revocation endpoints prevents plant-ID enumeration — correct security posture without any additional code complexity.
+- `ShareRevokeModal` uses distinct error handling vs. `ShareStatusArea` (explicit error toast + modal stays open for retry vs. silent safe-degradation) — the two policies are opposite for the right reasons.
+- `buildOgDescription()` exported as a pure helper, enabling comprehensive 2×2 null-matrix + repotting-exclusion test coverage on OG tag construction.
+- OG `<Helmet>` block rendered ONLY in SUCCESS state — link scrapers cannot cache a loading/404/error preview.
+- 25 new frontend tests (target ≥6) across 3 test files with full state coverage including 403/500 safe-degradation, concurrent DELETE, focus management, and accessibility attributes.
+- Sixteenth consecutive sprint with zero carry-over.
+
+---
+
+#### What To Improve
+
+- The Vite preview server on port 4173 was not running at Monitor phase (pre-existing condition); the `dist/` artifact was current but link-click verification required the API layer only. Consider adding a lightweight `vite preview &` step to the staging deploy script so the frontend is always accessible for integration checks.
+- Backend uuid moderate advisory (FB-129) was discovered during QA but was not actionable without a new task. Process improvement: housekeeping dependency audits should be checked at the start of sprint planning so bumps can be bundled with planned `package.json` changes rather than added as a separate task.
+
+---
+
+#### Technical Debt Noted
+
+- `uuid <14.0.0` moderate vulnerability (FB-129) — `npm audit fix` in `backend/` will require a breaking-change bump to `uuid@14.0.0`; verify `uuid.v4()` import path in `middleware/upload.js` is unchanged after bump → tasked Sprint #30 as T-140
+- Express 5 migration — advisory backlog; no urgency
+- Soft-delete / grace period for account deletion — post-MVP
+- Production deployment blocked on project owner providing SSL certificates
+- Production email delivery blocked on project owner providing SMTP credentials
+- Real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` needed for full end-to-end OAuth staging test
+- Share analytics (view count per share token) — future feature
+- Open Graph image generation (dynamic social cards with plant photo) — future sprint polish
+
+---
+
+### Sprint #28 — 2026-04-13 to 2026-04-19
+
+**Sprint Goal:** Enable plant sharing — allow users to generate a shareable public link for any plant in their inventory, so friends and family can view the plant's care profile without needing an account. Also address Sprint #27 housekeeping: fix the `nodemailer` moderate vulnerability and update the OAuth API contract to reflect HttpOnly cookie token delivery.
+
+**Outcome:** ✅ Goal fully met — all seven tasks (T-125 through T-131) completed. Backend: 209/209 tests pass (+10 new plant-share tests). Frontend: 287/287 tests pass (+11 new share button/public page tests). Staging deploy successful. **Deploy Verified: Yes** (Monitor Agent H-387, 2026-04-20). Fifteenth consecutive sprint with zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-125 | Design: SPEC-022 — Plant sharing / public plant profile UX spec — share button placement, loading state, "Link copied!" toast, error state, clipboard fallback; public page fields (name, species, photo, care schedule chips, AI notes), privacy boundary, dark mode, accessibility, "Discover Plant Guardians" CTA. Marked Approved; gated T-126 and T-128. |
+| T-126 | Backend: Plant sharing API — `plant_shares` migration (id PK, plant_id FK CASCADE, user_id FK CASCADE, share_token VARCHAR(64) UNIQUE indexed, created_at); `POST /api/v1/plants/:plantId/share` (auth, idempotent, returns `{ share_url }`); `GET /api/v1/public/plants/:shareToken` (no auth, explicit allowlist of public fields only, 404 on unknown token); 256-bit `crypto.randomBytes` base64url token; 10 new tests (happy path, idempotent, 403 wrong owner, 401 no auth, 404 plant missing, 400 invalid UUID, public 200 + privacy audit, public 404, CASCADE delete, nulls); API contract published. |
+| T-127 | Backend housekeeping: (1) `npm audit fix` in `backend/` — nodemailer SMTP CRLF injection vulnerability resolved; `npm audit` now reports 0 vulnerabilities; (2) `api-contracts.md` OAuth callback section updated: `refresh_token` removed from redirect URL params; documented as `Set-Cookie: refresh_token; HttpOnly; Secure; SameSite=Strict`; all 209/209 backend tests pass. |
+| T-128 | Frontend: `ShareButton.jsx` with loading/error/clipboard-fallback-modal; `PublicPlantPage.jsx` at `/plants/share/:shareToken` outside `<ProtectedRoute>` — all 4 SPEC-022 states (skeleton, success, 404 "no longer active", error + retry); OG-ready minimal header; dark mode via CSS custom properties; "Get started for free" CTA; 11 new tests (5 ShareButton + 6 PublicPlantPage); 287/287 frontend tests pass. |
+| T-129 | QA: Full regression + plant-sharing verification — 209/209 backend, 287/287 frontend; SPEC-022 compliance (20-scenario live integration; all ✅); security checklist (privacy boundary audit — 9 private fields confirmed absent from public endpoint; 256-bit token entropy; no IDOR; parameterized queries; SQL-ish payload safe); T-127 housekeeping re-verified; config consistency ✅; QA sign-off logged. |
+| T-130 | Deploy: Staging re-deploy — all 8 migrations applied (including `20260419_01_create_plant_shares.js`); frontend Vite build (4661 modules, 0 errors); backend healthy on port 3000; `GET /api/health` → 200; Sprint 28 endpoints spot-checked. |
+| T-131 | Monitor: Post-deploy health check — all checks PASS; `GET /api/v1/public/plants/nonexistent` → 404; `POST /api/v1/plants/:plantId/share` (authenticated) → 200 + 43-char base64url share_url; privacy boundary confirmed; one non-blocking rate-limit observation on `/auth/google` (429 from cumulative QA/Deploy/Monitor window exhaustion — not a regression). **Deploy Verified: Yes.** |
+
+---
+
+#### Tasks Carried Over
+
+None. Fifteenth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. **Deploy Verified: Yes** (Monitor Agent H-387, 2026-04-20). All health checks passed. One non-blocking observation: `GET /api/v1/auth/google` returned 429 during Monitor health check due to rate-limit window exhaustion from cumulative requests across QA, Deploy, and Monitor phases — the limiter is functioning correctly, not a regression.
+
+---
+
+#### Key Feedback Themes
+
+- **FB-120** (Minor Bug — Acknowledged): Vite dev-server HIGH severity advisory (GHSA-4w7w-66w2-5vf9, GHSA-v2wj-q39q-566r, GHSA-p9ff-h696-f583) against `vite` 8.0.0–8.0.4. Dev-server-only — does not affect production bundle. Pre-existing, not introduced by Sprint 28. `npm audit fix` available. Tasked for Sprint #29 housekeeping.
+- **FB-121** (Positive): Idempotent share endpoint (5 burst POST calls → same URL, stable 200s, no DB contention) makes the UX forgiving and the implementation correct.
+- **FB-122** (Positive): Privacy boundary audit confirmed airtight — explicit allowlist construction in `publicPlants.js` (builds fresh object, not row passthrough) means future schema additions default to NOT leaking. Recognized as the right defense-in-depth pattern.
+- **FB-123** (Cosmetic UX — Acknowledged): Share button shows identical UX on repeat clicks (correct per SPEC-022). Future polish could differentiate "create" vs "copy existing" — deferred to backlog alongside share revocation UX.
+
+---
+
+#### What Went Well
+
+- Privacy boundary implemented via explicit allowlist (not omit/exclude pattern) — a future schema migration cannot accidentally leak a PII field. Recognized as team standard.
+- Share token uses `crypto.randomBytes(32).toString('base64url')` — 256-bit entropy, 43 chars, URL-safe alphabet. Correct from day one; no security revisit needed.
+- Idempotent share creation implemented cleanly: `findByPlantId` short-circuit before insert; no contention on repeated calls; CASCADE DELETE ensures no orphaned share rows.
+- Public route correctly mounted outside `<ProtectedRoute>` and `<AppShell>` — unauthenticated visitors get a clean minimal page with no confusing auth UI.
+- `plantShares.getPublic()` uses bare `fetch` (no Bearer/401-refresh interceptor) — prevents auth errors for anonymous visitors viewing shared plants.
+- 10 backend + 11 frontend new tests (targets were ≥6 and ≥5 respectively) — full state coverage.
+- Fifteenth consecutive sprint with zero carry-over.
+
+---
+
+#### What To Improve
+
+- `GET /api/v1/auth/google` exhausted the 15-min rate-limit window during the health check phase (cumulative QA + Deploy + Monitor requests). Consider a longer auth rate-limit window for staging, or exclude health-check bot traffic from the count.
+- Sprint 28 introduced no way to check whether a plant is already shared (no `GET /share` status endpoint, no share_url in plant detail response). The frontend ShareButton is stateless — users can't tell if their plant is already shared without clicking. Share revocation (Sprint 29 target) will require a status endpoint to conditionally show the revoke button.
+
+---
+
+#### Technical Debt Noted
+
+- Vite dev-server HIGH severity vulnerability (FB-120) — `npm audit fix` in `frontend/` → tasked Sprint #29 housekeeping
+- No `GET /api/v1/plants/:plantId/share` status endpoint — required for share revocation UX (Sprint #29)
+- Share link revocation UI and `DELETE /share` endpoint deferred to Sprint #29 (data model already supports it via `plant_shares` table)
+- Open Graph meta tags on `PublicPlantPage` — mentioned in Sprint 28 Out of Scope; natural follow-up in Sprint #29
+- Express 5 migration — advisory backlog; no urgency
+- Soft-delete / grace period for account deletion — post-MVP
+- Production deployment blocked on project owner providing SSL certificates
+- Production email delivery blocked on project owner providing SMTP credentials
+- Real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` needed for full end-to-end OAuth staging test
+
+---
+
+### Sprint #27 — 2026-06-07 to 2026-06-13
+
+**Sprint Goal:** Reduce signup friction for "plant killer" users by adding Google OAuth (Sign in with Google) — so new users can onboard in one tap instead of filling in a registration form.
+
+**Outcome:** ✅ Goal fully met — all six tasks (T-119 through T-124) completed. One P1 regression discovered mid-sprint (FB-113: refresh token cookie missing from OAuth callback) and fixed same-day by Deploy Engineer (H-370, commit 483c5e1) before staging deploy. Backend: 199/199 tests pass (+11 new OAuth tests). Frontend: 276/276 tests pass (+14 new OAuth/UI tests). Staging deploy successful. **Deploy Verified: Yes** (Monitor Agent H-375, 2026-04-12). Fourteenth consecutive sprint with zero carry-over.
+
+---
+
+#### Tasks Completed
+
+| Task ID | Description |
+|---------|-------------|
+| T-119 | Design: SPEC-021 — Google OAuth login/register UI spec — extended SPEC-001 with Google-branded button placement, "or" divider, post-OAuth redirect flow (→ /), and account-linking edge case UX (same email → auto-link with toast confirmation). Gated T-120 and T-121. |
+| T-120 | Backend: Google OAuth via Passport.js — added `passport-google-oauth20`; migration adding nullable `google_id VARCHAR(255) UNIQUE` to users table; `GET /api/v1/auth/google` (initiates OAuth); `GET /api/v1/auth/google/callback` (upserts user, issues JWT via HttpOnly cookie, handles account linking for matching email); graceful degradation when Google credentials absent; P1 fix (H-370) applied to add `setRefreshTokenCookie` call in callback; 11 new tests; 199/199 backend tests pass; API contract published. |
+| T-121 | Frontend: "Sign in with Google" button on Login and Register pages — Google-branded multi-color "G" SVG button, "or" divider, redirect to `/api/v1/auth/google`, `consumeOAuthParams()` with `window.history.replaceState` URL cleanup, mutual button disable (`anyLoading` pattern), toast differentiation (`_oauthAction`: returning/linked/new), inline error on callback error param; 14 new tests; 276/276 frontend tests pass. |
+| T-122 | QA: Full regression + OAuth flow verification — 199/199 backend, 276/276 frontend; SPEC-021 compliance verified; security checklist pass (no secrets in frontend, HttpOnly cookie delivery, no open redirects, graceful degradation without real Google creds); P1 fix re-verified post-H-370. |
+| T-123 | Deploy: Staging redeploy — 7/7 migrations applied (`google_id` column confirmed); backend restarted (PID 33664, port 3000); frontend production build (4655 modules, 19:58 UTC); OAuth staging limitation documented in qa-build-log.md. |
+| T-124 | Monitor: Post-deploy health check — all 13 checks PASS; config consistency PASS (port 3000, HTTP protocol, CORS, Docker); all API endpoints returned expected status codes; `GET /api/v1/auth/google` → 302 graceful degradation; no 5xx; live DB data confirmed. Deploy Verified: Yes. |
+
+---
+
+#### Tasks Carried Over
+
+None. Fourteenth consecutive clean sprint with zero carry-over.
+
+---
+
+#### Verification Failures
+
+None. **Deploy Verified: Yes** (Monitor Agent H-375, 2026-04-12). All 13 health checks passed. Note: one P1 integration issue (FB-113) was discovered during QA and fixed within the same sprint cycle before staging deploy — it is not a carry-over, as it was resolved before T-122 final sign-off.
+
+---
+
+#### Key Feedback Themes
+
+- **FB-113** (Critical Bug — Resolved): OAuth callback did not call `setRefreshTokenCookie`, causing OAuth users to be silently logged out after 15 minutes. P1 hotfix applied same-day (Deploy Engineer, H-370, commit 483c5e1). `setRefreshTokenCookie` now called in `googleAuth.js`; `refresh_token` removed from redirect URL (security improvement). 199/199 tests re-verified.
+- **FB-114** (Positive): Graceful OAuth degradation when `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are absent is well-implemented — 302 → `/login?error=oauth_failed` instead of 500. Routes exist and degrade cleanly in staging/dev without real credentials.
+- **FB-115** (Positive): OAuth token URL cleanup via `window.history.replaceState` in `consumeOAuthParams()` is a solid security practice — prevents tokens in browser history or back-button URL. The `_oauthAction` pattern for toast control is clean.
+- **FB-116** (Positive): Mutual button disable (`anyLoading = loading || oauthLoading`) prevents double-submit race. `aria-busy` / `disabled` attributes reflect loading state correctly.
+- **FB-117** (Positive): Overall OAuth implementation is well-executed across the full stack. Account-linking logic, HttpOnly cookie delivery, and UI states are all correctly implemented.
+- **FB-118** (Minor Suggestion → Tasked T-127): `nodemailer` moderate vulnerability (GHSA-vvjj-xcjg-gr5g) reported by `npm audit`. Pre-existing. SMTP currently disabled so practical risk is low. Fix via `npm audit fix` tasked for Sprint #28.
+- **FB-119** (Minor UX Issue → Tasked T-127): `api-contracts.md` still documents `refresh_token` in the OAuth callback redirect URL — should reflect HttpOnly cookie delivery after H-370 fix. Tasked for Sprint #28.
+
+---
+
+#### What Went Well
+
+- P1 bug (FB-113, missing refresh cookie) discovered and fixed within the same sprint cycle — zero carry-over impact
+- `setRefreshTokenCookie` fix also removed `refresh_token` from redirect URL, a security improvement over the original spec
+- Graceful OAuth degradation without real Google credentials is architecturally correct — no credential-gated blockers in staging
+- `consumeOAuthParams()` URL cleanup and `_oauthAction` toast differentiation are thoughtful UX touches that went beyond the spec
+- 199/199 backend and 276/276 frontend tests — both well above acceptance criteria thresholds
+- Fourteenth consecutive sprint with zero carry-over tasks
+
+#### What To Improve
+
+- The P1 refresh cookie miss was a spec gap: the OAuth callback spec should have explicitly required `setRefreshTokenCookie` (same as the email/password flow). Future OAuth-adjacent tasks should cross-check against the full auth session lifecycle.
+- API contract was not updated to reflect the P1 fix before QA sign-off — caught by FB-119. Contract should be updated in the same commit/task as the fix.
+
+#### Technical Debt Noted
+
+- `nodemailer` moderate vulnerability — tasked T-127 (Sprint #28 housekeeping)
+- `api-contracts.md` OAuth callback section documents stale `refresh_token` in redirect URL — tasked T-127
+- Express 5 migration — advisory backlog; no urgency
+- Soft-delete / grace period for account deletion — post-MVP
+- Production deployment blocked on project owner providing SSL certificates
+- Production email delivery blocked on project owner providing SMTP credentials
+- Local process-based staging is not persistent — Monitor Agent must restart backend if connection refused before health checks
+- Real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` needed for full end-to-end OAuth staging test
+
+---
+
 ### Sprint #26 — 2026-05-24 to 2026-05-30
 
 **Sprint Goal:** Harden test reliability and polish edge-case UX — fix timezone-dependent flakiness in `careActionsStreak.test.js` (T-117) and improve the unsubscribe error page CTA to be contextually appropriate for deleted-account users (T-118).

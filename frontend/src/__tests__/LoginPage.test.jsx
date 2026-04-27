@@ -13,6 +13,7 @@ vi.mock('@phosphor-icons/react', () => ({
   EyeSlash: (props) => <span data-testid="icon-eye-slash" {...props} />,
   Info: (props) => <span data-testid="icon-info" {...props} />,
   X: (props) => <span data-testid="icon-x" {...props} />,
+  Warning: (props) => <span data-testid="icon-warning" {...props} />,
 }));
 
 vi.mock('../hooks/useAuth.jsx', () => ({
@@ -74,5 +75,49 @@ describe('LoginPage', () => {
 
     fireEvent.click(screen.getByLabelText('Dismiss'));
     expect(screen.queryByText('Your account has been permanently deleted.')).not.toBeInTheDocument();
+  });
+
+  // --- T-121 Required Tests ---
+
+  it('renders Google button on Log In tab with "or" divider', () => {
+    render(<LoginPage />);
+    expect(screen.getByText('Sign in with Google')).toBeInTheDocument();
+    expect(screen.getByText('or')).toBeInTheDocument();
+  });
+
+  it('renders Google button on Sign Up tab', () => {
+    render(<LoginPage />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Sign Up' }));
+    expect(screen.getByText('Sign in with Google')).toBeInTheDocument();
+  });
+
+  it('navigates to /api/v1/auth/google on Google button click', () => {
+    // Spy on window.location.href setter
+    const hrefSetter = vi.fn();
+    const originalLocation = window.location;
+    delete window.location;
+    window.location = { ...originalLocation, href: '', set href(val) { hrefSetter(val); } };
+
+    render(<LoginPage />);
+    fireEvent.click(screen.getByText('Sign in with Google'));
+    expect(hrefSetter).toHaveBeenCalledWith('/api/v1/auth/google');
+
+    window.location = originalLocation;
+  });
+
+  // --- T-121 Recommended Tests ---
+
+  it('shows error banner when ?error=oauth_failed is present', () => {
+    mockSearchParams.set('error', 'oauth_failed');
+    render(<LoginPage />);
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByText(/Something went wrong/)).toBeInTheDocument();
+  });
+
+  it('shows error banner when ?error=access_denied is present', () => {
+    mockSearchParams.set('error', 'access_denied');
+    render(<LoginPage />);
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByText(/You cancelled/)).toBeInTheDocument();
   });
 });

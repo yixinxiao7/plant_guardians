@@ -88,7 +88,7 @@
 
 /* AI filled highlight */
 .ai-filled-input .input-field {
-  background: rgba(92, 122, 92, 0.08);
+  background: var(--color-accent-soft);
   border-color: var(--color-accent);
 }
 

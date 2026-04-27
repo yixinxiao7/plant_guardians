@@ -1,10 +1,12 @@
 /* StreakTile — Care Streak card (SPEC-014 / T-091) */
 
+/* Streak is secondary surface — borderless, sits on its own tinted bg.
+   Milestone state earns a left-border accent because it's a status signal,
+   not decoration. */
 .streak-tile {
-  background: var(--color-streak-tile-bg);
-  border-radius: 12px;
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-card);
   padding: 32px;
-  border: 1.5px solid var(--color-border);
   margin-bottom: 24px;
 }
 

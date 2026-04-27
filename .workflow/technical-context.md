@@ -30,6 +30,7 @@ All schema changes must be tracked here. Before deploying any migration, verify 
 | 4 | 1 | Create `care_schedules` table | Create | `20260323_04_create_care_schedules.js` | Implemented — Ready for Deploy |
 | 5 | 1 | Create `care_actions` table | Create | `20260323_05_create_care_actions.js` | Implemented — Ready for Deploy |
 | 6 | 22 | Create `notification_preferences` table | Create | `20260405_01_create_notification_preferences.js` | Implemented — Ready for Deploy |
+| 7 | 27 | Add `google_id` to `users`, make `password_hash` nullable | Alter | `20260408_01_add_google_id_to_users.js` | Implemented — Ready for Deploy |
 
 ---
 
@@ -361,5 +362,111 @@ CREATE INDEX idx_notification_preferences_opted_in
 | `APP_BASE_URL` | Optional | Frontend base URL for email CTAs (default: `http://localhost:5173`) |
 
 All six variables are optional — the backend starts cleanly without them. When `EMAIL_HOST` is absent, the email service logs a warning and becomes a no-op. This ensures graceful degradation in environments where SMTP is not yet configured.
+
+---
+
+
+### Sprint 27 — Migration Proposal: Add `google_id` to `users` table
+
+**Status:** Auto-approved (automated sprint) — Manager reviews in closeout phase
+**Task:** T-120 (Backend Engineer)
+**Date:** 2026-04-08
+
+#### Summary
+
+Add Google OAuth 2.0 support via Passport.js (`passport-google-oauth20`). This requires two schema changes to the `users` table:
+
+1. **New column `google_id VARCHAR(255)` (nullable):** Stores the Google profile `sub` ID. A partial unique index ensures uniqueness only among non-NULL values, so existing email/password users (with `google_id = NULL`) are unaffected.
+
+2. **`password_hash` column becomes nullable:** Google-only users have no password. The column must allow NULL to support this. Existing email/password users retain non-NULL `password_hash` values — no data change.
+
+#### Migration File
+
+`backend/migrations/<timestamp>_add_google_id_to_users.js`
+
+**`up()`:**
+```sql
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE users ADD COLUMN google_id VARCHAR(255) DEFAULT NULL;
+CREATE UNIQUE INDEX users_google_id_unique ON users (google_id) WHERE google_id IS NOT NULL;
+```
+
+**`down()`:**
+```sql
+DROP INDEX IF EXISTS users_google_id_unique;
+ALTER TABLE users DROP COLUMN IF EXISTS google_id;
+-- NOTE: Only re-apply NOT NULL if no Google-only users exist (NULL password_hash rows would violate constraint):
+-- ALTER TABLE users ALTER COLUMN password_hash SET NOT NULL;
+```
+
+#### New Dependencies
+
+- `passport-google-oauth20` (npm) — Google OAuth 2.0 Passport strategy
+
+#### New Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GOOGLE_CLIENT_ID` | Optional | Google OAuth client ID; OAuth disabled gracefully if absent |
+| `GOOGLE_CLIENT_SECRET` | Optional | Google OAuth client secret; OAuth disabled gracefully if absent |
+
+Both added to `.env.example` with placeholder values. Backend starts cleanly without them.
+
+#### Risk Assessment
+
+- **Low risk** — existing users unaffected. `google_id` is nullable and additive. The `password_hash` NOT NULL relaxation is backward-compatible (existing values remain non-NULL).
+- **Rollback caveat** — the `down()` migration cannot restore `password_hash NOT NULL` if Google-only accounts (with NULL `password_hash`) have been created. Deploy Engineer must document this limitation.
+- **Staging note** — full end-to-end OAuth testing requires real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` env vars. Without them the route degrades gracefully but cannot be fully exercised.
+
+---
+
+
+### Sprint 28 — Migration Proposal: Create `plant_shares` table
+
+**Status:** Auto-approved (automated sprint) — Manager reviews in closeout phase
+**Task:** T-126 (Backend Engineer)
+**Date:** 2026-04-19
+
+#### Summary
+
+Add a `plant_shares` table to support the plant sharing feature (T-126). This table stores one share token per plant, enabling the idempotent `POST /api/v1/plants/:plantId/share` endpoint and the no-auth `GET /api/v1/public/plants/:shareToken` lookup.
+
+#### New Table: `plant_shares`
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | UUID | PK, NOT NULL, DEFAULT gen_random_uuid() |
+| `plant_id` | UUID | NOT NULL, FK → plants.id ON DELETE CASCADE |
+| `user_id` | UUID | NOT NULL, FK → users.id ON DELETE CASCADE |
+| `share_token` | VARCHAR(64) | NOT NULL, UNIQUE |
+| `created_at` | TIMESTAMP | NOT NULL, DEFAULT NOW() |
+
+**Indexes:** Primary key on `id`; unique index on `share_token`.
+
+**Relationships:**
+- `plant_id` → `plants.id` (FK, ON DELETE CASCADE — deleting a plant removes its share token automatically)
+- `user_id` → `users.id` (FK, ON DELETE CASCADE — deleting a user removes all their share tokens)
+
+**Migration file:** `backend/migrations/<timestamp>_create_plant_shares.js`
+
+**Rollback:** `down()` drops the table with `dropTableIfExists('plant_shares')`.
+
+#### New Environment Variable
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `FRONTEND_URL` | Yes (feature-required) | Base URL for constructing share URLs; defaults to `http://localhost:5173` in development |
+
+Check `backend/.env.example` before adding — may already be present from a prior sprint. If absent, add with placeholder `http://localhost:5173`.
+
+#### Impact on Existing Schema
+
+None — purely additive. No columns modified on existing tables. No data migrations required.
+
+#### Risk Assessment
+
+- **Low risk** — new table only; all existing endpoints and data are unaffected
+- **Rollback is clean** — `dropTableIfExists` in `down()` removes the table and its indexes cleanly
+- **Cascade safety** — both FK cascades are intentional: share tokens are inherently tied to their plant and owner's lifetime
 
 ---

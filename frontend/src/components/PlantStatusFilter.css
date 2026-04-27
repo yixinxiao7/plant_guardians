@@ -1,0 +1,86 @@
+/* SPEC-024 §2 — Plant status filter (segmented pill tabs) */
+
+.psf2-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.psf2-group::-webkit-scrollbar {
+  display: none;
+}
+
+.psf2-tab {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-surface-alt);
+  color: var(--color-text-secondary);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.psf2-tab:hover:not(:disabled):not(.psf2-tab--active) {
+  background: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.psf2-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.psf2-count {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+/* Active variants — tinted to match each status, with "All" using brand sage. */
+.psf2-tab--active.psf2-tab--all {
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  border-color: var(--color-accent);
+}
+
+.psf2-tab--active.psf2-tab--overdue {
+  background: var(--color-status-overdue-bg);
+  color: var(--color-status-overdue-text);
+  border-color: var(--color-status-overdue-border);
+}
+
+.psf2-tab--active.psf2-tab--due_today {
+  background: var(--color-status-due-today-bg);
+  color: var(--color-status-due-today-text);
+  border-color: var(--color-status-due-today-border);
+}
+
+.psf2-tab--active.psf2-tab--on_track {
+  background: var(--color-status-on-track-bg);
+  color: var(--color-status-on-track-text);
+  border-color: var(--color-status-on-track-border);
+}
+
+/* Disabled / initial-load skeleton state — SPEC §6 */
+.psf2-group--disabled .psf2-tab {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+@media (max-width: 479px) {
+  .psf2-tab {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+}

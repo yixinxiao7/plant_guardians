@@ -1,8 +1,10 @@
 /* Reminders Section — T-102 */
 
+/* Settings panel — secondary surface (no border, tinted bg) so the row of
+   profile sections (streak / reminders / appearance) reads as a quiet stack
+   below the primary user-identity card. */
 .reminders-section {
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-border);
+  background: var(--color-surface-alt);
   border-radius: var(--radius-card);
   padding: 24px;
   margin-bottom: 24px;
@@ -125,16 +127,22 @@
   margin-bottom: 0;
 }
 
-/* Timing Selector Wrapper — animated expand/collapse */
+/* Timing Selector Wrapper — expand/collapse via grid-template-rows
+   so we animate the track size, not max-height (no reflow on children). */
 .reminders-timing-wrapper {
-  max-height: 0;
+  display: grid;
+  grid-template-rows: 0fr;
   opacity: 0;
+  transition: grid-template-rows 0.3s ease, opacity 0.2s ease;
+}
+
+.reminders-timing-wrapper > * {
+  min-height: 0;
   overflow: hidden;
-  transition: max-height 0.3s ease, opacity 0.2s ease;
 }
 
 .reminders-timing-wrapper--open {
-  max-height: 220px;
+  grid-template-rows: 1fr;
   opacity: 1;
 }
 

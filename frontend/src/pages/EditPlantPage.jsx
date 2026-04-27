@@ -278,12 +278,12 @@ export default function EditPlantPage() {
         </section>
 
         <section className="plant-form-section">
-          <Input label="Plant Name" required value={name} onChange={(e) => { setName(e.target.value); if (errors.name) setErrors(p => ({ ...p, name: null })); }} error={errors.name} disabled={saving} autoFocus />
-          <Input label="Plant Type" value={type} onChange={(e) => setType(e.target.value)} disabled={saving} className={aiFilledFields.includes('type') ? 'ai-filled-input' : ''} />
+          <Input label="Plant Name" required maxLength={100} value={name} onChange={(e) => { setName(e.target.value); if (errors.name) setErrors(p => ({ ...p, name: null })); }} error={errors.name} disabled={saving} autoFocus />
+          <Input label="Plant Type" maxLength={80} value={type} onChange={(e) => setType(e.target.value)} disabled={saving} className={aiFilledFields.includes('type') ? 'ai-filled-input' : ''} />
           {aiFilledFields.includes('type') && <span className="ai-badge">Filled by AI</span>}
           <div className="input-group">
-            <label className="input-label">Notes</label>
-            <textarea className="input-field" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} disabled={saving} />
+            <label className="input-label" htmlFor="plant-notes">Notes</label>
+            <textarea id="plant-notes" className="input-field" rows={3} maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)} disabled={saving} />
           </div>
         </section>
 

@@ -39,6 +39,53 @@ const User = {
   },
 
   /**
+   * Find a user by Google ID.
+   * Returns full user row (id, full_name, email, google_id, created_at).
+   */
+  async findByGoogleId(googleId) {
+    return db('users')
+      .select('id', 'full_name', 'email', 'google_id', 'created_at')
+      .where('google_id', googleId)
+      .first();
+  },
+
+  /**
+   * Create a new user from Google OAuth (no password).
+   */
+  async createGoogleUser({ full_name, email, google_id }) {
+    const [user] = await db('users')
+      .insert({
+        full_name,
+        email: email.toLowerCase().trim(),
+        google_id,
+        password_hash: null,
+      })
+      .returning(['id', 'full_name', 'email', 'google_id', 'created_at']);
+    return user;
+  },
+
+  /**
+   * Link a Google ID to an existing user (account-linking).
+   */
+  async linkGoogleId(userId, googleId) {
+    return db('users')
+      .where('id', userId)
+      .update({
+        google_id: googleId,
+        updated_at: new Date(),
+      });
+  },
+
+  /**
+   * Update the updated_at timestamp for a user.
+   */
+  async updateTimestamp(userId) {
+    return db('users')
+      .where('id', userId)
+      .update({ updated_at: new Date() });
+  },
+
+  /**
    * Verify password against stored hash.
    */
   async verifyPassword(plainText, hash) {

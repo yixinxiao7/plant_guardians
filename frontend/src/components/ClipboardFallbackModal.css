@@ -1,0 +1,39 @@
+/* ClipboardFallbackModal — Sprint 28 / SPEC-022 */
+
+.clipboard-fallback-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.clipboard-fallback-description {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.clipboard-fallback-input {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
+  background: var(--color-surface-alt);
+  border: 1.5px solid var(--color-border);
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.clipboard-fallback-input:focus {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-color: var(--color-border-focus);
+}
+
+.clipboard-fallback-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}

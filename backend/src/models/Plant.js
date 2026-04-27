@@ -23,29 +23,42 @@ const Plant = {
    * @param {Object} options
    * @param {number} [options.page=1]
    * @param {number} [options.limit=50]
-   * @param {string} [options.search] — case-insensitive substring match on name
+   * @param {string} [options.search] — case-insensitive substring match on name OR type (T-142, Sprint 30)
    * @param {boolean} [options.noPagination=false] — if true, returns all matching plants (for app-level filtering)
+   * @param {'name_asc'|'name_desc'|null} [options.dbSort] — DB-level sort. If null, no ORDER BY is applied
+   *   (caller will sort in app layer). Used by T-142 for `name_asc` / `name_desc` fast paths.
    */
-  async findByUserId(userId, { page = 1, limit = 50, search, noPagination = false } = {}) {
+  async findByUserId(userId, { page = 1, limit = 50, search, noPagination = false, dbSort } = {}) {
     const offset = (page - 1) * limit;
 
     function applyFilters(query) {
       query.where('user_id', userId);
       if (search) {
-        query.whereRaw('LOWER(name) LIKE ?', [`%${search.toLowerCase()}%`]);
+        // T-142: search now matches name OR type (species). Parameterized to prevent injection.
+        const term = `%${search.toLowerCase()}%`;
+        query.whereRaw('(LOWER(name) LIKE ? OR LOWER(COALESCE(type, \'\')) LIKE ?)', [term, term]);
       }
       return query;
     }
 
+    function applyOrder(query) {
+      if (dbSort === 'name_asc') {
+        return query.orderByRaw('LOWER(name) ASC');
+      }
+      if (dbSort === 'name_desc') {
+        return query.orderByRaw('LOWER(name) DESC');
+      }
+      // Default fallback — preserve historical ordering for callers that don't specify dbSort.
+      return query.orderBy('created_at', 'desc');
+    }
+
     if (noPagination) {
-      const plants = await applyFilters(db('plants'))
-        .orderBy('created_at', 'desc');
+      const plants = await applyOrder(applyFilters(db('plants')));
       return { plants, total: plants.length };
     }
 
     const [plants, [{ count }]] = await Promise.all([
-      applyFilters(db('plants').clone())
-        .orderBy('created_at', 'desc')
+      applyOrder(applyFilters(db('plants').clone()))
         .limit(limit)
         .offset(offset),
       applyFilters(db('plants').clone())

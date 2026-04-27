@@ -2,8 +2,14 @@
  * Test setup — shared helpers for all test files.
  *
  * With --runInBand, all test files share a single process and module cache.
- * We track migration state to avoid redundant migrate/rollback cycles and
- * ensure db.destroy() is only called once (via the process exit handler).
+ * We track migration state to avoid redundant migrate/rollback cycles.
+ *
+ * IMPORTANT: db.destroy() is NOT called in teardownDatabase(). In --runInBand
+ * mode, Jest loads test files lazily — when file A's afterAll fires, file B
+ * hasn't called setupDatabase() yet, so an activeFiles counter would hit 0
+ * prematurely and destroy the pool mid-suite. Instead, pool cleanup is handled
+ * by the Jest globalTeardown script (tests/globalTeardown.js) which runs once
+ * after ALL test files have completed.
  */
 // Ensure environment is set BEFORE requiring app (rate limiters read env at import time)
 process.env.NODE_ENV = 'test';
@@ -25,13 +31,11 @@ const db = require('../src/config/database');
 
 // Track whether migrations have been applied (shared across test files in --runInBand mode)
 let migrationsApplied = false;
-let activeFiles = 0;
 
 /**
  * Run all migrations before tests. Idempotent — safe to call from every test file.
  */
 async function setupDatabase() {
-  activeFiles++;
   if (!migrationsApplied) {
     await db.migrate.latest();
     migrationsApplied = true;
@@ -39,16 +43,14 @@ async function setupDatabase() {
 }
 
 /**
- * Roll back migrations and destroy the connection pool.
- * Only actually runs when the last test file tears down.
+ * Roll back migrations after a test file completes.
+ * Does NOT destroy the connection pool — that is handled by globalTeardown.
+ * Rollback is skipped because other test files in --runInBand mode still need
+ * the schema. The globalTeardown handles final rollback + pool cleanup.
  */
 async function teardownDatabase() {
-  activeFiles--;
-  if (activeFiles <= 0) {
-    await db.migrate.rollback(true);
-    migrationsApplied = false;
-    await db.destroy();
-  }
+  // No-op per file — cleanup is centralized in globalTeardown.js
+  // This function is kept for API compatibility with all existing test files.
 }
 
 async function cleanTables() {

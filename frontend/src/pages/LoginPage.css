@@ -15,13 +15,17 @@
 }
 
 [data-theme="dark"] .login-brand-panel {
-  background: #2A2620;
+  background: var(--color-surface-alt);
 }
 
 .login-brand-content {
   text-align: center;
-  color: #fff;
+  color: var(--color-text-inverse);
   z-index: 1;
+}
+
+[data-theme="dark"] .login-brand-content {
+  color: var(--color-text-primary);
 }
 
 .login-brand-title {
@@ -64,16 +68,11 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(184, 92, 56, 0.08);
-  border: 1px solid rgba(184, 92, 56, 0.30);
-  border-radius: 8px;
+  background: var(--color-status-red-soft);
+  border: 1px solid var(--color-status-red-soft-strong);
+  border-radius: var(--radius-input);
   padding: 12px 16px;
   margin-bottom: 20px;
-}
-
-[data-theme="dark"] .login-deleted-banner {
-  background: rgba(201, 107, 68, 0.10);
-  border-color: rgba(201, 107, 68, 0.35);
 }
 
 .login-deleted-banner-text {
@@ -81,10 +80,6 @@
   font-size: 14px;
   font-weight: 500;
   color: var(--color-status-red);
-}
-
-[data-theme="dark"] .login-deleted-banner-text {
-  color: #C96B44;
 }
 
 .login-deleted-banner-dismiss {
@@ -102,7 +97,7 @@
 }
 
 .login-deleted-banner-dismiss:hover {
-  background: rgba(184, 92, 56, 0.08);
+  background: var(--color-status-red-soft);
 }
 
 .login-mobile-logo {
@@ -142,15 +137,36 @@
 .login-tab.active {
   background: var(--color-surface);
   color: var(--color-text-primary);
-  box-shadow: 0 1px 4px rgba(44, 44, 44, 0.1);
-}
-
-[data-theme="dark"] .login-tab.active {
-  background: #242220;
+  box-shadow: var(--shadow-card);
 }
 
 [data-theme="dark"] .login-tabs {
-  background: #2C2A26;
+  background: var(--color-surface-alt);
+}
+
+/* OAuth divider */
+.oauth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.oauth-divider > div {
+  flex: 1;
+}
+
+.oauth-divider-line {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 0;
+}
+
+.oauth-divider-text {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-text-disabled);
+  flex-shrink: 0;
 }
 
 /* Form */

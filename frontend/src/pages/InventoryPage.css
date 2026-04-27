@@ -143,6 +143,85 @@
   border: 0;
 }
 
+/* SPEC-024 — Search/sort/filter controls zone */
+.inv-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 16px 0 0 0;
+}
+
+.inv-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.inv-clear-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.inv-clear-link:hover {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+}
+
+.inv-clear-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
+  border-radius: 2px;
+}
+
+.inv-clear-link--inline {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.inv-fetch-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--color-status-overdue-bg);
+  color: var(--color-status-overdue-text);
+  border-radius: var(--radius-input);
+  font-size: 13px;
+}
+
+/* SPEC-024 §5 — filtered empty states */
+.inv-filtered-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 64px 24px;
+}
+
+.inv-empty-icon {
+  color: var(--color-text-disabled);
+  margin-bottom: 16px;
+}
+
+.inv-filtered-empty-message {
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin-bottom: 12px;
+}
+
 /* Mobile add-plant icon-only toggle */
 .add-plant-icon-only {
   display: none;

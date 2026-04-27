@@ -43,9 +43,11 @@ async function createPlantWithStatus(accessToken, name, lastDoneAt, frequencyDay
 describe('GET /api/v1/plants — search filter (T-083)', () => {
   it('should filter plants by name substring (case-insensitive)', async () => {
     const { accessToken } = await createTestUser();
-    await createTestPlant(accessToken, { name: 'Golden Pothos' });
-    await createTestPlant(accessToken, { name: 'Spider Plant' });
-    await createTestPlant(accessToken, { name: 'Satin Pothos' });
+    // T-142 (Sprint 30): search now also matches `type`, so explicitly override
+    // type to avoid `pothos` accidentally matching via the default 'Pothos' type.
+    await createTestPlant(accessToken, { name: 'Golden Pothos', type: 'Houseplant' });
+    await createTestPlant(accessToken, { name: 'Spider Plant', type: 'Houseplant' });
+    await createTestPlant(accessToken, { name: 'Satin Pothos', type: 'Houseplant' });
 
     const res = await request(app)
       .get('/api/v1/plants?search=pothos')
@@ -81,7 +83,8 @@ describe('GET /api/v1/plants — search filter (T-083)', () => {
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    // T-142 (Sprint 30): error code now specific
+    expect(res.body.error.code).toBe('INVALID_SEARCH_TERM');
   });
 
   it('should trim whitespace from search and treat empty as no filter', async () => {
@@ -146,7 +149,8 @@ describe('GET /api/v1/plants — status filter (T-083)', () => {
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    // T-142 (Sprint 30): error code now specific
+    expect(res.body.error.code).toBe('INVALID_STATUS_FILTER');
   });
 
   it('should exclude plants with zero care schedules from status filter results', async () => {

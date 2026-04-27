@@ -1,0 +1,64 @@
+/* ShareButton — Sprint 28 / SPEC-022 */
+
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: none;
+  border-radius: var(--radius-circle);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.share-btn:hover:not(:disabled) {
+  background: var(--color-surface-alt);
+  color: var(--color-text-primary);
+}
+
+.share-btn:active:not(:disabled) {
+  transform: scale(0.93);
+}
+
+.share-btn:disabled,
+.share-btn[aria-busy="true"] {
+  cursor: wait;
+  opacity: 0.85;
+}
+
+.share-btn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.share-btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(92, 122, 92, 0.25);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: share-btn-spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+@keyframes share-btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Mobile — ensure minimum tap target */
+@media (max-width: 768px) {
+  .share-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

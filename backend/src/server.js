@@ -1,4 +1,5 @@
 require('dotenv').config();
+process.on('unhandledRejection', (reason) => console.error('[UNHANDLED REJECTION]', reason));
 const app = require('./app');
 const db = require('./config/database');
 const knexConfig = require('../knexfile');

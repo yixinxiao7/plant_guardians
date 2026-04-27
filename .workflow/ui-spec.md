@@ -5931,3 +5931,1652 @@ it('shows "Go to Plant Guardians" CTA when API returns 404 (deleted account)', a
 ---
 
 *SPEC-020 written by Design Agent on 2026-04-06. Auto-approved for Sprint #26.*
+
+---
+
+### SPEC-021 — Google OAuth Login/Register UI Additions
+
+**Status:** Approved
+**Related Tasks:** T-119 (Design Agent), T-121 (Frontend Engineer — gates this spec)
+**Sprint:** 27
+**Type:** Spec Amendment — extends SPEC-001 (Login & Sign Up Screen)
+**Resolves:** Sprint #27 goal — reduce signup friction for "plant killer" users
+
+---
+
+#### Summary
+
+This spec extends SPEC-001 to add **"Sign in with Google"** to both the Log In tab and the Sign Up tab of the existing auth screen (`/login`). Users who prefer not to manage a password can complete onboarding in one tap. The Google button sits **above** the existing email/password form, separated by an "or" divider. Post-OAuth, users land on `/` (plant inventory) — identical to the email/password success path. If a Google account's email matches an existing email/password account, the accounts are **auto-linked** and a toast confirms it.
+
+This spec does **not** change the overall page layout, brand panel, tab toggle, or any email/password form component from SPEC-001. Only the form interior receives new elements.
+
+---
+
+#### Affected Screen
+
+**File:** `frontend/src/pages/LoginPage.jsx` (handles both Log In and Sign Up tabs)
+**No changes to:** brand panel (left column), tab toggle component, field validation logic, form-level error banner, redirect-after-success path, or responsive breakpoints.
+
+---
+
+#### New UI Elements Overview
+
+| Element | Location on Both Tabs | Notes |
+|---------|----------------------|-------|
+| Google OAuth button | Top of form content, before all fields | Google-branded, full-width |
+| "or" divider | Between Google button and first input field | Horizontal rule with centred label |
+| OAuth error banner | Below Google button, above divider | Only visible when OAuth callback returns an `?error=` param |
+| Account-linked toast | App-level toast, appears post-redirect on `/` | "Your Google account has been linked. Welcome back, [First Name]! 🌿" |
+
+---
+
+#### Placement & Layout — Form Interior
+
+Both the **Log In** and **Sign Up** tabs share identical additions. The form interior order becomes:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│   [Google OAuth Button — full width]                        │
+│                                                             │
+│   [OAuth Error Banner — only shown when ?error=... present] │
+│                                                             │
+│   ─────────────────── or ───────────────────               │
+│                                                             │
+│   [Existing email/password fields]                          │
+│                                                             │
+│   [Submit Button]                                           │
+│                                                             │
+│   [Switch Mode Link]                                        │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Spacing:
+- `24px` gap below the Google button (before the OAuth error banner if shown, or the divider)
+- `16px` gap between the OAuth error banner and the divider (only when error banner is visible)
+- `24px` gap above and below the "or" divider
+- All other form spacing is unchanged from SPEC-001
+
+---
+
+#### Component: Google OAuth Button
+
+This button must conform to **Google's brand guidelines** for the "Sign in with Google" button. Use the standard light-theme variant (our form panel is `#F7F4EF` — a light background).
+
+**Visual spec:**
+
+| Property | Value |
+|----------|-------|
+| Width | 100% (full width of the form container, same as the submit button) |
+| Height | `44px` — matches existing input field height for visual rhythm |
+| Background | `#FFFFFF` |
+| Border | `1px solid #DADCE0` (Google's specified border color) |
+| Border-radius | `8px` — matches our input field border-radius convention |
+| Box-shadow | `0 1px 3px rgba(60, 64, 67, 0.10), 0 1px 2px rgba(60, 64, 67, 0.06)` |
+| Font | `'DM Sans'`, `font-size: 15px`, `font-weight: 600`, `color: #3C4043` (Google dark gray) |
+| Letter-spacing | `0.01em` |
+| Icon | Google "G" logo SVG — 20×20px, `16px` from left edge, vertically centered |
+| Icon-to-text gap | `12px` between right edge of the "G" icon and start of label text |
+| Label text | `"Sign in with Google"` — on **both** Log In tab and Sign Up tab |
+| Cursor | `pointer` |
+
+**Google "G" logo SVG** — use the official multi-color Google "G" mark with four colored paths: red (`#EA4335`), yellow (`#FBBC05`), green (`#34A853`), blue (`#4285F4`). Embed the SVG inline within the button (no external image dependency). Do not substitute with a monochrome version or a third-party icon library icon — Google brand guidelines require the official mark.
+
+**Hover state:**
+- Background: `#F8F9FA` (Google's specified light-gray hover — very subtle)
+- Box-shadow: `0 2px 6px rgba(60, 64, 67, 0.15), 0 1px 4px rgba(60, 64, 67, 0.10)`
+- Transition: `background 0.15s ease, box-shadow 0.15s ease`
+- Do **not** use our sage hover (`#4A6449`) — this is a Google-branded button and must follow Google's palette
+
+**Active / pressed state:**
+- Background: `#F1F3F4`
+- `transform: scale(0.98)` — subtle press feedback (our convention is `scale(0.97)` — slightly softer here given the Google brand context)
+
+**Focus state:**
+- `outline: 2px solid #5C7A5C; outline-offset: 2px` — our app's focus ring convention takes precedence for keyboard navigation consistency
+- Do not use Google blue for the focus ring
+
+**Disabled state:**
+- Background: `#F8F9FA`
+- Border: `1px solid #DADCE0`
+- Opacity: `0.5`
+- Cursor: `not-allowed`
+- Button is disabled during any loading state (after click, while redirect is in progress; also disabled when the email/password submit button is in loading state, to prevent concurrent auth attempts)
+
+**Loading state (after click, before browser redirect):**
+- Replace label text with a centered spinner (18px, `color: #3C4043`)
+- Button disabled (`pointer-events: none`)
+- Use the same spinner component already in use on the existing submit button
+
+**Interaction — on click:**
+1. Button enters loading state (spinner, disabled)
+2. Browser performs a **full-page navigation** to `GET /api/v1/auth/google` via `window.location.href = '/api/v1/auth/google'`
+3. The browser leaves the app; the backend initiates the Google OAuth redirect
+4. (After Google consent, the backend callback redirects back to the frontend — see Post-OAuth Redirect Flow)
+
+**Implementation note:** An `<a href="/api/v1/auth/google">` styled as a button is also acceptable. If using `<a>`, do **not** add `role="button"` — it is a navigational link. The visible text already describes the action, so `aria-label` is not needed. If using `<button>`, fire `window.location.href` in the click handler.
+
+---
+
+#### Component: "or" Divider
+
+A horizontal visual separator between the Google button and the email/password form.
+
+```
+─────────────────── or ───────────────────
+```
+
+**Spec:**
+
+| Property | Value |
+|----------|-------|
+| Layout | Flex row: `<div aria-hidden="true"><hr></div>` flex-grow 1, `<span>or</span>`, `<div aria-hidden="true"><hr></div>` flex-grow 1; `align-items: center; gap: 12px` |
+| `<hr>` style | `border: none; border-top: 1px solid #E0DDD6; flex: 1; margin: 0` |
+| Label | `"or"` — lowercase |
+| Font | `font-size: 13px`, `font-weight: 400`, `color: #B0ADA5` (intentionally muted — this is a separator, not a label) |
+| Margin | `24px 0` (above and below the entire divider row) |
+
+**Accessibility:** The `<hr>` dividers are decorative — wrap each in `aria-hidden="true"`. The `<span>or</span>` remains visible text but carries no functional meaning; no special ARIA role is needed.
+
+---
+
+#### Component: OAuth Error Banner
+
+Displayed **only** when the OAuth callback redirects back to the frontend with an `?error=` query parameter (e.g., `/login?error=oauth_failed` or `/login?error=access_denied`).
+
+Positioned **below the Google button and above the "or" divider** — inside the form card, not as a page-level overlay.
+
+**Visual spec:**
+
+| Property | Value |
+|----------|-------|
+| Container | Full width of form, `border-radius: 8px`, `padding: 12px 16px`, `background: #FAEAE4`, `border: 1px solid #E8C4B8` |
+| Layout | Flex row, `align-items: flex-start`, `gap: 8px` |
+| Icon | Phosphor `Warning`, 16px, `color: #B85C38`, `flex-shrink: 0`, `margin-top: 1px` for optical alignment with text |
+| Text | `font-size: 13px`, `color: #B85C38`, `font-weight: 400`, `line-height: 1.5` |
+| Margin | `16px 0 0 0` (below Google button); the divider's own `margin-top: 24px` provides the gap above the divider |
+| Role | `role="alert"` on the container |
+
+**Error message copy by `?error` param value:**
+
+| `error` query param | Message |
+|--------------------|---------|
+| `access_denied` | "You cancelled the Google sign-in. Try again or use email and password below." |
+| `oauth_failed` | "Something went wrong with Google sign-in. Please try again or use email and password below." |
+| *(any other / unknown)* | "Sign-in with Google was unsuccessful. Please try again or use email and password below." |
+
+**Detection logic (frontend):**
+```js
+// On component mount
+const params = new URLSearchParams(window.location.search);
+const oauthError = params.get('error'); // 'access_denied' | 'oauth_failed' | null | …
+
+// After reading the param, clean the URL so the banner doesn't persist on refresh:
+if (oauthError) {
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete('error');
+  window.history.replaceState({}, '', cleanUrl.toString());
+}
+```
+
+**Dismiss behavior:** No explicit dismiss button required — the banner is informational and the user's next action (clicking Google button again or focusing a form field) is the natural progression. An optional `×` dismiss icon button (`aria-label="Dismiss error"`, `color: #B85C38`, 16px) may be added but is not required for this sprint.
+
+**Accessibility:**
+- `role="alert"` on the container — screen readers announce the error automatically on mount
+- Warning icon: `aria-hidden="true"` (the text carries the full message)
+
+---
+
+#### Post-OAuth Redirect Flow
+
+After the backend successfully exchanges the Google authorization code for tokens and creates/updates the user, it redirects the browser back to the frontend. The Frontend Engineer and Backend Engineer must coordinate on the token delivery mechanism (query param vs. short-lived HttpOnly cookie) before implementation — document the decision in `api-contracts.md` as part of T-120. This spec defines only the **UX outcome**, not the delivery mechanism.
+
+**UX outcome (identical regardless of delivery mechanism):**
+
+1. Backend redirects browser to the frontend (e.g., `/?token=<jwt>` or `/` with a short-lived cookie)
+2. Frontend reads and stores the token in-memory (same as existing email/password auth — no `sessionStorage` or `localStorage`)
+3. If token was delivered via query param, clean the URL immediately:
+   ```js
+   const url = new URL(window.location.href);
+   if (url.searchParams.has('token')) {
+     url.searchParams.delete('token');
+     window.history.replaceState({}, '', url.toString());
+   }
+   ```
+4. User lands on `/` — the plant inventory screen (identical to the email/password login success path)
+5. A **success toast** appears based on the user's situation (see table below)
+
+**Toast messages by situation:**
+
+| Situation | Toast message | Duration |
+|-----------|--------------|---------|
+| New user (first-ever sign-in via Google) | `"Welcome to Plant Guardians! 🌿"` | 3s (matches existing sign-up toast) |
+| Returning Google user | `"Welcome back, [First Name]! 🌿"` | 3s (matches existing log-in toast) |
+| Account auto-linked (Google email matched existing account) | `"Your Google account has been linked. Welcome back, [First Name]! 🌿"` | 5s (slightly longer — the linking confirmation is meaningful) |
+
+**Signalling mechanism for account-linked:** The backend should append `?linked=true` to the redirect URL alongside (or instead of) the token. Frontend detects this param, reads it, cleans the URL, and shows the account-linked toast instead of the standard welcome toast. If the Backend Engineer uses cookie-based delivery, the `linked` signal can be embedded as a short-lived cookie or in the JWT payload — the Frontend Engineer and Backend Engineer must agree and document in `api-contracts.md`.
+
+---
+
+#### Account-Linking Edge Case — Full UX Description
+
+**Scenario:** A user previously registered at Plant Guardians with `alice@gmail.com` and a password. They now click "Sign in with Google" and authorize the same `alice@gmail.com` Google account.
+
+**What the user experiences:**
+
+1. User clicks "Sign in with Google" on the Login (or Sign Up) page
+2. Google consent screen appears; user approves
+3. Backend detects the email match, sets `google_id` on the existing user record, returns their existing JWT + a `linked=true` signal
+4. Browser is redirected to `/` (plant inventory — no intermediate screen, no merge confirmation modal)
+5. The account-linked toast appears for 5 seconds: *"Your Google account has been linked. Welcome back, Alice! 🌿"*
+6. The user's existing plant data, care history, and preferences are fully intact — nothing changed except that Google OAuth is now also accepted for this account
+
+**What the user does NOT see:**
+- No "duplicate account" error
+- No "you already have an account" warning
+- No merge confirmation dialog (the merge is automatic and silent — intentionally low-friction for the "plant killer" persona)
+- No password reset prompt
+
+**What happens on subsequent Google sign-ins (after initial link):**
+- The backend finds the user by `google_id` — no re-linking needed
+- Standard returning-user toast: *"Welcome back, Alice! 🌿"* (no "linked" toast on subsequent logins)
+
+---
+
+#### States Summary
+
+| State | Trigger | Visible Elements on Form |
+|-------|---------|--------------------------|
+| **Default — Log In tab** | Fresh page load at `/login` | Google button, divider, email + password fields, Log In submit, switch-mode link |
+| **Default — Sign Up tab** | User switches to Sign Up tab | Google button, divider, Full Name + email + password + confirm password fields, Create Account button, switch-mode link |
+| **Google button loading** | User clicks Google button | Google button showing spinner (disabled); rest of form unchanged; submit button also disabled to prevent concurrent auth |
+| **Email/password loading** | User submits email/password form | Submit button showing spinner; Google button also disabled |
+| **OAuth error** | Page loads with `?error=...` in URL | Google button (normal), OAuth error banner (above divider, `role="alert"`), divider, full form |
+| **OAuth success — new user** | Redirect to `/` after first-ever Google OAuth | Plant inventory. Toast: "Welcome to Plant Guardians! 🌿" (3s) |
+| **OAuth success — returning user** | Redirect to `/` after subsequent Google OAuth | Plant inventory. Toast: "Welcome back, [First Name]! 🌿" (3s) |
+| **OAuth success — account linked** | Redirect to `/` with `?linked=true` | Plant inventory. Toast: "Your Google account has been linked. Welcome back, [First Name]! 🌿" (5s) |
+| **Email/password field errors** | Existing SPEC-001 behavior | Unchanged — Google button and divider are unaffected by email/password field errors |
+
+---
+
+#### Responsive Behavior
+
+All additions follow the existing SPEC-001 responsive rules. No new breakpoints are introduced.
+
+| Breakpoint | Google Button & Divider Behavior |
+|-----------|----------------------------------|
+| Desktop (≥1024px) | Full width of the 420px form container |
+| Tablet (768–1023px) | Full width of the wider form container |
+| Mobile (<768px) | Full width of form with `24px` horizontal padding (same as all other form elements) |
+
+The Google "G" SVG + label `"Sign in with Google"` fits on a single line at all viewport widths down to 320px at `font-size: 15px`. No text wrapping expected.
+
+**Touch devices:** Minimum tap target height is `44px` (already specified). Hover styles are skipped on touch naturally. The active/press state (`background: #F1F3F4`, `scale(0.98)`) applies on `touchstart`.
+
+---
+
+#### Accessibility
+
+| Requirement | Implementation |
+|-------------|---------------|
+| Button element | Use `<button type="button">` with a click handler, or `<a href="/api/v1/auth/google">`. Do not add `role="button"` to an `<a>`. |
+| Visible label | Button text `"Sign in with Google"` is fully visible — no `aria-label` needed |
+| Google logo SVG | `aria-hidden="true"` on the `<svg>` — decorative within the button |
+| Loading state | Set `aria-label="Signing in with Google…"` on button and `aria-busy="true"` when spinner is shown |
+| OAuth error banner | `role="alert"` on the error container — auto-announced by screen readers on mount |
+| Warning icon in banner | `aria-hidden="true"` — the text carries the full error message |
+| "or" divider | `<hr>` elements wrapped in `aria-hidden="true"`; the `<span>or</span>` remains visible text |
+| Focus order | Google button → (OAuth error banner is not focusable) → first email/password input → rest of form |
+| Focus ring | `outline: 2px solid #5C7A5C; outline-offset: 2px` — matches all other interactive elements |
+| Keyboard activation | `<button>` or `<a>` — both natively keyboard-activatable via `Enter` (`<button>` also via `Space`) |
+| No auto-focus | Do not auto-focus the Google button on load — maintain existing SPEC-001 behavior |
+| WCAG contrast | Google button text `#3C4043` on `#FFFFFF`: ~14:1 ✅. OAuth error text `#B85C38` on `#FAEAE4`: ~4.6:1 ✅. Divider "or" text `#B0ADA5` on `#F7F4EF`: ~2.9:1 — acceptable for decorative separator text; optionally use `#8A8880` (~4.2:1) for stricter compliance. |
+
+---
+
+#### Files to Modify / Create
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/LoginPage.jsx` | Add `GoogleOAuthButton` and `OAuthDivider` inside both tabs' form body. Add `oauthError` state derived from `?error=` URL param. Add `linked` state derived from `?linked=` URL param. Handle URL cleanup on mount. Show account-linked toast when `linked=true`. Disable Google button when email/password form is in loading state. |
+| `frontend/src/components/GoogleOAuthButton.jsx` | **New file.** Encapsulates Google-branded button: inline Google "G" SVG, loading spinner state, styling. Props: `onClick: () => void`, `loading?: boolean`, `disabled?: boolean`. |
+| `frontend/src/components/OAuthErrorBanner.jsx` *(optional)* | Encapsulate the error banner markup + copy map if preferred; or inline in `LoginPage.jsx`. |
+| `frontend/src/pages/LoginPage.css` (or equivalent) | Add `.oauth-divider` flex row styles. Add `.oauth-error-banner` styles if not using inline styles or a shared component. |
+
+**No changes required to:** brand panel, tab toggle, existing input components, SPEC-001 validation logic, form-level error banner, any other page, or any backend file.
+
+---
+
+#### Minimum Test Coverage (T-121 — ≥3 new tests required)
+
+| # | Test | Required? |
+|---|------|-----------|
+| 1 | **Google button renders on Log In tab** — render `<LoginPage />`, assert button with accessible name `"Sign in with Google"` is in the document; assert "or" divider text is present | ✅ Required |
+| 2 | **Google button renders on Sign Up tab** — switch to Sign Up tab (click tab toggle), assert button with accessible name `"Sign in with Google"` is present | ✅ Required |
+| 3 | **Click initiates OAuth navigation** — mock `window.location` (or spy on `window.location.href` setter), click Google button, assert navigation to `"/api/v1/auth/google"` was triggered | ✅ Required |
+| 4 | **OAuth error banner — `?error=oauth_failed`** — render `<LoginPage />` with `?error=oauth_failed` in URL search params, assert element with `role="alert"` is present and text includes `"Something went wrong"` | Strongly recommended |
+| 5 | **OAuth error banner — `?error=access_denied`** — render with `?error=access_denied`, assert banner text includes `"You cancelled"` | Recommended |
+| 6 | **Account-linked toast** — render with `?linked=true` in URL (and a valid token param or mock the auth hook), assert toast message contains `"linked"` | Recommended |
+
+---
+
+### SPEC-022 — Plant Sharing: Share Button + Public Plant Profile Page
+
+**Status:** Approved
+**Related Tasks:** T-125 (Design), T-126 (Backend API), T-128 (Frontend Implementation)
+**Sprint:** #28
+
+---
+
+#### Overview
+
+SPEC-022 covers two surfaces that together form the plant sharing experience:
+
+1. **Share Button** — An icon button added to the existing `PlantDetailPage` header that generates (or retrieves) a shareable link and copies it to the clipboard.
+2. **Public Plant Profile Page** — A new read-only, no-auth-required page at `/plants/share/:shareToken` that displays a curated, privacy-safe view of a single plant's care profile.
+
+The sharing feature serves the "plant killer" persona's desire to show off a thriving plant or share care instructions with a partner or family member. The public page must function as a standalone micro-site — coherent to a first-time visitor who has never heard of Plant Guardians.
+
+---
+
+#### Privacy Boundary (Explicit)
+
+| Data Field | Shown on Public Page? | Rationale |
+|---|---|---|
+| Plant name | ✅ Yes | Explicitly chosen by owner when creating the plant |
+| Species / type | ✅ Yes | Explicitly chosen by owner |
+| Photo (if uploaded) | ✅ Yes | Explicitly uploaded by owner |
+| Watering frequency (days) | ✅ Yes | Schedule configuration, not history |
+| Fertilizing frequency (days) | ✅ Yes (if set) | Schedule configuration, not history |
+| Repotting frequency (days) | ✅ Yes (if set) | Schedule configuration, not history |
+| AI care notes | ✅ Yes (if present) | Informational advice, not personal |
+| Care history (when last watered, etc.) | ❌ No | Private behavioral data |
+| Overdue / due-today status | ❌ No | Derived from private history — also embarrassing |
+| Plant owner name | ❌ No | User-identifiable |
+| Plant owner email / user ID | ❌ No | User-identifiable |
+| Account creation date | ❌ No | User-identifiable |
+| Any other account metadata | ❌ No | User-identifiable |
+
+The public page renderer must rely exclusively on the `GET /api/v1/public/plants/:shareToken` response. It must not read any auth state, user context, or local storage.
+
+---
+
+#### Surface 1: Share Button on PlantDetailPage
+
+##### Placement
+
+- The "Share" icon button is placed in the **plant detail header** — the same row as the plant name, alongside the existing Edit (pencil) and Delete (trash) icon buttons.
+- Layout (left → right): plant name (heading, expands to fill space) | Share icon button | Edit icon button | Delete icon button.
+- On mobile: the same three icon buttons stack into a row just below the plant name, right-aligned.
+- Button style: **Icon variant** (see Design System Conventions) — transparent background, `#6B6B5F` icon, circular hover state (`background: #F0EDE6`, `border-radius: 50%`).
+- Icon: `ShareNetwork` (Phosphor Icons, outlined) or equivalent share/export icon. Size: 20px.
+- `aria-label="Share plant"` on the `<button>` element.
+- `title="Share"` for tooltip on hover (desktop only).
+
+##### User Flow
+
+1. User is on the `PlantDetailPage` for a plant they own.
+2. User clicks the Share icon button.
+3. The button enters a **loading state** (spinner replaces icon; button disabled).
+4. The frontend calls `POST /api/v1/plants/:plantId/share`.
+5. **Success path:** The API returns `{ share_url: "https://…/plants/share/<token>" }`.
+   - The frontend calls `navigator.clipboard.writeText(share_url)`.
+   - A **"Link copied!" success toast** appears (see Toast spec below).
+   - The button returns to its default state (share icon restored, enabled).
+6. **Clipboard unavailable path:** If `navigator.clipboard` is undefined or throws (e.g., non-HTTPS context or browser restriction):
+   - A small inline **copy fallback modal** opens (see Fallback Modal spec below).
+   - The share URL is shown in a read-only `<input>` pre-selected for easy manual copy.
+7. **API error path:** If the API call fails (network error, 4xx, 5xx):
+   - The button returns to its default state.
+   - An **error toast** appears: `"Failed to generate link. Please try again."` (see Toast spec).
+8. **Idempotent behavior:** If the plant already has a share link, the API returns the same token. The UX is identical to step 5 — the user just sees "Link copied!" again. No special "already shared" state is shown.
+
+##### Share Button States
+
+| State | Visual | Behavior |
+|---|---|---|
+| Default | `ShareNetwork` icon, `#6B6B5F`, transparent bg | Clickable |
+| Hover | Icon color `#2C2C2C`, circular bg `#F0EDE6` | Cursor: pointer |
+| Active (pressed) | `scale(0.93)` | Momentary press feel |
+| Loading | 16px spinner (sage green `#5C7A5C`, 2px stroke) replaces icon; `cursor: wait`; `disabled` | Not clickable; `aria-label="Generating share link…"`, `aria-busy="true"` |
+| Error recovery | Returns to Default immediately after error toast fires | Ready for retry |
+
+##### "Link Copied!" Success Toast
+
+- **Position:** Bottom-center of the viewport, `24px` from bottom edge. Stacks above any other existing toasts.
+- **Style:** `background: #2C2C2C` (near-black), text `#FFFFFF`, `border-radius: 12px`, `padding: 12px 20px`, `box-shadow: 0 4px 16px rgba(44, 44, 44, 0.18)`.
+- **Content:** Checkmark icon (Phosphor `CheckCircle`, outlined, 16px, `#4A7C59`) + text `"Link copied!"` in `DM Sans`, 14px, weight 500.
+- **Animation:** Slides up from `translateY(12px)` to `translateY(0)` + fade in (`opacity: 0 → 1`) over `0.25s ease-out`. Auto-dismisses after **3 seconds** with fade-out over `0.2s`.
+- **Dismiss:** Also dismissable by clicking anywhere on the toast.
+- **Role:** `role="status"` + `aria-live="polite"` — screen readers announce the message without interrupting.
+
+##### Error Toast
+
+- Same position and animation as success toast.
+- **Style:** `background: #FAEAE4` (light terracotta), text `#B85C38`, border `1px solid #B85C38`, `border-radius: 12px`, `padding: 12px 20px`.
+- **Content:** Warning icon (Phosphor `Warning`, outlined, 16px, `#B85C38`) + text `"Failed to generate link. Please try again."`, 14px, weight 500.
+- **Role:** `role="alert"` — screen readers announce immediately.
+- Auto-dismisses after **5 seconds**.
+
+##### Clipboard Fallback Modal
+
+Shown only when `navigator.clipboard` is unavailable or throws.
+
+- **Trigger:** After successful API call when clipboard write fails.
+- **Style:** Standard app modal — centered overlay with backdrop `rgba(44, 44, 44, 0.45)`, card `background: #FFFFFF`, `border-radius: 12px`, `padding: 32px`, max-width 440px.
+- **Title:** `"Share this plant"` in `DM Sans`, 18px, weight 600, `#2C2C2C`.
+- **Body:** `"Copy the link below to share this plant's care profile."` in 14px, `#6B6B5F`.
+- **Input:** Full-width read-only `<input type="url">` showing the share URL. On render, the input is focused and its text is fully selected (via `input.select()`). `border: 1.5px solid #E0DDD6`, `border-radius: 8px`, `padding: 10px 16px`, `font-size: 14px`, `color: #2C2C2C`, `background: #F0EDE6`.
+- **"Copy" button:** Primary button variant. On click, attempts to copy using `document.execCommand('copy')` (legacy fallback). If successful, button text changes to `"Copied ✓"` for 2 seconds then reverts.
+- **Close button:** Ghost icon button (`✕`) in top-right corner. `aria-label="Close"`.
+- **Keyboard:** `Escape` closes the modal. Focus trap within modal while open.
+
+---
+
+#### Surface 2: Public Plant Profile Page (`/plants/share/:shareToken`)
+
+##### Route
+
+- **Path:** `/plants/share/:shareToken`
+- **Auth:** None required. This route must be accessible to unauthenticated users.
+- **Router:** Add to `App.jsx` as a public route (no `<PrivateRoute>` wrapper).
+- **Data source:** `GET /api/v1/public/plants/:shareToken` (see T-126 API contract).
+
+##### Page Layout
+
+The public page uses a **centered single-column layout** — not the standard app shell with the authenticated sidebar nav. This is a standalone micro-site experience.
+
+```
+┌─────────────────────────────────────────┐
+│  [Minimal Header]                       │  height: 56px
+│  🌿 Plant Guardians                     │
+├─────────────────────────────────────────┤
+│                                         │
+│  [Plant Photo — if present]             │  max-height: 320px (desktop)
+│  [Plant Name — H1]                      │
+│  [Species chip]                         │
+│                                         │
+│  ─ Care Schedule ─────────────────────  │
+│  [Watering chip] [Fert chip] [Repot]   │
+│                                         │
+│  ─ AI Care Notes ──────────────────────  │  (if present)
+│  [Notes text block]                     │
+│                                         │
+│  ─────────────────────────────────────  │
+│  [Discover Plant Guardians CTA]         │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+**Max content width:** 680px, centered with `margin: 0 auto`, `padding: 0 24px`.
+
+##### Minimal Header
+
+- **Height:** 56px, `background: var(--color-background)`, `border-bottom: 1px solid var(--color-border)`.
+- **Content:** App wordmark — leaf icon (🌿 SVG or Phosphor `Plant` icon in sage green) + `"Plant Guardians"` in `DM Sans`, 16px, weight 600, `#2C2C2C`. Left-aligned with `padding-left: 24px`.
+- **No navigation links.** No login/signup links. No user menu. This header is intentionally minimal so it doesn't confuse unauthenticated visitors.
+- The wordmark is a link to `/` (homepage) but there is no explicit "Home" label.
+- `<header role="banner">` landmark.
+
+##### Plant Photo
+
+- Displayed when `photo_url` is present in the API response.
+- **Desktop:** Full-width within the content column, `border-radius: 16px`, `max-height: 320px`, `object-fit: cover`. Positioned at the very top of the content area, above the plant name.
+- **Mobile:** Full-width, `border-radius: 12px`, `max-height: 240px`, `object-fit: cover`.
+- **Alt text:** `"Photo of [plant name]"` — constructed from the plant name returned by the API.
+- When `photo_url` is absent: no image placeholder or empty state image is shown. The page simply begins with the plant name.
+
+##### Plant Name (Heading)
+
+- **Element:** `<h1>` — primary landmark.
+- **Font:** `Playfair Display`, 32px (desktop) / 26px (mobile), weight 700 (or bold), `#2C2C2C`.
+- **Margin:** `margin-top: 24px` when no photo; `margin-top: 20px` when photo is present above it.
+- This is the most prominent element on the page.
+
+##### Species Chip
+
+- Displayed below the plant name.
+- **Style:** Pill badge — `background: #F0EDE6`, `color: #6B6B5F`, `border-radius: 24px`, `padding: 4px 14px`, `font-size: 13px`, `font-weight: 500`, `DM Sans`.
+- **Content:** Plant species / type text (e.g., `"Monstera Deliciosa"`).
+- **Icon:** Optional Phosphor `Leaf` icon (14px, `#5C7A5C`) prepended before the text.
+- Margin: `margin-top: 10px`.
+
+##### Care Schedule Section
+
+- **Section heading:** `"Care Schedule"` — `DM Sans`, 12px, `font-weight: 600`, `letter-spacing: 0.08em`, `text-transform: uppercase`, `color: #B0ADA5`. With a `<hr>` rule at full content width, `border: none`, `border-top: 1px solid #E0DDD6`, above the heading. The heading sits in a flex row with the divider.
+- **Margin:** `margin-top: 32px`.
+- **Layout:** Flex row, `gap: 10px`, `flex-wrap: wrap`.
+- Each schedule item is a **care chip**:
+
+| Chip | Icon (Phosphor) | Label |
+|---|---|---|
+| Watering | `Drop` (outlined, sage green `#5C7A5C`) | `"Water every N days"` |
+| Fertilizing | `Flask` (outlined, terracotta `#A67C5B`) | `"Fertilize every N days"` |
+| Repotting | `Flower` (outlined, warm gray `#6B6B5F`) | `"Repot every N days"` |
+
+- **Chip style:** `background: #FFFFFF`, `border: 1.5px solid #E0DDD6`, `border-radius: 24px`, `padding: 8px 16px`, `font-size: 13px`, `font-weight: 500`, `color: #2C2C2C`, `DM Sans`. Icon is 14px and sits left of text with `gap: 6px`.
+- **Chip hover:** `border-color: #5C7A5C`, `background: #F7F4EF`. No click action — chips are display-only.
+- Only chips where the frequency is set (non-null) are rendered. If only watering is configured, only the watering chip shows.
+- If no schedules at all are set (edge case): show a single muted chip `"No schedule set"` in the Not Set badge style.
+
+##### AI Care Notes Section
+
+- Rendered only when `ai_care_notes` is non-null and non-empty.
+- **Section heading:** Same style as "Care Schedule" heading: `"AI Care Notes"`, uppercase, 12px, `#B0ADA5`, with divider rule above.
+- **Margin:** `margin-top: 32px`.
+- **Content block:** `background: #F7F4EF`, `border-radius: 12px`, `padding: 20px 24px`, `border-left: 3px solid #5C7A5C`.
+- **Text:** `DM Sans`, 14px, `font-weight: 400`, `color: #2C2C2C`, `line-height: 1.7`. The notes text may contain line breaks — render with `white-space: pre-wrap` or parse newlines to `<br>` elements.
+- **AI attribution:** Below the notes text, in a smaller muted line: Phosphor `Sparkle` icon (12px, `#B0ADA5`) + `"Generated by AI — always verify plant care advice"`, `font-size: 11px`, `color: #B0ADA5`, `font-style: italic`.
+
+##### "Discover Plant Guardians" CTA
+
+- Shown at the bottom of every public page, regardless of plant data.
+- **Margin:** `margin-top: 48px`, `margin-bottom: 48px`.
+- **Style:** Centered column. Horizontal rule divider above (`border-top: 1px solid #E0DDD6`, full content width, `margin-bottom: 32px`).
+- **Illustration:** Small SVG or emoji leaf graphic (🌱) centered above the CTA text. Optional — omit if asset is unavailable.
+- **Headline:** `"Track your own plants with Plant Guardians"` — `DM Sans`, 18px, weight 600, `#2C2C2C`, centered.
+- **Sub-copy:** `"Free to use. No green thumb required."` — 14px, `#6B6B5F`, centered.
+- **Button:** Primary button variant — `"Get started for free"`, links to `/`. `padding: 12px 28px`, `border-radius: 8px`, `background: #5C7A5C`, `color: #FFFFFF`, `font-size: 15px`, weight 600. Centered horizontally.
+- **Button hover:** `background: #4A6449`.
+- `<section aria-label="Discover Plant Guardians">` wraps the entire CTA block.
+
+---
+
+#### Page States
+
+##### Loading State
+
+Shown while `GET /api/v1/public/plants/:shareToken` is in flight.
+
+- No spinner page takeover. Instead, show a **skeleton layout** that mirrors the real page structure:
+  - Photo skeleton: full-width rectangle, `border-radius: 16px`, `height: 240px`, animated shimmer.
+  - Name skeleton: `width: 60%`, `height: 36px`, `border-radius: 8px`, shimmer.
+  - Species chip skeleton: `width: 120px`, `height: 24px`, `border-radius: 24px`, shimmer.
+  - Care section label skeleton: `width: 100px`, `height: 12px`, `border-radius: 4px`, shimmer.
+  - Three chip skeletons: `width: 140px`, `height: 36px` each, `border-radius: 24px`, shimmer.
+- Shimmer animation: `background: linear-gradient(90deg, #F0EDE6 25%, #E8E4DC 50%, #F0EDE6 75%)`, `background-size: 200% 100%`, `animation: shimmer 1.4s infinite`.
+- The minimal header is always visible (not skeletonized).
+- The CTA section is also always visible at the bottom (or hidden during loading — acceptable either way; consistency preferred; hide during loading to avoid layout shift).
+- `aria-busy="true"` on the main content region during load. `aria-label="Loading plant profile"` on the skeleton container.
+
+##### 404 / Revoked State
+
+Shown when the API returns 404 (share token not found, expired, or revoked).
+
+- **Layout:** Centered content in the middle of the page, below the minimal header.
+- **Illustration:** Phosphor `PlantWithError` / `WarningCircle` icon (64px, `#E0DDD6`) or a wilted plant SVG if available.
+- **Headline:** `"This plant link is no longer active"` — `DM Sans`, 22px, weight 600, `#2C2C2C`, centered.
+- **Sub-copy:** `"The link may have been removed or it never existed."` — 14px, `#6B6B5F`, centered. `margin-top: 8px`.
+- **CTA:** Same "Get started for free" primary button linking to `/`. `margin-top: 32px`.
+- No retry button — 404 is not a transient error.
+- `<main role="main">` contains this state.
+- Page `<title>`: `"Plant not found — Plant Guardians"`.
+
+##### Error State (Network / 5xx)
+
+Shown when the API call fails with a non-404 error (network timeout, 500, etc.).
+
+- **Layout:** Same centered layout as 404 state.
+- **Icon:** Phosphor `WifiSlash` or `Warning` (64px, `#E0DDD6`).
+- **Headline:** `"Something went wrong"` — 22px, weight 600, `#2C2C2C`.
+- **Sub-copy:** `"We couldn't load this plant profile. Please try again."` — 14px, `#6B6B5F`.
+- **Retry button:** Secondary button variant — `"Try again"`. On click, re-fetches `GET /api/v1/public/plants/:shareToken`. Shows a small inline spinner during retry.
+- **CTA:** Same "Get started for free" primary button below the retry button. `margin-top: 16px`.
+- `role="alert"` on the error headline container so screen readers announce it.
+
+##### Success State (Populated)
+
+All sections described above. No additional special treatment needed.
+
+---
+
+#### Dark Mode
+
+The public page must fully support dark mode. All colors are defined via CSS custom properties that switch based on `prefers-color-scheme: dark`. The share button on `PlantDetailPage` should also respond to dark mode via the same custom property system already in use on the app.
+
+| Custom Property | Light Value | Dark Value |
+|---|---|---|
+| `--color-background` | `#F7F4EF` | `#1A1C1A` |
+| `--color-surface` | `#FFFFFF` | `#252825` |
+| `--color-surface-alt` | `#F0EDE6` | `#1E201E` |
+| `--color-text-primary` | `#2C2C2C` | `#E8E4DC` |
+| `--color-text-secondary` | `#6B6B5F` | `#9A9A8E` |
+| `--color-text-disabled` | `#B0ADA5` | `#5C5C54` |
+| `--color-accent-primary` | `#5C7A5C` | `#7FA87F` |
+| `--color-accent-hover` | `#4A6449` | `#6A946A` |
+| `--color-accent-warm` | `#A67C5B` | `#C49A78` |
+| `--color-border` | `#E0DDD6` | `#2E312E` |
+| `--color-border-focus` | `#5C7A5C` | `#7FA87F` |
+
+The skeleton shimmer animation should use dark-appropriate colors:
+- `background: linear-gradient(90deg, #1E201E 25%, #252825 50%, #1E201E 75%)` in dark mode.
+
+AI care notes block in dark mode: `background: #1E201E`, `border-left-color: #7FA87F`.
+
+---
+
+#### Responsive Behavior
+
+| Breakpoint | Behavior |
+|---|---|
+| **Desktop (≥1024px)** | Max content width 680px, centered. Photo max-height 320px. Plant name 32px. Care chips in a single row if they fit. |
+| **Tablet (768–1023px)** | Max content width 100%, `padding: 0 32px`. Photo max-height 280px. Same chip layout. |
+| **Mobile (<768px)** | `padding: 0 20px`. Plant name 26px. Photo max-height 220px. Care chips wrap to multiple rows as needed (`flex-wrap: wrap`). CTA button full-width. |
+
+The minimal header is the same at all breakpoints — wordmark only, 56px height.
+
+**Share button on PlantDetailPage (responsive):**
+- Desktop: icon button in header row alongside Edit and Delete.
+- Mobile: icon buttons row below the plant name — Share, Edit, Delete, right-aligned, `gap: 4px`. Minimum tap target: 44×44px per button.
+
+---
+
+#### Accessibility
+
+| Requirement | Implementation |
+|---|---|
+| Share button label | `aria-label="Share plant"` on the `<button>` |
+| Share button loading | `aria-label="Generating share link…"`, `aria-busy="true"` when spinner visible |
+| Plant photo | `alt="Photo of [plant name]"` — dynamic from API response |
+| Landmark roles | `<header role="banner">`, `<main role="main">`, `<footer>` (if footer used), `<section aria-label="Care Schedule">`, `<section aria-label="AI Care Notes">`, `<section aria-label="Discover Plant Guardians">` |
+| Page `<title>` | `"[Plant Name]'s Care Profile — Plant Guardians"` in success state; `"Plant not found — Plant Guardians"` in 404 state |
+| Headings | `<h1>` for plant name; `<h2>` for section headings (Care Schedule, AI Care Notes) if they are full headings rather than label-style caps |
+| Success toast | `role="status"` + `aria-live="polite"` |
+| Error toast | `role="alert"` + `aria-live="assertive"` |
+| Error state headline | `role="alert"` — auto-announced on mount |
+| Keyboard navigation | All interactive elements (share button, modal close, retry button, CTA) reachable via `Tab`. Focus order follows visual order. |
+| Focus ring | `outline: 2px solid var(--color-border-focus); outline-offset: 2px` on all interactive elements |
+| Color contrast | All text colors verified ≥4.5:1 against backgrounds in both light and dark mode |
+| Care chips | `role="list"` on the chip container; each chip is `role="listitem"`. Chips are not interactive — `tabindex="-1"` if needed. |
+| Skeleton | `aria-busy="true"` + `aria-label="Loading plant profile"` on `<main>` during skeleton state |
+| Clipboard fallback modal | `role="dialog"`, `aria-modal="true"`, `aria-labelledby` pointing to modal title. Focus moves to modal on open. Focus returns to Share button on close. |
+
+---
+
+#### Share Link Revocation (Data Model Consideration)
+
+Revocation UI is out of scope for Sprint #28 but must be accounted for in the data model:
+
+- The `plant_shares` table stores one token per plant. **Deleting the row revokes the link** — the public `GET` endpoint returns 404, and the public page shows the "no longer active" state.
+- **Future sprint revocation UX:** A "Remove share link" option on `PlantDetailPage` (e.g., in a share settings popover or as a secondary action after clicking Share again). This would call `DELETE /api/v1/plants/:plantId/share`.
+- **CASCADE DELETE:** The backend migration should define `plant_id` FK with `ON DELETE CASCADE` so that deleting a plant automatically removes its share token.
+- The Share button has no "already shared" visual state in Sprint #28 — clicking it again is idempotent and simply copies the existing link. The revocation entry point is deferred.
+
+---
+
+#### Files to Create / Modify
+
+| File | Change |
+|---|---|
+| `frontend/src/pages/PublicPlantPage.jsx` | **New file.** Full public plant profile page component. Fetches data, handles all states. |
+| `frontend/src/pages/PublicPlantPage.css` | **New file.** Page-specific styles (minimal header, content layout, skeleton, CTA, dark mode custom properties). |
+| `frontend/src/pages/PlantDetailPage.jsx` | Add Share icon button to plant header. Add loading, success, and error state logic. Add clipboard copy logic with fallback modal. |
+| `frontend/src/components/ShareButton.jsx` | **New file (recommended).** Encapsulates share button: icon, loading spinner, click handler, clipboard logic, toast fire, fallback modal trigger. Props: `plantId`, `onSuccess?: () => void`, `onError?: () => void`. |
+| `frontend/src/components/ClipboardFallbackModal.jsx` | **New file (optional).** Encapsulates the fallback modal for manual copy. Props: `shareUrl`, `onClose`. |
+| `frontend/src/App.jsx` | Add route `<Route path="/plants/share/:shareToken" element={<PublicPlantPage />} />` as a public (non-protected) route. |
+| `frontend/src/index.css` (or global CSS) | Ensure all `--color-*` CSS custom properties are defined (light + dark). If already defined from previous sprints, verify the dark mode values match the table above. |
+
+---
+
+#### Minimum Test Coverage (T-128 — ≥5 new tests required)
+
+| # | Test | Required? |
+|---|---|---|
+| 1 | **Share button renders on PlantDetailPage** — render `<PlantDetailPage />` for an owned plant, assert button with `aria-label="Share plant"` is in the document | ✅ Required |
+| 2 | **Click → API call** — click Share button, assert `POST /api/v1/plants/:plantId/share` was called; assert button enters loading state (disabled) during the call | ✅ Required |
+| 3 | **Clipboard copy + "Link copied!" toast** — mock `navigator.clipboard.writeText` to resolve, click Share button, assert the clipboard API was called with the returned `share_url`; assert toast element with text `"Link copied!"` appears | ✅ Required |
+| 4 | **Public page 404 state** — render `<PublicPlantPage />` with `shareToken="invalid"`, mock API to return 404, assert `"This plant link is no longer active"` text is in the document | ✅ Required |
+| 5 | **Public page error state** — mock API to return 500, assert error message `"Something went wrong"` is present and retry button is rendered | ✅ Required |
+| 6 | **Share button error state** — mock API to reject, click Share button, assert error toast `"Failed to generate link"` is shown | Strongly recommended |
+| 7 | **Public page success state** — mock API to return a full plant object, assert plant name h1, species chip, watering chip, and CTA link to `/` are all rendered | Strongly recommended |
+| 8 | **Public page — no photo** — mock API with `photo_url: null`, assert no `<img>` element rendered | Recommended |
+| 9 | **Clipboard fallback modal** — mock `navigator.clipboard` as `undefined`, click Share button after successful API call, assert fallback modal opens with share URL in input | Recommended |
+
+---
+
+### SPEC-023 — Share Status, Revocation Modal & Open Graph Meta Tags
+
+**Status:** Approved
+**Related Tasks:** T-132 (Design), T-133 (Backend API), T-134 (Frontend Implementation)
+**Sprint:** #29
+**Prerequisite:** SPEC-022 (Share Button + Public Plant Profile Page)
+
+---
+
+#### Overview
+
+SPEC-023 extends the sharing feature delivered in Sprint #28 (SPEC-022) with three related UI surfaces:
+
+1. **Share status state on `PlantDetailPage`** — The share action area is now aware of whether the plant already has an active share link. On mount it fetches `GET /api/v1/plants/:plantId/share` and conditionally renders either (a) a "Copy link" + "Remove share link" pair (shared) or (b) the original "Share" button (not shared). A skeleton state covers the fetch period without blocking the rest of the page.
+2. **Share revocation flow** — A destructive-action modal (`ShareRevokeModal`) that confirms intent before calling `DELETE /api/v1/plants/:plantId/share`. After success the share area transitions back to the unshared state.
+3. **Open Graph meta tags on `PublicPlantPage`** — Injects `<meta>` tags into `<head>` so shared plant links render richly in iMessage, WhatsApp, Twitter/X, Slack, and other link-preview clients.
+
+---
+
+#### Design System Alignment
+
+All new elements inherit the Japandi botanical design system defined at the top of this document. No new tokens are introduced. The revocation modal reuses the standard modal scaffold (same as the Delete Account confirmation in SPEC-018). Toast messages reuse the existing `addToast()` utility.
+
+---
+
+### Surface 1: Share Status State on `PlantDetailPage`
+
+#### Location & Layout
+
+The share action area lives in the `PlantDetailPage` header region — same position as the "Share" icon button introduced in SPEC-022 (top-right corner of the plant detail header, aligned with the Edit/Delete action cluster, or below the header on smaller breakpoints). The area is narrow: at most two inline elements side-by-side.
+
+On desktop (≥768px):
+```
+[ Copy link ]  [ Remove share link ]
+```
+On mobile (<768px):
+```
+[ Copy link ]
+[ Remove share link ]   ← stacks below, same left-alignment
+```
+
+The share action area **does not block** the rest of PlantDetailPage from rendering. The page body (plant photo, care schedules, recent history, etc.) renders immediately. Only the share action area itself shows the skeleton/loading state.
+
+---
+
+#### Fetch Lifecycle & State Machine
+
+On mount (and whenever `plantId` changes), the component fires `GET /api/v1/plants/:plantId/share`. The share action area transitions through the following states:
+
+```
+LOADING  →  (200)  →  SHARED
+         →  (404)  →  NOT_SHARED
+         →  (error) → NOT_SHARED  (safe degradation — log to console, show Share button)
+```
+
+| State | Trigger | What renders in the share action area |
+|---|---|---|
+| `LOADING` | Fetch in-flight | Skeleton pill (see below) |
+| `SHARED` | API returns 200 + `{ share_url }` | "Copy link" secondary button + "Remove share link" ghost text button |
+| `NOT_SHARED` | API returns 404 | Original "Share" icon button (per SPEC-022) |
+| `ERROR` | Any non-404 error (network, 5xx, etc.) | Original "Share" icon button (safe degradation; no error toast shown) |
+
+**Loading skeleton spec:**
+- A single rounded pill shape: `width: 140px`, `height: 36px`, `border-radius: 8px`, `background: #E0DDD6`, animated shimmer (left-to-right gradient sweep, 1.4s linear infinite).
+- Does not reserve space for the "Remove share link" link — skeleton is one pill only to avoid layout shift.
+- The `aria-busy="true"` attribute is set on the share action area container; add `aria-label="Loading share status"`.
+- While in `LOADING`, the rest of `PlantDetailPage` is fully interactive.
+
+---
+
+#### SHARED State: "Copy link" Button
+
+**Visual spec:**
+- **Variant:** Secondary button (transparent background, `#5C7A5C` text, 1.5px `#5C7A5C` border, `border-radius: 8px`).
+- **Label:** `"Copy link"` — plain text, no icon (keeps the area compact alongside the second button).
+- **Width:** `min-width: 100px`. Does not stretch full-width on desktop.
+- **Font:** DM Sans, 14px, weight 600.
+- **Accessible label:** `aria-label="Copy plant share link"`.
+- **Padding:** `10px 20px` (standard button padding).
+
+**Click behavior (clipboard logic mirrors SPEC-022):**
+1. Button enters loading state: disabled, text replaced with 16px spinner in `#5C7A5C`. "Remove share link" is also disabled.
+2. Calls `navigator.clipboard.writeText(share_url)` using the `share_url` stored from the initial GET /share response. **No new API call is made.**
+   - **Clipboard available:** Success toast `"Link copied!"` (variant: `success`, 3s auto-dismiss). Button returns to active state.
+   - **Clipboard unavailable** (undefined or throws): Opens `ClipboardFallbackModal` from SPEC-022 with the stored `share_url` pre-filled. Button returns to active state.
+
+**States:**
+
+| State | Visual |
+|---|---|
+| Default | Secondary button, "Copy link" |
+| Hover | Background `rgba(92, 122, 92, 0.08)`, `scale(1.01)` |
+| Active | `scale(0.97)` |
+| Loading (clipboard write in progress) | Disabled, spinner replaces text |
+| Focus | 2px sage green focus ring, `outline-offset: 2px` |
+
+---
+
+#### SHARED State: "Remove share link" Text Button
+
+**Visual spec:**
+- **Variant:** Ghost button (`background: transparent`, `color: #6B6B5F`, no border).
+- **Label:** `"Remove share link"` — plain text.
+- **Font:** DM Sans, 14px, weight 400. Lighter weight than "Copy link" to signal secondary importance.
+- **Hover effect:** `text-decoration: underline; color: #B85C38` (terracotta hue reinforces the destructive nature).
+- **Placement:** Immediately to the right of "Copy link" on desktop (`margin-left: 8px`); stacked below on mobile.
+- **Accessible label:** `aria-label="Remove share link for this plant"`.
+
+**Click behavior:** Opens `ShareRevokeModal` (Surface 2). Does not make any API call directly.
+
+**States:**
+
+| State | Visual |
+|---|---|
+| Default | Ghost, `#6B6B5F`, no underline |
+| Hover | `color: #B85C38`, underline |
+| Active | `opacity: 0.75` |
+| Disabled (while "Copy link" is loading) | `opacity: 0.4`, `cursor: not-allowed`, no hover effect |
+| Focus | 2px sage green focus ring |
+
+---
+
+#### NOT_SHARED / ERROR State
+
+Render the original "Share" icon button exactly as specified in SPEC-022, with no behavioral changes.
+
+**Transition animation (SHARED → NOT_SHARED after revocation):**
+- "Copy link" and "Remove share link" fade out: `opacity: 0`, `transition: opacity 0.2s ease`.
+- "Share" button fades in with a subtle upward slide: `opacity: 0 → 1`, `transform: translateY(-4px) → translateY(0)`, `transition: opacity 0.2s ease, transform 0.2s ease`.
+- **Reduced motion:** When `prefers-reduced-motion: reduce` is active, skip transitions — swap elements immediately.
+- After animation, return focus to the "Share" button.
+
+---
+
+### Surface 2: Share Revocation Modal (`ShareRevokeModal`)
+
+#### Trigger
+
+Opened when the user clicks "Remove share link" on `PlantDetailPage` while in the SHARED state. Implemented as a new `ShareRevokeModal.jsx` component, following the standard destructive confirmation modal pattern established in SPEC-018 (Delete Account).
+
+---
+
+#### Layout & Dimensions
+
+- **Overlay:** Full-viewport backdrop `rgba(44, 44, 44, 0.45)`, `z-index: 1000`.
+- **Backdrop click:** Does **not** close the modal (prevents accidental dismissal of a destructive confirmation).
+- **Card:** `background: #FFFFFF`, `border-radius: 12px`, `padding: 32px`, `max-width: 440px`, centered (vertical + horizontal), `box-shadow: 0 8px 32px rgba(44, 44, 44, 0.18)`.
+- **No × close button** in the top-right corner (user must explicitly choose "Remove link" or "Cancel").
+
+---
+
+#### Modal Content
+
+```
+[Warning icon — Phosphor "Warning", 24px, #B85C38]
+
+Remove share link?
+(DM Sans, 18px, weight 600, #2C2C2C; margin-top: 12px)
+
+Anyone with the old link will no longer be able
+to view this plant.
+(DM Sans, 14px, weight 400, #6B6B5F; margin-top: 8px; max-width: 340px)
+
+                           [ Cancel ]  [ Remove link ]
+(button row; margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px)
+```
+
+**Heading (exact copy):** `"Remove share link?"`
+
+**Body (exact copy):** `"Anyone with the old link will no longer be able to view this plant."`
+
+---
+
+#### Buttons
+
+**"Cancel" button:**
+- Variant: Secondary (`transparent` background, `#5C7A5C` text, `1.5px solid #5C7A5C` border).
+- Click: Close modal immediately; no API call; no PlantDetailPage state change. Focus returns to "Remove share link" text button.
+- `Escape` key also triggers Cancel.
+
+**"Remove link" button:**
+- Variant: Danger (`background: #B85C38`, `color: #FFFFFF`).
+- Default label: `"Remove link"`.
+- Loading label: white 16px spinner; button disabled; `aria-label="Removing share link…"` `aria-busy="true"`.
+- `aria-label` default: `"Confirm: remove share link"`.
+- Click: Triggers Revocation Flow (see below).
+
+**Mobile button layout (<480px):** Stack vertically, full-width. "Remove link" on top, "Cancel" below. (`flex-direction: column-reverse` — the column-reverse ensures "Remove link" appears above "Cancel" in DOM order while being the first tappable button visually.)
+
+---
+
+#### Revocation Flow
+
+```
+User clicks "Remove link"
+  ↓
+Both buttons disabled; "Remove link" shows spinner
+  ↓
+Call DELETE /api/v1/plants/:plantId/share
+  ↓
+  ├─ 204 No Content → SUCCESS
+  │     addToast("Share link removed.", "success")  [3s auto-dismiss]
+  │     Modal unmounts
+  │     PlantDetailPage share area animates to NOT_SHARED state
+  │     Focus: "Share" button receives focus
+  │
+  └─ Any error (network, 4xx, 5xx) → ERROR
+        addToast("Failed to remove link. Please try again.", "error")  [5s auto-dismiss]
+        Modal stays open
+        Both buttons re-enabled; "Remove link" returns to default label
+        User may retry or click Cancel
+```
+
+**"Remove link" button states:**
+
+| State | Visual |
+|---|---|
+| Default | Danger button, "Remove link" |
+| Hover | `background: #9E4E2F`, `scale(1.01)` |
+| Active | `scale(0.97)` |
+| Loading | Disabled, white spinner, Cancel slightly dimmed (`opacity: 0.6`) |
+| Error recovery | Returns to Default state; error only in toast |
+| Focus | 2px sage green focus ring |
+
+---
+
+#### Modal Accessibility
+
+| Element | ARIA / Behavior |
+|---|---|
+| Modal root | `role="dialog"` `aria-modal="true"` `aria-labelledby="revoke-modal-title"` |
+| Heading | `id="revoke-modal-title"` → `"Remove share link?"` |
+| Focus trap | On open, focus moves to **"Cancel"** (safer default). Tab / Shift+Tab cycle within modal only. |
+| Escape key | Triggers Cancel. |
+| Backdrop click | No action. |
+| Screen reader on open | Dialog heading auto-read: `"Remove share link? dialog"`. |
+| "Remove link" loading | `aria-busy="true"`, `aria-label="Removing share link…"` |
+
+---
+
+#### Modal Responsive Behavior
+
+| Breakpoint | Layout |
+|---|---|
+| Desktop (≥768px) | max-width 440px, padding 32px, buttons right-aligned row |
+| Tablet (480–767px) | max-width 90vw, padding 32px, buttons right-aligned row |
+| Mobile (<480px) | max-width 92vw, padding 24px, buttons full-width stacked ("Remove link" top, "Cancel" bottom) |
+
+---
+
+### Surface 3: Open Graph Meta Tags on `PublicPlantPage`
+
+#### Overview
+
+`PublicPlantPage` (SPEC-022) is the social sharing target. Rich link previews (iMessage, WhatsApp, Slack, Twitter/X, LinkedIn, Facebook) require `<meta>` tags in `<head>`. Inject these via `react-helmet-async`'s `<Helmet>` component.
+
+**Rendering rule:** Meta tags are rendered **only in the success state** (plant data loaded). They are absent during loading, 404, and error states to avoid incorrect previews being cached by link scrapers.
+
+---
+
+#### Implementation Notes
+
+- Use `react-helmet-async`. Check `frontend/package.json` for `react-helmet-async` — add if missing (`npm install react-helmet-async`).
+- Wrap `<App>` in `<HelmetProvider>` in `main.jsx` if not already present.
+- The `buildOgDescription()` helper should be a pure function — unit-testable in isolation.
+
+---
+
+#### Tag Definitions
+
+##### `og:title`
+
+**Value:** `"{plant.name} on Plant Guardians"`
+
+**Rule:** Always present in success state. No truncation.
+
+---
+
+##### `og:description`
+
+Built by `buildOgDescription(plant)`:
+
+```js
+function buildOgDescription(plant) {
+  const parts = [];
+  if (plant.watering_frequency_days != null) {
+    parts.push(`watering every ${plant.watering_frequency_days} days`);
+  }
+  if (plant.fertilizing_frequency_days != null) {
+    parts.push(`fertilizing every ${plant.fertilizing_frequency_days} days`);
+  }
+  if (parts.length === 0) {
+    return `Learn how to care for ${plant.name} on Plant Guardians.`;
+  }
+  return `Learn how to care for ${plant.name}: ${parts.join(', ')}.`;
+}
+```
+
+**Null/missing frequency rules:**
+
+| `watering_frequency_days` | `fertilizing_frequency_days` | Result |
+|---|---|---|
+| Non-null | Non-null | "Learn how to care for {name}: watering every N days, fertilizing every M days." |
+| Non-null | Null | "Learn how to care for {name}: watering every N days." |
+| Null | Non-null | "Learn how to care for {name}: fertilizing every M days." |
+| Null | Null | "Learn how to care for {name} on Plant Guardians." |
+| Any | Any | `repotting_frequency_days` is **never** included in OG description. |
+
+---
+
+##### `og:image`
+
+| `photo_url` value | `og:image` value |
+|---|---|
+| Non-null, non-empty string | `plant.photo_url` |
+| `null` | `/og-default.png` |
+| `""` (empty string) | `/og-default.png` |
+
+**Fallback asset:** `frontend/public/og-default.png` — a Plant Guardians branded image, ideally 1200×630px (1.91:1 aspect ratio) for optimal preview quality across platforms. A simple warm botanical illustration with the app wordmark is appropriate.
+
+---
+
+##### `og:url`
+
+**Value:** `window.location.href` (full canonical URL of the current share page, e.g. `https://plantguardians.app/plants/share/<token>`).
+
+Alternatively, if `VITE_APP_URL` env var is available: construct as `` `${import.meta.env.VITE_APP_URL}/plants/share/${shareToken}` ``.
+
+---
+
+##### `og:type`
+
+**Value:** `"article"` — signals a content page to scrapers, unlocking richer previews on Facebook/LinkedIn.
+
+---
+
+##### `og:site_name`
+
+**Value:** `"Plant Guardians"` — always present.
+
+---
+
+##### Twitter / X Card Tags
+
+| Tag | Value | Condition |
+|---|---|---|
+| `twitter:card` | `"summary_large_image"` | `photo_url` is non-null and non-empty |
+| `twitter:card` | `"summary"` | `photo_url` is null or empty |
+| `twitter:title` | Same as `og:title` | Always present |
+| `twitter:description` | Same as `og:description` | Always present |
+| `twitter:image` | Same as `og:image` | Always present |
+
+---
+
+#### Full `<Helmet>` Block
+
+```jsx
+{status === 'success' && plant && (
+  <Helmet>
+    <title>{plant.name} on Plant Guardians</title>
+    <meta property="og:title" content={`${plant.name} on Plant Guardians`} />
+    <meta property="og:description" content={buildOgDescription(plant)} />
+    <meta property="og:image" content={plant.photo_url || '/og-default.png'} />
+    <meta property="og:url" content={window.location.href} />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Plant Guardians" />
+    <meta name="twitter:card" content={plant.photo_url ? 'summary_large_image' : 'summary'} />
+    <meta name="twitter:title" content={`${plant.name} on Plant Guardians`} />
+    <meta name="twitter:description" content={buildOgDescription(plant)} />
+    <meta name="twitter:image" content={plant.photo_url || '/og-default.png'} />
+  </Helmet>
+)}
+```
+
+Non-success `<title>` tags (also via `<Helmet>`):
+
+```jsx
+{status === 'loading' && <Helmet><title>Loading… — Plant Guardians</title></Helmet>}
+{status === 'not_found' && <Helmet><title>Plant not found — Plant Guardians</title></Helmet>}
+{status === 'error' && <Helmet><title>Plant Guardians</title></Helmet>}
+```
+
+---
+
+### Affected Files Summary
+
+| File | Change |
+|---|---|
+| `frontend/src/pages/PlantDetailPage.jsx` | Add share status fetch on mount; render LOADING skeleton, SHARED ("Copy link" + "Remove share link"), or NOT_SHARED (original Share button); handle transition animation on revocation success; manage focus. |
+| `frontend/src/components/ShareRevokeModal.jsx` | **New file.** Revocation confirmation modal. Props: `plantId: string`, `onSuccess: () => void`, `onClose: () => void`. Handles DELETE API call, loading state, toast dispatch. |
+| `frontend/src/pages/PublicPlantPage.jsx` | Add `<Helmet>` block (success + non-success title tags). Add `buildOgDescription()` helper. |
+| `frontend/src/main.jsx` | Wrap app with `<HelmetProvider>` if not already present. |
+| `frontend/public/og-default.png` | **New static asset.** 1200×630px Plant Guardians fallback OG image. |
+| `frontend/package.json` | Add `react-helmet-async` if not already present. |
+
+---
+
+### Test Matrix
+
+| # | Test | Required? |
+|---|---|---|
+| 1 | **Share area shows skeleton while fetching** — render PlantDetailPage, mock GET /share pending, assert skeleton is present and page body renders | ✅ Required |
+| 2 | **SHARED state renders "Copy link" + "Remove share link"** — mock GET /share → 200 + `{ share_url }`, assert both elements in document; original Share icon absent | ✅ Required |
+| 3 | **NOT_SHARED state renders original Share button** — mock GET /share → 404, assert Share icon button present; "Copy link" absent | ✅ Required |
+| 4 | **"Copy link" uses stored share_url, no new API call** — SHARED state, click "Copy link", assert `navigator.clipboard.writeText` called with stored url; assert POST /share was NOT called | ✅ Required |
+| 5 | **ShareRevokeModal: correct text and buttons** — render modal, assert heading "Remove share link?", body "Anyone with the old link…", "Remove link" and "Cancel" buttons present | ✅ Required |
+| 6 | **DELETE 204 → success toast + NOT_SHARED transition** — click "Remove link", mock DELETE → 204, assert "Share link removed." toast; "Copy link" absent; Share button present | ✅ Required |
+| 7 | **DELETE error → error toast, modal stays open** — click "Remove link", mock DELETE → 500, assert "Failed to remove link." toast; modal still in document | ✅ Required |
+| 8 | **Cancel closes modal, no DELETE called** — click "Cancel", assert modal removed; DELETE /share not called | Strongly recommended |
+| 9 | **GET /share 500 → safe degradation to Share button** — mock GET /share → 500, assert original Share button renders; no error toast | Strongly recommended |
+| 10 | **PublicPlantPage OG tags — with photo and schedules** — mock plant with photo_url and watering/fertilizing, assert og:title, og:description (full sentence), og:image = photo_url, twitter:card = "summary_large_image" | ✅ Required |
+| 11 | **PublicPlantPage OG tags — no photo** — mock plant with `photo_url: null`, assert og:image = "/og-default.png"; twitter:card = "summary" | ✅ Required |
+| 12 | **PublicPlantPage OG tags — null frequencies** — mock plant with null watering + fertilizing, assert og:description matches "Learn how to care for…on Plant Guardians." | Strongly recommended |
+| 13 | **OG tags absent in loading state** — render PublicPlantPage with fetch pending, assert og:title meta tag is not in document | Recommended |
+| 14 | **Escape key closes revocation modal** — open modal, fire Escape keydown, assert modal unmounted | Recommended |
+
+---
+
+### SPEC-024 — Plant List Search, Sort, and Status Filter
+
+**Status:** Approved
+**Related Tasks:** T-141 (spec task) → gates T-142 (backend) and T-143 (frontend implementation)
+**Sprint:** #30
+
+---
+
+#### Description
+
+SPEC-024 specifies the search, sort, and status filter controls on `MyPlantsPage` (`/`). These controls allow users — especially "plant killer" novices with large inventories — to instantly surface plants that need attention without scrolling. All three controls are always visible above the plant grid and work in combination.
+
+This spec covers six surfaces:
+1. Search bar
+2. Status filter tabs (segmented control)
+3. Sort dropdown
+4. Combined active state (all three active simultaneously)
+5. Empty states (multiple variants)
+6. Loading / skeleton state (controls during initial data fetch)
+
+---
+
+#### Layout Context
+
+The controls insert between the page heading row and the plant grid on `MyPlantsPage`. No existing elements are removed; the controls are a new zone added above the grid.
+
+**Desktop layout (≥768px):**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  My Plants                             [+ Add Plant]            │  ← existing heading row
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ 🔍  Search plants…                                     × │   │  ← search bar (full width)
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  [ All (12) ]  [ Overdue (3) ]  [ Due today (2) ]  [ On track (7) ]          Sort ▾  │  ← filter row
+├─────────────────────────────────────────────────────────────────┤
+│  [plant grid / list]                                            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Mobile layout (<768px):**
+
+```
+┌────────────────────────────────────────┐
+│  My Plants            [+ Add Plant]    │  ← heading row
+├────────────────────────────────────────┤
+│  ┌──────────────────────────────────┐  │
+│  │ 🔍  Search plants…           ×  │  │  ← search bar (full width)
+│  └──────────────────────────────────┘  │
+│                                        │
+│  [All][Overdue][Due today][On track]   │  ← tabs scroll horizontally if they overflow
+│                              [Sort ▾] │  ← sort right-aligned on same row
+├────────────────────────────────────────┤
+│  [plant grid]                          │
+└────────────────────────────────────────┘
+```
+
+**Controls zone dimensions:**
+- Outer padding: `16px 0` (vertical), aligned with the page's existing content padding
+- Search bar: full-width of the content column, `height: 44px`
+- Filter/sort row: `margin-top: 12px`, `display: flex`, `align-items: center`, `justify-content: space-between`
+- Filter tabs: left-aligned, `gap: 4px` between tabs
+- Sort dropdown: right-aligned within the row
+
+---
+
+#### 1. Search Bar
+
+**Component:** `<PlantSearchBar />`
+**File:** `frontend/src/components/PlantSearchBar.jsx`
+
+##### Visual Spec
+
+| Property | Value |
+|----------|-------|
+| Height | 44px |
+| Width | 100% of content column |
+| Background | `#FFFFFF` |
+| Border | 1.5px solid `#E0DDD6` |
+| Border Radius | 8px |
+| Border (focus) | 2px solid `#5C7A5C` |
+| Font | `'DM Sans'`, 14px, weight 400 |
+| Placeholder text | "Search plants…" |
+| Placeholder color | `#B0ADA5` |
+| Text color | `#2C2C2C` |
+| Left padding | 40px (accounts for search icon) |
+| Right padding | 36px (accounts for clear button) |
+| Search icon | Phosphor `MagnifyingGlass` (outlined), 18px, `#B0ADA5`, absolute positioned at left center, `left: 12px` |
+| Transition | `border-color 0.2s ease`, `box-shadow 0.2s ease` |
+| Shadow (focus) | `0 0 0 3px rgba(92, 122, 92, 0.15)` |
+
+##### Behavior
+
+- **Always visible** — the search bar is never hidden behind a toggle or collapsed
+- **Debounced input:** Input is captured via controlled React state. A `useEffect` watches the value and fires the API call after ~300 ms (implemented with `setTimeout`/`clearTimeout` — no third-party debounce library). The debounce timer resets on each keystroke.
+- **Immediate clear:** Clicking the × button or pressing `Escape` while the input is focused clears the value immediately and fires an API call synchronously (no debounce delay on clear).
+- **Search scope:** Matches `name` OR `species` fields, case-insensitive, substring match (via backend `ILIKE '%<term>%'`).
+
+##### Clear Button (×)
+
+- **Visibility:** Only rendered when the input value is non-empty (not just whitespace)
+- **Element:** `<button>` (keyboard focusable), `aria-label="Clear search"`
+- **Visual:** Phosphor `X` icon, 16px, `#6B6B5F`. No border. Circular hover background: 28px diameter, `#F0EDE6`, `border-radius: 50%`.
+- **Position:** Absolute, right edge of the input, `right: 10px`, vertically centered
+- **On click:** Clears input value, immediately triggers API re-fetch with no `search` param, returns focus to the search input
+
+##### States
+
+| State | Visual |
+|-------|--------|
+| Empty (default) | Placeholder text visible, no clear button |
+| Has value | User text visible, clear (×) button visible |
+| Focused | Sage green border + focus ring shadow |
+| Disabled (loading) | `opacity: 0.5`, `pointer-events: none`, `background: #F0EDE6` |
+
+##### Accessibility
+
+- `<input type="search" aria-label="Search plants" id="plant-search-input">`
+- Clear button: `<button aria-label="Clear search">`
+- Pressing `Escape` while the input is focused clears the value (if non-empty) or blurs the input (if already empty)
+- Do not use `role="search"` on the input itself; wrap the entire search bar in `<div role="search" aria-label="Plant search">` if a landmark is desired
+
+---
+
+#### 2. Status Filter Tabs
+
+**Component:** `<PlantStatusFilter />`
+**File:** `frontend/src/components/PlantStatusFilter.jsx`
+
+##### Concept
+
+A segmented control styled as pill-shaped toggle tabs. Four options: **All**, **Overdue**, **Due today**, **On track**. Default selection: **All**. Each tab shows the count of matching plants as a badge.
+
+##### Visual Spec
+
+**Container:**
+- `display: flex`, `gap: 4px`, `align-items: center`
+- No border, no background — tabs float against the page background
+
+**Individual tab:**
+
+| Property | Value |
+|----------|-------|
+| Height | 34px |
+| Padding | `6px 14px` |
+| Border Radius | 24px (pill shape) |
+| Font | `'DM Sans'`, 13px, weight 500 |
+| Transition | `background 0.15s ease`, `color 0.15s ease` |
+
+**Tab variants:**
+
+| Tab Variant | Background | Text Color | Border |
+|-------------|-----------|------------|--------|
+| Inactive | `#F0EDE6` | `#6B6B5F` | none |
+| Inactive (hover) | `#E0DDD6` | `#2C2C2C` | none |
+| Active — "All" | `#5C7A5C` | `#FFFFFF` | none |
+| Active — "Overdue" | `#FAEAE4` | `#B85C38` | 1.5px solid `#B85C38` |
+| Active — "Due today" | `#FDF4E3` | `#C4921F` | 1.5px solid `#C4921F` |
+| Active — "On track" | `#E8F4EC` | `#4A7C59` | 1.5px solid `#4A7C59` |
+| Focus | Any + `box-shadow: 0 0 0 2px #5C7A5C` | — | — |
+| Disabled (loading) | `#F0EDE6` | `#B0ADA5` | none |
+
+Note: "All" active uses the primary sage green because it represents the brand default state, not a care status. The other three tabs use status-matching colors when active to reinforce their meaning.
+
+##### Count Badges
+
+Each tab label is formatted as: `{Label} ({count})`
+
+Examples: `All (12)`, `Overdue (3)`, `Due today (2)`, `On track (7)`
+
+- Count is always the number of plants matching that status in the current search context.
+- "All" count = total plants matching the current search (or total plants if search is empty).
+- Other tab counts = plants matching that status AND the current search.
+- When any filter changes, counts update after the API returns.
+- During loading, keep the last-known counts visible (do not zero them out mid-flight).
+- If count is 0, still show the tab with `({0})` — never hide a tab.
+
+##### Behavior
+
+- Only one tab is active at a time (single-select).
+- Clicking an already-active tab does nothing (idempotent).
+- Selecting a tab fires an API call with the corresponding `status` query param:
+  - "All" → no `status` param
+  - "Overdue" → `status=overdue`
+  - "Due today" → `status=due_today`
+  - "On track" → `status=on_track`
+- **Session persistence:** Active tab selection is stored in component-level React state (or a lightweight context). On back-navigation from `PlantDetailPage`, the previously selected tab is restored. Do NOT persist to `localStorage`.
+
+##### Accessibility
+
+```html
+<div role="group" aria-label="Filter by status">
+  <button role="radio" aria-checked="true"  aria-label="All plants, 12 results">All (12)</button>
+  <button role="radio" aria-checked="false" aria-label="Overdue plants, 3 results">Overdue (3)</button>
+  <button role="radio" aria-checked="false" aria-label="Due today plants, 2 results">Due today (2)</button>
+  <button role="radio" aria-checked="false" aria-label="On track plants, 7 results">On track (7)</button>
+</div>
+```
+
+Alternatively use `<div role="radiogroup" aria-label="Filter by status">` wrapping `<button role="radio">` children. Arrow key navigation between tabs (left/right arrow keys cycle through options). `Tab` key moves focus out of the group to the next focusable element.
+
+##### Mobile Overflow
+
+On narrow screens where all four tabs cannot fit in one row: the tab row scrolls horizontally (`overflow-x: auto`, `scrollbar-width: none` — hide the scrollbar visually). All four tabs remain present; no tabs are collapsed or hidden.
+
+---
+
+#### 3. Sort Dropdown
+
+**Component:** `<PlantSortDropdown />`
+**File:** `frontend/src/components/PlantSortDropdown.jsx`
+
+##### Visual Spec
+
+A compact trigger button that opens a dropdown menu. This is NOT a native `<select>` — use a custom button + popover pattern for full style control while maintaining keyboard accessibility.
+
+**Trigger button:**
+
+| Property | Value |
+|----------|-------|
+| Height | 34px |
+| Padding | `6px 12px` |
+| Background | `#FFFFFF` |
+| Border | 1.5px solid `#E0DDD6` |
+| Border Radius | 8px |
+| Font | `'DM Sans'`, 13px, weight 500, `#2C2C2C` |
+| Chevron icon | Phosphor `CaretDown`, 14px, `#6B6B5F`, `margin-left: 6px` |
+| Hover | `background: #F7F4EF`, border stays, no shadow |
+| Focus | `box-shadow: 0 0 0 2px #5C7A5C` |
+| Active sort ≠ default | border color changes to `#5C7A5C`, text color `#5C7A5C` (visual indicator that a non-default sort is active) |
+| Disabled (loading) | `opacity: 0.5`, `pointer-events: none` |
+
+**Trigger label format:** Shows the currently active sort option label, e.g. `"Name A–Z ▾"`.
+
+**Dropdown panel:**
+
+| Property | Value |
+|----------|-------|
+| Background | `#FFFFFF` |
+| Border | 1px solid `#E0DDD6` |
+| Border Radius | 8px |
+| Shadow | `0 4px 16px rgba(44, 44, 44, 0.12)` |
+| Width | 200px minimum, or match trigger width if wider |
+| Position | Absolute, aligned to right edge of trigger, below trigger |
+| `z-index` | Above plant grid, below modal overlay |
+| Open animation | Fade in + slide down 4px, `0.15s ease` |
+| Close animation | Fade out, `0.1s ease` |
+
+**Option items:**
+
+| Property | Value |
+|----------|-------|
+| Height | 40px |
+| Padding | `10px 16px` |
+| Font | `'DM Sans'`, 14px, weight 400, `#2C2C2C` |
+| Hover | `background: #F7F4EF` |
+| Active/selected | `background: #F0EDE6`, `font-weight: 600`, sage green checkmark (Phosphor `Check`, 14px, `#5C7A5C`) on the right |
+| Separator between option groups | None needed (4 options, single group) |
+
+##### Options
+
+| Display Label | `sort` param value | Description |
+|--------------|-------------------|-------------|
+| Name A–Z *(default)* | `name_asc` | Alphabetical ascending |
+| Name Z–A | `name_desc` | Alphabetical descending |
+| Most overdue first | `most_overdue` | Largest `days_overdue` at top |
+| Next due soonest | `next_due_soonest` | Smallest `next_due_days` at top |
+
+Default: **Name A–Z** (`name_asc`). The default is the "no sort change" baseline — if the user has not interacted with the dropdown, `name_asc` is assumed and the `sort` param may be omitted from API calls (the backend default).
+
+##### Behavior
+
+- Clicking the trigger opens the dropdown; clicking it again closes it.
+- Clicking an option: selects it, closes the dropdown, fires an API call with the new `sort` param.
+- Clicking outside the dropdown or pressing `Escape` closes it without changing selection.
+- Selecting the already-active option closes the dropdown idempotently.
+
+##### Accessibility
+
+```html
+<div class="sort-dropdown">
+  <button
+    aria-haspopup="listbox"
+    aria-expanded="false"
+    aria-label="Sort plants"
+    id="sort-trigger"
+  >
+    Name A–Z <CaretDown />
+  </button>
+  <ul
+    role="listbox"
+    aria-labelledby="sort-trigger"
+    hidden
+  >
+    <li role="option" aria-selected="true">Name A–Z</li>
+    <li role="option" aria-selected="false">Name Z–A</li>
+    <li role="option" aria-selected="false">Most overdue first</li>
+    <li role="option" aria-selected="false">Next due soonest</li>
+  </ul>
+</div>
+```
+
+- `aria-expanded` toggles `true`/`false` with dropdown open/close state.
+- Arrow keys (↑↓) navigate between options when dropdown is open.
+- `Enter` or `Space` selects the focused option.
+- `Escape` closes without selecting.
+- Focus returns to trigger button after selection or close.
+
+---
+
+#### 4. Combined Active State
+
+When search + filter + sort are all active simultaneously, all three are passed as query params to `GET /api/v1/plants`:
+
+```
+GET /api/v1/plants?search=fern&status=overdue&sort=most_overdue
+```
+
+No special UI changes are needed beyond what is described per-control above. All three controls show their current values independently.
+
+##### "Clear Filters" Link
+
+A **"Clear filters"** link appears below the filter/sort row whenever any non-default selection is active:
+
+| Condition | Show "Clear filters"? |
+|-----------|----------------------|
+| `search` is non-empty | Yes |
+| `status` is not "All" | Yes |
+| `sort` is not `name_asc` | Yes |
+| All three are default | No |
+
+**Visual:**
+- Text link, no underline by default, underline on hover
+- Font: `'DM Sans'`, 13px, weight 400
+- Color: `#6B6B5F`
+- Hover color: `#2C2C2C`
+- Positioned: inline below the filter/sort row, left-aligned, `margin-top: 8px`
+- Example: `Clear filters`
+
+**Behavior:**
+- One click resets all three controls: clears search input, sets status tab to "All", sets sort to "Name A–Z"
+- Fires a single API call with no `search`, no `status`, no `sort` params (or `sort=name_asc` — both are equivalent)
+- Does NOT navigate the user away from the page
+
+---
+
+#### 5. Empty States
+
+Empty states appear in the plant grid area when the API returns 0 plants. The search/filter controls remain fully interactive above (NOT replaced by the empty state).
+
+##### 5a. No plants match search only (search active, filter = All)
+
+```
+[MagnifyingGlass icon, 40px, #B0ADA5]
+No plants match your search.
+[Clear filters]
+```
+
+- Heading: `'DM Sans'`, 16px, weight 500, `#2C2C2C`
+- "Clear filters" link: same styling as section 4 above
+
+##### 5b. No plants match filter only (filter active, search empty)
+
+```
+[Funnel icon, 40px, #B0ADA5]
+No {filter label} plants.
+[Clear filters]
+```
+
+Where `{filter label}` maps to:
+- `status=overdue` → "overdue"
+- `status=due_today` → "due today"
+- `status=on_track` → "on track"
+
+Examples:
+- "No overdue plants."
+- "No due today plants."
+- "No on track plants."
+
+##### 5c. No plants match combined search + filter
+
+```
+[MagnifyingGlass icon, 40px, #B0ADA5]
+No {filter label} plants match your search.
+[Clear filters]
+```
+
+Examples:
+- "No overdue plants match your search."
+- "No due today plants match your search."
+- "No on track plants match your search."
+
+##### 5d. User has zero plants (no search, no filter — the user's entire plant inventory is empty)
+
+This is the existing "empty inventory" state from the My Plants page (`MyPlantsPage`). Do NOT show "Clear filters" in this case because no filters are active. The existing empty inventory call-to-action ("Add your first plant") should remain unchanged.
+
+**Logic:** Show the existing empty inventory CTA if and only if: search is empty AND status is "All" AND API returns 0 plants. Show one of the filter-related empty states (5a–5c) if any control is non-default.
+
+##### Empty State Layout
+
+- Container: centered horizontally in the grid area, `padding: 64px 24px`
+- Icon: 40px, `#B0ADA5`, `margin-bottom: 16px`
+- Message text: `margin-bottom: 12px`
+- "Clear filters" link: same as section 4
+
+---
+
+#### 6. Loading / Skeleton State
+
+While the initial plant list is fetching (or while any control change triggers a re-fetch), the controls and grid respond differently:
+
+##### On Initial Page Load (first fetch)
+
+- Search bar: rendered but `disabled` (`pointer-events: none`, `opacity: 0.5`, background `#F0EDE6`)
+- Status filter tabs: rendered but all tabs `disabled` (same opacity/pointer-events treatment)
+- Sort dropdown: rendered but `disabled` trigger button
+- Plant grid: shows the existing skeleton grid (shimmer card placeholders) — no change from current skeleton behavior
+- **The layout does NOT shift** when data arrives. Controls are already in their final position.
+
+##### On Re-Fetch (any control change triggers API call)
+
+When the user changes search/filter/sort and a new fetch is in flight:
+
+- **Controls:** Remain fully interactive at full opacity. Do NOT disable the controls during re-fetch — the user should be able to change their mind mid-flight.
+- **Plant grid:** Show the existing skeleton loader while new results arrive (replace current cards with skeleton). Duration is typically <300ms on local; skeleton prevents flicker.
+- Do NOT reset control values during loading — the controls always reflect what the user last selected, not what the last completed API response corresponds to.
+
+##### Skeleton Appearance for Disabled Controls
+
+During **initial page load only**, the three controls show a subtle disabled visual:
+
+| Control | Disabled Appearance |
+|---------|-------------------|
+| Search bar | `background: #F0EDE6`, no text, no placeholder visible (or placeholder in `#B0ADA5` at reduced opacity) |
+| Filter tabs | All four tabs at `opacity: 0.4`, `pointer-events: none`, no counts shown (counts are "—" or blank) |
+| Sort dropdown | Trigger button at `opacity: 0.4`, `pointer-events: none` |
+
+This prevents the user from interacting with the controls before any data has loaded. Once the first response arrives, full interactivity is restored immediately (no animation).
+
+---
+
+#### 7. Accessibility Summary
+
+| Element | ARIA / Behavior |
+|---------|----------------|
+| Search input | `<input type="search" aria-label="Search plants">` |
+| Clear button | `<button aria-label="Clear search">` |
+| Search container | `<div role="search" aria-label="Plant search">` (optional landmark) |
+| Filter tab group | `<div role="radiogroup" aria-label="Filter by status">` |
+| Individual filter tabs | `<button role="radio" aria-checked="true|false" aria-label="{Label} plants, {N} results">` |
+| Sort dropdown trigger | `<button aria-haspopup="listbox" aria-expanded="true|false" aria-label="Sort plants">` |
+| Sort option list | `<ul role="listbox" aria-label="Sort options">` |
+| Sort options | `<li role="option" aria-selected="true|false">` |
+| Results live region | `<div aria-live="polite" aria-atomic="true" class="sr-only">` — announces count when results change |
+
+##### Live Region Announcements
+
+A visually hidden `<div aria-live="polite" aria-atomic="true">` element (screen-reader only, `position: absolute; width: 1px; height: 1px; overflow: hidden`) updates its text content after every API response to announce the result count:
+
+| Scenario | Announcement text |
+|----------|------------------|
+| Results present, no filter | "Showing {N} plants." |
+| Results present, search active | "Showing {N} plants matching "{search term}"." |
+| Results present, filter active | "Showing {N} {filter label} plants." |
+| Results present, combined | "Showing {N} {filter label} plants matching "{search term}"." |
+| No results | "No plants found." |
+| Loading | (no announcement while loading — wait for results) |
+
+##### Keyboard Navigation
+
+| Key | Context | Behavior |
+|-----|---------|---------|
+| `Tab` | Anywhere | Cycles through: search input → clear button (if visible) → filter tabs → sort trigger → sort options (when open) → plant cards |
+| `Escape` | Search input focused | Clears value if non-empty; blurs input if already empty |
+| `Escape` | Sort dropdown open | Closes dropdown, returns focus to trigger |
+| `←` / `→` | Filter tab group focused | Moves focus between tabs; activates the focused tab (immediate, no extra `Enter` required) |
+| `↑` / `↓` | Sort dropdown open | Navigates between options |
+| `Enter` / `Space` | Sort option focused | Selects option, closes dropdown |
+
+---
+
+#### 8. Responsive Behavior
+
+| Breakpoint | Behavior |
+|------------|---------|
+| **Desktop** ≥1024px | Search bar full-width. Filter tabs and sort on same row, side-by-side. "Clear filters" on row below. |
+| **Tablet** 768px–1023px | Same as desktop. Filter tabs may wrap to next row if they overflow; sort dropdown stays right-aligned on its row. |
+| **Mobile** <768px | Search bar full-width. Filter tabs + sort dropdown on the same row. Filter tabs scroll horizontally if needed (`overflow-x: auto`). Sort dropdown right-aligned. "Clear filters" on its own row below. |
+| **Mobile** <480px | Same as mobile. Filter tab font size drops to 12px. Sort dropdown label may abbreviate (e.g. "Name A–Z" stays as-is — do not abbreviate). |
+
+---
+
+#### 9. Affected Files
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/MyPlantsPage.jsx` | Add controls zone between heading row and plant grid. Wire search, filter, sort state. Pass params to `plants.getAll()`. Render "Clear filters" link. |
+| `frontend/src/components/PlantSearchBar.jsx` | **New file.** Controlled search input with debounce, clear button, disabled state. |
+| `frontend/src/components/PlantStatusFilter.jsx` | **New file.** Segmented control tabs (All / Overdue / Due today / On track) with count badges and keyboard navigation. |
+| `frontend/src/components/PlantSortDropdown.jsx` | **New file.** Custom dropdown trigger + listbox pattern. |
+| `frontend/src/utils/api.js` | Extend `plants.getAll(options)` to accept `{ search, status, sort, page, limit }` and build query string. Strip undefined/empty params. |
+
+---
+
+#### 10. Test Matrix
+
+| # | Test | Required? |
+|---|------|-----------|
+| 1 | **Search input renders and debounce fires** — type "fern", wait 300ms, assert `plants.getAll` called with `{ search: "fern" }` | ✅ Required |
+| 2 | **Clear (×) button resets search immediately** — type "rose", assert × visible; click ×, assert input empty and `plants.getAll` called with no search param; no debounce delay | ✅ Required |
+| 3 | **Status tab change triggers re-fetch** — click "Overdue" tab, assert `plants.getAll` called with `{ status: "overdue" }` | ✅ Required |
+| 4 | **Sort dropdown change triggers re-fetch** — open dropdown, select "Most overdue first", assert `plants.getAll` called with `{ sort: "most_overdue" }` | ✅ Required |
+| 5 | **Combined params all pass to API** — set search "cactus", select "Due today" tab, select "Next due soonest" sort; assert `plants.getAll` called with `{ search: "cactus", status: "due_today", sort: "next_due_soonest" }` | ✅ Required |
+| 6 | **Empty state renders for no-results search** — mock `plants.getAll` returns empty array with search "xyz" active; assert "No plants match your search." text and "Clear filters" link | ✅ Required |
+| 7 | **Empty state renders for no-results filter** — mock returns empty array with status "overdue"; assert "No overdue plants." and "Clear filters" link | ✅ Required |
+| 8 | **"Clear filters" resets all three controls** — set search, filter, sort to non-defaults; click "Clear filters"; assert search empty, filter = "All", sort = "name_asc"; assert `plants.getAll` called with defaults | ✅ Required |
+| 9 | **Accessibility — aria-label on search input** — assert `input[aria-label="Search plants"]` in document | ✅ Required |
+| 10 | **Accessibility — aria-label on filter group** — assert element with `aria-label="Filter by status"` and `role="radiogroup"` in document | ✅ Required |
+| 11 | **Accessibility — live region announces result count** — after API returns 5 plants, assert live region text contains "5" | ✅ Required |
+| 12 | **"Clear filters" hidden when all defaults active** — render page with no search/filter/sort set; assert "Clear filters" not in document | Strongly recommended |
+| 13 | **Escape clears search input** — focus search input, type "orchid", press Escape; assert input value is empty | Strongly recommended |
+| 14 | **Keyboard: arrow keys cycle filter tabs** — focus "All" tab, press →, assert "Overdue" tab is focused and checked | Recommended |
+| 15 | **Sort dropdown: Escape closes without selecting** — open dropdown, press Escape; assert dropdown closed and previously active sort unchanged | Recommended |
+
+---
