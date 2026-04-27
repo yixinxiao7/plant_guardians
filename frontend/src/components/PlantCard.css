@@ -77,9 +77,13 @@
 }
 
 .plant-card-action {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  /* Hit box ≥ 44x44 for touch (WCAG 2.5.5). Visible hover background still
+     fills the rounded square. Edit/delete are the most-used controls in the
+     primary user flow — must be one-tap reliable. */
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px;
+  border-radius: var(--radius-circle);
   display: flex;
   align-items: center;
   justify-content: center;

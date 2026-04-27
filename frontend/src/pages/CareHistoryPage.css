@@ -59,7 +59,7 @@
 
 .care-history-filter-select:focus {
   border-color: var(--color-accent);
-  outline: 2px solid rgba(92, 122, 92, 0.2);
+  outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
@@ -88,11 +88,27 @@
 .care-history-icon-circle {
   width: 44px;
   height: 44px;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+/* Per-care-type colors via design tokens (theme-aware) */
+.care-history-icon-circle--watering {
+  background: var(--color-care-watering-bg);
+  color: var(--color-care-watering-icon);
+}
+
+.care-history-icon-circle--fertilizing {
+  background: var(--color-care-fertilizing-bg);
+  color: var(--color-care-fertilizing-icon);
+}
+
+.care-history-icon-circle--repotting {
+  background: var(--color-care-repotting-bg);
+  color: var(--color-care-repotting-icon);
 }
 
 .care-history-item-info {
@@ -186,7 +202,7 @@
 .skeleton-circle {
   width: 44px;
   height: 44px;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   flex-shrink: 0;
 }
 

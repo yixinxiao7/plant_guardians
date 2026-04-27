@@ -150,15 +150,15 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="login-brand-panel">
         <div className="login-brand-content">
-          <Plant size={48} weight="fill" color="#fff" />
+          <Plant size={48} weight="fill" color="currentColor" />
           <h1 className="login-brand-title">Plant Guardians</h1>
           <p className="login-brand-tagline">Every plant deserves a guardian.</p>
-          {/* Decorative leaf SVG */}
-          <svg className="login-brand-leaf" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M100 20C100 20 140 60 140 120C140 160 120 180 100 180C80 180 60 160 60 120C60 60 100 20 100 20Z" stroke="rgba(255,255,255,0.15)" strokeWidth="2" fill="none"/>
-            <path d="M100 40V160" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5"/>
-            <path d="M100 60C110 70 130 80 130 100" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" fill="none"/>
-            <path d="M100 80C90 90 70 100 70 120" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" fill="none"/>
+          {/* Decorative leaf SVG — strokes inherit currentColor at low opacity */}
+          <svg className="login-brand-leaf" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M100 20C100 20 140 60 140 120C140 160 120 180 100 180C80 180 60 160 60 120C60 60 100 20 100 20Z" stroke="currentColor" strokeOpacity="0.15" strokeWidth="2" fill="none"/>
+            <path d="M100 40V160" stroke="currentColor" strokeOpacity="0.1" strokeWidth="1.5"/>
+            <path d="M100 60C110 70 130 80 130 100" stroke="currentColor" strokeOpacity="0.08" strokeWidth="1.5" fill="none"/>
+            <path d="M100 80C90 90 70 100 70 120" stroke="currentColor" strokeOpacity="0.08" strokeWidth="1.5" fill="none"/>
           </svg>
         </div>
       </div>
@@ -184,7 +184,7 @@ export default function LoginPage() {
 
           {/* Mobile logo */}
           <div className="login-mobile-logo">
-            <Plant size={32} weight="fill" color="#5C7A5C" />
+            <Plant size={32} weight="fill" color="var(--color-accent)" />
             <span>Plant Guardians</span>
           </div>
 

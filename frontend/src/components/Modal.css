@@ -38,10 +38,14 @@
   border: none;
   cursor: pointer;
   color: var(--color-text-secondary);
-  padding: 4px;
-  border-radius: 50%;
+  /* min 44x44 hit area for touch — modal close is critical to reach. */
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
+  border-radius: var(--radius-circle);
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .modal-close:hover {

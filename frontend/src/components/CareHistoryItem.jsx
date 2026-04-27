@@ -3,28 +3,12 @@ import { Drop, Leaf, PottedPlant, CaretDown, CaretUp } from '@phosphor-icons/rea
 import { formatDate, formatFullDateTime } from '../utils/formatDate.js';
 import './CareHistorySection.css';
 
+// Visual styling (icon background, icon color) lives in CareHistorySection.css
+// keyed on `.ch-item-icon-circle--{type}` so it stays theme-aware.
 const CARE_CONFIG = {
-  watering: {
-    Icon: Drop,
-    label: 'Watering',
-    iconColor: '#4A7C59',
-    iconBg: '#E8F4EC',
-    darkIconBg: '#1E3028',
-  },
-  fertilizing: {
-    Icon: Leaf,
-    label: 'Fertilizing',
-    iconColor: '#A67C5B',
-    iconBg: '#F5EDE4',
-    darkIconBg: '#2E2018',
-  },
-  repotting: {
-    Icon: PottedPlant,
-    label: 'Repotting',
-    iconColor: '#6B6B5F',
-    iconBg: '#F0EDE6',
-    darkIconBg: '#2A2A24',
-  },
+  watering: { Icon: Drop, label: 'Watering' },
+  fertilizing: { Icon: Leaf, label: 'Fertilizing' },
+  repotting: { Icon: PottedPlant, label: 'Repotting' },
 };
 
 /**
@@ -56,7 +40,7 @@ export default function CareHistoryItem({ item }) {
   const [isOverflowing, setIsOverflowing] = useState(false);
   const noteTextRef = useRef(null);
   const config = CARE_CONFIG[item.careType] || CARE_CONFIG.watering;
-  const { Icon, label, iconColor, iconBg } = config;
+  const { Icon, label } = config;
 
   const absoluteDate = formatDate(item.performedAt);
   const fullDateTime = formatFullDateTime(item.performedAt);
@@ -79,10 +63,9 @@ export default function CareHistoryItem({ item }) {
       <div className="ch-item-row">
         <div
           className={`ch-item-icon-circle ch-item-icon-circle--${item.careType}`}
-          style={{ '--icon-bg': iconBg }}
           aria-hidden="true"
         >
-          <Icon size={20} color={iconColor} />
+          <Icon size={20} color="currentColor" />
         </div>
 
         <span className="ch-item-label">{label}</span>

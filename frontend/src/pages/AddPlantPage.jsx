@@ -191,6 +191,7 @@ export default function AddPlantPage() {
           <Input
             label="Plant Name"
             required
+            maxLength={100}
             value={name}
             onChange={(e) => { setName(e.target.value); if (errors.name) setErrors(p => ({ ...p, name: null })); }}
             error={errors.name}
@@ -199,6 +200,7 @@ export default function AddPlantPage() {
           />
           <Input
             label="Plant Type"
+            maxLength={80}
             value={type}
             onChange={(e) => setType(e.target.value)}
             placeholder="e.g. 'Pothos', 'Spider Plant'..."
@@ -207,10 +209,12 @@ export default function AddPlantPage() {
           />
           {aiFilledFields.includes('type') && <span className="ai-badge">Filled by AI</span>}
           <div className="input-group">
-            <label className="input-label">Notes</label>
+            <label className="input-label" htmlFor="plant-notes">Notes</label>
             <textarea
+              id="plant-notes"
               className="input-field"
               rows={3}
+              maxLength={2000}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Any special notes about this plant..."

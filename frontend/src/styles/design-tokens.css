@@ -7,37 +7,50 @@
   --color-modal: #FFFFFF;
   --color-text-primary: #2C2C2C;
   --color-text-secondary: #6B6B5F;
-  --color-text-disabled: #B0ADA5;
+  /* Bumped from #B0ADA5 (2.04:1) to clear AA Large-Text contrast on cream bg. */
+  --color-text-disabled: #7E7B70;
   --color-accent: #5C7A5C;
+  /* Alias — historical name; multiple files reference it. Keep in sync with --color-accent. */
+  --color-accent-primary: var(--color-accent);
   --color-accent-hover: #4A6449;
+  --color-accent-soft: rgba(92, 122, 92, 0.08);
   --color-accent-warm: #A67C5B;
-  --color-status-green: #4A7C59;
+  /* Status colors are darkened from the original palette so they meet WCAG AA
+     (4.5:1) when used as text on their soft pastel backgrounds. The pastel
+     bg tokens are unchanged. */
+  --color-status-green: #3D6649;
   --color-status-green-bg: #E8F4EC;
-  --color-status-yellow: #C4921F;
+  --color-status-yellow: #7C5C0E;
   --color-status-yellow-bg: #FDF4E3;
-  --color-status-red: #B85C38;
+  --color-status-red: #9C4A2A;
+  --color-status-red-hover: #7E3A1F;
   --color-status-red-bg: #FAEAE4;
+  --color-status-red-soft: rgba(156, 74, 42, 0.08);
+  --color-status-red-soft-strong: rgba(156, 74, 42, 0.30);
   --color-border: #E0DDD6;
   --color-border-focus: #5C7A5C;
   --color-overlay: rgba(44, 44, 44, 0.45);
   --color-skeleton-base: #F0EDE6;
   --color-skeleton-highlight: #E8E4DC;
+  --color-focus-ring: rgba(92, 122, 92, 0.35);
   --shadow-card: 0 2px 8px rgba(44, 44, 44, 0.06);
   --shadow-card-hover: 0 6px 20px rgba(44, 44, 44, 0.12);
 
-  /* Text inverse (T-088) */
+  /* Text inverse — used as text color on top of --color-accent.
+     Light: white on dark sage. Dark: dark on light sage. */
   --color-text-inverse: #FFFFFF;
 
-  /* Status tab tokens (T-088) */
-  --color-status-overdue-bg: #FAEAE4;
-  --color-status-overdue-text: #B85C38;
-  --color-status-overdue-border: #B85C38;
-  --color-status-due-today-bg: #FDF4E3;
-  --color-status-due-today-text: #C4921F;
-  --color-status-due-today-border: #C4921F;
-  --color-status-on-track-bg: #E8F4EC;
-  --color-status-on-track-text: #4A7C59;
-  --color-status-on-track-border: #4A7C59;
+  /* Status tab tokens (T-088) — alias to the canonical status tokens above
+     so contrast updates flow through automatically. */
+  --color-status-overdue-bg: var(--color-status-red-bg);
+  --color-status-overdue-text: var(--color-status-red);
+  --color-status-overdue-border: var(--color-status-red);
+  --color-status-due-today-bg: var(--color-status-yellow-bg);
+  --color-status-due-today-text: var(--color-status-yellow);
+  --color-status-due-today-border: var(--color-status-yellow);
+  --color-status-on-track-bg: var(--color-status-green-bg);
+  --color-status-on-track-text: var(--color-status-green);
+  --color-status-on-track-border: var(--color-status-green);
 
   /* Care type tokens (T-088) */
   --color-care-watering-bg: #EBF4F7;
@@ -101,37 +114,43 @@
   --color-modal: #2C2A26;
   --color-text-primary: #EDE8DF;
   --color-text-secondary: #9B9489;
-  --color-text-disabled: #5A5650;
+  /* Bumped from #5A5650 (~2.4:1) to clear AA Large-Text on the dark bg. */
+  --color-text-disabled: #8A8678;
   --color-accent: #7EAF7E;
   --color-accent-hover: #91BE91;
+  --color-accent-soft: rgba(126, 175, 126, 0.10);
   --color-accent-warm: #C2956A;
   --color-status-green: #6EB88A;
   --color-status-green-bg: #1A2F22;
   --color-status-yellow: #E8B94A;
   --color-status-yellow-bg: #2B220D;
   --color-status-red: #E07A60;
+  --color-status-red-hover: #C66848;
   --color-status-red-bg: #2E1A14;
+  --color-status-red-soft: rgba(224, 122, 96, 0.10);
+  --color-status-red-soft-strong: rgba(224, 122, 96, 0.35);
   --color-border: #3C3830;
   --color-border-focus: #7EAF7E;
   --color-overlay: rgba(0, 0, 0, 0.65);
   --color-skeleton-base: #2C2A26;
   --color-skeleton-highlight: #383530;
+  --color-focus-ring: rgba(126, 175, 126, 0.40);
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
   --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.4);
 
-  /* Text inverse (T-088) */
-  --color-text-inverse: #FFFFFF;
+  /* Dark text on the lightened accent — accessible contrast. */
+  --color-text-inverse: #1A1815;
 
-  /* Status tab tokens (T-088) */
-  --color-status-overdue-bg: #2E1A14;
-  --color-status-overdue-text: #E07A60;
-  --color-status-overdue-border: #E07A60;
-  --color-status-due-today-bg: #2B220D;
-  --color-status-due-today-text: #E8B94A;
-  --color-status-due-today-border: #E8B94A;
-  --color-status-on-track-bg: #1A2F22;
-  --color-status-on-track-text: #6EB88A;
-  --color-status-on-track-border: #6EB88A;
+  /* Status tab tokens (T-088) — alias to canonical status tokens above. */
+  --color-status-overdue-bg: var(--color-status-red-bg);
+  --color-status-overdue-text: var(--color-status-red);
+  --color-status-overdue-border: var(--color-status-red);
+  --color-status-due-today-bg: var(--color-status-yellow-bg);
+  --color-status-due-today-text: var(--color-status-yellow);
+  --color-status-due-today-border: var(--color-status-yellow);
+  --color-status-on-track-bg: var(--color-status-green-bg);
+  --color-status-on-track-text: var(--color-status-green);
+  --color-status-on-track-border: var(--color-status-green);
 
   /* Care type tokens (T-088) */
   --color-care-watering-bg: #162328;
@@ -169,37 +188,42 @@
     --color-modal: #2C2A26;
     --color-text-primary: #EDE8DF;
     --color-text-secondary: #9B9489;
-    --color-text-disabled: #5A5650;
+    --color-text-disabled: #8A8678;
     --color-accent: #7EAF7E;
     --color-accent-hover: #91BE91;
+    --color-accent-soft: rgba(126, 175, 126, 0.10);
     --color-accent-warm: #C2956A;
     --color-status-green: #6EB88A;
     --color-status-green-bg: #1A2F22;
     --color-status-yellow: #E8B94A;
     --color-status-yellow-bg: #2B220D;
     --color-status-red: #E07A60;
+    --color-status-red-hover: #C66848;
     --color-status-red-bg: #2E1A14;
+    --color-status-red-soft: rgba(224, 122, 96, 0.10);
+    --color-status-red-soft-strong: rgba(224, 122, 96, 0.35);
     --color-border: #3C3830;
     --color-border-focus: #7EAF7E;
     --color-overlay: rgba(0, 0, 0, 0.65);
     --color-skeleton-base: #2C2A26;
     --color-skeleton-highlight: #383530;
+    --color-focus-ring: rgba(126, 175, 126, 0.40);
     --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35);
     --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.4);
 
-    /* Text inverse (T-088) */
-    --color-text-inverse: #FFFFFF;
+    /* Dark text on the lightened accent — accessible contrast. */
+    --color-text-inverse: #1A1815;
 
-    /* Status tab tokens (T-088) */
-    --color-status-overdue-bg: #2E1A14;
-    --color-status-overdue-text: #E07A60;
-    --color-status-overdue-border: #E07A60;
-    --color-status-due-today-bg: #2B220D;
-    --color-status-due-today-text: #E8B94A;
-    --color-status-due-today-border: #E8B94A;
-    --color-status-on-track-bg: #1A2F22;
-    --color-status-on-track-text: #6EB88A;
-    --color-status-on-track-border: #6EB88A;
+    /* Status tab tokens (T-088) — alias to canonical status tokens above. */
+    --color-status-overdue-bg: var(--color-status-red-bg);
+    --color-status-overdue-text: var(--color-status-red);
+    --color-status-overdue-border: var(--color-status-red);
+    --color-status-due-today-bg: var(--color-status-yellow-bg);
+    --color-status-due-today-text: var(--color-status-yellow);
+    --color-status-due-today-border: var(--color-status-yellow);
+    --color-status-on-track-bg: var(--color-status-green-bg);
+    --color-status-on-track-text: var(--color-status-green);
+    --color-status-on-track-border: var(--color-status-green);
 
     /* Care type tokens (T-088) */
     --color-care-watering-bg: #162328;

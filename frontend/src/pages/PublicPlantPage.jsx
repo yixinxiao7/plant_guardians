@@ -232,6 +232,7 @@ function SuccessState({ plant }) {
           src={plant.photo_url}
           alt={`Photo of ${plant.name}`}
           className="public-photo"
+          decoding="async"
         />
       )}
       <h1

@@ -38,7 +38,7 @@ export default function PlantCard({ plant, onDelete }) {
     >
       <div className="plant-card-photo">
         {plant.photo_url ? (
-          <img src={plant.photo_url} alt={plant.name} />
+          <img src={plant.photo_url} alt={plant.name} loading="lazy" decoding="async" />
         ) : (
           <div className="plant-card-placeholder">
             <Leaf size={48} color="#B8CEB8" />

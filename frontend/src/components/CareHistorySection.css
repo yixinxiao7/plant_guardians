@@ -33,11 +33,11 @@
 
 .plant-detail-tab--active {
   color: var(--color-text-primary);
-  border-bottom-color: var(--color-accent-primary, #5C7A5C);
+  border-bottom-color: var(--color-accent);
 }
 
 .plant-detail-tab:focus-visible {
-  outline: 2px solid var(--color-accent-primary, #5C7A5C);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
@@ -72,28 +72,28 @@
   display: inline-flex;
   align-items: center;
   scroll-snap-align: start;
-  background: var(--color-surface-alt, #F0EDE6);
-  color: var(--color-text-secondary, #6B6B5F);
+  background: var(--color-surface-alt);
+  color: var(--color-text-secondary);
   transition: background 0.15s, color 0.15s;
 }
 
 .ch-filter-pill:hover {
-  background: var(--color-border, #E0DDD6);
-  color: var(--color-text-primary, #2C2C2C);
+  background: var(--color-border);
+  color: var(--color-text-primary);
 }
 
 .ch-filter-pill--active {
-  background: var(--color-accent-primary, #5C7A5C);
-  color: #FFFFFF;
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
 }
 
 .ch-filter-pill--active:hover {
-  background: var(--color-accent-primary, #5C7A5C);
-  color: #FFFFFF;
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
 }
 
 .ch-filter-pill:focus-visible {
-  outline: 2px solid var(--color-accent-primary, #5C7A5C);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
@@ -108,17 +108,18 @@
 }
 
 .ch-month-label {
-  font-family: 'DM Sans', var(--font-display), sans-serif;
+  font-family: var(--font-body);
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-text-disabled, #B0ADA5);
+  color: var(--color-text-disabled);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  margin: 0;
 }
 
 .ch-month-divider {
   border: none;
-  border-top: 1px solid var(--color-border, #E0DDD6);
+  border-top: 1px solid var(--color-border);
   margin-top: 8px;
 }
 
@@ -130,30 +131,26 @@
 
 /* --- Item Card --- */
 
+/* History items are list rows, not individual artifacts — flat row with a
+   single bottom divider. Hover gets a subtle bg tint instead of a shadow
+   pop, which would create stuttering visual jitter down a long list. */
 .ch-item {
-  background: var(--color-surface, #FFFFFF);
-  border: 1px solid var(--color-border, #E0DDD6);
-  border-radius: 12px;
   padding: 14px 20px;
-  margin-bottom: 8px;
-  box-shadow: 0 2px 8px rgba(44, 44, 44, 0.06);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  border-bottom: 1px solid var(--color-border);
+  transition: background-color 0.15s ease;
+}
+
+.ch-item:last-child {
+  border-bottom: none;
 }
 
 .ch-item:hover {
-  box-shadow: 0 4px 12px rgba(44, 44, 44, 0.10);
-  transform: translateY(-1px);
+  background: var(--color-surface-alt);
 }
 
 .ch-item:focus-visible {
-  outline: 2px solid var(--color-accent-primary, #5C7A5C);
-  outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ch-item:hover {
-    transform: none;
-  }
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 .ch-item-row {
@@ -165,7 +162,7 @@
 .ch-item-icon-circle {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -173,16 +170,33 @@
   background: var(--icon-bg);
 }
 
+/* Per-care-type icon styling — tokens are theme-aware so we don't need
+   separate dark-mode rules. Phosphor icon color picks up `color`. */
+.ch-item-icon-circle--watering {
+  --icon-bg: var(--color-care-watering-bg);
+  color: var(--color-care-watering-icon);
+}
+
+.ch-item-icon-circle--fertilizing {
+  --icon-bg: var(--color-care-fertilizing-bg);
+  color: var(--color-care-fertilizing-icon);
+}
+
+.ch-item-icon-circle--repotting {
+  --icon-bg: var(--color-care-repotting-bg);
+  color: var(--color-care-repotting-icon);
+}
+
 .ch-item-label {
   font-size: 15px;
   font-weight: 500;
-  color: var(--color-text-primary, #2C2C2C);
+  color: var(--color-text-primary);
 }
 
 .ch-item-note-toggle {
   background: none;
   border: none;
-  color: var(--color-text-disabled, #B0ADA5);
+  color: var(--color-text-disabled);
   cursor: pointer;
   padding: 4px;
   display: inline-flex;
@@ -204,37 +218,43 @@
 }
 
 .ch-item-note-toggle:focus-visible {
-  outline: 2px solid var(--color-accent-primary, #5C7A5C);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
 .ch-item-date {
   margin-left: auto;
   font-size: 14px;
-  color: var(--color-text-secondary, #6B6B5F);
+  color: var(--color-text-secondary);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-/* Notes Expansion */
+/* Notes expansion — grid-template-rows pattern animates the track,
+   not the children's height. Inner element clips overflow. */
 .ch-item-notes-panel {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.25s ease;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease, margin-top 0.25s ease;
   margin-top: 0;
 }
 
+.ch-item-notes-panel > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .ch-item-notes-panel--open {
-  max-height: 200px;
+  grid-template-rows: 1fr;
   margin-top: 10px;
 }
 
 .ch-item-notes-panel-inner {
-  background: var(--color-surface-alt, #F0EDE6);
+  background: var(--color-surface-alt);
   border-radius: 8px;
   padding: 12px 16px;
   font-size: 14px;
-  color: var(--color-text-secondary, #6B6B5F);
+  color: var(--color-text-secondary);
   font-style: italic;
   max-height: 180px;
   overflow-y: auto;
@@ -254,13 +274,13 @@
 
 .ch-item-note-divider {
   border: none;
-  border-top: 1px solid var(--color-border, #E0DDD6);
+  border-top: 1px solid var(--color-border);
   margin: 6px 0 8px 0;
 }
 
 .ch-item-note-text {
   font-size: 13px;
-  color: var(--color-text-secondary, #6B6B5F);
+  color: var(--color-text-secondary);
   font-style: italic;
   line-height: 1.5;
   padding: 0;
@@ -281,7 +301,7 @@
   background: none;
   border: none;
   font-size: 12px;
-  color: var(--color-accent-primary, #5C7A5C);
+  color: var(--color-accent);
   cursor: pointer;
   padding: 8px 4px;
   min-height: 44px;
@@ -290,7 +310,7 @@
 }
 
 .ch-item-show-more:focus-visible {
-  outline: 2px solid var(--color-accent-primary, #5C7A5C);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
@@ -335,19 +355,19 @@
 }
 
 .care-history-load-more-btn {
-  color: var(--color-text-secondary, #6B6B5F);
+  color: var(--color-text-secondary);
   padding: 10px 24px;
 }
 
 .care-history-load-more-error {
-  color: #B85C38;
+  color: var(--color-status-red);
   font-size: 13px;
   margin-top: 8px;
 }
 
 .care-history-end-message {
   font-size: 13px;
-  color: var(--color-text-disabled, #B0ADA5);
+  color: var(--color-text-disabled);
   text-align: center;
   padding: 16px 0;
 }
@@ -364,20 +384,20 @@
 }
 
 .ch-empty-icon {
-  color: var(--color-text-disabled, #C4C0B8);
+  color: var(--color-text-disabled);
 }
 
 .ch-empty-heading {
   font-size: 18px;
   font-weight: 600;
-  color: var(--color-text-primary, #2C2C2C);
+  color: var(--color-text-primary);
   font-family: 'DM Sans', var(--font-display), sans-serif;
   margin: 0;
 }
 
 .ch-empty-body {
   font-size: 14px;
-  color: var(--color-text-secondary, #6B6B5F);
+  color: var(--color-text-secondary);
   max-width: 280px;
   margin: 0;
 }
@@ -394,19 +414,19 @@
 }
 
 .ch-error-icon {
-  color: #B85C38;
+  color: var(--color-status-red);
 }
 
 .ch-error-heading {
   font-size: 15px;
   font-weight: 500;
-  color: var(--color-text-primary, #2C2C2C);
+  color: var(--color-text-primary);
   margin: 0;
 }
 
 .ch-error-body {
   font-size: 14px;
-  color: var(--color-text-secondary, #6B6B5F);
+  color: var(--color-text-secondary);
   margin: 0;
 }
 
@@ -420,8 +440,8 @@
 
 .ch-skeleton-pill {
   height: 32px;
-  border-radius: 24px;
-  background: var(--color-border, #E0DDD6);
+  border-radius: var(--radius-pill);
+  background: var(--color-skeleton-base);
 }
 
 .ch-skeleton-list {
@@ -433,17 +453,17 @@
 .ch-skeleton-card {
   height: 64px;
   width: 100%;
-  border-radius: 12px;
-  background: var(--color-border, #E0DDD6);
+  border-radius: var(--radius-card);
+  background: var(--color-skeleton-base);
 }
 
-/* Shimmer animation */
+/* Shimmer animation — uses the global skeleton tokens (theme-aware) */
 .shimmer {
   background: linear-gradient(
     90deg,
-    var(--color-border, #E0DDD6) 25%,
-    var(--color-surface-alt, #F0EDE6) 50%,
-    var(--color-border, #E0DDD6) 75%
+    var(--color-skeleton-base) 25%,
+    var(--color-skeleton-highlight) 50%,
+    var(--color-skeleton-base) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;
@@ -457,31 +477,6 @@
 @media (prefers-reduced-motion: reduce) {
   .shimmer {
     animation: none;
-    background: var(--color-border, #E0DDD6);
+    background: var(--color-skeleton-base);
   }
-}
-
-/* --- Dark Mode overrides for care type icon backgrounds --- */
-
-/* Dark mode icon backgrounds per care type — uses values from CARE_CONFIG */
-[data-theme="dark"] .ch-item-icon-circle--watering {
-  --icon-bg: #1E3028;
-}
-
-[data-theme="dark"] .ch-item-icon-circle--fertilizing {
-  --icon-bg: #2E2018;
-}
-
-[data-theme="dark"] .ch-item-icon-circle--repotting {
-  --icon-bg: #2A2A24;
-}
-
-[data-theme="dark"] .ch-skeleton-pill,
-[data-theme="dark"] .ch-skeleton-card {
-  background: #2E2E28;
-}
-
-[data-theme="dark"] .shimmer {
-  background: linear-gradient(90deg, #2E2E28 25%, #3A3A34 50%, #2E2E28 75%);
-  background-size: 200% 100%;
 }

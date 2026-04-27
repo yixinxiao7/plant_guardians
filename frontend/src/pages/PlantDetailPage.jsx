@@ -195,7 +195,7 @@ export default function PlantDetailPage() {
       <div className="detail-header">
         <div className="detail-photo-container">
           {plant.photo_url ? (
-            <img src={plant.photo_url} alt={plant.name} className="detail-photo" />
+            <img src={plant.photo_url} alt={plant.name} className="detail-photo" decoding="async" width="240" height="240" />
           ) : (
             <div className="detail-photo-placeholder">
               <Leaf size={64} color="#B8CEB8" />

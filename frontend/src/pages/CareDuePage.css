@@ -127,22 +127,28 @@
   padding: 0;
 }
 
+/* Care-due rows are list items inside a sectioned list, not standalone
+   artifacts. Flat row + bottom divider. Hover/selected use bg tint instead
+   of border + shadow shifts so a list of 20 doesn't strobe. */
 .care-due-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
   padding: 16px 20px;
-  margin-bottom: 10px;
-  box-shadow: var(--shadow-card);
+  border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   gap: 16px;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease, opacity 0.3s ease, max-height 0.3s ease, margin 0.3s ease, padding 0.3s ease;
+  transition: background-color 0.15s ease;
+}
+
+.care-due-card:last-child {
+  border-bottom: none;
+}
+
+.care-due-card--removing {
+  transition: opacity 0.3s ease, max-height 0.3s ease, margin 0.3s ease, padding 0.3s ease;
 }
 
 .care-due-card:hover {
-  box-shadow: var(--shadow-card-hover);
-  border-color: var(--color-border);
+  background: var(--color-surface-alt);
 }
 
 /* --- Selection Mode Card Styles (SPEC-019) --- */
@@ -153,9 +159,10 @@
 }
 
 .care-due-card--selected {
-  border-color: var(--color-accent-primary, #5C7A5C);
-  border-width: 1.5px;
-  background: var(--color-surface-alt, #F0EDE6);
+  background: var(--color-accent-soft);
+  /* A left-edge accent calls out the selection without re-introducing the
+     full card border. */
+  box-shadow: inset 3px 0 0 var(--color-accent);
 }
 
 .care-due-item-checkbox {
@@ -164,18 +171,12 @@
   flex-shrink: 0;
   accent-color: var(--color-accent-primary, #5C7A5C);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .care-due-item-checkbox:focus-visible {
   outline: 2px solid var(--color-accent-primary, #5C7A5C);
   outline-offset: 2px;
-}
-
-/* Dark mode overrides for selection mode */
-[data-theme="dark"] .care-due-card--selected {
-  background: var(--color-surface-alt, #2A2A24);
-  border-color: var(--color-accent-primary, #7A9E7A);
 }
 
 .care-due-card--removing {

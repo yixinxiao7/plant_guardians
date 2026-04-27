@@ -31,15 +31,17 @@ export default function CareHistoryList({ items }) {
   return (
     <div className="ch-list" role="list">
       {groups.map((group) => (
-        <div key={group.month} className="ch-month-group">
+        <section key={group.month} className="ch-month-group" aria-labelledby={`ch-month-${group.month.replace(/\s+/g, '-')}`}>
           <div className="ch-month-header">
-            <span className="ch-month-label">{group.month}</span>
+            <h2 id={`ch-month-${group.month.replace(/\s+/g, '-')}`} className="ch-month-label">
+              {group.month}
+            </h2>
             <hr className="ch-month-divider" />
           </div>
           {group.items.map((item) => (
             <CareHistoryItem key={item.id} item={item} />
           ))}
-        </div>
+        </section>
       ))}
     </div>
   );

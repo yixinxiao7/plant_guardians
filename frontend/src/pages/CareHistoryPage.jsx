@@ -7,25 +7,11 @@ import { formatRelativeTime, formatFullDateTime } from '../utils/formatDate.js';
 import Button from '../components/Button.jsx';
 import './CareHistoryPage.css';
 
+// Per-type colors live in CareHistoryPage.css keyed on `.care-history-icon-circle--{type}`.
 const CARE_TYPE_CONFIG = {
-  watering: {
-    icon: Drop,
-    label: 'Watered',
-    bgColor: '#EBF4F7',
-    iconColor: '#5B8FA8',
-  },
-  fertilizing: {
-    icon: Leaf,
-    label: 'Fertilized',
-    bgColor: '#E8F4EC',
-    iconColor: '#4A7C59',
-  },
-  repotting: {
-    icon: PottedPlant,
-    label: 'Repotted',
-    bgColor: '#F4EDE8',
-    iconColor: '#A67C5B',
-  },
+  watering: { icon: Drop, label: 'Watered' },
+  fertilizing: { icon: Leaf, label: 'Fertilized' },
+  repotting: { icon: PottedPlant, label: 'Repotted' },
 };
 
 export default function CareHistoryPage() {
@@ -125,7 +111,7 @@ export default function CareHistoryPage() {
         <h1 className="care-history-title">Care History</h1>
         <p className="care-history-subtitle">A record of every care action you've taken for your plants.</p>
         <div className="care-history-centered-state">
-          <WarningCircle size={48} color="#B85C38" />
+          <WarningCircle size={48} color="var(--color-status-red)" />
           <h2 className="care-history-state-heading">Couldn't load your care history.</h2>
           <p className="care-history-state-body">Something went wrong. Please try again.</p>
           <Button
@@ -153,12 +139,12 @@ export default function CareHistoryPage() {
         <div className="care-history-centered-state">
           <div className="care-history-empty-illustration" aria-hidden="true">
             <svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="50" cy="70" r="24" fill="#E0DDD6" />
-              <path d="M50 20 C50 20, 30 40, 50 55 C70 40, 50 20, 50 20Z" fill="#5C7A5C" />
-              <path d="M50 55 L50 75" stroke="#A67C5B" strokeWidth="3" strokeLinecap="round" />
-              <circle cx="35" cy="35" r="4" fill="#5B8FA8" opacity="0.6" />
-              <circle cx="62" cy="28" r="3" fill="#5B8FA8" opacity="0.4" />
-              <circle cx="42" cy="22" r="2.5" fill="#5B8FA8" opacity="0.5" />
+              <circle cx="50" cy="70" r="24" fill="var(--color-border)" />
+              <path d="M50 20 C50 20, 30 40, 50 55 C70 40, 50 20, 50 20Z" fill="var(--color-accent)" />
+              <path d="M50 55 L50 75" stroke="var(--color-accent-warm)" strokeWidth="3" strokeLinecap="round" />
+              <circle cx="35" cy="35" r="4" fill="var(--color-care-watering-icon)" opacity="0.6" />
+              <circle cx="62" cy="28" r="3" fill="var(--color-care-watering-icon)" opacity="0.4" />
+              <circle cx="42" cy="22" r="2.5" fill="var(--color-care-watering-icon)" opacity="0.5" />
             </svg>
           </div>
           <h2 className="care-history-state-heading">No care actions yet.</h2>
@@ -238,11 +224,10 @@ export default function CareHistoryPage() {
           return (
             <div key={action.id} className="care-history-item" role="listitem">
               <div
-                className="care-history-icon-circle"
-                style={{ background: config.bgColor }}
+                className={`care-history-icon-circle care-history-icon-circle--${action.care_type}`}
                 aria-hidden="true"
               >
-                <Icon size={20} color={config.iconColor} />
+                <Icon size={20} color="currentColor" />
               </div>
               <div className="care-history-item-info">
                 <span className="care-history-plant-name">{action.plant_name}</span>

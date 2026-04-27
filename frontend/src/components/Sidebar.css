@@ -171,6 +171,10 @@
     border: none;
     color: var(--color-text-secondary);
     cursor: pointer;
-    padding: 4px;
+    /* Sidebar close lives only on mobile — must clear 44px touch target. */
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px;
+    border-radius: var(--radius-circle);
   }
 }
