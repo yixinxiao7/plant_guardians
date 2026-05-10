@@ -135,8 +135,14 @@
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
   transition: background-color 0.15s ease;
+}
+
+/* Force note input to its own row so it doesn't squish the info/button layout */
+.care-due-card .care-note-input-wrapper {
+  flex-basis: 100%;
 }
 
 .care-due-card:last-child {
@@ -456,10 +462,6 @@
   }
 
   .care-due-header-row {
-    flex-wrap: wrap;
-  }
-
-  .care-due-card {
     flex-wrap: wrap;
   }
 

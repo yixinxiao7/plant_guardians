@@ -3782,3 +3782,68 @@ The single-action mark-done path (`POST /api/v1/care-actions`) correctly calls `
 **Fix location:** `backend/src/models/CareAction.js` — `batchCreate()` method.
 
 ---
+
+### FB-133 — /due page card content overlapping; Mark as Done button covers due date status
+
+| Field | Value |
+|-------|-------|
+| Feedback | On the Care Due Dashboard (`/due`), card content is jumbled — the "Mark as Done" button overlaps and covers the due date status text. |
+| Sprint | 31 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** On the `/due` page (Care Due Dashboard), the layout of each due-card is broken: the "Mark as Done" button is rendering on top of (covering) the due date status text. The card's internal elements appear to be overlapping rather than flowing in a clean vertical/horizontal arrangement. This makes the due date status (e.g. "Watering is 3 days overdue") unreadable and creates a confusing visual hierarchy on the very page users land on to act on overdue plants — i.e. it directly blocks the core daily-glance flow for the "plant killer" persona.
+
+This is most likely a CSS regression from the recent design system pass (commit `34ef40b` — "design system pass: tokens, contrast, perf, touch targets, distill") — touch-target sizing changes may have pushed the action button into the same grid/flex cell as the status line, or absolute/fixed positioning is escaping its container.
+
+**Suspected files** (frontend, web platform):
+- `frontend/src/pages/CareDueDashboard.jsx` (or whatever component renders the `/due` route)
+- The due-card component used inside it (likely `frontend/src/components/care/CareDueCard.jsx` or similar)
+- Recent design-token / spacing / touch-target CSS changes from commit `34ef40b`
+
+**Expected:** Each due-card lays out cleanly — plant name, due date status line ("X is N days overdue"), and the "Mark as Done" button each occupy their own space without overlap. The due date status is fully visible at all viewport widths (mobile + desktop).
+
+**Actual:** The "Mark as Done" button visually covers the due date status text, making the status unreadable.
+
+**Fix direction:** Inspect the due-card layout (flex/grid container), check for any `position: absolute` on the action button, verify the recent touch-target sizing changes haven't broken the row/column flow, and confirm the card has enough vertical space (`min-height` / `gap`) for status + CTA at all breakpoints. Add a regression test (or visual snapshot) covering the `/due` card layout so the design system pass doesn't re-break it.
+
+---
+
+### FB-134 — Duplicate "Welcome back, <name>" toast on sign-in; unreadable in dark mode (white text on white background)
+
+| Field | Value |
+|-------|-------|
+| Feedback | On sign-in, two identical "Welcome back, <name>" messages appear; the toast also has a white background, making the white text unreadable in dark mode. |
+| Sprint | 31 |
+| Category | Bug |
+| Severity | Major |
+| Status | New |
+| Related Task | — |
+
+**Description:** Two issues observed on the sign-in flow that should be fixed together:
+
+1. **Duplicate welcome toast.** After a successful sign-in (email/password and likely Google OAuth too), two identical "Welcome back, <name>" toast/banner messages appear instead of one. Either the same toast is being fired twice (e.g. duplicate dispatch in the auth callback / a `useEffect` that runs twice in StrictMode without proper guarding) or two separate components are both rendering a welcome message (e.g. the auth context fires a toast AND the landing page renders a banner). Expected: exactly one welcome message per sign-in.
+
+2. **Dark mode contrast bug — white text on white background.** The welcome toast/banner is rendering with a hardcoded white background regardless of theme, while the text color follows the theme and becomes white (or near-white) in dark mode — making the message effectively invisible. This violates the project design rule that "light and dark are equals" and "every component must look intentional in both themes — no afterthought dark mode. Use design tokens (`design-tokens.css`), never hardcoded colors" (per `CLAUDE.md` Design Principles §6).
+
+**Suspected files** (frontend, web platform):
+- The auth/sign-in success handler — likely `frontend/src/contexts/AuthContext.jsx` or `frontend/src/pages/SignInPage.jsx` (and the OAuth callback handler if a separate file)
+- The toast/banner component itself — search for "Welcome back" in `frontend/src/`
+- Any landing/dashboard page that may also render a welcome banner on first auth (double-render source)
+
+**Expected:**
+- Exactly one "Welcome back, <name>" message per sign-in event.
+- The message uses design tokens (`--color-bg-surface`, `--color-text-primary`, etc.) so it renders correctly in both light and dark themes — no hardcoded `#FFFFFF` or `white` background.
+
+**Actual:**
+- Two identical welcome messages render after sign-in.
+- The message has a white background with white (theme-driven) text in dark mode → text is unreadable.
+
+**Fix direction:**
+1. Find every place that fires/renders the welcome message after sign-in. Consolidate to a single source of truth (recommend: fire the toast once from the auth success handler, remove any duplicate banner). Guard `useEffect`-based toast triggers against StrictMode double-invocation (e.g. ref guard or fire from the auth event listener rather than on render).
+2. Replace any hardcoded background/text colors in the welcome toast/banner with design tokens from `frontend/src/styles/design-tokens.css` so it adapts to dark mode. Verify both themes manually after the fix.
+3. Add a frontend test asserting the welcome toast is rendered exactly once on sign-in success, and an axe/contrast check (or visual snapshot in both themes) so the dark-mode regression doesn't recur.
+
+---
