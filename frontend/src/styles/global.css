@@ -82,8 +82,8 @@ html:not(.no-transition) *::after {
 }
 
 .toast {
-  background: var(--color-text-primary);
-  color: #fff;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
   padding: 12px 20px;
   border-radius: var(--radius-input);
   font-size: 14px;

@@ -1,6 +1,9 @@
 .activity-feed-container {
   flex: 0 0 45%;
   min-width: 0;
+  /* Anchor the card so its content height doesn't stretch the row;
+     the donut chart determines row height and this scrolls internally. */
+  position: relative;
 }
 
 .activity-feed-heading {
@@ -17,7 +20,13 @@
   border-radius: 12px;
   padding: 24px;
   box-shadow: var(--card-shadow);
-  height: 100%;
+  /* Pin to the container, starting just below the heading (font 16px + 20px margin)
+     so the card visually aligns with the donut card on the same row. */
+  position: absolute;
+  top: 44px;
+  left: 0;
+  right: 0;
+  bottom: 0;
   overflow-y: auto;
 }
 
@@ -86,9 +95,11 @@
 @media (max-width: 1023px) {
   .activity-feed-container {
     flex: 1 1 100%;
+    position: static;
   }
 
   .activity-feed-card {
+    position: static;
     height: auto;
   }
 }

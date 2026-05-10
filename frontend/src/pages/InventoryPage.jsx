@@ -74,9 +74,13 @@ export default function InventoryPage() {
   }, [fetchPlants]);
 
   // OAuth welcome toast (preserved from prior implementation).
+  // Ref guard prevents StrictMode double-invocation from firing the toast twice.
+  const oauthToastFired = useRef(false);
   useEffect(() => {
+    if (oauthToastFired.current) return;
     const oauthInfo = consumeOAuthToast();
     if (!oauthInfo) return;
+    oauthToastFired.current = true;
     const firstName = user?.full_name?.split(' ')[0] || '';
     if (oauthInfo.linked) {
       addToast(`Your Google account has been linked. Welcome back, ${firstName}! 🌿`, 'success');
