@@ -7,6 +7,7 @@ import Input from '../components/Input.jsx';
 import Button from '../components/Button.jsx';
 import GoogleOAuthButton from '../components/GoogleOAuthButton.jsx';
 import OAuthErrorBanner from '../components/OAuthErrorBanner.jsx';
+import { API_BASE } from '../utils/api.js';
 import {
   validateEmail,
   validatePassword,
@@ -135,7 +136,7 @@ export default function LoginPage() {
     setOauthLoading(true);
     setOauthError(null);
     // Full-page navigation to the backend Google OAuth endpoint
-    window.location.href = '/api/v1/auth/google';
+    window.location.href = `${API_BASE}/auth/google`;
   }, []);
 
   const switchTab = (tab) => {
