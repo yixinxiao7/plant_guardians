@@ -1,0 +1,29 @@
+# Plant Guardians Keepalive
+# Supabase free projects pause after 7 days without database activity.
+# /api/health runs SELECT 1, so calling it every 2 days keeps the project active.
+# The long timeout and retries ride out the Render free-tier cold start (~30–60 sec).
+# Override the URL with the HEALTH_URL repository variable if the backend moves.
+
+name: Keepalive
+
+on:
+  schedule:
+    - cron: "0 12 */2 * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Ping /api/health
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      HEALTH_URL: ${{ vars.HEALTH_URL || 'https://plant-guardians-api.onrender.com/api/health' }}
+
+    steps:
+      - name: Call health endpoint
+        run: |
+          curl --fail --silent --show-error \
+            --max-time 120 \
+            --retry 2 --retry-delay 30 --retry-all-errors \
+            "$HEALTH_URL"

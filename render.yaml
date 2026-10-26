@@ -2,15 +2,10 @@
 # Deploy: https://render.com/deploy → connect repo → Render detects this file
 #
 # Services:
-#   1. PostgreSQL database (free tier)
-#   2. Backend API (Node.js web service)
-#   3. Frontend (static site)
-
-databases:
-  - name: plant-guardians-db
-    plan: free
-    databaseName: plant_guardians
-    user: plant_guardians
+#   1. Backend API (Node.js web service)
+#   2. Frontend (static site)
+#
+# The database is a Supabase free project (not managed by this blueprint).
 
 services:
   # --- Backend API ---
@@ -28,9 +23,7 @@ services:
       - key: RENDER
         value: "true"
       - key: DATABASE_URL
-        fromDatabase:
-          name: plant-guardians-db
-          property: connectionString
+        sync: false  # Supabase session-pooler URI (port 5432), from the project's Connect dialog
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN

@@ -18,23 +18,32 @@ graph TD
         UI7[Auth — Login / Register]
     end
 
-    subgraph API["Express.js API — Node 18"]
-        direction TB
-        R1["/auth/*"]
-        R2["/plants/*"]
-        R3["/care-actions/*"]
-        R4["/care-due · /stats · /streak"]
-        R5["/ai/advice"]
-        R6["/profile/* · /admin/*"]
+    subgraph Render["Render (free tier)"]
+        Static["Static Site<br/>Vite build — frontend/dist"]
 
-        MW1[JWT Auth\n15m access · 7d refresh cookie]
-        MW2[Multer\nPhoto Uploads]
-        MW3[Rate Limiting\nAuth 10/15min · Stats 60/min]
+        subgraph API["Express.js API — Node 18"]
+            direction TB
+            R1["/auth/*"]
+            R2["/plants/*"]
+            R3["/care-actions/*"]
+            R4["/care-due · /stats · /streak"]
+            R5["/ai/advice"]
+            R6["/profile/* · /admin/*"]
+
+            MW1[JWT Auth\n15m access · 7d refresh cookie]
+            MW2[Multer\nPhoto Uploads]
+            MW3[Rate Limiting\nAuth 10/15min · Stats 60/min]
+        end
     end
 
+    subgraph Supabase["Supabase (free tier)"]
+        DB[("PostgreSQL (Supabase)<br/>─────────────<br/>users<br/>refresh_tokens<br/>plants<br/>care_schedules<br/>care_actions<br/>notification_prefs")]
+    end
+
+    Static -->|"serves SPA"| Browser
     Browser -->|"HTTPS / REST  /api/*"| API
 
-    API -->|Knex.js| DB[(PostgreSQL 16\n─────────────\nusers\nrefresh_tokens\nplants\ncare_schedules\ncare_actions\nnotification_prefs)]
+    API -->|"Knex.js · session pooler"| DB
 
     API -->|"@google/generative-ai"| Gemini[Google Gemini API\nPlant ID + Care Advice]
     API -->|Nodemailer SMTP| Email[Email Provider\nDaily Care Reminders]
@@ -76,13 +85,13 @@ erDiagram
 |-------|-----------|
 | Frontend | React 18, Vite, React Router, Phosphor Icons |
 | Backend | Node.js 18, Express.js |
-| Database | PostgreSQL 16, Knex.js (migrations + query builder) |
+| Database | PostgreSQL on Supabase (free tier, session pooler), Knex.js (migrations + query builder) |
 | Auth | JWT (15-min access tokens) + HttpOnly refresh token cookies (7-day) |
 | AI | Google Gemini API (`@google/generative-ai`) |
 | Email | Nodemailer (SMTP) |
 | File Uploads | Multer (local filesystem) |
 | Testing | Vitest + React Testing Library (frontend), Jest + Supertest (backend) |
-| Deployment | Render.com (PostgreSQL + Node web service + static site) |
+| Deployment | Render.com (Node web service + static site), Supabase (PostgreSQL) |
 | Local Dev DB | Docker Compose (PostgreSQL 16) |
 
 ---
@@ -213,12 +222,12 @@ The project ships with a `render.yaml` blueprint for one-click deployment.
 
 1. Push to GitHub
 2. Create a new Blueprint in Render, point it at the repo
-3. Set required env vars: `JWT_SECRET`, `GEMINI_API_KEY`, `FRONTEND_URL`, `DATABASE_URL`
-4. Deploy — Render provisions PostgreSQL, builds the frontend static site, and starts the backend web service
+3. Set required env vars: `JWT_SECRET`, `GEMINI_API_KEY`, `FRONTEND_URL`, and `DATABASE_URL` (the Supabase session-pooler URI, port 5432)
+4. Deploy — Render builds the frontend static site, runs migrations against Supabase, and starts the backend web service
 
 See `RENDER_DEPLOY.md` for detailed step-by-step instructions.
 
-> **Free tier note:** The backend spins down after 15 min idle (expect ~30–60 sec cold starts). Plant photos are stored on the filesystem and will be lost on redeploy. PostgreSQL expires after 90 days on the free plan.
+> **Free tier note:** The backend spins down after 15 min idle (expect ~30–60 sec cold starts). Plant photos are stored on the filesystem and will be lost on redeploy. The Supabase free project pauses after 7 days without database activity; the `keepalive` GitHub Actions workflow calls `/api/health` (which runs `SELECT 1`) every 2 days to prevent that.
 
 ---
 
