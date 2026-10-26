@@ -1,8 +1,9 @@
 require('dotenv').config();
 
-// Render (and most managed PostgreSQL providers) require SSL connections.
-// When DATABASE_URL contains "render.com" or RENDER=true env is set, enable SSL
-// with rejectUnauthorized: false (Render uses self-signed certs on free tier).
+// Production uses Supabase Postgres via the session pooler (port 5432), which
+// requires SSL. When RENDER=true (set on the Render web service) or DATABASE_URL
+// contains "render.com", enable SSL with rejectUnauthorized: false so the
+// connection succeeds without bundling the Supabase CA certificate.
 const isRender = process.env.RENDER === 'true' ||
   (process.env.DATABASE_URL || '').includes('render.com');
 

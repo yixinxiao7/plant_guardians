@@ -6,6 +6,7 @@ const path = require('path');
 const { authLimiter, statsLimiter, globalLimiter } = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
 const { initializePassport } = require('./config/passport');
+const db = require('./config/database');
 
 // Route imports
 const authRoutes = require('./routes/auth');
@@ -74,9 +75,15 @@ app.use('/api/v1/auth/', authLimiter);
 app.use('/api/v1/care-actions/stats', statsLimiter);
 app.use('/api/v1/care-actions/streak', statsLimiter);
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check — runs SELECT 1 so the GitHub Actions keepalive counts as
+// database activity and the Supabase free project is not paused for inactivity.
+app.get('/api/health', async (req, res) => {
+  try {
+    await db.raw('SELECT 1');
+    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({ status: 'error', database: 'unreachable', timestamp: new Date().toISOString() });
+  }
 });
 
 // API routes

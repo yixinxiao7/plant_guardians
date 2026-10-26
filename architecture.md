@@ -10,10 +10,10 @@ This document describes the high-level architecture of the application. All agen
 |-------|-----------|-------|
 | Frontend | React 18 + Vite | SPA with React Router for navigation |
 | Backend | Node.js + Express | REST API with JWT authentication |
-| Database | PostgreSQL | Relational database with Knex.js for query building and migrations |
+| Database | PostgreSQL | Relational database with Knex.js for query building and migrations; production on Supabase (free, session pooler port 5432) |
 | Auth | JWT (jsonwebtoken) | Access tokens (15 min) + refresh tokens (7 days) |
-| Hosting | TBD | Frontend: static hosting, Backend: container hosting |
-| CI/CD | TBD | GitHub Actions or similar |
+| Hosting | Render (free) + Supabase (free) | Frontend: Render static site, Backend: Render Node web service (`render.yaml`), Database: Supabase Postgres |
+| CI/CD | GitHub Actions | `ci.yml` runs tests and builds on every push; Render auto-deploys `main` and runs migrations in the build; `keepalive.yml` pings `/api/health` every 2 days so Supabase does not pause |
 
 ## Tech Stack (Mobile — when PLATFORM=mobile)
 
@@ -55,8 +55,8 @@ multi-agent-dev-workspace/
 | Environment | Frontend URL | Backend URL | Purpose |
 |------------|-------------|-------------|---------|
 | Local | http://localhost:5173 | http://localhost:3000 | Development |
-| Staging | TBD | TBD | Pre-release testing |
-| Production | TBD | TBD | Live app |
+| Staging | — | — | Not hosted; the `ci.yml` deploy-staging job targets a self-hosted Docker server (`STAGING_HOST` secret) |
+| Production | https://plant-guardians.onrender.com | https://plant-guardians-api.onrender.com | Live app (Render + Supabase) |
 
 ## API Design Conventions
 
